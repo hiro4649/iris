@@ -156,8 +156,9 @@ export function assertAffectiveContinuitySafe(
     });
   }
   if (
-    state.primary_emotion === affectiveContinuity.laughter_state ||
-    state.secondary_emotion === affectiveContinuity.laughter_state
+    affectiveContinuity.laughter_state !== "none" &&
+    (state.primary_emotion === affectiveContinuity.laughter_state ||
+      state.secondary_emotion === affectiveContinuity.laughter_state)
   ) {
     throw new ContractError(`${context}: laughter_state must not become canonical emotion`, {
       laughter_state: affectiveContinuity.laughter_state,
