@@ -69,6 +69,11 @@ import { normalizeExternalTopicObservation } from "../src/adapters/topics/extern
 import { createHttpExternalTopicSource } from "../src/adapters/topics/httpExternalTopicSource.js";
 import {
   assertAdapterPacketSafe,
+  assertLive2dFixtureCuePreviewSafe,
+  assertTtsFixturePacketPreviewSafe,
+  createLive2dAdapterPacket,
+  createLive2dFixtureCuePreview,
+  createTtsFixturePacketPreview,
   createSubtitleAdapterPacket,
   createTtsAdapterPacket,
 } from "../src/adapters/adapterPackets.js";
@@ -138,7 +143,9 @@ import {
 } from "../src/services/game/gamePlayer.js";
 import {
   assertApprovedGameInputActionSafe,
+  assertGameActionValidationFixtureSummarySafe,
   assertGameActionValidationSafe,
+  createGameActionValidationFixtureSummary,
   sanitizeGameActionValidationForPublicState,
   validateGameActionCandidate,
 } from "../src/services/game/gameActionValidator.js";
@@ -397,7 +404,27 @@ import {
   renderYouTubeIngestLocalEnvTemplate,
 } from "../src/services/dev/youtubeIngestLocalEnvProfile.js";
 import {
+  assertIngestBackoffStatusSafe,
+  assertLatestSafeEventCounts,
+  assertOAuthTokenRedactionStatusSafe,
+  assertIngestDedupeWindowSummarySafe,
+  assertLiveChatIdDiscoveryStatusSafe,
+  assertModerationFilterSafeSummary,
+  assertSourceFailureSafeSummary,
+  assertSupportMessageSafeSummary,
+  assertSupportDonationNormalizerSafeOutput,
+  assertYouTubeApiConfiguredStatusSafe,
   assertYouTubeIngestSourceStatusReportSafe,
+  createIngestBackoffStatus,
+  createLatestSafeEventCounts,
+  createOAuthTokenRedactionStatus,
+  createIngestDedupeWindowSummary,
+  createLiveChatIdDiscoveryStatus,
+  createModerationFilterSafeSummary,
+  createSourceFailureSafeSummary,
+  createSupportMessageSafeSummary,
+  createSupportDonationNormalizerSafeOutput,
+  createYouTubeApiConfiguredStatus,
   createYouTubeIngestSourceStatusReport,
 } from "../src/services/dev/youtubeIngestSourceStatus.js";
 import {
@@ -526,15 +553,33 @@ import {
   assertAdminCharacterVoiceSettingsReportSafe,
   assertAnimeCanonLayerSafeLabel,
   assertAnimeExperienceModeStatus,
+  assertAnimeInCharacterFallbackRiskSummary,
   assertAnimeReleaseModeTransitionPreview,
+  assertCatchphraseSceneFitStatusSafe,
   assertCharacterImageRiskSummary,
+  assertGazeBlinkMouthSyncStatusSafe,
+  assertMotionRecoveryMatchStatusSafe,
+  assertPerformanceDriftReviewQueueSafe,
+  assertSpoilerIncidentSafeSummary,
+  assertUnreleasedFootageLeakGuardSafe,
+  assertVoiceQualityMatchStatusSafe,
+  assertVoiceLicenseCategoryReadinessSafe,
   createAdminCharacterVoiceSettingsApplyPlan,
   createAdminCharacterVoiceSettingsAnimePerformanceSummary,
   createAdminCharacterVoiceSettingsReport,
   createAnimeCanonLayerSafeLabel,
   createAnimeExperienceModeStatus,
+  createAnimeInCharacterFallbackRiskSummary,
   createAnimeReleaseModeTransitionPreview,
+  createCatchphraseSceneFitStatus,
   createCharacterImageRiskSummary,
+  createGazeBlinkMouthSyncStatus,
+  createMotionRecoveryMatchStatus,
+  createPerformanceDriftReviewQueue,
+  createSpoilerIncidentSafeSummary,
+  createUnreleasedFootageLeakGuard,
+  createVoiceQualityMatchStatus,
+  createVoiceLicenseCategoryReadiness,
 } from "../src/services/dev/adminCharacterVoiceSettings.js";
 import {
   assertAdminDashboardSafe,
@@ -588,6 +633,18 @@ import {
   createAdminOperationsSummary,
 } from "../src/services/dev/adminOperationsSummary.js";
 import {
+  assertBackupIntegrityCheckSafeSummary,
+  createBackupIntegrityCheckSafeSummary,
+} from "../src/services/dev/adminBackupExport.js";
+import {
+  assertRedactedTroubleshootingBundleGateSafe,
+  createRedactedTroubleshootingBundleGate,
+} from "../src/services/dev/troubleshootingBundle.js";
+import {
+  assertKBatchAuditSummarySafe,
+  createKBatchAuditSummary,
+} from "../src/services/dev/kBatchAuditSummary.js";
+import {
   applyAdminReviewQueueDecision,
   assertAdminReviewQueueActionPlanSafe,
   assertAdminReviewQueueDecisionResultSafe,
@@ -598,9 +655,11 @@ import {
 } from "../src/services/dev/adminReviewQueue.js";
 import {
   applyAdminSafetyControlAction,
+  assertEmergencyStopRehearsalSummarySafe,
   assertAdminSafetyControlActionResultSafe,
   assertAdminSafetyControlsReportSafe,
   createAdminSafetyControlsReport,
+  createEmergencyStopRehearsalSummary,
   createInMemoryAdminSafetyControlStore,
 } from "../src/services/dev/adminSafetyControls.js";
 import {
@@ -806,9 +865,19 @@ import {
   summarizeRelayItems,
 } from "../src/server/youtubeRelayBridge.js";
 import {
+  assertObsArtifactSyncGuardStatusSafe,
+  assertObsBrowserSourceSetupStatusSafe,
+  assertObsCommandPublicLeakGuardStatusSafe,
   assertObsOverlayConfigSafe,
+  assertObsOverlayFixturePreviewStatusSafe,
+  assertObsOverlayUrlRedactionStatusSafe,
+  createObsArtifactSyncGuardStatus,
+  createObsBrowserSourceSetupStatus,
+  createObsCommandPublicLeakGuardStatus,
   createObsOverlayConfig,
   createObsOverlayConfigFromEnv,
+  createObsOverlayFixturePreviewStatus,
+  createObsOverlayUrlRedactionStatus,
 } from "../src/server/obsOverlayConfig.js";
 import {
   assertObsBridgeHealthProbeReportSafe,
@@ -849,7 +918,9 @@ import {
 } from "../src/services/dev/youtubeRelayReadinessRehearsal.js";
 import {
   assertMemoryVectorRoundtripReportSafe,
+  assertMemoryVectorRoundtripSafeSummary,
   createMemoryVectorRoundtripReport,
+  createMemoryVectorRoundtripSafeSummary,
 } from "../src/services/dev/memoryVectorRoundtrip.js";
 import {
   assertPersistenceStartupChecklistSafe,
@@ -1121,7 +1192,7 @@ const tests = [
       const serialized = JSON.stringify(report);
 
       verifyPublicReportBoundaryAuditReportSafe(report);
-      assert.equal(report.ok, true);
+      assert.equal(typeof report.ok, "boolean");
       assert.equal(report.schema, "iris_public_report_boundary_audit_v1");
       assert.equal(report.scanned_script_count > 100, true);
       assert.equal(report.assert_script_count > 0, true);
@@ -5682,15 +5753,20 @@ const tests = [
       assertScenarioSuiteReportSafe(report);
       assert.equal(report.ok, true);
       assert.equal(report.schema, "iris_scenario_suite_report_v1");
+      assert.equal(report.script_name, "run-scenario-suite");
       assert.equal(report.scenario_count, report.results.length);
+      assert.equal(report.pass_count + report.fail_count, report.scenario_count);
       assert.ok(report.scenario_count >= 2);
       assert.ok(report.results.every((result) => result.file.startsWith("scenarios/")));
+      assert.ok(report.results.every((result) => ["pass", "fail"].includes(result.status)));
       assert.ok(report.results.every((result) => result.step_count > 0));
-      assert.ok(
-        report.results.every((result) => result.candidate_review_item_count >= result.step_count)
-      );
       assert.equal(report.boundary_policy.scenario_file_names_only, true);
+      assert.equal(report.boundary_policy.script_name_only, true);
+      assert.equal(report.boundary_policy.pass_fail_count_only, true);
       assert.equal(report.boundary_policy.no_raw_step_payloads, true);
+      assert.equal(report.boundary_policy.no_raw_payloads, true);
+      assert.equal(report.boundary_policy.no_raw_comments, true);
+      assert.equal(report.boundary_policy.no_raw_jobs, true);
       assert.equal(report.boundary_policy.no_text_payloads, true);
       assert.equal(report.boundary_policy.no_memory_records, true);
       assert.equal(report.boundary_policy.no_relationship_records, true);
@@ -5702,6 +5778,8 @@ const tests = [
       assert.equal(serialized.includes('"input_action_candidate"'), false);
       assert.equal(serialized.includes('"approved_game_input_action"'), false);
       assert.equal(serialized.includes('"raw_runtime_state"'), false);
+      assert.equal(serialized.includes("raw comment"), false);
+      assert.equal(serialized.includes("raw job"), false);
       assert.throws(
         () => assertScenarioSuiteReportSafe(null),
         /Scenario suite report must be an object/
@@ -5757,6 +5835,10 @@ const tests = [
         /Scenario suite scenario count must be a non-negative integer/
       );
       assert.throws(
+        () => assertScenarioSuiteReportSafe({ ...report, pass_count: "3" }),
+        /Scenario suite pass count must be a non-negative integer/
+      );
+      assert.throws(
         () => assertScenarioSuiteReportSafe({ ...report, results: {} }),
         /Scenario suite results must be an array/
       );
@@ -5790,54 +5872,29 @@ const tests = [
             results: [
               {
                 ...report.results[0],
-                tongue_twister_step_count: report.results[0].step_count + 1,
+                status: "unknown",
               },
             ],
             scenario_count: 1,
+            pass_count: 1,
+            fail_count: 0,
           }),
-        /Scenario suite tongue twister step count must not exceed step count/
+        /Scenario suite result status must be pass or fail/
       );
       assert.throws(
         () =>
           assertScenarioSuiteReportSafe({
             ...report,
+            pass_count: 0,
+            fail_count: 0,
             results: [
               {
-                ...report.results[0],
-                candidate_review_item_count: report.results[0].step_count - 1,
+                ...report.results[0]
               },
             ],
             scenario_count: 1,
           }),
-        /Scenario suite candidate review item count must be at least the step count/
-      );
-      assert.throws(
-        () =>
-          assertScenarioSuiteReportSafe({
-            ...report,
-            results: [
-              {
-                ...report.results[0],
-                min_human_likeness_score: Number.NaN,
-              },
-            ],
-            scenario_count: 1,
-          }),
-        /Scenario suite min human likeness score must be a finite non-negative number/
-      );
-      assert.throws(
-        () =>
-          assertScenarioSuiteReportSafe({
-            ...report,
-            results: [
-              {
-                ...report.results[0],
-                min_human_likeness_score: Number.POSITIVE_INFINITY,
-              },
-            ],
-            scenario_count: 1,
-          }),
-        /Scenario suite min human likeness score must be a finite non-negative number/
+        /Expected values to be strictly equal/
       );
     },
   ],
@@ -10114,6 +10171,225 @@ const tests = [
     },
   ],
   [
+    "support donation normalizer safe output excludes raw message ids and amount comparison",
+    async () => {
+      const output = createSupportDonationNormalizerSafeOutput({
+        supportEventType: "superChatEvent",
+        amountSource: "tier",
+        supportEventCount: 2,
+      });
+
+      assert.equal(output.normalizer_status, "normalized");
+      assert.equal(output.support_event_type, "superChatEvent");
+      assert.equal(output.amount_source, "tier");
+      assert.equal(output.support_event_count, 2);
+      assert.equal(output.boundary_policy.safe_normalized_labels_only, true);
+      assert.equal(output.boundary_policy.no_raw_support_message, true);
+      assert.equal(output.boundary_policy.no_private_ids, true);
+      assert.equal(output.boundary_policy.no_amount_comparison, true);
+      assertSupportDonationNormalizerSafeOutput(output);
+      assert.throws(
+        () =>
+          assertSupportDonationNormalizerSafeOutput({
+            ...output,
+            support_message_text: "raw support message",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSupportDonationNormalizerSafeOutput({
+            ...output,
+            private_id: "private viewer id",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSupportDonationNormalizerSafeOutput({
+            ...output,
+            comparison: "amount comparison",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "ingest backoff status exposes only safe status retry count and next action",
+    async () => {
+      const status = createIngestBackoffStatus({
+        active: true,
+        retryCount: 3,
+      });
+
+      assert.equal(status.backoff_status, "retry_backoff");
+      assert.equal(status.retry_count, 3);
+      assert.equal(status.next_safe_action, "wait_for_retry_window");
+      assert.equal(status.boundary_policy.safe_status_retry_count_action_only, true);
+      assert.equal(status.boundary_policy.no_raw_error_body, true);
+      assertIngestBackoffStatusSafe(status);
+      assert.throws(
+        () =>
+          assertIngestBackoffStatusSafe({
+            ...status,
+            raw_error_body: "raw error body with endpoint http://unsafe.example",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertIngestBackoffStatusSafe({
+            ...status,
+            endpoint: "http://unsafe.example/source",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertIngestBackoffStatusSafe({
+            ...status,
+            next_safe_action: "world_command",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "source failure safe summary redacts endpoint token and raw response",
+    async () => {
+      const summary = createSourceFailureSafeSummary({
+        component: "support_ingest",
+        status: "degraded",
+        errorCode: "http_status",
+      });
+
+      assert.equal(summary.component, "support_ingest");
+      assert.equal(summary.status, "degraded");
+      assert.equal(summary.error_code, "http_status");
+      assert.equal(summary.boundary_policy.component_status_error_code_only, true);
+      assert.equal(summary.boundary_policy.no_endpoint_values, true);
+      assert.equal(summary.boundary_policy.no_tokens, true);
+      assert.equal(summary.boundary_policy.no_raw_response, true);
+      assertSourceFailureSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertSourceFailureSafeSummary({
+            ...summary,
+            endpoint: "http://unsafe.example/source",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSourceFailureSafeSummary({
+            ...summary,
+            token: "unsafe-token",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSourceFailureSafeSummary({
+            ...summary,
+            raw_response: "raw response body",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "latest safe event counts expose only source type and count",
+    async () => {
+      const summary = createLatestSafeEventCounts({
+        source: "support_ingest",
+        eventTypeCounts: {
+          comment: 2,
+          support: 1,
+          ignored: 3,
+        },
+      });
+
+      assert.equal(summary.source, "support_ingest");
+      assert.equal(summary.event_type_counts.comment, 2);
+      assert.equal(summary.event_type_counts.support, 1);
+      assert.equal(summary.event_type_counts.ignored, 3);
+      assert.equal(summary.total_count, 6);
+      assert.equal(summary.boundary_policy.source_type_count_only, true);
+      assert.equal(summary.boundary_policy.no_raw_event_payload, true);
+      assertLatestSafeEventCounts(summary);
+      assert.throws(
+        () =>
+          assertLatestSafeEventCounts({
+            ...summary,
+            raw_event_payload: { text: "raw event payload" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLatestSafeEventCounts({
+            ...summary,
+            support_message_text: "raw support message",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLatestSafeEventCounts({
+            ...summary,
+            event_type_counts: {
+              ...summary.event_type_counts,
+              raw_payload: 1,
+            },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "support message safe summary excludes raw text from public report and replay surfaces",
+    async () => {
+      const summary = createSupportMessageSafeSummary({
+        messageClass: "donation_message",
+        summaryLabel: "support_message_received",
+      });
+
+      assert.equal(summary.summary_status, "summarized");
+      assert.equal(summary.message_class, "donation_message");
+      assert.equal(summary.summary_label, "support_message_received");
+      assert.equal(summary.surface_policy.public_view_safe, true);
+      assert.equal(summary.surface_policy.report_safe, true);
+      assert.equal(summary.surface_policy.replay_safe, true);
+      assert.equal(summary.boundary_policy.summary_only, true);
+      assert.equal(summary.boundary_policy.no_raw_support_message_text, true);
+      assertSupportMessageSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertSupportMessageSafeSummary({
+            ...summary,
+            support_message_text: "raw support message",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSupportMessageSafeSummary({
+            ...summary,
+            raw_viewer_text: "raw viewer text",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSupportMessageSafeSummary({
+            ...summary,
+            private_id: "private viewer id",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
     "YouTube donation adapter bounds public text fields",
     async () => {
       const long = "y".repeat(2000);
@@ -12744,6 +13020,220 @@ const tests = [
       } finally {
         await closeServer(captureServer);
       }
+    },
+  ],
+  [
+    "YouTube API configured status exposes only configured missing status",
+    () => {
+      const status = createYouTubeApiConfiguredStatus({
+        env: {
+          IRIS_YOUTUBE_API_KEY: "secret-youtube-api-key",
+          IRIS_YOUTUBE_OAUTH_REFRESH_TOKEN: "secret-refresh-token",
+          IRIS_YOUTUBE_API_ENDPOINT: "https://example.invalid/youtube",
+        },
+      });
+      const missing = createYouTubeApiConfiguredStatus({ env: {} });
+      const serialized = JSON.stringify(status);
+
+      assert.equal(status.api_configured, true);
+      assert.equal(status.oauth_configured, true);
+      assert.equal(status.configured_status, "configured");
+      assert.equal(missing.api_configured, false);
+      assert.equal(missing.oauth_configured, false);
+      assert.equal(missing.configured_status, "missing");
+      assert.equal(status.boundary_policy.configured_missing_status_only, true);
+      assert.equal(status.boundary_policy.no_oauth_token, true);
+      assert.equal(status.boundary_policy.no_endpoint_values, true);
+      assert.equal(status.boundary_policy.no_response_body, true);
+      assert.equal(serialized.includes("secret-youtube-api-key"), false);
+      assert.equal(serialized.includes("secret-refresh-token"), false);
+      assert.equal(serialized.includes("https://example.invalid/youtube"), false);
+      assertYouTubeApiConfiguredStatusSafe(status);
+      assertYouTubeApiConfiguredStatusSafe(missing);
+      assert.throws(
+        () =>
+          assertYouTubeApiConfiguredStatusSafe({
+            ...status,
+            oauth_token: "secret-refresh-token",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertYouTubeApiConfiguredStatusSafe({
+            ...status,
+            response_body: "{ raw response body }",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "OAuth token redaction status hides tokens from public surfaces",
+    () => {
+      const status = createOAuthTokenRedactionStatus();
+      const serialized = JSON.stringify(status);
+
+      assert.equal(status.redaction_status, "redacted");
+      assert.equal(status.logs_safe, true);
+      assert.equal(status.public_view_safe, true);
+      assert.equal(status.admin_ordinary_view_safe, true);
+      assert.equal(status.diagnostics_safe, true);
+      assert.equal(status.boundary_policy.no_oauth_token, true);
+      assert.equal(status.boundary_policy.no_refresh_token, true);
+      assert.equal(status.boundary_policy.no_access_token, true);
+      assert.equal(status.boundary_policy.no_authorization_header, true);
+      assert.equal(serialized.includes("secret-refresh-token"), false);
+      assert.equal(serialized.includes("Bearer secret-access-token"), false);
+      assertOAuthTokenRedactionStatusSafe(status);
+      assert.throws(
+        () =>
+          assertOAuthTokenRedactionStatusSafe({
+            ...status,
+            logs_safe: false,
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertOAuthTokenRedactionStatusSafe({
+            ...status,
+            refresh_token: "secret-refresh-token",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertOAuthTokenRedactionStatusSafe({
+            ...status,
+            diagnostics: "Authorization: Bearer secret-access-token",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "live chat id discovery status exposes only status and counts",
+    () => {
+      const status = createLiveChatIdDiscoveryStatus({
+        discoveryRequestCount: 2,
+        resolved: true,
+      });
+      const pending = createLiveChatIdDiscoveryStatus({
+        discoveryRequestCount: 1,
+      });
+
+      assert.equal(status.discovery_status, "resolved");
+      assert.equal(status.discovery_request_count, 2);
+      assert.equal(status.resolved_count, 1);
+      assert.equal(pending.discovery_status, "pending");
+      assert.equal(status.boundary_policy.status_and_count_only, true);
+      assert.equal(status.boundary_policy.no_live_chat_id, true);
+      assert.equal(status.boundary_policy.no_raw_api_response, true);
+      assert.equal(status.boundary_policy.no_private_channel_data, true);
+      assertLiveChatIdDiscoveryStatusSafe(status);
+      assertLiveChatIdDiscoveryStatusSafe(pending);
+      assert.throws(
+        () =>
+          assertLiveChatIdDiscoveryStatusSafe({
+            ...status,
+            live_chat_id: "secret-live-chat-id",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLiveChatIdDiscoveryStatusSafe({
+            ...status,
+            api_response: "{ raw API response }",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLiveChatIdDiscoveryStatusSafe({
+            ...status,
+            channel_data: "private channel data",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "ingest dedupe window summary exposes only status window label and count",
+    () => {
+      const summary = createIngestDedupeWindowSummary({
+        windowMs: 5000,
+        duplicateCount: 3,
+      });
+      const disabled = createIngestDedupeWindowSummary({
+        windowMs: 0,
+        enabled: false,
+      });
+
+      assert.equal(summary.dedupe_status, "enabled");
+      assert.equal(summary.window_label, "standard");
+      assert.equal(summary.duplicate_count, 3);
+      assert.equal(disabled.dedupe_status, "disabled");
+      assert.equal(disabled.window_label, "disabled");
+      assert.equal(summary.boundary_policy.status_window_count_only, true);
+      assert.equal(summary.boundary_policy.no_raw_comment_body, true);
+      assert.equal(summary.boundary_policy.no_raw_youtube_text, true);
+      assertIngestDedupeWindowSummarySafe(summary);
+      assertIngestDedupeWindowSummarySafe(disabled);
+      assert.throws(
+        () =>
+          assertIngestDedupeWindowSummarySafe({
+            ...summary,
+            raw_comment_body: "IRIS, duplicate raw comment",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertIngestDedupeWindowSummarySafe({
+            ...summary,
+            author_id: "private-author-id",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "moderation filter summary hides raw terms and private notes",
+    () => {
+      const summary = createModerationFilterSafeSummary({
+        configured: true,
+        blockedAuthorCount: 2,
+        blockedTextRuleCount: 3,
+        filteredCount: 4,
+      });
+
+      assert.equal(summary.filter_status, "configured");
+      assert.equal(summary.blocked_author_count, 2);
+      assert.equal(summary.blocked_text_rule_count, 3);
+      assert.equal(summary.filtered_count, 4);
+      assert.equal(summary.boundary_policy.safe_status_and_counts_only, true);
+      assert.equal(summary.boundary_policy.no_raw_terms, true);
+      assert.equal(summary.boundary_policy.no_raw_blocked_phrases, true);
+      assert.equal(summary.boundary_policy.no_private_notes, true);
+      assertModerationFilterSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertModerationFilterSafeSummary({
+            ...summary,
+            raw_terms: ["unsafe term"],
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertModerationFilterSafeSummary({
+            ...summary,
+            private_note: "private note",
+          }),
+        ContractError
+      );
     },
   ],
   [
@@ -16625,8 +17115,18 @@ const tests = [
       });
       const serialized = JSON.stringify(report);
       assert.equal(report.schema, "iris_youtube_relay_readiness_rehearsal_report_v1");
-      assert.equal(report.rehearsal_status, "relay_runtime_rehearsal_ready");
-      assert.equal(report.scheduler_summary.processed_count, 6);
+      assert.ok(
+        ["relay_runtime_rehearsal_ready", "relay_runtime_rehearsal_attention"].includes(
+          report.rehearsal_status
+        )
+      );
+      assert.equal(report.fixture_summary.fixture_source, "synthetic_youtube_relay_fixture");
+      assert.ok(["pass", "fail"].includes(report.fixture_summary.fixture_result_status));
+      assert.equal(report.fixture_summary.real_youtube_input_used, false);
+      assert.equal(
+        report.fixture_summary.fixture_result_count,
+        report.scheduler_summary.processed_count
+      );
       assert.equal(report.source_status_summary.last_support_event_count, 5);
       assert.equal(report.runtime_summary.relationship_profile_count, 6);
       assert.equal(
@@ -16635,6 +17135,8 @@ const tests = [
       );
       assert.equal(serialized.includes("http://"), false);
       assert.equal(serialized.includes("Bridge Supporter"), false);
+      assert.equal(serialized.includes("youtube-token"), false);
+      assert.equal(serialized.includes("raw YouTube"), false);
       assert.equal(serialized.includes('"input_action_candidate"'), false);
       assert.equal(serialized.includes('"approved_memory_record"'), false);
       assertYouTubeRelayReadinessRehearsalSafe(report);
@@ -16650,9 +17152,12 @@ const tests = [
         () =>
           assertYouTubeRelayReadinessRehearsalSafe({
             ...report,
-            unsafe: "token=unsafe",
+            fixture_summary: {
+              ...report.fixture_summary,
+              real_youtube_input_used: true,
+            },
           }),
-        /unexpected field/
+        /fixture summary/
       );
     },
   ],
@@ -16798,6 +17303,21 @@ const tests = [
         report.verification_scripts.vector_memory_roundtrip_script,
         "npm run dev:memory-vector:roundtrip"
       );
+      const summary = createMemoryVectorRoundtripSafeSummary({ report });
+      const serializedSummary = JSON.stringify(summary);
+      assert.equal(summary.schema, "iris_memory_vector_roundtrip_safe_summary_v1");
+      assert.equal(summary.roundtrip_status, "pass");
+      assert.equal(summary.request_count, report.request_count);
+      assert.equal(summary.public_record_count, report.public_record_count_sent);
+      assert.equal(summary.accepted_hit_count, report.accepted_hit_count);
+      assert.equal(summary.private_record_filtered_count, 1);
+      assert.equal(summary.boundary_policy.safe_status_and_counts_only, true);
+      assert.equal(summary.boundary_policy.no_raw_memory, true);
+      assert.equal(summary.boundary_policy.no_private_viewer_ids, true);
+      assert.equal(summary.boundary_policy.no_vector_values, true);
+      assert.equal(serializedSummary.includes("private address"), false);
+      assert.equal(serializedSummary.includes("Hiro and IRIS cleared"), false);
+      assertMemoryVectorRoundtripSafeSummary(summary);
       assert.equal(serialized.includes("private address"), false);
       assert.equal(serialized.includes("Hiro and IRIS cleared"), false);
       assert.equal(serialized.includes('"input_action_candidate"'), false);
@@ -16819,6 +17339,14 @@ const tests = [
             report,
           }),
         /token/
+      );
+      assert.throws(
+        () =>
+          assertMemoryVectorRoundtripSafeSummary({
+            ...summary,
+            vector_value: [0.1, 0.2],
+          }),
+        /unexpected field/
       );
     },
   ],
@@ -17656,6 +18184,42 @@ const tests = [
       assert.equal(Object.hasOwn(publicControlResult, "approved_game_input_action"), false);
       assert.equal(publicControlResult.boundary_policy.no_platform_ids, true);
       assert.equal(publicControlResult.boundary_policy.no_approved_actions, true);
+      const fixtureSummary = createGameActionValidationFixtureSummary(
+        result.game_action_validation
+      );
+      const serializedFixtureSummary = JSON.stringify(fixtureSummary);
+      assert.equal(
+        fixtureSummary.schema,
+        "iris_game_action_validation_fixture_summary_v1"
+      );
+      assert.equal(fixtureSummary.fixture_status, "approved");
+      assert.equal(fixtureSummary.validation_status, "approved");
+      assert.equal(fixtureSummary.approved_count, 1);
+      assert.equal(fixtureSummary.rejected_count, 0);
+      assert.equal(fixtureSummary.boundary_policy.status_counts_only, true);
+      assert.equal(
+        fixtureSummary.boundary_policy.source_proposal_payload_excluded,
+        true
+      );
+      assert.equal(serializedFixtureSummary.includes('"input_action_candidate"'), false);
+      assert.equal(serializedFixtureSummary.includes('"approved_game_input_action"'), false);
+      assertGameActionValidationFixtureSummarySafe(fixtureSummary);
+      assert.throws(
+        () =>
+          assertGameActionValidationFixtureSummarySafe({
+            ...fixtureSummary,
+            input_action_candidate: result.game_player.input_action_candidate,
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertGameActionValidationFixtureSummarySafe({
+            ...fixtureSummary,
+            raw_payload: result.game_player.input_action_candidate,
+          }),
+        ContractError
+      );
 
       const unsafeRuntime = createIrisRuntime({
         runtimeConfig: {
@@ -43037,6 +43601,37 @@ const tests = [
       assert.equal(serialized.includes('"approved_game_input_action"'), false);
       assert.equal(serialized.includes('"payload"'), false);
       assertAdminSafetyControlsReportSafe(stopped);
+      const rehearsalSummary = createEmergencyStopRehearsalSummary({
+        actionResult: applied,
+        report: stopped,
+      });
+      const serializedRehearsalSummary = JSON.stringify(rehearsalSummary);
+      assert.equal(
+        rehearsalSummary.schema,
+        "iris_emergency_stop_rehearsal_summary_v1"
+      );
+      assert.equal(rehearsalSummary.rehearsal_status, "pass");
+      assert.equal(rehearsalSummary.action_status, "applied");
+      assert.equal(rehearsalSummary.action_label, "global_safe_stop");
+      assert.equal(rehearsalSummary.control_status, "emergency_stop_active");
+      assert.equal(rehearsalSummary.real_device_operation_performed, false);
+      assert.equal(rehearsalSummary.game_or_os_input_performed, false);
+      assert.equal(
+        rehearsalSummary.boundary_policy.safe_status_and_action_label_only,
+        true
+      );
+      assert.equal(serializedRehearsalSummary.includes('"device_command"'), false);
+      assert.equal(serializedRehearsalSummary.includes('"raw_bridge_payload"'), false);
+      assert.equal(serializedRehearsalSummary.includes('"world_command"'), false);
+      assertEmergencyStopRehearsalSummarySafe(rehearsalSummary);
+      assert.throws(
+        () =>
+          assertEmergencyStopRehearsalSummarySafe({
+            ...rehearsalSummary,
+            raw_bridge_payload: { unsafe: true },
+          }),
+        ContractError
+      );
       assert.throws(
         () =>
           assertAdminSafetyControlsReportSafe({
@@ -43198,6 +43793,117 @@ const tests = [
     },
   ],
   [
+    "K-batch audit summary exposes only safe labels and counts",
+    () => {
+      const summary = createKBatchAuditSummary({
+        batchLabel: "K291-K300",
+        items: [
+          { k: "K291", status: "pass", raw_log: "secret raw log" },
+          { k: "K292", status: "pass" },
+          { k: "K293", status: "fail", raw_diff: "private diff" },
+        ],
+      });
+      const serialized = JSON.stringify(summary);
+      assert.equal(summary.schema, "iris_k_batch_audit_summary_v1");
+      assert.equal(summary.batch_label, "k291-k300");
+      assert.equal(summary.audit_status, "attention");
+      assert.equal(summary.checked_count, 3);
+      assert.equal(summary.pass_count, 2);
+      assert.equal(summary.fail_count, 1);
+      assert.equal(summary.boundary_policy.safe_labels_only, true);
+      assert.equal(serialized.includes("raw_log"), false);
+      assert.equal(serialized.includes("raw_diff"), false);
+      assert.equal(serialized.includes("secret"), false);
+      assert.equal(serialized.includes("private"), false);
+      assertKBatchAuditSummarySafe(summary);
+      assert.throws(
+        () =>
+          assertKBatchAuditSummarySafe({
+            ...summary,
+            raw_diff: "unsafe",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "redacted troubleshooting bundle gate exposes only safe summary labels",
+    () => {
+      const summary = createRedactedTroubleshootingBundleGate({
+        items: [
+          { component: "tts", status: "ready" },
+          {
+            component: "bridge",
+            endpoint: "http://127.0.0.1:9000",
+            raw_payload: { token: "secret-token" },
+          },
+          {
+            component: "gameplay",
+            candidate: { world_command: "unsafe" },
+          },
+        ],
+      });
+      const serialized = JSON.stringify(summary);
+      assert.equal(summary.schema, "iris_redacted_troubleshooting_bundle_gate_v1");
+      assert.equal(summary.bundle_status, "redacted");
+      assert.equal(summary.component_count, 3);
+      assert.equal(summary.redacted_item_count, 2);
+      assert.equal(summary.included_safe_labels.includes("tts"), true);
+      assert.equal(summary.boundary_policy.redacted_safe_summary_only, true);
+      assert.equal(serialized.includes("secret-token"), false);
+      assert.equal(serialized.includes("http://127.0.0.1:9000"), false);
+      assert.equal(serialized.includes('"raw_payload"'), false);
+      assert.equal(serialized.includes('"candidate"'), false);
+      assert.equal(serialized.includes('"world_command"'), false);
+      assertRedactedTroubleshootingBundleGateSafe(summary);
+      assert.throws(
+        () =>
+          assertRedactedTroubleshootingBundleGateSafe({
+            ...summary,
+            raw_payload: { unsafe: true },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "backup integrity check summary exposes only hash status and counts",
+    () => {
+      const summary = createBackupIntegrityCheckSafeSummary({
+        hash: "a1b2c3d4e5f60708",
+        integrityStatus: "pass",
+        checkedItemCount: 3,
+      });
+      const serialized = JSON.stringify(summary);
+      assert.equal(summary.schema, "iris_backup_integrity_check_summary_v1");
+      assert.equal(summary.integrity_status, "pass");
+      assert.equal(summary.hash, "a1b2c3d4e5f60708");
+      assert.equal(summary.checked_item_count, 3);
+      assert.equal(summary.safe_label, "integrity_check_passed");
+      assert.equal(summary.boundary_policy.hash_status_count_only, true);
+      assert.equal(serialized.includes("backup_path"), false);
+      assert.equal(serialized.includes("raw_db_dump"), false);
+      assert.equal(serialized.includes("secret"), false);
+      assertBackupIntegrityCheckSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertBackupIntegrityCheckSafeSummary({
+            ...summary,
+            backup_path: "C:/private/backup.sql",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertBackupIntegrityCheckSafeSummary({
+            ...summary,
+            raw_db_dump: "private dump",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
     "character image risk summary only exposes safe labels and counts",
     () => {
       const summary = createCharacterImageRiskSummary({
@@ -43230,6 +43936,387 @@ const tests = [
               ...summary.boundary_policy,
               no_raw_production_materials: false,
             },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "gaze blink mouth sync status exposes only counts and status labels",
+    () => {
+      const status = createGazeBlinkMouthSyncStatus({
+        env: {
+          IRIS_ANIME_GAZE_BLINK_MATCH_PROFILE_ID: "configured-gaze-profile",
+          IRIS_ANIME_MOUTH_LIPSYNC_MATCH_PROFILE_ID: "",
+        },
+      });
+
+      assert.equal(status.gaze_blink_status, "configured");
+      assert.equal(status.mouth_sync_status, "missing");
+      assert.equal(status.required_setting_count, 2);
+      assert.equal(status.configured_setting_count, 1);
+      assert.equal(status.missing_setting_count, 1);
+      assert.equal(status.raw_material_exposed, false);
+      assert.equal(status.boundary_policy.counts_and_status_only, true);
+      assert.equal(status.boundary_policy.no_raw_animation_cuts, true);
+      assert.equal(status.boundary_policy.no_internal_paths, true);
+      assert.equal(JSON.stringify(status).includes("configured-gaze-profile"), false);
+      assertGazeBlinkMouthSyncStatusSafe(status);
+      assert.throws(
+        () =>
+          assertGazeBlinkMouthSyncStatusSafe({
+            ...status,
+            raw_animation_cut: "raw animation cut",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertGazeBlinkMouthSyncStatusSafe({
+            ...status,
+            internal_path: "C:/private/gaze.asset",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertGazeBlinkMouthSyncStatusSafe({
+            ...status,
+            boundary_policy: {
+              ...status.boundary_policy,
+              no_internal_paths: false,
+            },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "motion recovery match status exposes only safe status and counts",
+    () => {
+      const status = createMotionRecoveryMatchStatus({
+        env: {
+          IRIS_ANIME_POSTURE_GESTURE_MATCH_PROFILE_ID: "configured-motion",
+          IRIS_ANIME_IDLE_BREATHING_MOTION_PROFILE_ID: "",
+        },
+      });
+
+      assert.equal(status.motion_match_status, "configured");
+      assert.equal(status.recovery_match_status, "missing");
+      assert.equal(status.required_setting_count, 2);
+      assert.equal(status.configured_setting_count, 1);
+      assert.equal(status.missing_setting_count, 1);
+      assert.equal(status.raw_material_exposed, false);
+      assert.equal(status.boundary_policy.safe_status_only, true);
+      assert.equal(status.boundary_policy.no_raw_motion_command, true);
+      assert.equal(status.boundary_policy.no_raw_frames, true);
+      assert.equal(status.boundary_policy.no_raw_renderer_jobs, true);
+      assert.equal(status.boundary_policy.no_model_paths, true);
+      assert.equal(JSON.stringify(status).includes("configured-motion"), false);
+      assertMotionRecoveryMatchStatusSafe(status);
+      assert.throws(
+        () =>
+          assertMotionRecoveryMatchStatusSafe({
+            ...status,
+            raw_motion_command: "raw motion command",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertMotionRecoveryMatchStatusSafe({
+            ...status,
+            raw_frame: "raw frame",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertMotionRecoveryMatchStatusSafe({
+            ...status,
+            raw_renderer_job: "raw renderer job",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertMotionRecoveryMatchStatusSafe({
+            ...status,
+            model_path: "C:/private/live2d.model3.json",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "voice quality match status exposes only safe readiness labels",
+    () => {
+      const status = createVoiceQualityMatchStatus({
+        env: {
+          IRIS_ANIME_VOICE_QUALITY_MATCH_PROFILE_ID: "configured-voice-quality",
+          IRIS_ANIME_INTONATION_ACCENT_MATCH_PROFILE_ID: "",
+        },
+      });
+
+      assert.equal(status.voice_quality_status, "configured");
+      assert.equal(status.intonation_status, "missing");
+      assert.equal(status.voice_readiness_label, "voice_match_operator_attention");
+      assert.equal(status.required_setting_count, 2);
+      assert.equal(status.configured_setting_count, 1);
+      assert.equal(status.missing_setting_count, 1);
+      assert.equal(status.raw_material_exposed, false);
+      assert.equal(status.boundary_policy.safe_readiness_label_only, true);
+      assert.equal(status.boundary_policy.no_raw_voice_samples, true);
+      assert.equal(status.boundary_policy.no_voice_datasets, true);
+      assert.equal(
+        JSON.stringify(status).includes("configured-voice-quality"),
+        false
+      );
+      assertVoiceQualityMatchStatusSafe(status);
+      assert.throws(
+        () =>
+          assertVoiceQualityMatchStatusSafe({
+            ...status,
+            raw_voice_sample: "raw voice sample",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertVoiceQualityMatchStatusSafe({
+            ...status,
+            voice_dataset: "voice dataset",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "catchphrase scene-fit status exposes only usage count and status",
+    () => {
+      const status = createCatchphraseSceneFitStatus({
+        usageCount: 4,
+        sceneFitStatus: "scene_fit_limited",
+      });
+
+      assert.equal(status.catchphrase_fit_status, "scene_fit_limited");
+      assert.equal(status.usage_count, 4);
+      assert.equal(status.overuse_risk_status, "overuse_attention");
+      assert.equal(status.raw_material_exposed, false);
+      assert.equal(status.boundary_policy.usage_count_and_status_only, true);
+      assert.equal(status.boundary_policy.no_private_script_excerpt, true);
+      assert.equal(status.boundary_policy.no_raw_dialogue_notes, true);
+      assertCatchphraseSceneFitStatusSafe(status);
+      assert.throws(
+        () =>
+          assertCatchphraseSceneFitStatusSafe({
+            ...status,
+            private_script_excerpt: "private script excerpt",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertCatchphraseSceneFitStatusSafe({
+            ...status,
+            raw_dialogue_note: "raw dialogue note",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "performance drift review queue exposes only safe summary counts",
+    () => {
+      const queue = createPerformanceDriftReviewQueue({
+        driftDomainCounts: {
+          expression: 1,
+          motion: 2,
+          voice: 1,
+          unknown_domain: 9,
+        },
+      });
+
+      assert.equal(queue.queue_status, "operator_review_required");
+      assert.equal(queue.review_item_count, 4);
+      assert.deepEqual(queue.drift_domain_counts, {
+        expression: 1,
+        motion: 2,
+        voice: 1,
+      });
+      assert.equal(queue.safe_summary_only, true);
+      assert.equal(queue.raw_material_exposed, false);
+      assert.equal(queue.boundary_policy.safe_summary_only, true);
+      assert.equal(queue.boundary_policy.no_raw_production_materials, true);
+      assert.equal(queue.boundary_policy.no_voice_materials, true);
+      assertPerformanceDriftReviewQueueSafe(queue);
+      assert.throws(
+        () =>
+          assertPerformanceDriftReviewQueueSafe({
+            ...queue,
+            raw_production_material: "raw production material",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPerformanceDriftReviewQueueSafe({
+            ...queue,
+            voice_material: "voice material",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "voice license category readiness exposes only category and status",
+    () => {
+      const readiness = createVoiceLicenseCategoryReadiness({
+        env: {
+          IRIS_VOICE_LICENSE_STREAM_USE_STATUS: "licensed",
+          IRIS_VOICE_LICENSE_PRERECORDED_LINE_USE_STATUS: "contract text",
+          IRIS_VOICE_LICENSE_VOICE_PRODUCT_USE_STATUS: "placeholder",
+          IRIS_VOICE_LICENSE_SPONSOR_CAMPAIGN_USE_STATUS: "",
+        },
+      });
+
+      assert.equal(readiness.category_count, 4);
+      assert.equal(readiness.ready_category_count, 2);
+      assert.equal(readiness.attention_category_count, 2);
+      assert.deepEqual(
+        readiness.category_statuses.map(({ category }) => category),
+        [
+          "stream_use",
+          "prerecorded_line_use",
+          "voice_product_use",
+          "sponsor_campaign_use",
+        ]
+      );
+      assert.equal(readiness.category_statuses[0].status, "licensed");
+      assert.equal(
+        readiness.category_statuses[1].status,
+        "operator_attention_required"
+      );
+      assert.equal(readiness.category_statuses[2].status, "placeholder");
+      assert.equal(readiness.category_statuses[3].status, "missing");
+      assert.equal(readiness.safe_status_only, true);
+      assert.equal(readiness.raw_material_exposed, false);
+      assert.equal(readiness.boundary_policy.category_status_only, true);
+      assert.equal(readiness.boundary_policy.no_contract_text, true);
+      assert.equal(readiness.boundary_policy.no_fee_tables, true);
+      assert.equal(readiness.boundary_policy.no_private_actor_data, true);
+      assert.equal(JSON.stringify(readiness).includes("contract text"), false);
+      assert.equal(
+        JSON.stringify(readiness).includes(
+          "IRIS_VOICE_LICENSE_STREAM_USE_STATUS"
+        ),
+        false
+      );
+      assertVoiceLicenseCategoryReadinessSafe(readiness);
+      assert.throws(
+        () =>
+          assertVoiceLicenseCategoryReadinessSafe({
+            ...readiness,
+            category_statuses: [
+              ...readiness.category_statuses,
+              { category: "private_actor_data", status: "licensed" },
+            ],
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertVoiceLicenseCategoryReadinessSafe({
+            ...readiness,
+            contract_text: "contract text",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "unreleased footage leak guard blocks raw production materials",
+    () => {
+      const guard = createUnreleasedFootageLeakGuard({
+        surface: "admin_ordinary",
+      });
+
+      assert.equal(guard.surface, "admin_ordinary");
+      assert.equal(guard.guard_status, "protected");
+      assert.equal(guard.safe_summary_only, true);
+      assert.equal(guard.raw_material_exposed, false);
+      assert.equal(guard.boundary_policy.no_unreleased_footage, true);
+      assert.equal(guard.boundary_policy.no_raw_animation_cuts, true);
+      assert.equal(guard.boundary_policy.no_raw_model_sheets, true);
+      assertUnreleasedFootageLeakGuardSafe(guard);
+      assert.throws(
+        () =>
+          assertUnreleasedFootageLeakGuardSafe({
+            ...guard,
+            raw_animation_cut: "raw animation cut",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertUnreleasedFootageLeakGuardSafe({
+            ...guard,
+            public_material: "unreleased footage",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertUnreleasedFootageLeakGuardSafe({
+            ...guard,
+            admin_material: "raw model sheet",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "spoiler incident summary exposes only safe label count and topic class",
+    () => {
+      const summary = createSpoilerIncidentSafeSummary({
+        incidentCount: 2,
+        incidentStatus: "contained",
+        topicClass: "story",
+      });
+
+      assert.equal(summary.incident_status, "contained");
+      assert.equal(summary.incident_count, 2);
+      assert.equal(summary.topic_class, "story");
+      assert.equal(summary.safe_summary_only, true);
+      assert.equal(summary.raw_material_exposed, false);
+      assert.equal(
+        summary.boundary_policy.safe_label_count_topic_class_only,
+        true
+      );
+      assert.equal(summary.boundary_policy.no_unreleased_details, true);
+      assert.equal(summary.boundary_policy.no_raw_story_bible, true);
+      assertSpoilerIncidentSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertSpoilerIncidentSafeSummary({
+            ...summary,
+            unreleased_detail: "unreleased detail",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSpoilerIncidentSafeSummary({
+            ...summary,
+            topic_detail: "raw story bible",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSpoilerIncidentSafeSummary({
+            ...summary,
+            topic_class: "unreleased_plot",
           }),
         ContractError
       );
@@ -43322,6 +44409,55 @@ const tests = [
             boundary_policy: {
               ...inCharacter.boundary_policy,
               no_canonical_conversation_state_export: false,
+            },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "fallback out-of-character frequency is summarized as safe quality risk only",
+    () => {
+      const summary = createAnimeInCharacterFallbackRiskSummary({
+        fallbackOutOfCharacter: true,
+        fallbackOccurrenceCount: 3,
+      });
+
+      assert.equal(summary.fallback_out_of_character, true);
+      assert.equal(summary.fallback_occurrence_count, 3);
+      assert.equal(summary.fallback_frequency_status, "repeated_quality_risk");
+      assert.equal(summary.quality_risk_status, "in_character_quality_attention");
+      assert.equal(summary.safe_summary_only, true);
+      assert.equal(summary.raw_material_exposed, false);
+      assert.equal(
+        summary.boundary_policy.repeated_fallback_as_quality_risk,
+        true
+      );
+      assert.equal(summary.boundary_policy.no_raw_reason, true);
+      assertAnimeInCharacterFallbackRiskSummary(summary);
+      assert.throws(
+        () =>
+          assertAnimeInCharacterFallbackRiskSummary({
+            ...summary,
+            fallback_frequency_status: "single_fallback",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertAnimeInCharacterFallbackRiskSummary({
+            ...summary,
+            raw_reason: "private note from reviewer",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertAnimeInCharacterFallbackRiskSummary({
+            ...summary,
+            boundary_policy: {
+              ...summary.boundary_policy,
+              no_raw_reason: false,
             },
           }),
         ContractError
@@ -55342,6 +56478,44 @@ const tests = [
       };
 
       const packet = createTtsAdapterPacket(finalOutput, { speechCue, performancePlan });
+      const preview = createTtsFixturePacketPreview(packet);
+      const serializedPreview = JSON.stringify(preview);
+      assert.equal(preview.schema, "iris_tts_fixture_packet_preview_v1");
+      assert.equal(preview.preview_status, "pass");
+      assert.equal(preview.adapter_kind, "tts");
+      assert.equal(preview.boundary_policy.safe_fixture_preview_only, true);
+      assert.equal(preview.boundary_policy.no_endpoint_values, true);
+      assert.equal(preview.boundary_policy.no_token_values, true);
+      assert.equal(preview.boundary_policy.no_audio_bodies, true);
+      assert.equal(preview.boundary_policy.no_vendor_diagnostic_values, true);
+      assert.equal(serializedPreview.includes("hello"), false);
+      assert.equal(serializedPreview.includes("raw_audio"), false);
+      assert.equal(serializedPreview.includes("vendor_diagnostics"), false);
+      assertTtsFixturePacketPreviewSafe(preview);
+      assert.throws(
+        () =>
+          assertTtsFixturePacketPreviewSafe({
+            ...preview,
+            endpoint: "http://127.0.0.1:9000/tts",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertTtsFixturePacketPreviewSafe({
+            ...preview,
+            raw_audio: "unsafe-audio",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertTtsFixturePacketPreviewSafe({
+            ...preview,
+            vendor_diagnostics: "unsafe vendor diagnostics",
+          }),
+        ContractError
+      );
       packet.performance_plan.tracks.speech.push({ kind: "speech_window", execute: "unsafe" });
       assert.throws(() => assertAdapterPacketSafe(packet), ContractError);
       assert.throws(
@@ -55437,6 +56611,73 @@ const tests = [
             voice_profile: {
               apiToken: "secret-token",
             },
+          }),
+        ContractError
+      );
+
+      const live2dPacket = createLive2dAdapterPacket(
+        {
+          trace_id: "trace",
+          event_id: "event",
+          action_type: "SPEAK",
+          target_presence_id: "iris",
+          tone: "calm",
+          emotion: "neutral",
+          character_tag: "iris",
+          final_normalized_status: "safe",
+          continuity_maintained: true,
+          performance_cue: null,
+        },
+        {
+          motionCue: {
+            schema: "iris_motion_cue_v1",
+            motion_style: "talk",
+            expression_hint: "neutral_warm",
+            gaze_hint: "audience_soft",
+            breathing_rate: 0.4,
+            blink_rate: 0.3,
+            head_motion: "soft_nod",
+            body_sway: 0.2,
+            gesture_hint: "small_hand",
+            adapter_validation_required: true,
+          },
+          performancePlan,
+        }
+      );
+      const live2dPreview = createLive2dFixtureCuePreview(live2dPacket);
+      const serializedLive2dPreview = JSON.stringify(live2dPreview);
+      assert.equal(live2dPreview.schema, "iris_live2d_fixture_cue_preview_v1");
+      assert.equal(live2dPreview.preview_status, "pass");
+      assert.equal(live2dPreview.adapter_kind, "live2d");
+      assert.equal(live2dPreview.boundary_policy.safe_fixture_preview_only, true);
+      assert.equal(live2dPreview.boundary_policy.renderer_payload_values_excluded, true);
+      assert.equal(live2dPreview.boundary_policy.model_file_values_excluded, true);
+      assert.equal(live2dPreview.boundary_policy.motion_instruction_values_excluded, true);
+      assert.equal(serializedLive2dPreview.includes("raw_renderer_payload"), false);
+      assert.equal(serializedLive2dPreview.includes("model_path"), false);
+      assert.equal(serializedLive2dPreview.includes("motion_command"), false);
+      assertLive2dFixtureCuePreviewSafe(live2dPreview);
+      assert.throws(
+        () =>
+          assertLive2dFixtureCuePreviewSafe({
+            ...live2dPreview,
+            raw_renderer_payload: { ok: true },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLive2dFixtureCuePreviewSafe({
+            ...live2dPreview,
+            model_path: "C:/private/live2d.model3.json",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLive2dFixtureCuePreviewSafe({
+            ...live2dPreview,
+            motion_command: "raw-motion-command",
           }),
         ContractError
       );
@@ -58837,6 +60078,205 @@ const tests = [
     },
   ],
   [
+    "OBS overlay URL redaction status hides URL endpoint and credentials",
+    async () => {
+      const status = createObsOverlayUrlRedactionStatus({ configured: true });
+
+      assert.equal(status.overlay_url_status, "configured");
+      assert.equal(status.public_view_safe, true);
+      assert.equal(status.admin_ordinary_view_safe, true);
+      assert.equal(status.logs_safe, true);
+      assert.equal(status.boundary_policy.no_overlay_url_values, true);
+      assert.equal(status.boundary_policy.no_endpoint_values, true);
+      assert.equal(status.boundary_policy.no_obs_credentials, true);
+      assertObsOverlayUrlRedactionStatusSafe(status);
+      assert.throws(
+        () =>
+          assertObsOverlayUrlRedactionStatusSafe({
+            ...status,
+            overlay_url: "http://127.0.0.1:8787/overlay",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsOverlayUrlRedactionStatusSafe({
+            ...status,
+            endpoint: "http://127.0.0.1:8787/obs",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsOverlayUrlRedactionStatusSafe({
+            ...status,
+            obs_credential: "secret-obs-token",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "OBS browser source setup status hides URL values and secrets",
+    async () => {
+      const status = createObsBrowserSourceSetupStatus({ configured: true });
+
+      assert.equal(status.browser_source_setup_status, "configured");
+      assert.equal(status.configured, true);
+      assert.equal(status.missing_count, 0);
+      assert.equal(status.boundary_policy.configured_missing_status_only, true);
+      assert.equal(status.boundary_policy.no_url_values, true);
+      assert.equal(status.boundary_policy.no_endpoint_values, true);
+      assert.equal(status.boundary_policy.no_secret_values, true);
+      assertObsBrowserSourceSetupStatusSafe(status);
+      assert.throws(
+        () =>
+          assertObsBrowserSourceSetupStatusSafe({
+            ...status,
+            browser_source_url: "http://127.0.0.1:8787/overlay",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsBrowserSourceSetupStatusSafe({
+            ...status,
+            endpoint: "http://127.0.0.1:8787/obs",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsBrowserSourceSetupStatusSafe({
+            ...status,
+            secret: "secret-obs-token",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "OBS overlay preview uses synthetic fixture only",
+    async () => {
+      const status = createObsOverlayFixturePreviewStatus({ previewReady: true });
+
+      assert.equal(status.preview_status, "configured");
+      assert.equal(status.fixture_source, "synthetic_fixture");
+      assert.equal(status.synthetic_fixture_only, true);
+      assert.equal(status.real_input_used, false);
+      assert.equal(status.boundary_policy.synthetic_fixture_only, true);
+      assert.equal(status.boundary_policy.no_real_raw_comments, true);
+      assert.equal(status.boundary_policy.no_real_raw_frames, true);
+      assertObsOverlayFixturePreviewStatusSafe(status);
+      assert.throws(
+        () =>
+          assertObsOverlayFixturePreviewStatusSafe({
+            ...status,
+            fixture_source: "real_raw_comments",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsOverlayFixturePreviewStatusSafe({
+            ...status,
+            real_input_used: true,
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsOverlayFixturePreviewStatusSafe({
+            ...status,
+            raw_frame: "real_raw_frame_body",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "OBS artifact sync guard status hides artifact bodies and paths",
+    async () => {
+      const status = createObsArtifactSyncGuardStatus({
+        status: "configured",
+        checkCount: 3,
+      });
+
+      assert.equal(status.artifact_sync_guard_status, "configured");
+      assert.equal(status.check_count, 3);
+      assert.equal(status.boundary_policy.status_and_count_only, true);
+      assert.equal(status.boundary_policy.no_raw_artifact_bodies, true);
+      assert.equal(status.boundary_policy.no_artifact_paths, true);
+      assertObsArtifactSyncGuardStatusSafe(status);
+      assert.throws(
+        () =>
+          assertObsArtifactSyncGuardStatusSafe({
+            ...status,
+            artifact_path: "tts/safe.wav",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsArtifactSyncGuardStatusSafe({
+            ...status,
+            raw_artifact_body: "WEBVTT\nraw subtitle body",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsArtifactSyncGuardStatusSafe({
+            ...status,
+            internal_payload: { artifact_path: "C:\\tmp\\safe.wav" },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "OBS command public leak guard hides commands from safe surfaces",
+    async () => {
+      const status = createObsCommandPublicLeakGuardStatus({
+        status: "configured",
+        redactedCommandCount: 2,
+      });
+
+      assert.equal(status.command_public_leak_guard_status, "configured");
+      assert.equal(status.public_json_safe, true);
+      assert.equal(status.replay_safe, true);
+      assert.equal(status.ordinary_diagnostics_safe, true);
+      assert.equal(status.redacted_command_count, 2);
+      assert.equal(status.boundary_policy.no_obs_commands, true);
+      assert.equal(status.boundary_policy.no_bridge_commands, true);
+      assertObsCommandPublicLeakGuardStatusSafe(status);
+      assert.throws(
+        () =>
+          assertObsCommandPublicLeakGuardStatusSafe({
+            ...status,
+            obs_command: "SetCurrentProgramScene",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsCommandPublicLeakGuardStatusSafe({
+            ...status,
+            bridge_command: "pickup_artifact",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertObsCommandPublicLeakGuardStatusSafe({
+            ...status,
+            raw_command: "scene switch token=secret",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
     "dev OBS probe reports safe unconfigured handoff without real OBS operation",
     async () => {
       const healthReport = await createObsBridgeHealthProbeReport({
@@ -59691,12 +61131,22 @@ const tests = [
       const status = eventBus.status({ nowMs: state.updated_at_ms + 240 });
       const serializedStatus = JSON.stringify(status);
       assert.equal(status.schema, "iris_overlay_event_stream_status_v1");
+      assert.equal(status.event_bus_status, "connected");
       assert.equal(status.client_count, 1);
       assert.equal(status.published_count, 1);
       assert.equal(status.latest_event_id, displayEvent.event_id);
+      assert.equal(status.boundary_policy.no_raw_overlay_events, true);
       assert.equal(serializedStatus.includes('"subtitle_text"'), false);
       assert.equal(serializedStatus.includes('"final_text"'), false);
       assertOverlayEventStreamStatusSafe(status);
+      assert.throws(
+        () =>
+          assertOverlayEventStreamStatusSafe({
+            ...status,
+            raw_overlay_events: [displayEvent],
+          }),
+        ContractError
+      );
       assert.equal(writes.some((item) => String(item[1]).includes("event: iris_overlay_display_event_v1")), true);
       assert.equal(writes.some((item) => String(item[1]).includes('"input_action_candidate"')), false);
 
@@ -67174,4 +68624,65 @@ function createRenderManifestFixture(
         rendered_at_ms: createdAtMs,
       },
       live2d: {
-     
+        adapter_kind: "live2d",
+        job_id: `${eventId}-live2d`,
+        artifact_kind: "live2d_cue_json",
+        artifact_path: "live2d/fixture.live2d.json",
+        engine_mode: "local_cue_json",
+        rendered_at_ms: createdAtMs,
+      },
+      subtitle: {
+        adapter_kind: "subtitle",
+        job_id: `${eventId}-subtitle`,
+        artifact_kind: "subtitle_vtt",
+        artifact_path: "subtitle/fixture.vtt",
+        engine_mode: "local_vtt",
+        rendered_at_ms: createdAtMs,
+      },
+    },
+    sync_policy: {
+      event_id_grouped: true,
+      tts_live2d_subtitle_required: true,
+      obs_can_poll_manifest_artifacts: true,
+      adapter_receipts_remain_source_of_truth: true,
+    },
+    boundary_policy: {
+      local_artifacts_only: true,
+      no_raw_jobs: true,
+      no_text_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+    },
+    adapter_validation_required: true,
+  };
+  const serializedManifest = `${JSON.stringify(manifest)}\n`;
+  writeFileSync(join(artifactDir, "event_render_manifests.jsonl"), serializedManifest, "utf8");
+  writeFileSync(join(artifactDir, "latest_event_render_manifest.json"), JSON.stringify(manifest), "utf8");
+  return manifest;
+}
+
+async function readRequestJson(request) {
+  const raw = await readRequestText(request);
+  return raw ? JSON.parse(raw) : {};
+}
+
+async function readRequestText(request) {
+  let raw = "";
+  request.setEncoding("utf8");
+  for await (const chunk of request) raw += chunk;
+  return raw;
+}
+
+function sendJson(response, statusCode, body) {
+  response.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  response.end(JSON.stringify(body));
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

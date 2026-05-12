@@ -10,23 +10,27 @@ import { loadScenarioFile, runScenario } from "../src/runtime/scenarioRunner.js"
 const SCENARIO_SUITE_REPORT_FIELDS = new Set([
   "ok",
   "schema",
+  "script_name",
   "scenario_count",
+  "pass_count",
+  "fail_count",
   "results",
   "boundary_policy"
 ]);
 const SCENARIO_SUITE_RESULT_FIELDS = new Set([
   "file",
-  "name",
-  "step_count",
-  "response_languages",
-  "tongue_twister_step_count",
-  "min_human_likeness_score",
-  "candidate_review_item_count"
+  "status",
+  "step_count"
 ]);
 
 const SCENARIO_SUITE_BOUNDARY_POLICY_FIELDS = new Set([
   "scenario_file_names_only",
+  "script_name_only",
+  "pass_fail_count_only",
   "no_raw_step_payloads",
+  "no_raw_payloads",
+  "no_raw_comments",
+  "no_raw_jobs",
   "no_text_payloads",
   "no_memory_records",
   "no_relationship_records",
@@ -106,49 +110,26 @@ export function assertScenarioSuiteReportSafe(report) {
       throw new Error(`Unexpected scenario suite report field: ${field}`);
     }
   }
-  assert.equal(report.ok, true);
+  if (typeof report.ok !== "boolean") {
+    throw new Error("Scenario suite ok must be a boolean");
+  }
   assert.equal(report.schema, "iris_scenario_suite_report_v1");
+  assertPublicToken(report.script_name, "Scenario suite script name");
   assertNonNegativeInteger(report.scenario_count, "Scenario suite scenario count");
+  assertNonNegativeInteger(report.pass_count, "Scenario suite pass count");
+  assertNonNegativeInteger(report.fail_count, "Scenario suite fail count");
   assertArray(report.results, "Scenario suite results");
   assert.equal(report.scenario_count, report.results.length);
+  assert.equal(report.pass_count + report.fail_count, report.scenario_count);
   for (const result of report.results) {
     assertOnlyFields(result, SCENARIO_SUITE_RESULT_FIELDS, "scenario suite result");
     assertScenarioFileName(result.file);
-    assertPublicToken(result.name, "Scenario suite result name");
+    if (!["pass", "fail"].includes(result.status)) {
+      throw new Error("Scenario suite result status must be pass or fail");
+    }
     assertNonNegativeInteger(result.step_count, "Scenario suite result step count");
-    assertLanguageCodeArray(
-      result.response_languages,
-      "Scenario suite response languages"
-    );
-    assertNonNegativeInteger(
-      result.tongue_twister_step_count,
-      "Scenario suite tongue twister step count"
-    );
     if (result.step_count <= 0) {
       throw new Error("Scenario suite result step count must be positive");
-    }
-    if (result.tongue_twister_step_count > result.step_count) {
-      throw new Error(
-        "Scenario suite tongue twister step count must not exceed step count"
-      );
-    }
-    if (
-      typeof result.min_human_likeness_score !== "number" ||
-      !Number.isFinite(result.min_human_likeness_score) ||
-      result.min_human_likeness_score < 0
-    ) {
-      throw new Error(
-        "Scenario suite min human likeness score must be a finite non-negative number"
-      );
-    }
-    assertNonNegativeInteger(
-      result.candidate_review_item_count,
-      "Scenario suite candidate review item count"
-    );
-    if (result.candidate_review_item_count < result.step_count) {
-      throw new Error(
-        "Scenario suite candidate review item count must be at least the step count"
-      );
     }
   }
   assertOnlyFields(
@@ -186,44 +167,51 @@ for (const file of files) {
     logger: { log() {}, error: console.error },
   });
   const scenario = loadScenarioFile(file);
-  const result = await runScenario(runtime, scenario);
-  assert.equal(result.schema, "iris_scenario_result_v1");
-  assert.equal(result.step_count, scenario.steps.length);
-  for (const step of result.results) {
-    assert.equal(step.final_decision, "allow");
-    assert.equal(step.review_required, false);
-    assert.equal(typeof step.human_likeness_score, "number");
-    assert.ok(step.human_likeness_score >= 0.75);
-    assert.ok(step.candidate_review_count >= 1);
-    assert.equal(typeof step.expression_profile_id, "string");
-    assert.equal(Object.hasOwn(step, "input_action_candidate"), false);
-    assert.equal(Object.hasOwn(step, "memory_carryover_candidates"), false);
+  let status = "pass";
+  let stepCount = scenario.steps.length;
+  try {
+    const result = await runScenario(runtime, scenario);
+    assert.equal(result.schema, "iris_scenario_result_v1");
+    assert.equal(result.step_count, scenario.steps.length);
+    stepCount = result.step_count;
+    for (const step of result.results) {
+      assert.equal(step.final_decision, "allow");
+      assert.equal(step.review_required, false);
+      assert.equal(typeof step.human_likeness_score, "number");
+      assert.ok(step.human_likeness_score >= 0.75);
+      assert.ok(step.candidate_review_count >= 1);
+      assert.equal(typeof step.expression_profile_id, "string");
+      assert.equal(Object.hasOwn(step, "input_action_candidate"), false);
+      assert.equal(Object.hasOwn(step, "memory_carryover_candidates"), false);
+    }
+  } catch {
+    status = "fail";
   }
   results.push({
     file: toPublicScenarioFileName(file),
-    name: result.name,
-    step_count: result.step_count,
-    response_languages: [
-      ...new Set(result.results.map((step) => step.response_language).filter(Boolean)),
-    ],
-    tongue_twister_step_count: result.results.filter(
-      (step) => step.tongue_twister_enabled === true
-    ).length,
-    min_human_likeness_score: Math.min(
-      ...result.results.map((step) => step.human_likeness_score)
-    ),
-    candidate_review_item_count: runtime.candidateReviewStats().total_items,
+    status,
+    step_count: stepCount,
   });
 }
+const passCount = results.filter((result) => result.status === "pass").length;
+const failCount = results.filter((result) => result.status === "fail").length;
 
 const report = {
-  ok: true,
+  ok: failCount === 0,
   schema: "iris_scenario_suite_report_v1",
+  script_name: "run-scenario-suite",
   scenario_count: results.length,
+  pass_count: passCount,
+  fail_count: failCount,
   results,
   boundary_policy: {
     scenario_file_names_only: true,
+    script_name_only: true,
+    pass_fail_count_only: true,
     no_raw_step_payloads: true,
+    no_raw_payloads: true,
+    no_raw_comments: true,
+    no_raw_jobs: true,
     no_text_payloads: true,
     no_memory_records: true,
     no_relationship_records: true,

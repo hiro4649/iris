@@ -90,6 +90,14 @@ const GAME_OBSERVATION_VALIDATION_BOUNDARY_POLICY = {
   no_candidate_payloads: true,
   no_approved_action_payload: true,
 };
+const GAME_ACTION_VALIDATION_FIXTURE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "fixture_status",
+  "validation_status",
+  "approved_count",
+  "rejected_count",
+  "boundary_policy",
+]);
 
 const FORBIDDEN_VALIDATION_FIELDS = new Set([
   "world_command",
@@ -500,6 +508,68 @@ export function sanitizeGameActionValidationForPublicState(validation) {
     },
     adapter_validation_required: true,
   };
+}
+
+export function createGameActionValidationFixtureSummary(validation) {
+  assertGameActionValidationSafe(validation, "Game action validation fixture summary source");
+  const summary = {
+    schema: "iris_game_action_validation_fixture_summary_v1",
+    fixture_status: validation.validation_status === "approved" ? "approved" : "rejected",
+    validation_status: validation.validation_status,
+    approved_count: validation.approved_game_action_present === true ? 1 : 0,
+    rejected_count: validation.rejected_candidates.length,
+    boundary_policy: {
+      status_counts_only: true,
+      source_proposal_payload_excluded: true,
+      no_approved_action_payload: true,
+      public_proposal_payload_excluded: true,
+    },
+  };
+  assertGameActionValidationFixtureSummarySafe(summary);
+  return summary;
+}
+
+export function assertGameActionValidationFixtureSummarySafe(
+  summary,
+  context = "game action validation fixture summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!GAME_ACTION_VALIDATION_FIXTURE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_game_action_validation_fixture_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`, { schema: summary.schema });
+  }
+  if (!["approved", "rejected"].includes(summary.fixture_status)) {
+    throw new ContractError(`${context}: invalid fixture status`, {
+      fixture_status: summary.fixture_status,
+    });
+  }
+  if (!VALIDATION_STATUSES.has(summary.validation_status)) {
+    throw new ContractError(`${context}: invalid validation status`, {
+      validation_status: summary.validation_status,
+    });
+  }
+  for (const field of ["approved_count", "rejected_count"]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid count`, { field });
+    }
+  }
+  for (const field of [
+    "status_counts_only",
+    "source_proposal_payload_excluded",
+    "no_approved_action_payload",
+    "public_proposal_payload_excluded",
+  ]) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoUnsafeFixtureSummaryMaterial(summary, context);
 }
 
 function sanitizeApprovedObservationContextForPublicState(context) {
@@ -1084,5 +1154,29 @@ function assertNoForbiddenApprovedActionFields(value, context, path = "root") {
       );
     }
     assertNoForbiddenApprovedActionFields(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoUnsafeFixtureSummaryMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(input_action_candidate|approved_game_input_action|world_command|execute|commit|raw[_-]?candidate|payload|endpoint|token|secret|authorization)\b|https?:\/\//iu.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe summary material`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnsafeFixtureSummaryMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path === "root" && field === "schema") continue;
+    assertNoUnsafeFixtureSummaryMaterial(child, context, `${path}.${field}`);
   }
 }

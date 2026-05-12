@@ -43,6 +43,8 @@ const FORBIDDEN_OVERLAY_EVENT_FIELDS = new Set([
   "endpoint_url",
   "api_key",
   "token",
+  "raw_overlay_event",
+  "raw_overlay_events",
   "command",
   "command_payload",
 ]);
@@ -197,14 +199,20 @@ export function createOverlayEventBus() {
       };
     },
     status({ nowMs = Date.now() } = {}) {
+      const latestEventAgeMs = lastPublishedAtMs
+        ? Math.max(0, nowMs - lastPublishedAtMs)
+        : null;
       const status = {
         schema: "iris_overlay_event_stream_status_v1",
         generated_at_ms: nowMs,
         stream_ready: true,
+        event_bus_status:
+          latestEventAgeMs !== null && latestEventAgeMs > 60_000 ? "stale" : "connected",
         client_count: clients.size,
         published_count: publishedCount,
-        latest_event_age_ms: lastPublishedAtMs ? Math.max(0, nowMs - lastPublishedAtMs) : null,
+        latest_event_age_ms: latestEventAgeMs,
         boundary_policy: {
+          no_raw_overlay_events: true,
           no_raw_text: true,
           no_candidates: true,
           no_commands: true,
@@ -235,6 +243,11 @@ export function assertOverlayEventStreamStatusSafe(
   if (status.stream_ready !== true) {
     throw new ContractError(`${context}: stream_ready must be true`);
   }
+  if (!["connected", "stale"].includes(status.event_bus_status)) {
+    throw new ContractError(`${context}: invalid event bus status`, {
+      event_bus_status: status.event_bus_status,
+    });
+  }
   if (!Number.isInteger(status.client_count) || status.client_count < 0) {
     throw new ContractError(`${context}: invalid client count`, {
       client_count: status.client_count,
@@ -246,6 +259,7 @@ export function assertOverlayEventStreamStatusSafe(
     });
   }
   assertBoundaryPolicy(status.boundary_policy, [
+    "no_raw_overlay_events",
     "no_raw_text",
     "no_candidates",
     "no_commands",

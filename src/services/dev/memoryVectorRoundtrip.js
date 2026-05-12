@@ -13,6 +13,16 @@ const MEMORY_VECTOR_ROUNDTRIP_REPORT_FIELDS = new Set([
   "verification_scripts",
   "boundary_policy",
 ]);
+const MEMORY_VECTOR_ROUNDTRIP_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "roundtrip_status",
+  "request_count",
+  "public_record_count",
+  "result_count",
+  "accepted_hit_count",
+  "private_record_filtered_count",
+  "boundary_policy",
+]);
 
 export async function createMemoryVectorRoundtripReport() {
   const received = [];
@@ -96,6 +106,75 @@ export async function createMemoryVectorRoundtripReport() {
   }
 }
 
+export function createMemoryVectorRoundtripSafeSummary({ report } = {}) {
+  const summary = {
+    schema: "iris_memory_vector_roundtrip_safe_summary_v1",
+    roundtrip_status: report?.ok === true ? "pass" : "fail",
+    request_count: safeCount(report?.request_count),
+    public_record_count: safeCount(report?.public_record_count_sent),
+    result_count: safeCount(report?.result_count),
+    accepted_hit_count: safeCount(report?.accepted_hit_count),
+    private_record_filtered_count: report?.private_record_filtered === true ? 1 : 0,
+    boundary_policy: {
+      safe_status_and_counts_only: true,
+      no_raw_memory: true,
+      no_private_viewer_ids: true,
+      no_vector_values: true,
+      no_endpoint_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertMemoryVectorRoundtripSafeSummary(summary);
+  return summary;
+}
+
+export function assertMemoryVectorRoundtripSafeSummary(
+  summary,
+  context = "memory vector roundtrip safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new Error(`${context} must be an object`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!MEMORY_VECTOR_ROUNDTRIP_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new Error(`${context} has unexpected field: ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_memory_vector_roundtrip_safe_summary_v1") {
+    throw new Error(`${context} has invalid schema`);
+  }
+  if (!["pass", "fail"].includes(summary.roundtrip_status)) {
+    throw new Error(`${context} has invalid status`);
+  }
+  for (const field of [
+    "request_count",
+    "public_record_count",
+    "result_count",
+    "accepted_hit_count",
+    "private_record_filtered_count",
+  ]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new Error(`${context} has invalid count: ${field}`);
+    }
+  }
+  const requiredBoundary = [
+    "safe_status_and_counts_only",
+    "no_raw_memory",
+    "no_private_viewer_ids",
+    "no_vector_values",
+    "no_endpoint_values",
+    "no_candidates",
+    "no_commands",
+  ];
+  for (const field of requiredBoundary) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new Error(`${context} missing boundary: ${field}`);
+    }
+  }
+  assertNoUnsafeMemoryVectorSummaryMaterial(summary, context);
+}
+
 export function assertMemoryVectorRoundtripReportSafe({
   requestPayload = {},
   result = {},
@@ -143,6 +222,33 @@ export function assertMemoryVectorRoundtripReportSafe({
         ...new Set(leaked),
       ].join(", ")}`
     );
+  }
+}
+
+function safeCount(value) {
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+function assertNoUnsafeMemoryVectorSummaryMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(raw memory|raw_memory|private viewer|private_viewer|viewer_id|vector value|vector_value|embedding|endpoint|token|secret|input_action_candidate|approved_game_input_action|world_command)\b|https?:\/\//i.test(
+        value
+      )
+    ) {
+      throw new Error(`${context} leaked unsafe material at ${path}`);
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnsafeMemoryVectorSummaryMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoUnsafeMemoryVectorSummaryMaterial(child, context, `${path}.${field}`);
   }
 }
 

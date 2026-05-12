@@ -77,6 +77,17 @@ const ADMIN_SAFETY_CONTROL_ACTION_RESULT_FIELDS = new Set([
   "audit_entry",
   "boundary_policy",
 ]);
+const EMERGENCY_STOP_REHEARSAL_SUMMARY_FIELDS = new Set([
+  "schema",
+  "rehearsal_status",
+  "action_status",
+  "action_label",
+  "control_status",
+  "active_pause_count",
+  "real_device_operation_performed",
+  "game_or_os_input_performed",
+  "boundary_policy",
+]);
 const ADMIN_STREAM_MODE_GATE_FIELDS = new Set([
   "schema",
   "requested_mode",
@@ -168,6 +179,16 @@ const ADMIN_SAFETY_CONTROL_ACTION_BOUNDARY_FIELDS = [
   "no_bridge_values",
   "no_real_device_operation",
   "no_game_or_os_input",
+];
+const EMERGENCY_STOP_REHEARSAL_BOUNDARY_FIELDS = [
+  "safe_status_and_action_label_only",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_real_device_operation",
+  "no_game_or_os_input",
+  "no_real_device_control_values",
+  "no_obs_operation_values",
+  "no_raw_bridge_values",
 ];
 const ADMIN_STREAM_MODE_GATE_BOUNDARY_FIELDS = [
   "safe_mode_labels_only",
@@ -344,6 +365,86 @@ export function applyAdminSafetyControlAction({
   };
   assertAdminSafetyControlActionResultSafe(response);
   return response;
+}
+
+export function createEmergencyStopRehearsalSummary({
+  actionResult,
+  report,
+} = {}) {
+  assertAdminSafetyControlActionResultSafe(
+    actionResult,
+    "emergency stop rehearsal action result"
+  );
+  assertAdminSafetyControlsReportSafe(report, "emergency stop rehearsal report");
+  const summary = {
+    schema: "iris_emergency_stop_rehearsal_summary_v1",
+    rehearsal_status:
+      actionResult.applied === true && report.control_status === "emergency_stop_active"
+        ? "pass"
+        : "blocked",
+    action_status: actionResult.action_status,
+    action_label: actionResult.audit_entry.safe_target_label,
+    control_status: report.control_status,
+    active_pause_count: report.active_pause_count,
+    real_device_operation_performed: false,
+    game_or_os_input_performed: false,
+    boundary_policy: {
+      safe_status_and_action_label_only: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_real_device_operation: true,
+      no_game_or_os_input: true,
+      no_real_device_control_values: true,
+      no_obs_operation_values: true,
+      no_raw_bridge_values: true,
+    },
+  };
+  assertEmergencyStopRehearsalSummarySafe(summary);
+  return summary;
+}
+
+export function assertEmergencyStopRehearsalSummarySafe(
+  summary,
+  context = "emergency stop rehearsal summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeText(summary, context);
+  if (summary.schema !== "iris_emergency_stop_rehearsal_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!EMERGENCY_STOP_REHEARSAL_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field ${field}`);
+    }
+  }
+  if (!["pass", "blocked"].includes(summary.rehearsal_status)) {
+    throw new ContractError(`${context}: invalid rehearsal status`);
+  }
+  if (!["applied", "blocked_confirmation_required"].includes(summary.action_status)) {
+    throw new ContractError(`${context}: invalid action status`);
+  }
+  if (summary.action_label !== "global_safe_stop") {
+    throw new ContractError(`${context}: invalid action label`);
+  }
+  if (!["ready", "paused_safe", "emergency_stop_active"].includes(summary.control_status)) {
+    throw new ContractError(`${context}: invalid control status`);
+  }
+  if (!Number.isInteger(summary.active_pause_count) || summary.active_pause_count < 0) {
+    throw new ContractError(`${context}: invalid pause count`);
+  }
+  if (
+    summary.real_device_operation_performed !== false ||
+    summary.game_or_os_input_performed !== false
+  ) {
+    throw new ContractError(`${context}: real operations must not be performed`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    EMERGENCY_STOP_REHEARSAL_BOUNDARY_FIELDS,
+    `${context} boundary policy`
+  );
 }
 
 export function createAdminStreamModeConfirmationGate({

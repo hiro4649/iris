@@ -18,6 +18,7 @@ const YOUTUBE_RELAY_READINESS_REHEARSAL_FIELDS = new Set([
   "schema",
   "rehearsal_status",
   "source_mode",
+  "fixture_summary",
   "relay_bridge_summary",
   "source_status_summary",
   "scheduler_summary",
@@ -82,18 +83,25 @@ export async function createYouTubeRelayReadinessRehearsal({
     const memoryRecords = runtime.memoryRecords(100);
     const relationshipProfiles = runtime.relationshipProfiles();
 
-    assert.equal(tick.ok, true);
-    assert.equal(tick.processed_count, 6);
     assert.equal(sourceStatus.last_item_count, 7);
     assert.equal(sourceStatus.last_comment_count, 1);
     assert.equal(sourceStatus.last_support_event_count, 5);
     assert.equal(sourceStatus.last_ignored_count, 1);
+    const fixturePassed = tick.ok === true && tick.processed_count === 6;
 
     const report = {
-      ok: true,
+      ok: fixturePassed,
       schema: "iris_youtube_relay_readiness_rehearsal_report_v1",
-      rehearsal_status: "relay_runtime_rehearsal_ready",
+      rehearsal_status: fixturePassed
+        ? "relay_runtime_rehearsal_ready"
+        : "relay_runtime_rehearsal_attention",
       source_mode: "http_relay",
+      fixture_summary: {
+        fixture_source: "synthetic_youtube_relay_fixture",
+        fixture_result_status: fixturePassed ? "pass" : "fail",
+        fixture_result_count: tick.processed_count,
+        real_youtube_input_used: false,
+      },
       relay_bridge_summary: summarizeRelayItems(items),
       source_status_summary: {
         source_kind: sourceStatus.source_kind,
@@ -135,6 +143,7 @@ export async function createYouTubeRelayReadinessRehearsal({
       },
       boundary_policy: {
         local_fixture_source_only: true,
+        synthetic_fixture_results_only: true,
         scheduler_tick_performed: true,
         validation_gated_persistence: true,
         no_endpoint_values: true,
@@ -172,6 +181,19 @@ export function assertYouTubeRelayReadinessRehearsalSafe(
       throw new Error(`YouTube relay readiness report has unexpected field: ${field}`);
     }
   }
+  if (
+    !value.fixture_summary ||
+    value.fixture_summary.fixture_source !== "synthetic_youtube_relay_fixture" ||
+    !["pass", "fail"].includes(value.fixture_summary.fixture_result_status) ||
+    value.fixture_summary.real_youtube_input_used !== false ||
+    !Number.isInteger(value.fixture_summary.fixture_result_count) ||
+    value.fixture_summary.fixture_result_count < 0
+  ) {
+    throw new Error("YouTube relay readiness fixture summary must be synthetic and safe");
+  }
+  if (value.boundary_policy?.synthetic_fixture_results_only !== true) {
+    throw new Error("YouTube relay readiness report must use synthetic fixture results only");
+  }
   const serialized = JSON.stringify(value);
   const forbiddenFragments = [
     relayUrl,
@@ -202,6 +224,9 @@ export function assertYouTubeRelayReadinessRehearsalSafe(
     "api_key=",
     "apiKey=",
     "token=",
+    "youtube-token",
+    "raw YouTube",
+    "raw_youtube",
     "secret=",
     "authorization=",
   ].filter(Boolean);

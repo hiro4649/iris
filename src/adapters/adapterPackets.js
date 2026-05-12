@@ -73,6 +73,22 @@ const TTS_ADAPTER_GUIDANCE_ALLOWED_FIELDS = new Set([
   "subtitle_hint",
   "speech_rate_hint",
 ]);
+const TTS_FIXTURE_PACKET_PREVIEW_FIELDS = new Set([
+  "schema",
+  "preview_status",
+  "adapter_kind",
+  "packet_field_count",
+  "guidance_hint_count",
+  "boundary_policy",
+]);
+const LIVE2D_FIXTURE_CUE_PREVIEW_FIELDS = new Set([
+  "schema",
+  "preview_status",
+  "adapter_kind",
+  "packet_field_count",
+  "motion_track_count",
+  "boundary_policy",
+]);
 
 export function createTtsAdapterPacket(
   finalOutput,
@@ -197,6 +213,77 @@ export function assertTtsAdapterGuidanceSafe(guidance, context = "TTS adapter gu
   }
 }
 
+export function createTtsFixturePacketPreview(packet) {
+  assertAdapterPacketSafe(packet, "TTS fixture packet preview source packet");
+  if (packet.adapter_kind !== "tts") {
+    throw new ContractError("TTS fixture packet preview: TTS packet required");
+  }
+  const preview = {
+    schema: "iris_tts_fixture_packet_preview_v1",
+    preview_status: "pass",
+    adapter_kind: "tts",
+    packet_field_count: Object.keys(packet).length,
+    guidance_hint_count:
+      packet.tts_adapter_guidance && typeof packet.tts_adapter_guidance === "object"
+        ? Object.keys(packet.tts_adapter_guidance).length
+        : 0,
+    boundary_policy: {
+      safe_fixture_preview_only: true,
+      no_endpoint_values: true,
+      no_token_values: true,
+      no_audio_bodies: true,
+      no_vendor_diagnostic_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertTtsFixturePacketPreviewSafe(preview);
+  return preview;
+}
+
+export function assertTtsFixturePacketPreviewSafe(
+  preview,
+  context = "TTS fixture packet preview"
+) {
+  if (!preview || typeof preview !== "object" || Array.isArray(preview)) {
+    throw new ContractError(`${context}: preview must be an object`);
+  }
+  for (const field of Object.keys(preview)) {
+    if (!TTS_FIXTURE_PACKET_PREVIEW_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected preview field`, { field });
+    }
+  }
+  if (preview.schema !== "iris_tts_fixture_packet_preview_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["pass", "fail"].includes(preview.preview_status)) {
+    throw new ContractError(`${context}: invalid preview status`);
+  }
+  if (preview.adapter_kind !== "tts") {
+    throw new ContractError(`${context}: invalid adapter kind`);
+  }
+  for (const field of ["packet_field_count", "guidance_hint_count"]) {
+    if (!Number.isInteger(preview[field]) || preview[field] < 0) {
+      throw new ContractError(`${context}: invalid count`, { field });
+    }
+  }
+  const requiredBoundary = [
+    "safe_fixture_preview_only",
+    "no_endpoint_values",
+    "no_token_values",
+    "no_audio_bodies",
+    "no_vendor_diagnostic_values",
+    "no_candidates",
+    "no_commands",
+  ];
+  for (const field of requiredBoundary) {
+    if (preview.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoUnsafeTtsFixturePreviewMaterial(preview, context);
+}
+
 export function createLive2dAdapterPacket(
   envelope,
   {
@@ -270,6 +357,76 @@ export function createLive2dAdapterPacket(
   };
   assertAdapterPacketSafe(packet, "Live2D adapter packet");
   return packet;
+}
+
+export function createLive2dFixtureCuePreview(packet) {
+  assertAdapterPacketSafe(packet, "Live2D fixture cue preview source packet");
+  if (packet.adapter_kind !== "live2d") {
+    throw new ContractError("Live2D fixture cue preview: Live2D packet required");
+  }
+  const preview = {
+    schema: "iris_live2d_fixture_cue_preview_v1",
+    preview_status: "pass",
+    adapter_kind: "live2d",
+    packet_field_count: Object.keys(packet).length,
+    motion_track_count: Array.isArray(packet.performance_plan?.tracks?.motion)
+      ? packet.performance_plan.tracks.motion.length
+      : 0,
+    boundary_policy: {
+      safe_fixture_preview_only: true,
+      renderer_payload_values_excluded: true,
+      model_file_values_excluded: true,
+      motion_instruction_values_excluded: true,
+      no_endpoint_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertLive2dFixtureCuePreviewSafe(preview);
+  return preview;
+}
+
+export function assertLive2dFixtureCuePreviewSafe(
+  preview,
+  context = "Live2D fixture cue preview"
+) {
+  if (!preview || typeof preview !== "object" || Array.isArray(preview)) {
+    throw new ContractError(`${context}: preview must be an object`);
+  }
+  for (const field of Object.keys(preview)) {
+    if (!LIVE2D_FIXTURE_CUE_PREVIEW_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected preview field`, { field });
+    }
+  }
+  if (preview.schema !== "iris_live2d_fixture_cue_preview_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["pass", "fail"].includes(preview.preview_status)) {
+    throw new ContractError(`${context}: invalid preview status`);
+  }
+  if (preview.adapter_kind !== "live2d") {
+    throw new ContractError(`${context}: invalid adapter kind`);
+  }
+  for (const field of ["packet_field_count", "motion_track_count"]) {
+    if (!Number.isInteger(preview[field]) || preview[field] < 0) {
+      throw new ContractError(`${context}: invalid count`, { field });
+    }
+  }
+  const requiredBoundary = [
+    "safe_fixture_preview_only",
+    "renderer_payload_values_excluded",
+    "model_file_values_excluded",
+    "motion_instruction_values_excluded",
+    "no_endpoint_values",
+    "no_candidates",
+    "no_commands",
+  ];
+  for (const field of requiredBoundary) {
+    if (preview.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoUnsafeLive2dFixturePreviewMaterial(preview, context);
 }
 
 export function createSubtitleAdapterPacket(
@@ -484,6 +641,54 @@ function containsUnsafeAdapterGuidanceValue(value) {
   return /\bhttps?:\/\/|\b(?:api[_-]?key|oauth[_-]?token|token|authorization|password|secret)\s*[:=]|\bBearer\s+|(?:^|[\\/:])(?:dataset|datasets|model|models)(?:[\\/]|$)|\.(?:wav|mp3|flac|ogg|opus|m4a)\b/iu.test(
     value
   );
+}
+
+function assertNoUnsafeTtsFixturePreviewMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(endpoint|token|authorization|bearer|secret|raw audio|raw_audio|audio_base64|audio_data_url|vendor diagnostics|vendor_diagnostics|tts_vendor_diagnostics|input_action_candidate|world_command|candidate)\b|https?:\/\//iu.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe preview material`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnsafeTtsFixturePreviewMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path === "root" && field === "schema") continue;
+    assertNoUnsafeTtsFixturePreviewMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoUnsafeLive2dFixturePreviewMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(endpoint|token|authorization|bearer|secret|raw renderer payload|raw_renderer_payload|renderer_payload|model path|model_path|internal_model_path|motion command|motion_command|raw_motion_command|input_action_candidate|world_command|candidate)\b|https?:\/\//iu.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe preview material`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnsafeLive2dFixturePreviewMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path === "root" && field === "schema") continue;
+    assertNoUnsafeLive2dFixturePreviewMaterial(child, context, `${path}.${field}`);
+  }
 }
 
 function isSafeTtsGuidanceValue(value) {

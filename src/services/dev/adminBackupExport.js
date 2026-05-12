@@ -8,6 +8,14 @@ const SAFE_EXPORT_FIELDS = new Set([
   "safe_label",
   "boundary_policy",
 ]);
+const SAFE_INTEGRITY_FIELDS = new Set([
+  "schema",
+  "integrity_status",
+  "hash",
+  "checked_item_count",
+  "safe_label",
+  "boundary_policy",
+]);
 
 const BOUNDARY_FIELDS = [
   "safe_summary_only",
@@ -21,11 +29,19 @@ const BOUNDARY_FIELDS = [
   "no_frame_bodies",
   "no_job_bodies",
 ];
+const INTEGRITY_BOUNDARY_FIELDS = [
+  "hash_status_count_only",
+  "storage_location_values_excluded",
+  "database_dump_values_excluded",
+  "sensitive_values_excluded",
+  "no_endpoint_values",
+  "no_payloads",
+];
 
 const UNSAFE_FIELD_PATTERN =
-  /(?:^|_)(secret|endpoint|oauth|token|access_token|refresh_token|raw_candidate|candidate_payload|raw_voice|voice_sample|model_path|internal_model_path|dataset_path|raw_frame|raw_job|job_payload)(?:$|_)/i;
+  /(?:^|_)(secret|endpoint|oauth|token|access_token|refresh_token|raw_candidate|candidate_payload|raw_voice|voice_sample|model_path|internal_model_path|dataset_path|raw_frame|raw_job|job_payload|backup_path|raw_backup_path|raw_db_dump|db_dump)(?:$|_)/i;
 const UNSAFE_TEXT_PATTERN =
-  /\b(secret|endpoint|oauth|access[_-]?token|refresh[_-]?token|bearer|api[_-]?key|raw[_-]?candidate|candidate[_-]?payload|raw[_-]?voice|voice[_-]?sample|model[_-]?path|internal[_-]?model[_-]?path|dataset[_-]?path|raw[_-]?frame|raw[_-]?job|job[_-]?payload)\b|https?:\/\//i;
+  /\b(secret|endpoint|oauth|access[_-]?token|refresh[_-]?token|bearer|api[_-]?key|raw[_-]?candidate|candidate[_-]?payload|raw[_-]?voice|voice[_-]?sample|model[_-]?path|internal[_-]?model[_-]?path|dataset[_-]?path|raw[_-]?frame|raw[_-]?job|job[_-]?payload|backup[_-]?path|raw[_-]?backup[_-]?path|raw[_-]?db[_-]?dump|db[_-]?dump)\b|https?:\/\//i;
 
 export function createAdminBackupExportRedaction({
   backup = null,
@@ -75,6 +91,56 @@ export function assertAdminBackupExportRedactionSafe(
   assertBoundaryPolicy(summary.boundary_policy, context);
 }
 
+export function createBackupIntegrityCheckSafeSummary({
+  hash = "",
+  integrityStatus = "pass",
+  checkedItemCount = 0,
+} = {}) {
+  const summary = {
+    schema: "iris_backup_integrity_check_summary_v1",
+    integrity_status: integrityStatus === "fail" ? "fail" : "pass",
+    hash: safeHash(hash),
+    checked_item_count: safeCount(checkedItemCount),
+    safe_label: integrityStatus === "fail" ? "integrity_attention" : "integrity_check_passed",
+    boundary_policy: Object.fromEntries(
+      INTEGRITY_BOUNDARY_FIELDS.map((field) => [field, true])
+    ),
+  };
+  assertBackupIntegrityCheckSafeSummary(summary);
+  return summary;
+}
+
+export function assertBackupIntegrityCheckSafeSummary(
+  summary,
+  context = "backup integrity check summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeStringValues(summary, context);
+  if (summary.schema !== "iris_backup_integrity_check_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SAFE_INTEGRITY_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!["pass", "fail"].includes(summary.integrity_status)) {
+    throw new ContractError(`${context}: invalid integrity status`);
+  }
+  if (!/^[a-f0-9]{8,64}$/iu.test(summary.hash)) {
+    throw new ContractError(`${context}: invalid hash`);
+  }
+  if (!Number.isInteger(summary.checked_item_count) || summary.checked_item_count < 0) {
+    throw new ContractError(`${context}: invalid checked item count`);
+  }
+  if (!["integrity_check_passed", "integrity_attention"].includes(summary.safe_label)) {
+    throw new ContractError(`${context}: invalid safe label`);
+  }
+  assertIntegrityBoundaryPolicy(summary.boundary_policy, context);
+}
+
 function countItems(value) {
   if (Array.isArray(value)) return value.length;
   if (value && typeof value === "object") return Object.keys(value).length;
@@ -92,6 +158,17 @@ function countUnsafeFields(value) {
   }, 0);
 }
 
+function safeHash(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return /^[a-f0-9]{8,64}$/u.test(normalized) ? normalized : "00000000";
+}
+
+function safeCount(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return 0;
+  return Math.trunc(number);
+}
+
 function assertBoundaryPolicy(policy, context) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
     throw new ContractError(`${context}: boundary policy required`);
@@ -103,6 +180,23 @@ function assertBoundaryPolicy(policy, context) {
     }
   }
   for (const field of BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertIntegrityBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const allowed = new Set(INTEGRITY_BOUNDARY_FIELDS);
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const field of INTEGRITY_BOUNDARY_FIELDS) {
     if (policy[field] !== true) {
       throw new ContractError(`${context}: ${field} boundary required`);
     }

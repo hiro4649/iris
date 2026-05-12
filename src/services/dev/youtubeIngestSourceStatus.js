@@ -65,6 +65,95 @@ const YOUTUBE_INGEST_SOURCE_STATUS_REPORT_FIELDS = new Set([
   "boundary_policy",
   "adapter_validation_required",
 ]);
+const YOUTUBE_API_CONFIGURED_STATUS_FIELDS = new Set([
+  "schema",
+  "api_configured",
+  "oauth_configured",
+  "configured_status",
+  "boundary_policy",
+]);
+const OAUTH_TOKEN_REDACTION_STATUS_FIELDS = new Set([
+  "schema",
+  "redaction_status",
+  "logs_safe",
+  "public_view_safe",
+  "admin_ordinary_view_safe",
+  "diagnostics_safe",
+  "boundary_policy",
+]);
+const LIVE_CHAT_ID_DISCOVERY_STATUS_FIELDS = new Set([
+  "schema",
+  "discovery_status",
+  "discovery_request_count",
+  "resolved_count",
+  "boundary_policy",
+]);
+const INGEST_DEDUPE_WINDOW_SUMMARY_FIELDS = new Set([
+  "schema",
+  "dedupe_status",
+  "window_label",
+  "duplicate_count",
+  "boundary_policy",
+]);
+const MODERATION_FILTER_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "filter_status",
+  "blocked_author_count",
+  "blocked_text_rule_count",
+  "filtered_count",
+  "boundary_policy",
+]);
+const SUPPORT_DONATION_NORMALIZER_SAFE_OUTPUT_FIELDS = new Set([
+  "schema",
+  "normalizer_status",
+  "support_event_type",
+  "amount_source",
+  "support_event_count",
+  "boundary_policy",
+]);
+const INGEST_BACKOFF_STATUS_FIELDS = new Set([
+  "schema",
+  "backoff_status",
+  "retry_count",
+  "next_safe_action",
+  "boundary_policy",
+]);
+const SOURCE_FAILURE_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "component",
+  "status",
+  "error_code",
+  "boundary_policy",
+]);
+const LATEST_SAFE_EVENT_COUNTS_FIELDS = new Set([
+  "schema",
+  "source",
+  "event_type_counts",
+  "total_count",
+  "boundary_policy",
+]);
+const SUPPORT_MESSAGE_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "summary_status",
+  "message_class",
+  "summary_label",
+  "surface_policy",
+  "boundary_policy",
+]);
+const SAFE_EVENT_COUNT_SOURCE_LABELS = [
+  "youtube_live_chat",
+  "youtube_donation",
+  "support_ingest",
+  "relay_source",
+];
+const SAFE_EVENT_COUNT_TYPES = [
+  "comment",
+  "support",
+  "moderation",
+  "ignored",
+  "duplicate",
+  "source_error",
+];
 
 const SOURCE_KINDS = new Set([
   "youtube_live_chat_api_source",
@@ -122,6 +211,716 @@ const SUPPORT_AMOUNT_SOURCE_KINDS = [
   "unknown",
 ];
 const URL_PATTERN = /https?:\/\//i;
+
+export function createYouTubeApiConfiguredStatus({ env = process.env } = {}) {
+  const apiConfigured =
+    hasConfiguredEnv(env, "IRIS_YOUTUBE_API_KEY") ||
+    hasConfiguredEnv(env, "IRIS_YOUTUBE_LIVE_CHAT_API_KEY");
+  const oauthConfigured =
+    hasConfiguredEnv(env, "IRIS_YOUTUBE_OAUTH_TOKEN") ||
+    hasConfiguredEnv(env, "IRIS_YOUTUBE_OAUTH_REFRESH_TOKEN");
+  const status = {
+    schema: "iris_youtube_api_configured_status_v1",
+    api_configured: apiConfigured,
+    oauth_configured: oauthConfigured,
+    configured_status:
+      apiConfigured || oauthConfigured ? "configured" : "missing",
+    boundary_policy: {
+      configured_missing_status_only: true,
+      no_oauth_token: true,
+      no_endpoint_values: true,
+      no_response_body: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertYouTubeApiConfiguredStatusSafe(status);
+  return status;
+}
+
+export function assertYouTubeApiConfiguredStatusSafe(
+  status,
+  context = "youtube api configured status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status is required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!YOUTUBE_API_CONFIGURED_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_youtube_api_configured_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of ["api_configured", "oauth_configured"]) {
+    if (typeof status[field] !== "boolean") {
+      throw new ContractError(`${context}: invalid configured flag`, { field });
+    }
+  }
+  if (!["configured", "missing"].includes(status.configured_status)) {
+    throw new ContractError(`${context}: invalid configured status`);
+  }
+  if (
+    status.configured_status !==
+    (status.api_configured || status.oauth_configured ? "configured" : "missing")
+  ) {
+    throw new ContractError(`${context}: configured status mismatch`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "configured_missing_status_only",
+      "no_oauth_token",
+      "no_endpoint_values",
+      "no_response_body",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoYouTubeApiConfiguredStatusLeak(status, context);
+}
+
+export function createOAuthTokenRedactionStatus() {
+  const status = {
+    schema: "iris_auth_secret_redaction_status_v1",
+    redaction_status: "redacted",
+    logs_safe: true,
+    public_view_safe: true,
+    admin_ordinary_view_safe: true,
+    diagnostics_safe: true,
+    boundary_policy: {
+      no_oauth_token: true,
+      no_refresh_token: true,
+      no_access_token: true,
+      no_authorization_header: true,
+      no_secret_values: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertOAuthTokenRedactionStatusSafe(status);
+  return status;
+}
+
+export function assertOAuthTokenRedactionStatusSafe(
+  status,
+  context = "oauth token redaction status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status is required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!OAUTH_TOKEN_REDACTION_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_auth_secret_redaction_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (status.redaction_status !== "redacted") {
+    throw new ContractError(`${context}: invalid redaction status`);
+  }
+  for (const field of [
+    "logs_safe",
+    "public_view_safe",
+    "admin_ordinary_view_safe",
+    "diagnostics_safe",
+  ]) {
+    if (status[field] !== true) {
+      throw new ContractError(`${context}: unsafe surface`, { field });
+    }
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "no_oauth_token",
+      "no_refresh_token",
+      "no_access_token",
+      "no_authorization_header",
+      "no_secret_values",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoOAuthTokenRedactionLeak(status, context);
+}
+
+export function createLiveChatIdDiscoveryStatus({
+  discoveryRequestCount = 0,
+  resolved = false,
+} = {}) {
+  const requestCount = safeNonNegativeInteger(discoveryRequestCount);
+  const resolvedCount = resolved === true ? 1 : 0;
+  const status = {
+    schema: "iris_chat_discovery_status_v1",
+    discovery_status:
+      resolvedCount > 0
+        ? "resolved"
+        : requestCount > 0
+          ? "pending"
+          : "not_started",
+    discovery_request_count: requestCount,
+    resolved_count: resolvedCount,
+    boundary_policy: {
+      status_and_count_only: true,
+      no_live_chat_id: true,
+      no_raw_api_response: true,
+      no_private_channel_data: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertLiveChatIdDiscoveryStatusSafe(status);
+  return status;
+}
+
+export function assertLiveChatIdDiscoveryStatusSafe(
+  status,
+  context = "live chat id discovery status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status is required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!LIVE_CHAT_ID_DISCOVERY_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_chat_discovery_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["not_started", "pending", "resolved"].includes(status.discovery_status)) {
+    throw new ContractError(`${context}: invalid discovery status`);
+  }
+  assertNonNegativeInteger(
+    status.discovery_request_count,
+    `${context}: discovery_request_count`
+  );
+  assertNonNegativeInteger(status.resolved_count, `${context}: resolved_count`);
+  if (status.resolved_count > status.discovery_request_count && status.discovery_request_count > 0) {
+    throw new ContractError(`${context}: invalid discovery counts`);
+  }
+  if (status.resolved_count > 1) {
+    throw new ContractError(`${context}: invalid resolved count`);
+  }
+  if (
+    (status.discovery_status === "resolved" && status.resolved_count !== 1) ||
+    (status.discovery_status === "pending" &&
+      (status.discovery_request_count < 1 || status.resolved_count !== 0)) ||
+    (status.discovery_status === "not_started" &&
+      (status.discovery_request_count !== 0 || status.resolved_count !== 0))
+  ) {
+    throw new ContractError(`${context}: discovery status/count mismatch`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "status_and_count_only",
+      "no_live_chat_id",
+      "no_raw_api_response",
+      "no_private_channel_data",
+      "no_endpoint_values",
+      "no_tokens",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoLiveChatIdDiscoveryLeak(status, context);
+}
+
+export function createIngestDedupeWindowSummary({
+  windowMs = 5000,
+  duplicateCount = 0,
+  enabled = true,
+} = {}) {
+  const duplicateTotal = safeNonNegativeInteger(duplicateCount);
+  const summary = {
+    schema: "iris_ingest_dedupe_window_summary_v1",
+    dedupe_status: enabled === true ? "enabled" : "disabled",
+    window_label: safeDedupeWindowLabel(windowMs),
+    duplicate_count: duplicateTotal,
+    boundary_policy: {
+      status_window_count_only: true,
+      no_raw_comment_body: true,
+      no_raw_youtube_text: true,
+      no_author_private_ids: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertIngestDedupeWindowSummarySafe(summary);
+  return summary;
+}
+
+export function assertIngestDedupeWindowSummarySafe(
+  summary,
+  context = "ingest dedupe window summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!INGEST_DEDUPE_WINDOW_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_ingest_dedupe_window_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["enabled", "disabled"].includes(summary.dedupe_status)) {
+    throw new ContractError(`${context}: invalid dedupe status`);
+  }
+  if (!["disabled", "short", "standard", "extended"].includes(summary.window_label)) {
+    throw new ContractError(`${context}: invalid window label`);
+  }
+  assertNonNegativeInteger(summary.duplicate_count, `${context}: duplicate_count`);
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "status_window_count_only",
+      "no_raw_comment_body",
+      "no_raw_youtube_text",
+      "no_author_private_ids",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoIngestDedupeWindowLeak(summary, context);
+}
+
+export function createModerationFilterSafeSummary({
+  configured = false,
+  blockedAuthorCount = 0,
+  blockedTextRuleCount = 0,
+  filteredCount = 0,
+} = {}) {
+  const summary = {
+    schema: "iris_moderation_filter_safe_summary_v1",
+    filter_status: configured === true ? "configured" : "missing",
+    blocked_author_count: safeNonNegativeInteger(blockedAuthorCount),
+    blocked_text_rule_count: safeNonNegativeInteger(blockedTextRuleCount),
+    filtered_count: safeNonNegativeInteger(filteredCount),
+    boundary_policy: {
+      safe_status_and_counts_only: true,
+      no_raw_terms: true,
+      no_raw_blocked_phrases: true,
+      no_private_notes: true,
+      no_raw_comment_text: true,
+      no_author_private_ids: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertModerationFilterSafeSummary(summary);
+  return summary;
+}
+
+export function assertModerationFilterSafeSummary(
+  summary,
+  context = "moderation filter safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!MODERATION_FILTER_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_moderation_filter_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["configured", "missing"].includes(summary.filter_status)) {
+    throw new ContractError(`${context}: invalid filter status`);
+  }
+  for (const field of [
+    "blocked_author_count",
+    "blocked_text_rule_count",
+    "filtered_count",
+  ]) {
+    assertNonNegativeInteger(summary[field], `${context}: ${field}`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "safe_status_and_counts_only",
+      "no_raw_terms",
+      "no_raw_blocked_phrases",
+      "no_private_notes",
+      "no_raw_comment_text",
+      "no_author_private_ids",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoModerationFilterSummaryLeak(summary, context);
+}
+
+export function createSupportDonationNormalizerSafeOutput({
+  normalized = true,
+  supportEventType = "normalizedSupportEvent",
+  amountSource = "unknown",
+  supportEventCount = 0,
+} = {}) {
+  const output = {
+    schema: "iris_support_donation_normalizer_safe_output_v1",
+    normalizer_status: normalized === true ? "normalized" : "attention_required",
+    support_event_type: safeSupportDonationEventType(supportEventType),
+    amount_source: safeSupportDonationAmountSource(amountSource),
+    support_event_count: safeNonNegativeInteger(supportEventCount),
+    boundary_policy: {
+      safe_normalized_labels_only: true,
+      no_raw_support_message: true,
+      no_private_ids: true,
+      no_amount_comparison: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertSupportDonationNormalizerSafeOutput(output);
+  return output;
+}
+
+export function assertSupportDonationNormalizerSafeOutput(
+  output,
+  context = "support donation normalizer safe output"
+) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    throw new ContractError(`${context}: output is required`);
+  }
+  for (const field of Object.keys(output)) {
+    if (!SUPPORT_DONATION_NORMALIZER_SAFE_OUTPUT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected output field`, { field });
+    }
+  }
+  if (output.schema !== "iris_support_donation_normalizer_safe_output_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["normalized", "attention_required"].includes(output.normalizer_status)) {
+    throw new ContractError(`${context}: invalid normalizer status`);
+  }
+  if (!SUPPORT_EVENT_TYPES.includes(output.support_event_type)) {
+    throw new ContractError(`${context}: invalid support event type`);
+  }
+  if (!SUPPORT_AMOUNT_SOURCE_KINDS.includes(output.amount_source)) {
+    throw new ContractError(`${context}: invalid amount source`);
+  }
+  assertNonNegativeInteger(output.support_event_count, `${context}: support_event_count`);
+  assertBoundaryPolicy(
+    output.boundary_policy,
+    [
+      "safe_normalized_labels_only",
+      "no_raw_support_message",
+      "no_private_ids",
+      "no_amount_comparison",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoSupportDonationNormalizerLeak(output, context);
+}
+
+export function createIngestBackoffStatus({
+  active = false,
+  retryCount = 0,
+  operatorActionRequired = false,
+} = {}) {
+  const status = {
+    schema: "iris_ingest_backoff_status_v1",
+    backoff_status: active === true ? "retry_backoff" : "idle",
+    retry_count: safeNonNegativeInteger(retryCount),
+    next_safe_action:
+      operatorActionRequired === true
+        ? "operator_review"
+        : active === true
+          ? "wait_for_retry_window"
+          : "continue_polling",
+    boundary_policy: {
+      safe_status_retry_count_action_only: true,
+      no_raw_error_body: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertIngestBackoffStatusSafe(status);
+  return status;
+}
+
+export function assertIngestBackoffStatusSafe(
+  status,
+  context = "ingest backoff status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status is required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!INGEST_BACKOFF_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_ingest_backoff_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["idle", "retry_backoff"].includes(status.backoff_status)) {
+    throw new ContractError(`${context}: invalid backoff status`);
+  }
+  assertNonNegativeInteger(status.retry_count, `${context}: retry_count`);
+  if (
+    !["continue_polling", "wait_for_retry_window", "operator_review"].includes(
+      status.next_safe_action
+    )
+  ) {
+    throw new ContractError(`${context}: invalid next safe action`);
+  }
+  if (
+    status.backoff_status === "idle" &&
+    status.next_safe_action === "wait_for_retry_window"
+  ) {
+    throw new ContractError(`${context}: idle status/action mismatch`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "safe_status_retry_count_action_only",
+      "no_raw_error_body",
+      "no_endpoint_values",
+      "no_tokens",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoIngestBackoffStatusLeak(status, context);
+}
+
+export function createSourceFailureSafeSummary({
+  component = "youtube_ingest",
+  status = "failed",
+  errorCode = "source_unavailable",
+} = {}) {
+  const summary = {
+    schema: "iris_source_failure_safe_summary_v1",
+    component: safeSourceFailureComponent(component),
+    status: safeSourceFailureStatus(status),
+    error_code: safeSourceFailureErrorCode(errorCode),
+    boundary_policy: {
+      component_status_error_code_only: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+      no_raw_response: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertSourceFailureSafeSummary(summary);
+  return summary;
+}
+
+export function assertSourceFailureSafeSummary(
+  summary,
+  context = "source failure safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SOURCE_FAILURE_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_source_failure_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["youtube_ingest", "support_ingest", "relay_source"].includes(summary.component)) {
+    throw new ContractError(`${context}: invalid component`);
+  }
+  if (!["failed", "degraded", "recovered"].includes(summary.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  if (!/^[a-z0-9_]{1,80}$/.test(summary.error_code)) {
+    throw new ContractError(`${context}: invalid error code`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "component_status_error_code_only",
+      "no_endpoint_values",
+      "no_tokens",
+      "no_raw_response",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoSourceFailureSummaryLeak(summary, context);
+}
+
+export function createLatestSafeEventCounts({
+  source = "youtube_live_chat",
+  eventTypeCounts = {},
+} = {}) {
+  const eventCounts = {};
+  for (const type of SAFE_EVENT_COUNT_TYPES) {
+    eventCounts[type] = safeNonNegativeInteger(eventTypeCounts[type]);
+  }
+  const summary = {
+    schema: "iris_latest_safe_event_counts_v1",
+    source: safeEventCountSource(source),
+    event_type_counts: eventCounts,
+    total_count: Object.values(eventCounts).reduce((total, count) => total + count, 0),
+    boundary_policy: {
+      source_type_count_only: true,
+      no_raw_event_payload: true,
+      no_raw_comment_text: true,
+      no_support_message_text: true,
+      no_private_ids: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertLatestSafeEventCounts(summary);
+  return summary;
+}
+
+export function assertLatestSafeEventCounts(
+  summary,
+  context = "latest safe event counts"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!LATEST_SAFE_EVENT_COUNTS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_latest_safe_event_counts_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!SAFE_EVENT_COUNT_SOURCE_LABELS.includes(summary.source)) {
+    throw new ContractError(`${context}: invalid source`);
+  }
+  assertCountMapSafe(summary.event_type_counts, SAFE_EVENT_COUNT_TYPES, `${context}: event type counts`);
+  assertNonNegativeInteger(summary.total_count, `${context}: total_count`);
+  const computedTotal = Object.values(summary.event_type_counts).reduce(
+    (total, count) => total + count,
+    0
+  );
+  if (summary.total_count !== computedTotal) {
+    throw new ContractError(`${context}: count mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "source_type_count_only",
+      "no_raw_event_payload",
+      "no_raw_comment_text",
+      "no_support_message_text",
+      "no_private_ids",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoLatestSafeEventCountsLeak(summary, context);
+}
+
+export function createSupportMessageSafeSummary({
+  messageClass = "support_message",
+  summaryLabel = "support_message_received",
+} = {}) {
+  const summary = {
+    schema: "iris_support_message_safe_summary_v1",
+    summary_status: "summarized",
+    message_class: safeSupportMessageClass(messageClass),
+    summary_label: safeSupportMessageSummaryLabel(summaryLabel),
+    surface_policy: {
+      ordinary_view_safe: true,
+      public_view_safe: true,
+      report_safe: true,
+      replay_safe: true,
+    },
+    boundary_policy: {
+      summary_only: true,
+      no_raw_support_message_text: true,
+      no_raw_viewer_text: true,
+      no_private_ids: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertSupportMessageSafeSummary(summary);
+  return summary;
+}
+
+export function assertSupportMessageSafeSummary(
+  summary,
+  context = "support message safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SUPPORT_MESSAGE_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_support_message_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (summary.summary_status !== "summarized") {
+    throw new ContractError(`${context}: invalid summary status`);
+  }
+  if (!["support_message", "donation_message", "membership_message"].includes(summary.message_class)) {
+    throw new ContractError(`${context}: invalid message class`);
+  }
+  if (!/^[a-z0-9_]{1,80}$/.test(summary.summary_label)) {
+    throw new ContractError(`${context}: invalid summary label`);
+  }
+  assertBoundaryPolicy(
+    summary.surface_policy,
+    ["ordinary_view_safe", "public_view_safe", "report_safe", "replay_safe"],
+    `${context}: surface policy`
+  );
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "summary_only",
+      "no_raw_support_message_text",
+      "no_raw_viewer_text",
+      "no_private_ids",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoSupportMessageSummaryLeak(summary, context);
+}
 
 export function createYouTubeIngestSourceStatusReport({
   env = process.env,
@@ -557,6 +1356,330 @@ function safeNonNegativeInteger(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) return 0;
   return Math.trunc(number);
+}
+
+function safeDedupeWindowLabel(value) {
+  const windowMs = safeNonNegativeInteger(value);
+  if (windowMs === 0) return "disabled";
+  if (windowMs < 1000) return "short";
+  if (windowMs <= 10_000) return "standard";
+  return "extended";
+}
+
+function hasConfiguredEnv(env, name) {
+  return String(env?.[name] ?? "").trim().length > 0;
+}
+
+function assertNoYouTubeApiConfiguredStatusLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /https?:\/\/|oauth[_ -]?token|refresh[_ -]?token|access[_ -]?token|bearer|authorization|api[_ -]?key|endpoint|response[_ -]?body|raw[_ -]?response|raw[_ -]?payload|secret/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe API readiness material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoYouTubeApiConfiguredStatusLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoYouTubeApiConfiguredStatusLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoOAuthTokenRedactionLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /oauth[_ -]?token|refresh[_ -]?token|access[_ -]?token|bearer\s+|authorization|client[_ -]?secret|token[_ -]?value|secret[_ -]?value|raw[_ -]?payload/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: OAuth token material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoOAuthTokenRedactionLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoOAuthTokenRedactionLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoLiveChatIdDiscoveryLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /live[_ -]?chat[_ -]?id|activeLiveChatId|raw[_ -]?api[_ -]?response|response[_ -]?body|private[_ -]?channel|channel[_ -]?id|oauth|token|authorization|endpoint|https?:\/\//i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: live chat discovery material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoLiveChatIdDiscoveryLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoLiveChatIdDiscoveryLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoIngestDedupeWindowLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?comment|comment[_ -]?body|raw[_ -]?youtube[_ -]?text|displayMessage|author[_ -]?private|author[_ -]?id|channel[_ -]?id|raw[_ -]?payload|payload/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: raw dedupe material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoIngestDedupeWindowLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoIngestDedupeWindowLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoModerationFilterSummaryLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?term|blocked[_ -]?phrase|moderation[_ -]?term|private[_ -]?note|raw[_ -]?comment|comment[_ -]?text|author[_ -]?private|author[_ -]?id|viewer[_ -]?id/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: moderation filter material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoModerationFilterSummaryLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoModerationFilterSummaryLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function safeSupportDonationEventType(value) {
+  const normalized = String(value ?? "").trim();
+  return SUPPORT_EVENT_TYPES.includes(normalized)
+    ? normalized
+    : "normalizedSupportEvent";
+}
+
+function safeSupportDonationAmountSource(value) {
+  const normalized = String(value ?? "").trim();
+  return SUPPORT_AMOUNT_SOURCE_KINDS.includes(normalized) ? normalized : "unknown";
+}
+
+function assertNoSupportDonationNormalizerLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?support|support[_ -]?message|message[_ -]?text|private[_ -]?id|private[_ -]?viewer|author[_ -]?id|channel[_ -]?id|amount[_ -]?comparison|viewer[_ -]?ranking|pay[_ -]?to[_ -]?rank|higher[_ -]?than|raw[_ -]?payload|payload/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe support normalizer material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoSupportDonationNormalizerLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoSupportDonationNormalizerLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoIngestBackoffStatusLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?error|error[_ -]?body|response[_ -]?body|stack[_ -]?trace|exception|endpoint|https?:\/\/|oauth|token|authorization|raw[_ -]?payload|payload|world[_ -]?command|input[_ -]?action[_ -]?candidate/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe backoff material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoIngestBackoffStatusLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoIngestBackoffStatusLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function safeSourceFailureComponent(value) {
+  const normalized = String(value ?? "").trim();
+  return ["youtube_ingest", "support_ingest", "relay_source"].includes(normalized)
+    ? normalized
+    : "youtube_ingest";
+}
+
+function safeSourceFailureStatus(value) {
+  const normalized = String(value ?? "").trim();
+  return ["failed", "degraded", "recovered"].includes(normalized)
+    ? normalized
+    : "failed";
+}
+
+function safeSourceFailureErrorCode(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return normalized || "source_unavailable";
+}
+
+function assertNoSourceFailureSummaryLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /endpoint|https?:\/\/|oauth|refresh[_ -]?token|access[_ -]?token|bearer\s+|authorization|secret|raw[_ -]?response|response[_ -]?body|raw[_ -]?payload|payload|world[_ -]?command|input[_ -]?action[_ -]?candidate/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe source failure material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoSourceFailureSummaryLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoSourceFailureSummaryLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function safeEventCountSource(value) {
+  const normalized = String(value ?? "").trim();
+  return SAFE_EVENT_COUNT_SOURCE_LABELS.includes(normalized)
+    ? normalized
+    : "youtube_live_chat";
+}
+
+function assertNoLatestSafeEventCountsLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?event|event[_ -]?payload|raw[_ -]?payload|payload|raw[_ -]?comment|comment[_ -]?text|support[_ -]?message|message[_ -]?text|private[_ -]?id|author[_ -]?id|channel[_ -]?id|viewer[_ -]?id|world[_ -]?command|input[_ -]?action[_ -]?candidate/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe event count material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoLatestSafeEventCountsLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoLatestSafeEventCountsLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function safeSupportMessageClass(value) {
+  const normalized = String(value ?? "").trim();
+  return ["support_message", "donation_message", "membership_message"].includes(
+    normalized
+  )
+    ? normalized
+    : "support_message";
+}
+
+function safeSupportMessageSummaryLabel(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return normalized || "support_message_received";
+}
+
+function assertNoSupportMessageSummaryLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?support|support[_ -]?message[_ -]?text|raw[_ -]?viewer|viewer[_ -]?text|message[_ -]?text|private[_ -]?id|author[_ -]?id|channel[_ -]?id|viewer[_ -]?id|raw[_ -]?payload|payload|world[_ -]?command|input[_ -]?action[_ -]?candidate/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe support message material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoSupportMessageSummaryLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoSupportMessageSummaryLeak(child, context, `${path}.${field}`);
+  }
 }
 
 function assertCountMapSafe(counts, keys, context) {

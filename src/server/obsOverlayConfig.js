@@ -27,6 +27,44 @@ const FORBIDDEN_OBS_CONFIG_FIELDS = new Set([
   "secret",
   "password",
 ]);
+const OBS_OVERLAY_URL_REDACTION_STATUS_FIELDS = new Set([
+  "schema",
+  "overlay_url_status",
+  "public_view_safe",
+  "admin_ordinary_view_safe",
+  "logs_safe",
+  "boundary_policy",
+]);
+const OBS_BROWSER_SOURCE_SETUP_STATUS_FIELDS = new Set([
+  "schema",
+  "browser_source_setup_status",
+  "configured",
+  "missing_count",
+  "boundary_policy",
+]);
+const OBS_OVERLAY_FIXTURE_PREVIEW_STATUS_FIELDS = new Set([
+  "schema",
+  "preview_status",
+  "fixture_source",
+  "synthetic_fixture_only",
+  "real_input_used",
+  "boundary_policy",
+]);
+const OBS_ARTIFACT_SYNC_GUARD_STATUS_FIELDS = new Set([
+  "schema",
+  "artifact_sync_guard_status",
+  "check_count",
+  "boundary_policy",
+]);
+const OBS_COMMAND_PUBLIC_LEAK_GUARD_STATUS_FIELDS = new Set([
+  "schema",
+  "command_public_leak_guard_status",
+  "public_json_safe",
+  "replay_safe",
+  "ordinary_diagnostics_safe",
+  "redacted_command_count",
+  "boundary_policy",
+]);
 
 export function createObsOverlayConfig({
   origin = "http://127.0.0.1:8787",
@@ -185,6 +223,332 @@ export function createObsOverlayConfigFromEnv(env = process.env, { fallbackOrigi
   });
 }
 
+export function createObsOverlayUrlRedactionStatus({ configured = false } = {}) {
+  const status = {
+    schema: "iris_obs_overlay_url_redaction_status_v1",
+    overlay_url_status: configured === true ? "configured" : "missing",
+    public_view_safe: true,
+    admin_ordinary_view_safe: true,
+    logs_safe: true,
+    boundary_policy: {
+      status_only: true,
+      no_overlay_url_values: true,
+      no_endpoint_values: true,
+      no_obs_credentials: true,
+      no_secret_values: true,
+      no_raw_payloads: true,
+      no_commands: true,
+    },
+  };
+  assertObsOverlayUrlRedactionStatusSafe(status);
+  return status;
+}
+
+export function createObsBrowserSourceSetupStatus({
+  configured = false,
+  missingCount = 0,
+} = {}) {
+  const isConfigured = configured === true;
+  const status = {
+    schema: "iris_obs_browser_source_setup_status_v1",
+    browser_source_setup_status: isConfigured ? "configured" : "missing",
+    configured: isConfigured,
+    missing_count: isConfigured ? 0 : clampInteger(missingCount, 0, 32, 0),
+    boundary_policy: {
+      configured_missing_status_only: true,
+      no_url_values: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_obs_credentials: true,
+      no_raw_payloads: true,
+      no_commands: true,
+    },
+  };
+  assertObsBrowserSourceSetupStatusSafe(status);
+  return status;
+}
+
+export function createObsOverlayFixturePreviewStatus({ previewReady = true } = {}) {
+  const status = {
+    schema: "iris_obs_overlay_fixture_preview_status_v1",
+    preview_status: previewReady === true ? "configured" : "missing",
+    fixture_source: "synthetic_fixture",
+    synthetic_fixture_only: true,
+    real_input_used: false,
+    boundary_policy: {
+      synthetic_fixture_only: true,
+      no_real_raw_comments: true,
+      no_real_raw_frames: true,
+      no_raw_payloads: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_commands: true,
+    },
+  };
+  assertObsOverlayFixturePreviewStatusSafe(status);
+  return status;
+}
+
+export function createObsArtifactSyncGuardStatus({
+  status = "missing",
+  checkCount = 0,
+} = {}) {
+  const safeStatus = ["configured", "missing", "ready", "attention"].includes(status)
+    ? status
+    : "attention";
+  const guardStatus = {
+    schema: "iris_obs_artifact_sync_guard_status_v1",
+    artifact_sync_guard_status: safeStatus,
+    check_count: clampInteger(checkCount, 0, 64, 0),
+    boundary_policy: {
+      status_and_count_only: true,
+      no_raw_artifact_bodies: true,
+      no_artifact_paths: true,
+      no_internal_payloads: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_commands: true,
+    },
+  };
+  assertObsArtifactSyncGuardStatusSafe(guardStatus);
+  return guardStatus;
+}
+
+export function createObsCommandPublicLeakGuardStatus({
+  status = "configured",
+  redactedCommandCount = 0,
+} = {}) {
+  const safeStatus = ["configured", "missing", "attention"].includes(status)
+    ? status
+    : "attention";
+  const guardStatus = {
+    schema: "iris_obs_command_public_leak_guard_status_v1",
+    command_public_leak_guard_status: safeStatus,
+    public_json_safe: true,
+    replay_safe: true,
+    ordinary_diagnostics_safe: true,
+    redacted_command_count: clampInteger(redactedCommandCount, 0, 1_000_000, 0),
+    boundary_policy: {
+      safe_surface_status_only: true,
+      no_obs_commands: true,
+      no_bridge_commands: true,
+      no_raw_commands: true,
+      no_raw_payloads: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+    },
+  };
+  assertObsCommandPublicLeakGuardStatusSafe(guardStatus);
+  return guardStatus;
+}
+
+export function assertObsOverlayUrlRedactionStatusSafe(
+  status,
+  context = "OBS overlay URL redaction status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!OBS_OVERLAY_URL_REDACTION_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_obs_overlay_url_redaction_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["configured", "missing"].includes(status.overlay_url_status)) {
+    throw new ContractError(`${context}: invalid overlay URL status`);
+  }
+  for (const field of ["public_view_safe", "admin_ordinary_view_safe", "logs_safe"]) {
+    if (status[field] !== true) {
+      throw new ContractError(`${context}: unsafe surface`, { field });
+    }
+  }
+  assertSafeSummaryBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "status_only",
+      "no_overlay_url_values",
+      "no_endpoint_values",
+      "no_obs_credentials",
+      "no_secret_values",
+      "no_raw_payloads",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoObsOverlayUrlRedactionLeak(status, context);
+}
+
+export function assertObsBrowserSourceSetupStatusSafe(
+  status,
+  context = "OBS browser source setup status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!OBS_BROWSER_SOURCE_SETUP_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_obs_browser_source_setup_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["configured", "missing"].includes(status.browser_source_setup_status)) {
+    throw new ContractError(`${context}: invalid browser source setup status`);
+  }
+  if (typeof status.configured !== "boolean") {
+    throw new ContractError(`${context}: configured flag must be boolean`);
+  }
+  if (
+    (status.browser_source_setup_status === "configured") !== status.configured
+  ) {
+    throw new ContractError(`${context}: configured flag mismatch`);
+  }
+  if (!Number.isInteger(status.missing_count) || status.missing_count < 0) {
+    throw new ContractError(`${context}: invalid missing count`);
+  }
+  if (status.configured && status.missing_count !== 0) {
+    throw new ContractError(`${context}: configured status must not report missing setup`);
+  }
+  assertSafeSummaryBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "configured_missing_status_only",
+      "no_url_values",
+      "no_endpoint_values",
+      "no_secret_values",
+      "no_obs_credentials",
+      "no_raw_payloads",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoObsBrowserSourceSetupStatusLeak(status, context);
+}
+
+export function assertObsOverlayFixturePreviewStatusSafe(
+  status,
+  context = "OBS overlay fixture preview status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!OBS_OVERLAY_FIXTURE_PREVIEW_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_obs_overlay_fixture_preview_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["configured", "missing"].includes(status.preview_status)) {
+    throw new ContractError(`${context}: invalid preview status`);
+  }
+  if (
+    status.fixture_source !== "synthetic_fixture" ||
+    status.synthetic_fixture_only !== true ||
+    status.real_input_used !== false
+  ) {
+    throw new ContractError(`${context}: preview must use synthetic fixture only`);
+  }
+  assertSafeSummaryBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "synthetic_fixture_only",
+      "no_real_raw_comments",
+      "no_real_raw_frames",
+      "no_raw_payloads",
+      "no_endpoint_values",
+      "no_secret_values",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoObsOverlayFixturePreviewLeak(status, context);
+}
+
+export function assertObsArtifactSyncGuardStatusSafe(
+  status,
+  context = "OBS artifact sync guard status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!OBS_ARTIFACT_SYNC_GUARD_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_obs_artifact_sync_guard_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["configured", "missing", "ready", "attention"].includes(status.artifact_sync_guard_status)) {
+    throw new ContractError(`${context}: invalid guard status`);
+  }
+  if (!Number.isInteger(status.check_count) || status.check_count < 0) {
+    throw new ContractError(`${context}: invalid check count`);
+  }
+  assertSafeSummaryBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "status_and_count_only",
+      "no_raw_artifact_bodies",
+      "no_artifact_paths",
+      "no_internal_payloads",
+      "no_endpoint_values",
+      "no_secret_values",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoObsArtifactSyncGuardLeak(status, context);
+}
+
+export function assertObsCommandPublicLeakGuardStatusSafe(
+  status,
+  context = "OBS command public leak guard status"
+) {
+  if (!status || typeof status !== "object" || Array.isArray(status)) {
+    throw new ContractError(`${context}: status required`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!OBS_COMMAND_PUBLIC_LEAK_GUARD_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected status field`, { field });
+    }
+  }
+  if (status.schema !== "iris_obs_command_public_leak_guard_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["configured", "missing", "attention"].includes(status.command_public_leak_guard_status)) {
+    throw new ContractError(`${context}: invalid guard status`);
+  }
+  for (const field of ["public_json_safe", "replay_safe", "ordinary_diagnostics_safe"]) {
+    if (status[field] !== true) {
+      throw new ContractError(`${context}: unsafe surface`, { field });
+    }
+  }
+  if (!Number.isInteger(status.redacted_command_count) || status.redacted_command_count < 0) {
+    throw new ContractError(`${context}: invalid redacted command count`);
+  }
+  assertSafeSummaryBoundaryPolicy(
+    status.boundary_policy,
+    [
+      "safe_surface_status_only",
+      "no_obs_commands",
+      "no_bridge_commands",
+      "no_raw_commands",
+      "no_raw_payloads",
+      "no_endpoint_values",
+      "no_secret_values",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoObsCommandPublicLeak(status, context);
+}
+
 export function assertObsOverlayConfigSafe(config, context = "OBS overlay config") {
   if (!config || typeof config !== "object") {
     throw new ContractError(`${context}: missing config`);
@@ -254,6 +618,149 @@ function assertNoForbiddenObsConfigFields(value, context, path = "root") {
       throw new ContractError(`${context}: unsafe OBS config field`, { field, path });
     }
     assertNoForbiddenObsConfigFields(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoObsOverlayUrlRedactionLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /https?:\/\/|\/overlay(?:[/?#]|$)|endpoint|obs[_ -]?credential|credential|authorization|bearer\s+|api[_ -]?key|token|secret|password|raw[_ -]?payload|payload|world[_ -]?command|obs[_ -]?command|bridge[_ -]?command/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe OBS overlay URL material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoObsOverlayUrlRedactionLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoObsOverlayUrlRedactionLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoObsBrowserSourceSetupStatusLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /https?:\/\/|\/overlay(?:[/?#]|$)|browser[_ -]?source[_ -]?url|overlay[_ -]?url|url[_ -]?value|endpoint|obs[_ -]?credential|credential|authorization|bearer\s+|api[_ -]?key|token|secret|password|raw[_ -]?payload|payload|world[_ -]?command|obs[_ -]?command|bridge[_ -]?command/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe OBS browser source setup material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoObsBrowserSourceSetupStatusLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoObsBrowserSourceSetupStatusLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoObsOverlayFixturePreviewLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /real[_ -]?raw[_ -]?comment|raw[_ -]?comment|real[_ -]?raw[_ -]?frame|raw[_ -]?frame|https?:\/\/|endpoint|authorization|bearer\s+|api[_ -]?key|token|secret|password|raw[_ -]?payload|payload|world[_ -]?command|obs[_ -]?command|bridge[_ -]?command/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe OBS overlay preview material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoObsOverlayFixturePreviewLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoObsOverlayFixturePreviewLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoObsArtifactSyncGuardLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?artifact|artifact[_ -]?body|artifact[_ -]?path|internal[_ -]?payload|raw[_ -]?payload|payload|[A-Za-z]:\\|\/(?:tmp|var|home|users)\b|https?:\/\/|endpoint|authorization|bearer\s+|api[_ -]?key|token|secret|password|world[_ -]?command|obs[_ -]?command|bridge[_ -]?command/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe artifact sync guard material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoObsArtifactSyncGuardLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoObsArtifactSyncGuardLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoObsCommandPublicLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /obs[_ -]?command|bridge[_ -]?command|raw[_ -]?command|world[_ -]?command|command[_ -]?payload|raw[_ -]?payload|payload|https?:\/\/|endpoint|authorization|bearer\s+|api[_ -]?key|token|secret|password/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe OBS command material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoObsCommandPublicLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path === "root" && field === "schema") continue;
+    assertNoObsCommandPublicLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertSafeSummaryBoundaryPolicy(policy, requiredFields, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const allowed = new Set(requiredFields);
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary flag ${field}`);
+    }
+  }
+  for (const field of requiredFields) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
   }
 }
 

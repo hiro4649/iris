@@ -232,9 +232,20 @@ const ANIME_SPOILER_CALENDAR_SAFE_STATUS_FIELDS = new Set([
   "raw_material_exposed",
   "boundary_policy",
 ]);
+const SPOILER_INCIDENT_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "incident_status",
+  "incident_count",
+  "topic_class",
+  "safe_summary_only",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
 const ANIME_IN_CHARACTER_FALLBACK_RISK_SUMMARY_FIELDS = new Set([
   "schema",
   "fallback_out_of_character",
+  "fallback_occurrence_count",
+  "fallback_frequency_status",
   "quality_risk_status",
   "operator_attention_required",
   "safe_summary_only",
@@ -278,6 +289,121 @@ const ANIME_PERFORMANCE_READINESS_SUMMARY_FIELDS = new Set([
   "reference_missing_setting_count",
   "raw_material_exposed",
   "boundary_policy",
+]);
+const GAZE_BLINK_MOUTH_SYNC_STATUS_FIELDS = new Set([
+  "schema",
+  "gaze_blink_status",
+  "mouth_sync_status",
+  "required_setting_count",
+  "configured_setting_count",
+  "missing_setting_count",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const MOTION_RECOVERY_MATCH_STATUS_FIELDS = new Set([
+  "schema",
+  "motion_match_status",
+  "recovery_match_status",
+  "required_setting_count",
+  "configured_setting_count",
+  "missing_setting_count",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const VOICE_QUALITY_MATCH_STATUS_FIELDS = new Set([
+  "schema",
+  "voice_quality_status",
+  "intonation_status",
+  "voice_readiness_label",
+  "required_setting_count",
+  "configured_setting_count",
+  "missing_setting_count",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const CATCHPHRASE_SCENE_FIT_STATUS_FIELDS = new Set([
+  "schema",
+  "catchphrase_fit_status",
+  "usage_count",
+  "overuse_risk_status",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const PERFORMANCE_DRIFT_REVIEW_QUEUE_FIELDS = new Set([
+  "schema",
+  "queue_status",
+  "review_item_count",
+  "drift_domain_counts",
+  "safe_summary_only",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const VOICE_LICENSE_CATEGORY_READINESS_FIELDS = new Set([
+  "schema",
+  "category_statuses",
+  "category_count",
+  "ready_category_count",
+  "attention_category_count",
+  "safe_status_only",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const VOICE_LICENSE_CATEGORY_STATUS_FIELDS = new Set([
+  "category",
+  "status",
+]);
+const UNRELEASED_FOOTAGE_LEAK_GUARD_FIELDS = new Set([
+  "schema",
+  "surface",
+  "guard_status",
+  "safe_summary_only",
+  "raw_material_exposed",
+  "boundary_policy",
+]);
+const VOICE_LICENSE_USE_CATEGORY_MAP = Object.freeze([
+  Object.freeze([
+    "stream_use",
+    "IRIS_VOICE_LICENSE_STREAM_USE_STATUS",
+  ]),
+  Object.freeze([
+    "prerecorded_line_use",
+    "IRIS_VOICE_LICENSE_PRERECORDED_LINE_USE_STATUS",
+  ]),
+  Object.freeze([
+    "voice_product_use",
+    "IRIS_VOICE_LICENSE_VOICE_PRODUCT_USE_STATUS",
+  ]),
+  Object.freeze([
+    "sponsor_campaign_use",
+    "IRIS_VOICE_LICENSE_SPONSOR_CAMPAIGN_USE_STATUS",
+  ]),
+]);
+const VOICE_LICENSE_USE_CATEGORIES = new Set(
+  VOICE_LICENSE_USE_CATEGORY_MAP.map(([category]) => category)
+);
+const VOICE_LICENSE_CATEGORY_STATUSES = new Set([
+  "licensed",
+  "placeholder",
+  "operator_attention_required",
+  "missing",
+]);
+const UNRELEASED_FOOTAGE_SAFE_SURFACES = new Set([
+  "runtime",
+  "public",
+  "admin_ordinary",
+]);
+const SPOILER_INCIDENT_STATUSES = new Set([
+  "none",
+  "contained",
+  "operator_attention_required",
+]);
+const SPOILER_INCIDENT_TOPIC_CLASSES = new Set([
+  "story",
+  "visual",
+  "relationship",
+  "dialogue",
+  "release_window",
+  "unknown",
 ]);
 
 const SETTINGS = Object.freeze([
@@ -770,6 +896,35 @@ export function createAnimeSpoilerCalendarSafeStatus({
   return summary;
 }
 
+export function createSpoilerIncidentSafeSummary({
+  incidentCount = 0,
+  incidentStatus,
+  topicClass,
+} = {}) {
+  const count = Math.max(0, Math.floor(Number(incidentCount) || 0));
+  const status = safeSpoilerIncidentStatus(incidentStatus, count);
+  const summary = {
+    schema: "iris_spoiler_incident_safe_summary_v1",
+    incident_status: status,
+    incident_count: count,
+    topic_class: safeSpoilerIncidentTopicClass(topicClass),
+    safe_summary_only: true,
+    raw_material_exposed: false,
+    boundary_policy: {
+      safe_label_count_topic_class_only: true,
+      no_unreleased_details: true,
+      no_raw_story_bible: true,
+      no_raw_scene_details: true,
+      no_private_production_notes: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertSpoilerIncidentSafeSummary(summary);
+  return summary;
+}
+
 export function createAnimeReleaseModeTransitionPreview({
   currentMode,
   requestedMode,
@@ -823,25 +978,41 @@ export function createAnimeExperienceModeStatus({ mode } = {}) {
 
 export function createAnimeInCharacterFallbackRiskSummary({
   fallbackOutOfCharacter = false,
+  fallbackOccurrenceCount,
   operatorAttentionRequired,
 } = {}) {
   const fallbackTriggered = fallbackOutOfCharacter === true;
+  const occurrenceCount =
+    fallbackOccurrenceCount === undefined
+      ? fallbackTriggered
+        ? 1
+        : 0
+      : Math.max(0, Math.floor(Number(fallbackOccurrenceCount) || 0));
+  const repeatedFallback = occurrenceCount > 1;
   const summary = {
     schema: "iris_anime_in_character_fallback_risk_summary_v1",
     fallback_out_of_character: fallbackTriggered,
-    quality_risk_status: fallbackTriggered
+    fallback_occurrence_count: occurrenceCount,
+    fallback_frequency_status: repeatedFallback
+      ? "repeated_quality_risk"
+      : fallbackTriggered
+        ? "single_fallback"
+        : "no_fallback",
+    quality_risk_status: fallbackTriggered || repeatedFallback
       ? "in_character_quality_attention"
       : "in_character_quality_nominal",
     operator_attention_required:
       operatorAttentionRequired === undefined
-        ? fallbackTriggered
+        ? fallbackTriggered || repeatedFallback
         : operatorAttentionRequired === true,
     safe_summary_only: true,
     raw_material_exposed: false,
     boundary_policy: {
       safe_quality_risk_summary_only: true,
+      repeated_fallback_as_quality_risk: true,
       no_story_source_material: true,
       no_private_reference_notes: true,
+      no_raw_reason: true,
       no_voice_materials: true,
       no_setting_values: true,
       no_candidates: true,
@@ -961,6 +1132,216 @@ export function createAnimePerformanceReadinessSummary({
   };
   assertAnimePerformanceReadinessSummarySafe(readiness);
   return readiness;
+}
+
+export function createGazeBlinkMouthSyncStatus({ env = process.env } = {}) {
+  const gazeBlinkConfigured =
+    hasConfiguredEnv(env, "IRIS_ANIME_GAZE_BLINK_MATCH_PROFILE_ID") === true;
+  const mouthSyncConfigured =
+    hasConfiguredEnv(env, "IRIS_ANIME_MOUTH_LIPSYNC_MATCH_PROFILE_ID") === true;
+  const configuredCount =
+    (gazeBlinkConfigured ? 1 : 0) + (mouthSyncConfigured ? 1 : 0);
+  const status = {
+    schema: "iris_gaze_blink_mouth_sync_status_v1",
+    gaze_blink_status: gazeBlinkConfigured ? "configured" : "missing",
+    mouth_sync_status: mouthSyncConfigured ? "configured" : "missing",
+    required_setting_count: 2,
+    configured_setting_count: configuredCount,
+    missing_setting_count: 2 - configuredCount,
+    raw_material_exposed: false,
+    boundary_policy: {
+      counts_and_status_only: true,
+      no_raw_animation_cuts: true,
+      no_internal_paths: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertGazeBlinkMouthSyncStatusSafe(status);
+  return status;
+}
+
+export function createMotionRecoveryMatchStatus({ env = process.env } = {}) {
+  const motionConfigured =
+    hasConfiguredEnv(env, "IRIS_ANIME_POSTURE_GESTURE_MATCH_PROFILE_ID") === true;
+  const recoveryConfigured =
+    hasConfiguredEnv(env, "IRIS_ANIME_IDLE_BREATHING_MOTION_PROFILE_ID") === true;
+  const configuredCount =
+    (motionConfigured ? 1 : 0) + (recoveryConfigured ? 1 : 0);
+  const status = {
+    schema: "iris_motion_recovery_match_status_v1",
+    motion_match_status: motionConfigured ? "configured" : "missing",
+    recovery_match_status: recoveryConfigured ? "configured" : "missing",
+    required_setting_count: 2,
+    configured_setting_count: configuredCount,
+    missing_setting_count: 2 - configuredCount,
+    raw_material_exposed: false,
+    boundary_policy: {
+      safe_status_only: true,
+      counts_and_status_only: true,
+      no_raw_motion_command: true,
+      no_raw_frames: true,
+      no_raw_renderer_jobs: true,
+      no_model_paths: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertMotionRecoveryMatchStatusSafe(status);
+  return status;
+}
+
+export function createVoiceQualityMatchStatus({ env = process.env } = {}) {
+  const voiceQualityConfigured =
+    hasConfiguredEnv(env, "IRIS_ANIME_VOICE_QUALITY_MATCH_PROFILE_ID") === true;
+  const intonationConfigured =
+    hasConfiguredEnv(env, "IRIS_ANIME_INTONATION_ACCENT_MATCH_PROFILE_ID") === true;
+  const configuredCount =
+    (voiceQualityConfigured ? 1 : 0) + (intonationConfigured ? 1 : 0);
+  const status = {
+    schema: "iris_voice_quality_match_status_v1",
+    voice_quality_status: voiceQualityConfigured ? "configured" : "missing",
+    intonation_status: intonationConfigured ? "configured" : "missing",
+    voice_readiness_label:
+      configuredCount === 2
+        ? "voice_match_ready"
+        : "voice_match_operator_attention",
+    required_setting_count: 2,
+    configured_setting_count: configuredCount,
+    missing_setting_count: 2 - configuredCount,
+    raw_material_exposed: false,
+    boundary_policy: {
+      safe_readiness_label_only: true,
+      counts_and_status_only: true,
+      no_raw_voice_samples: true,
+      no_voice_datasets: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertVoiceQualityMatchStatusSafe(status);
+  return status;
+}
+
+export function createCatchphraseSceneFitStatus({
+  usageCount = 0,
+  sceneFitStatus = "operator_review_required",
+} = {}) {
+  const safeUsageCount = Math.max(0, Math.floor(Number(usageCount) || 0));
+  const normalizedStatus = safeCatchphraseFitStatus(sceneFitStatus);
+  const status = {
+    schema: "iris_catchphrase_scene_fit_status_v1",
+    catchphrase_fit_status: normalizedStatus,
+    usage_count: safeUsageCount,
+    overuse_risk_status:
+      safeUsageCount > 3 ? "overuse_attention" : "usage_within_limit",
+    raw_material_exposed: false,
+    boundary_policy: {
+      usage_count_and_status_only: true,
+      no_private_script_excerpt: true,
+      no_raw_dialogue_notes: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertCatchphraseSceneFitStatusSafe(status);
+  return status;
+}
+
+export function createPerformanceDriftReviewQueue({
+  reviewItemCount = 0,
+  driftDomainCounts = {},
+} = {}) {
+  const safeDomainCounts = safePerformanceDriftDomainCounts(driftDomainCounts);
+  const explicitCount = Math.max(0, Math.floor(Number(reviewItemCount) || 0));
+  const domainTotal = Object.values(safeDomainCounts).reduce(
+    (total, count) => total + count,
+    0
+  );
+  const itemCount = Math.max(explicitCount, domainTotal);
+  const queue = {
+    schema: "iris_performance_drift_review_queue_v1",
+    queue_status: itemCount > 0 ? "operator_review_required" : "empty",
+    review_item_count: itemCount,
+    drift_domain_counts: safeDomainCounts,
+    safe_summary_only: true,
+    raw_material_exposed: false,
+    boundary_policy: {
+      safe_summary_only: true,
+      counts_and_status_only: true,
+      no_raw_production_materials: true,
+      no_voice_materials: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertPerformanceDriftReviewQueueSafe(queue);
+  return queue;
+}
+
+export function createVoiceLicenseCategoryReadiness({
+  env = process.env,
+} = {}) {
+  const categoryStatuses = VOICE_LICENSE_USE_CATEGORY_MAP.map(
+    ([category, envName]) => ({
+      category,
+      status: safeVoiceLicenseCategoryStatus(env?.[envName]),
+    })
+  );
+  const readyCategoryCount = categoryStatuses.filter(
+    ({ status }) => status === "licensed" || status === "placeholder"
+  ).length;
+  const readiness = {
+    schema: "iris_voice_license_category_readiness_v1",
+    category_statuses: categoryStatuses,
+    category_count: categoryStatuses.length,
+    ready_category_count: readyCategoryCount,
+    attention_category_count: categoryStatuses.length - readyCategoryCount,
+    safe_status_only: true,
+    raw_material_exposed: false,
+    boundary_policy: {
+      category_status_only: true,
+      no_contract_text: true,
+      no_fee_tables: true,
+      no_private_actor_data: true,
+      no_raw_voice_samples: true,
+      no_voice_datasets: true,
+      no_model_paths: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertVoiceLicenseCategoryReadinessSafe(readiness);
+  return readiness;
+}
+
+export function createUnreleasedFootageLeakGuard({ surface = "runtime" } = {}) {
+  const guard = {
+    schema: "iris_production_material_leak_guard_v1",
+    surface: safeUnreleasedFootageSurface(surface),
+    guard_status: "protected",
+    safe_summary_only: true,
+    raw_material_exposed: false,
+    boundary_policy: {
+      no_unreleased_footage: true,
+      no_raw_animation_cuts: true,
+      no_raw_model_sheets: true,
+      no_runtime_raw_material: true,
+      no_public_raw_material: true,
+      no_admin_ordinary_raw_material: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertUnreleasedFootageLeakGuardSafe(guard);
+  return guard;
 }
 
 export function assertAdminCharacterVoiceSettingsReportSafe(
@@ -1348,6 +1729,63 @@ export function assertAnimeSpoilerCalendarSafeStatus(
   assertNoSpoilerRawMaterial(summary, context);
 }
 
+export function assertSpoilerIncidentSafeSummary(
+  summary,
+  context = "spoiler incident safe summary"
+) {
+  assertSafeObject(summary, context);
+  if (summary.schema !== "iris_spoiler_incident_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SPOILER_INCIDENT_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !SPOILER_INCIDENT_STATUSES.has(summary.incident_status) ||
+    !SPOILER_INCIDENT_TOPIC_CLASSES.has(summary.topic_class)
+  ) {
+    throw new ContractError(`${context}: invalid safe label`);
+  }
+  if (!Number.isInteger(summary.incident_count) || summary.incident_count < 0) {
+    throw new ContractError(`${context}: invalid incident count`);
+  }
+  if (
+    summary.incident_count === 0 &&
+    summary.incident_status !== "none"
+  ) {
+    throw new ContractError(`${context}: incident status/count mismatch`);
+  }
+  if (
+    summary.incident_count > 0 &&
+    summary.incident_status === "none"
+  ) {
+    throw new ContractError(`${context}: incident status/count mismatch`);
+  }
+  if (
+    summary.safe_summary_only !== true ||
+    summary.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: safe summary boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    {
+      safe_label_count_topic_class_only: true,
+      no_unreleased_details: true,
+      no_raw_story_bible: true,
+      no_raw_scene_details: true,
+      no_private_production_notes: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoSpoilerIncidentRawMaterial(summary, context);
+}
+
 export function assertAnimeReleaseModeTransitionPreview(
   preview,
   context = "anime release mode transition preview"
@@ -1446,9 +1884,18 @@ export function assertAnimeInCharacterFallbackRiskSummary(
   }
   if (
     typeof summary.fallback_out_of_character !== "boolean" ||
+    !Number.isInteger(summary.fallback_occurrence_count) ||
+    summary.fallback_occurrence_count < 0 ||
     typeof summary.operator_attention_required !== "boolean"
   ) {
-    throw new ContractError(`${context}: boolean status required`);
+    throw new ContractError(`${context}: invalid fallback frequency summary`);
+  }
+  if (
+    !["no_fallback", "single_fallback", "repeated_quality_risk"].includes(
+      summary.fallback_frequency_status
+    )
+  ) {
+    throw new ContractError(`${context}: invalid fallback frequency status`);
   }
   if (
     ![
@@ -1464,6 +1911,13 @@ export function assertAnimeInCharacterFallbackRiskSummary(
   ) {
     throw new ContractError(`${context}: fallback must be summarized as quality risk`);
   }
+  if (
+    summary.fallback_occurrence_count > 1 &&
+    (summary.fallback_frequency_status !== "repeated_quality_risk" ||
+      summary.quality_risk_status !== "in_character_quality_attention")
+  ) {
+    throw new ContractError(`${context}: repeated fallback frequency not summarized as risk`);
+  }
   if (summary.safe_summary_only !== true || summary.raw_material_exposed !== false) {
     throw new ContractError(`${context}: raw material boundary invalid`);
   }
@@ -1471,8 +1925,10 @@ export function assertAnimeInCharacterFallbackRiskSummary(
     summary.boundary_policy,
     {
       safe_quality_risk_summary_only: true,
+      repeated_fallback_as_quality_risk: true,
       no_story_source_material: true,
       no_private_reference_notes: true,
+      no_raw_reason: true,
       no_voice_materials: true,
       no_setting_values: true,
       no_candidates: true,
@@ -1653,6 +2109,390 @@ export function assertAnimePerformanceReadinessSummarySafe(
     context
   );
   assertNoAnimePerformanceRawMaterial(summary, context);
+}
+
+export function assertGazeBlinkMouthSyncStatusSafe(
+  status,
+  context = "gaze blink mouth sync status"
+) {
+  assertSafeObject(status, context);
+  if (status.schema !== "iris_gaze_blink_mouth_sync_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!GAZE_BLINK_MOUTH_SYNC_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  for (const field of ["gaze_blink_status", "mouth_sync_status"]) {
+    if (!["configured", "missing"].includes(status[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  for (const field of [
+    "required_setting_count",
+    "configured_setting_count",
+    "missing_setting_count",
+  ]) {
+    if (!Number.isInteger(status[field]) || status[field] < 0) {
+      throw new ContractError(`${context}: invalid count ${field}`);
+    }
+  }
+  if (
+    status.required_setting_count !== 2 ||
+    status.configured_setting_count + status.missing_setting_count !==
+      status.required_setting_count ||
+    status.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: count or raw material boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    {
+      counts_and_status_only: true,
+      no_raw_animation_cuts: true,
+      no_internal_paths: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoAnimePerformanceRawMaterial(status, context);
+}
+
+export function assertMotionRecoveryMatchStatusSafe(
+  status,
+  context = "motion recovery match status"
+) {
+  assertSafeObject(status, context);
+  if (status.schema !== "iris_motion_recovery_match_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!MOTION_RECOVERY_MATCH_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  for (const field of ["motion_match_status", "recovery_match_status"]) {
+    if (!["configured", "missing"].includes(status[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  for (const field of [
+    "required_setting_count",
+    "configured_setting_count",
+    "missing_setting_count",
+  ]) {
+    if (!Number.isInteger(status[field]) || status[field] < 0) {
+      throw new ContractError(`${context}: invalid count ${field}`);
+    }
+  }
+  if (
+    status.required_setting_count !== 2 ||
+    status.configured_setting_count + status.missing_setting_count !==
+      status.required_setting_count ||
+    status.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: count or raw material boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    {
+      safe_status_only: true,
+      counts_and_status_only: true,
+      no_raw_motion_command: true,
+      no_raw_frames: true,
+      no_raw_renderer_jobs: true,
+      no_model_paths: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoMotionRecoveryRawMaterial(status, context);
+}
+
+export function assertVoiceQualityMatchStatusSafe(
+  status,
+  context = "voice quality match status"
+) {
+  assertSafeObject(status, context);
+  if (status.schema !== "iris_voice_quality_match_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!VOICE_QUALITY_MATCH_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  for (const field of ["voice_quality_status", "intonation_status"]) {
+    if (!["configured", "missing"].includes(status[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    !["voice_match_ready", "voice_match_operator_attention"].includes(
+      status.voice_readiness_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid readiness label`);
+  }
+  for (const field of [
+    "required_setting_count",
+    "configured_setting_count",
+    "missing_setting_count",
+  ]) {
+    if (!Number.isInteger(status[field]) || status[field] < 0) {
+      throw new ContractError(`${context}: invalid count ${field}`);
+    }
+  }
+  if (
+    status.required_setting_count !== 2 ||
+    status.configured_setting_count + status.missing_setting_count !==
+      status.required_setting_count ||
+    status.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: count or raw material boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    {
+      safe_readiness_label_only: true,
+      counts_and_status_only: true,
+      no_raw_voice_samples: true,
+      no_voice_datasets: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoVoiceQualityRawMaterial(status, context);
+}
+
+export function assertCatchphraseSceneFitStatusSafe(
+  status,
+  context = "catchphrase scene-fit status"
+) {
+  assertSafeObject(status, context);
+  if (status.schema !== "iris_catchphrase_scene_fit_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(status)) {
+    if (!CATCHPHRASE_SCENE_FIT_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    ![
+      "scene_fit_ready",
+      "scene_fit_limited",
+      "operator_review_required",
+    ].includes(status.catchphrase_fit_status)
+  ) {
+    throw new ContractError(`${context}: invalid fit status`);
+  }
+  if (!Number.isInteger(status.usage_count) || status.usage_count < 0) {
+    throw new ContractError(`${context}: invalid usage count`);
+  }
+  if (
+    !["usage_within_limit", "overuse_attention"].includes(
+      status.overuse_risk_status
+    ) ||
+    (status.usage_count > 3 &&
+      status.overuse_risk_status !== "overuse_attention") ||
+    status.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: usage status boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    status.boundary_policy,
+    {
+      usage_count_and_status_only: true,
+      no_private_script_excerpt: true,
+      no_raw_dialogue_notes: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoCatchphraseRawMaterial(status, context);
+}
+
+export function assertPerformanceDriftReviewQueueSafe(
+  queue,
+  context = "performance drift review queue"
+) {
+  assertSafeObject(queue, context);
+  if (queue.schema !== "iris_performance_drift_review_queue_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(queue)) {
+    if (!PERFORMANCE_DRIFT_REVIEW_QUEUE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!["empty", "operator_review_required"].includes(queue.queue_status)) {
+    throw new ContractError(`${context}: invalid queue status`);
+  }
+  if (!Number.isInteger(queue.review_item_count) || queue.review_item_count < 0) {
+    throw new ContractError(`${context}: invalid review count`);
+  }
+  assertSafeObject(queue.drift_domain_counts, `${context}: domain counts`);
+  const domainTotal = Object.values(queue.drift_domain_counts).reduce(
+    (total, count) => {
+      if (!Number.isInteger(count) || count < 0) {
+        throw new ContractError(`${context}: invalid domain count`);
+      }
+      return total + count;
+    },
+    0
+  );
+  if (
+    queue.review_item_count < domainTotal ||
+    (queue.review_item_count > 0 &&
+      queue.queue_status !== "operator_review_required") ||
+    queue.safe_summary_only !== true ||
+    queue.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: safe summary boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    queue.boundary_policy,
+    {
+      safe_summary_only: true,
+      counts_and_status_only: true,
+      no_raw_production_materials: true,
+      no_voice_materials: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoPerformanceDriftRawMaterial(queue, context);
+}
+
+export function assertVoiceLicenseCategoryReadinessSafe(
+  readiness,
+  context = "voice license category readiness"
+) {
+  assertSafeObject(readiness, context);
+  if (readiness.schema !== "iris_voice_license_category_readiness_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(readiness)) {
+    if (!VOICE_LICENSE_CATEGORY_READINESS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!Array.isArray(readiness.category_statuses)) {
+    throw new ContractError(`${context}: invalid category statuses`);
+  }
+  const seenCategories = new Set();
+  let readyCount = 0;
+  for (const item of readiness.category_statuses) {
+    assertSafeObject(item, `${context}: category status`);
+    for (const field of Object.keys(item)) {
+      if (!VOICE_LICENSE_CATEGORY_STATUS_FIELDS.has(field)) {
+        throw new ContractError(`${context}: unexpected category field ${field}`);
+      }
+    }
+    if (
+      !VOICE_LICENSE_USE_CATEGORIES.has(item.category) ||
+      seenCategories.has(item.category)
+    ) {
+      throw new ContractError(`${context}: invalid category`);
+    }
+    if (!VOICE_LICENSE_CATEGORY_STATUSES.has(item.status)) {
+      throw new ContractError(`${context}: invalid category status`);
+    }
+    seenCategories.add(item.category);
+    if (item.status === "licensed" || item.status === "placeholder") {
+      readyCount += 1;
+    }
+  }
+  for (const field of [
+    "category_count",
+    "ready_category_count",
+    "attention_category_count",
+  ]) {
+    if (!Number.isInteger(readiness[field]) || readiness[field] < 0) {
+      throw new ContractError(`${context}: invalid count ${field}`);
+    }
+  }
+  if (
+    readiness.category_count !== VOICE_LICENSE_USE_CATEGORY_MAP.length ||
+    readiness.category_statuses.length !== readiness.category_count ||
+    readiness.ready_category_count !== readyCount ||
+    readiness.attention_category_count !==
+      readiness.category_count - readiness.ready_category_count ||
+    readiness.safe_status_only !== true ||
+    readiness.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: category status boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    readiness.boundary_policy,
+    {
+      category_status_only: true,
+      no_contract_text: true,
+      no_fee_tables: true,
+      no_private_actor_data: true,
+      no_raw_voice_samples: true,
+      no_voice_datasets: true,
+      no_model_paths: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoVoiceLicenseCategoryRawMaterial(readiness, context);
+}
+
+export function assertUnreleasedFootageLeakGuardSafe(
+  guard,
+  context = "unreleased footage leak guard"
+) {
+  assertSafeObject(guard, context);
+  if (guard.schema !== "iris_production_material_leak_guard_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(guard)) {
+    if (!UNRELEASED_FOOTAGE_LEAK_GUARD_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!UNRELEASED_FOOTAGE_SAFE_SURFACES.has(guard.surface)) {
+    throw new ContractError(`${context}: invalid surface`);
+  }
+  if (
+    guard.guard_status !== "protected" ||
+    guard.safe_summary_only !== true ||
+    guard.raw_material_exposed !== false
+  ) {
+    throw new ContractError(`${context}: raw material boundary invalid`);
+  }
+  assertBoundaryPolicy(
+    guard.boundary_policy,
+    {
+      no_unreleased_footage: true,
+      no_raw_animation_cuts: true,
+      no_raw_model_sheets: true,
+      no_runtime_raw_material: true,
+      no_public_raw_material: true,
+      no_admin_ordinary_raw_material: true,
+      no_setting_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    context
+  );
+  assertNoUnreleasedFootageRawMaterial(guard, context);
 }
 
 function item(settingId, settingGroup, envNames, adminControl) {
@@ -1933,6 +2773,70 @@ function safeSpoilerModeStatus(value) {
     : "operator_review_required";
 }
 
+function safeSpoilerIncidentStatus(value, count) {
+  const normalized = String(value ?? "").trim();
+  if (count <= 0) return "none";
+  return SPOILER_INCIDENT_STATUSES.has(normalized) && normalized !== "none"
+    ? normalized
+    : "operator_attention_required";
+}
+
+function safeSpoilerIncidentTopicClass(value) {
+  const normalized = String(value ?? "").trim();
+  return SPOILER_INCIDENT_TOPIC_CLASSES.has(normalized)
+    ? normalized
+    : "unknown";
+}
+
+function safeCatchphraseFitStatus(value) {
+  const normalized = String(value ?? "").trim();
+  return [
+    "scene_fit_ready",
+    "scene_fit_limited",
+    "operator_review_required",
+  ].includes(normalized)
+    ? normalized
+    : "operator_review_required";
+}
+
+function safePerformanceDriftDomainCounts(counts) {
+  const safeCounts = {};
+  if (!counts || typeof counts !== "object" || Array.isArray(counts)) {
+    return safeCounts;
+  }
+  for (const [domain, count] of Object.entries(counts)) {
+    if (
+      ![
+        "expression",
+        "motion",
+        "voice",
+        "speech_style",
+        "timing",
+      ].includes(domain)
+    ) {
+      continue;
+    }
+    safeCounts[domain] = Math.max(0, Math.floor(Number(count) || 0));
+  }
+  return safeCounts;
+}
+
+function safeVoiceLicenseCategoryStatus(value) {
+  const normalized = String(value ?? "").trim();
+  if (normalized === "") return "missing";
+  if (normalized === "licensed" || normalized === "placeholder") {
+    return normalized;
+  }
+  return "operator_attention_required";
+}
+
+function safeUnreleasedFootageSurface(value) {
+  const normalized = String(value ?? "").trim();
+  return UNRELEASED_FOOTAGE_SAFE_SURFACES.has(normalized)
+    ? normalized
+    : "runtime";
+}
+
 function safeAnimeReleaseMode(value) {
   const normalized = String(value ?? "").trim();
   return ANIME_RELEASE_MODES.has(normalized) ? normalized : "pre_release_teaser";
@@ -1986,6 +2890,31 @@ function assertNoSpoilerRawMaterial(value, context, path = "root") {
   }
   for (const [field, child] of Object.entries(value)) {
     assertNoSpoilerRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoSpoilerIncidentRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /unreleased[_ -]?(?:detail|plot|scene|ending|relationship)|hidden[_ -]?scene|story[_ -]?bible|raw[_ -]?story|raw[_ -]?scene|private[_ -]?production[_ -]?note|raw[_ -]?script|script[_ -]?excerpt/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: raw spoiler incident material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoSpoilerIncidentRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoSpoilerIncidentRawMaterial(child, context, `${path}.${field}`);
   }
 }
 
@@ -2064,10 +2993,152 @@ function assertNoAnimePerformanceRawMaterial(value, context, path = "root") {
   }
 }
 
+function assertNoMotionRecoveryRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?motion[_ -]?command|raw[_ -]?frame|raw[_ -]?renderer[_ -]?job|renderer[_ -]?job|model[_ -]?path/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: raw motion material leaked`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoMotionRecoveryRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoMotionRecoveryRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoVoiceQualityRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (/raw[_ -]?voice|voice[_ -]?sample|voice[_ -]?dataset|dataset/i.test(value)) {
+      throw new ContractError(`${context}: raw voice material leaked`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoVoiceQualityRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoVoiceQualityRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoCatchphraseRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (/private[_ -]?script|script[_ -]?excerpt|raw[_ -]?dialogue/i.test(value)) {
+      throw new ContractError(`${context}: raw catchphrase material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoCatchphraseRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoCatchphraseRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoPerformanceDriftRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?production|production[_ -]?material|raw[_ -]?voice|voice[_ -]?sample|voice[_ -]?material/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: raw performance drift material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoPerformanceDriftRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoPerformanceDriftRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoVoiceLicenseCategoryRawMaterial(
+  value,
+  context,
+  path = "root"
+) {
+  if (typeof value === "string") {
+    if (
+      /contract[_ -]?text|fee[_ -]?table|private[_ -]?actor|voice[_ -]?actor|private[_ -]?negotiation|raw[_ -]?voice|voice[_ -]?sample|voice[_ -]?dataset|training[_ -]?dataset|dataset|model[_ -]?path/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: raw voice license material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoVoiceLicenseCategoryRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoVoiceLicenseCategoryRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoUnreleasedFootageRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /unreleased[_ -]?footage|raw[_ -]?animation(?:[_ -]?cut)?|animation[_ -]?cut|raw[_ -]?model[_ -]?sheet|model[_ -]?sheet|expression[_ -]?sheet|motion[_ -]?sheet|pose[_ -]?guide/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unreleased footage material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnreleasedFootageRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoUnreleasedFootageRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
 function assertNoInCharacterFallbackRawMaterial(value, context, path = "root") {
   if (typeof value === "string") {
     if (
-      /story[_ -]?bible|private[_ -]?production[_ -]?note|raw[_ -]?production|raw[_ -]?voice|voice[_ -]?sample|voice[_ -]?material/i.test(
+      /story[_ -]?bible|private[_ -]?note|private[_ -]?production[_ -]?note|raw[_ -]?reason|raw[_ -]?production|raw[_ -]?voice|voice[_ -]?sample|voice[_ -]?material/i.test(
         value
       )
     ) {
