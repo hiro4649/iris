@@ -114,6 +114,15 @@ const PRODUCTION_PROBE_REPORT_FIELDS = new Set([
   "readiness_state_counts",
   "next_stage",
   "next_task_summary",
+  "fixture_real_readiness_summary",
+  "failure_reason_summary",
+  "missing_component_summary",
+  "blocker_summary",
+  "direct_remediation_policy",
+  "admin_summary",
+  "operator_checklist",
+  "audit_event",
+  "repeated_blocker_group_summary",
   "verification_plan",
   "operator_launch_plan",
   "stages",
@@ -172,6 +181,15 @@ const PRODUCTION_HANDOFF_SUMMARY_FIELDS = new Set([
   "runtime_packets_remain_adapter_gated",
   "memory_and_relationship_candidates_remain_gated",
   "input_action_candidates_never_forwarded_directly",
+  "fixture_real_readiness_summary",
+  "failure_reason_summary",
+  "missing_component_summary",
+  "blocker_summary",
+  "direct_remediation_policy",
+  "admin_summary",
+  "operator_checklist",
+  "audit_event",
+  "repeated_blocker_group_summary",
   "probe_mode",
   "readiness_status",
   "verification_status",
@@ -193,6 +211,101 @@ const PRODUCTION_HANDOFF_SUMMARY_FIELDS = new Set([
   "admin_review_validator_run_plan_script",
   "admin_review_private_runner_not_started_by_probe",
   "admin_review_runner_input_not_materialized_by_probe",
+]);
+const PRODUCTION_PROBE_FIXTURE_REAL_SUMMARY_FIELDS = new Set([
+  "schema",
+  "probe_mode",
+  "fixture_probe_status",
+  "real_readiness_status",
+  "real_runtime_confirmed",
+  "production_ready_allowed",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_FAILURE_REASON_SUMMARY_FIELDS = new Set([
+  "schema",
+  "failure_reason_count",
+  "failure_reasons",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_MISSING_COMPONENT_SUMMARY_FIELDS = new Set([
+  "schema",
+  "missing_component_count",
+  "components",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_MISSING_COMPONENT_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "status",
+]);
+const PRODUCTION_PROBE_BLOCKER_SUMMARY_FIELDS = new Set([
+  "schema",
+  "blocker_count",
+  "blockers",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_BLOCKER_FIELDS = new Set([
+  "schema",
+  "blocker_label",
+  "status",
+]);
+const PRODUCTION_PROBE_DIRECT_REMEDIATION_POLICY_FIELDS = new Set([
+  "schema",
+  "probe_is_read_only",
+  "auto_obs_setting_change_allowed",
+  "auto_tts_setting_change_allowed",
+  "auto_live2d_setting_change_allowed",
+  "auto_command_execution_allowed",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_ADMIN_SUMMARY_FIELDS = new Set([
+  "schema",
+  "ready_count",
+  "degraded_count",
+  "blocked_count",
+  "attention_count",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_OPERATOR_CHECKLIST_FIELDS = new Set([
+  "schema",
+  "check_count",
+  "checks",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_OPERATOR_CHECK_FIELDS = new Set([
+  "schema",
+  "check_label",
+  "script_name",
+  "status",
+]);
+const PRODUCTION_PROBE_AUDIT_EVENT_FIELDS = new Set([
+  "schema",
+  "actor_role",
+  "audit_action",
+  "safe_target",
+  "result_status",
+  "timestamp_ms",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_REPEATED_BLOCKER_GROUP_SUMMARY_FIELDS = new Set([
+  "schema",
+  "group_count",
+  "groups",
+  "boundary_policy",
+]);
+const PRODUCTION_PROBE_REPEATED_BLOCKER_GROUP_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "status",
+  "count",
+]);
+const PRODUCTION_PROBE_SAFE_FAILURE_REASON_LABELS = new Set([
+  "configuration_missing",
+  "runtime_waiting",
+  "real_device_waiting",
+  "operator_review_required",
+  "adapter_probe_attention",
+  "obs_bridge_attention",
 ]);
 const PRODUCTION_PROBE_NEXT_TASK_SUMMARY_FIELDS = new Set([
   "schema",
@@ -318,21 +431,64 @@ export async function createProductionProbeReport({
   const localEndpointPolicySummary = summarizeLocalEndpointPolicyAcrossStages(stages);
   const nextTaskSummary = summarizeProductionNextTask(nextTask);
   assertProductionProbeNextTaskSummarySafe(nextTaskSummary, "production probe next task");
+  const verificationStatus = summarizeVerificationStatus({
+    readinessStatus: runbook.readiness_status,
+    adapterProbe,
+    obsBridgeHealth,
+  });
+  const fixtureRealReadinessSummary = createProductionProbeFixtureRealSummary({
+    probeMode,
+    fixturePassed: verificationStatus === "configured_probe_ready",
+    realRuntimeConfirmed: false,
+  });
+  const failureReasonSummary = createProductionProbeSafeFailureReasonSummary({
+    stages,
+    adapterProbe,
+    obsBridgeHealth,
+  });
+  const missingComponentSummary = createProductionProbeMissingComponentSummary({
+    stages,
+  });
+  const blockerSummary = createProductionProbeBlockerSummary({
+    failureReasonSummary,
+    missingComponentSummary,
+  });
+  const directRemediationPolicy = createProductionProbeDirectRemediationPolicy();
+  const adminSummary = createProductionProbeAdminSummary({
+    readinessStateCounts,
+    blockerSummary,
+    verificationStatus,
+  });
+  const operatorChecklist = createProductionProbeOperatorChecklist({
+    nextTaskSummary,
+  });
+  const auditEvent = createProductionProbeReadinessAuditEvent({
+    generatedAtMs,
+    verificationStatus,
+  });
+  const repeatedBlockerGroupSummary = createProductionProbeRepeatedBlockerGroupSummary({
+    blockers: blockerSummary.blockers,
+  });
 
   const report = {
     schema: "iris_production_probe_report_v1",
     generated_at_ms: generatedAtMs,
     probe_mode: probeMode,
     readiness_status: runbook.readiness_status,
-    verification_status: summarizeVerificationStatus({
-      readinessStatus: runbook.readiness_status,
-      adapterProbe,
-      obsBridgeHealth,
-    }),
+    verification_status: verificationStatus,
     next_readiness_state: firstReadinessState(stages),
     readiness_state_counts: readinessStateCounts,
     next_stage: runbook.next_stage,
     next_task_summary: nextTaskSummary,
+    fixture_real_readiness_summary: fixtureRealReadinessSummary,
+    failure_reason_summary: failureReasonSummary,
+    missing_component_summary: missingComponentSummary,
+    blocker_summary: blockerSummary,
+    direct_remediation_policy: directRemediationPolicy,
+    admin_summary: adminSummary,
+    operator_checklist: operatorChecklist,
+    audit_event: auditEvent,
+    repeated_blocker_group_summary: repeatedBlockerGroupSummary,
     verification_plan: runbook.verification_plan,
     operator_launch_plan: runbook.operator_launch_plan,
     stages,
@@ -415,13 +571,18 @@ export async function createProductionProbeReport({
       runtime_packets_remain_adapter_gated: true,
       memory_and_relationship_candidates_remain_gated: true,
       input_action_candidates_never_forwarded_directly: true,
+      fixture_real_readiness_summary: fixtureRealReadinessSummary,
+      failure_reason_summary: failureReasonSummary,
+      missing_component_summary: missingComponentSummary,
+      blocker_summary: blockerSummary,
+      direct_remediation_policy: directRemediationPolicy,
+      admin_summary: adminSummary,
+      operator_checklist: operatorChecklist,
+      audit_event: auditEvent,
+      repeated_blocker_group_summary: repeatedBlockerGroupSummary,
       probe_mode: probeMode,
       readiness_status: runbook.readiness_status,
-      verification_status: summarizeVerificationStatus({
-        readinessStatus: runbook.readiness_status,
-        adapterProbe,
-        obsBridgeHealth,
-      }),
+      verification_status: verificationStatus,
       next_readiness_state: firstReadinessState(stages),
       readiness_state_counts: readinessStateCounts,
       stage_count: runbook.summary.stage_count,
@@ -556,6 +717,42 @@ export function assertProductionProbeReportSafe(
     report,
     context
   );
+  assertProductionProbeFixtureRealSummarySafe(
+    report.fixture_real_readiness_summary,
+    `${context}: fixture real readiness summary`
+  );
+  assertProductionProbeSafeFailureReasonSummarySafe(
+    report.failure_reason_summary,
+    `${context}: failure reason summary`
+  );
+  assertProductionProbeMissingComponentSummarySafe(
+    report.missing_component_summary,
+    `${context}: missing component summary`
+  );
+  assertProductionProbeBlockerSummarySafe(
+    report.blocker_summary,
+    `${context}: blocker summary`
+  );
+  assertProductionProbeDirectRemediationPolicySafe(
+    report.direct_remediation_policy,
+    `${context}: direct remediation policy`
+  );
+  assertProductionProbeAdminSummarySafe(
+    report.admin_summary,
+    `${context}: admin summary`
+  );
+  assertProductionProbeOperatorChecklistSafe(
+    report.operator_checklist,
+    `${context}: operator checklist`
+  );
+  assertProductionProbeReadinessAuditEventSafe(
+    report.audit_event,
+    `${context}: audit event`
+  );
+  assertProductionProbeRepeatedBlockerGroupSummarySafe(
+    report.repeated_blocker_group_summary,
+    `${context}: repeated blocker group summary`
+  );
   for (const stage of report.stages) assertProductionProbeStageSafe(stage, context);
   assertProductionProbeSummarySafe(report.summary, report, context);
   assertBoundaryPolicy(report.boundary_policy, [
@@ -571,6 +768,872 @@ export function assertProductionProbeReportSafe(
   ], context);
   if (report.adapter_validation_required !== true) {
     throw new ContractError(`${context}: adapter validation flag required`);
+  }
+}
+
+export function createProductionProbeFixtureRealSummary({
+  probeMode = "dry_run",
+  fixturePassed = false,
+  realRuntimeConfirmed = false,
+} = {}) {
+  const safeProbeMode = probeMode === "fixture_post" ? "fixture_post" : "dry_run";
+  const realConfirmed = realRuntimeConfirmed === true;
+  const summary = {
+    schema: "iris_production_probe_fixture_real_summary_v1",
+    probe_mode: safeProbeMode,
+    fixture_probe_status:
+      safeProbeMode === "fixture_post" && fixturePassed === true
+        ? "fixture_pass"
+        : "fixture_not_ready",
+    real_readiness_status: realConfirmed ? "real_ready" : "real_blocked",
+    real_runtime_confirmed: realConfirmed,
+    production_ready_allowed: realConfirmed,
+    boundary_policy: {
+      fixture_and_real_readiness_separated: true,
+      fixture_probe_not_production_ready: true,
+      real_runtime_required_for_production_ready: true,
+      no_readiness_sweetening: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionProbeFixtureRealSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionProbeFixtureRealSummarySafe(
+  summary,
+  context = "production probe fixture real summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PROBE_FIXTURE_REAL_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_production_probe_fixture_real_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["dry_run", "fixture_post"].includes(summary.probe_mode)) {
+    throw new ContractError(`${context}: invalid probe mode`);
+  }
+  if (!["fixture_pass", "fixture_not_ready"].includes(summary.fixture_probe_status)) {
+    throw new ContractError(`${context}: invalid fixture probe status`);
+  }
+  if (!["real_ready", "real_blocked"].includes(summary.real_readiness_status)) {
+    throw new ContractError(`${context}: invalid real readiness status`);
+  }
+  if (typeof summary.real_runtime_confirmed !== "boolean") {
+    throw new ContractError(`${context}: invalid real runtime flag`);
+  }
+  if (typeof summary.production_ready_allowed !== "boolean") {
+    throw new ContractError(`${context}: invalid production ready flag`);
+  }
+  if (
+    summary.production_ready_allowed !== summary.real_runtime_confirmed ||
+    (summary.real_readiness_status === "real_ready") !==
+      summary.real_runtime_confirmed
+  ) {
+    throw new ContractError(`${context}: production ready requires real runtime`);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "fixture_and_real_readiness_separated",
+    "fixture_probe_not_production_ready",
+    "real_runtime_required_for_production_ready",
+    "no_readiness_sweetening",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_payloads",
+    "no_candidates",
+    "no_commands",
+  ], context);
+}
+
+export function createProductionProbeSafeFailureReasonSummary({
+  stages = [],
+  adapterProbe = null,
+  obsBridgeHealth = null,
+} = {}) {
+  const labels = new Set();
+  for (const stage of Array.isArray(stages) ? stages : []) {
+    if (!stage || stage.status === "ready") continue;
+    if (stage.readiness_state === "configuration_waiting") {
+      labels.add("configuration_missing");
+    } else if (PRODUCTION_PROBE_SAFE_FAILURE_REASON_LABELS.has(stage.readiness_state)) {
+      labels.add(stage.readiness_state);
+    }
+  }
+  if (Number(adapterProbe?.summary?.attention ?? 0) > 0) {
+    labels.add("adapter_probe_attention");
+  }
+  if (Number(obsBridgeHealth?.summary?.attention ?? 0) > 0) {
+    labels.add("obs_bridge_attention");
+  }
+  const failureReasons = [...labels].sort();
+  const summary = {
+    schema: "iris_production_probe_failure_reason_summary_v1",
+    failure_reason_count: failureReasons.length,
+    failure_reasons: failureReasons,
+    boundary_policy: {
+      fixed_labels_only: true,
+      no_raw_error_body: true,
+      no_raw_commands: true,
+      no_raw_paths: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+    },
+  };
+  assertProductionProbeSafeFailureReasonSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionProbeSafeFailureReasonSummarySafe(
+  summary,
+  context = "production probe failure reason summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PROBE_FAILURE_REASON_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_production_probe_failure_reason_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(summary.failure_reasons)) {
+    throw new ContractError(`${context}: failure reasons must be an array`);
+  }
+  if (
+    !Number.isInteger(summary.failure_reason_count) ||
+    summary.failure_reason_count !== summary.failure_reasons.length
+  ) {
+    throw new ContractError(`${context}: invalid failure reason count`);
+  }
+  for (const label of summary.failure_reasons) {
+    if (!PRODUCTION_PROBE_SAFE_FAILURE_REASON_LABELS.has(label)) {
+      throw new ContractError(`${context}: unsafe failure reason label`);
+    }
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "fixed_labels_only",
+    "no_raw_error_body",
+    "no_raw_commands",
+    "no_raw_paths",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_payloads",
+  ], context);
+}
+
+export function createProductionProbeMissingComponentSummary({ stages = [] } = {}) {
+  const componentByLabel = new Map();
+  for (const stage of Array.isArray(stages) ? stages : []) {
+    for (const check of Array.isArray(stage?.checks) ? stage.checks : []) {
+      if (check?.readiness_state !== "configuration_waiting") continue;
+      const componentLabel = safeComponentLabel(check.integration);
+      if (!componentLabel) continue;
+      componentByLabel.set(componentLabel, {
+        schema: "iris_production_probe_missing_component_v1",
+        component_label: componentLabel,
+        status: "missing",
+      });
+    }
+  }
+  const components = [...componentByLabel.values()].sort((left, right) =>
+    left.component_label.localeCompare(right.component_label)
+  );
+  const summary = {
+    schema: "iris_production_probe_missing_component_summary_v1",
+    missing_component_count: components.length,
+    components,
+    boundary_policy: {
+      component_labels_and_status_only: true,
+      no_config_values: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+    },
+  };
+  assertProductionProbeMissingComponentSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionProbeMissingComponentSummarySafe(
+  summary,
+  context = "production probe missing component summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PROBE_MISSING_COMPONENT_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_production_probe_missing_component_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(summary.components)) {
+    throw new ContractError(`${context}: components must be an array`);
+  }
+  if (
+    !Number.isInteger(summary.missing_component_count) ||
+    summary.missing_component_count !== summary.components.length
+  ) {
+    throw new ContractError(`${context}: invalid missing component count`);
+  }
+  const labels = new Set();
+  for (const component of summary.components) {
+    assertProductionProbeMissingComponentSafe(component, context);
+    if (labels.has(component.component_label)) {
+      throw new ContractError(`${context}: duplicate component label`);
+    }
+    labels.add(component.component_label);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "component_labels_and_status_only",
+    "no_config_values",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_payloads",
+  ], context);
+}
+
+function assertProductionProbeMissingComponentSafe(component, context) {
+  if (!component || typeof component !== "object" || Array.isArray(component)) {
+    throw new ContractError(`${context}: component is required`);
+  }
+  assertNoForbiddenProductionProbeFields(component, context);
+  for (const field of Object.keys(component)) {
+    if (!PRODUCTION_PROBE_MISSING_COMPONENT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected component field ${field}`);
+    }
+  }
+  if (component.schema !== "iris_production_probe_missing_component_v1") {
+    throw new ContractError(`${context}: invalid component schema`);
+  }
+  if (component.component_label !== safeComponentLabel(component.component_label)) {
+    throw new ContractError(`${context}: invalid component label`);
+  }
+  if (component.status !== "missing") {
+    throw new ContractError(`${context}: invalid component status`);
+  }
+}
+
+export function createProductionProbeBlockerSummary({
+  failureReasonSummary = null,
+  missingComponentSummary = null,
+} = {}) {
+  if (failureReasonSummary) {
+    assertProductionProbeSafeFailureReasonSummarySafe(
+      failureReasonSummary,
+      "production probe blocker failure reasons"
+    );
+  }
+  if (missingComponentSummary) {
+    assertProductionProbeMissingComponentSummarySafe(
+      missingComponentSummary,
+      "production probe blocker missing components"
+    );
+  }
+  const blockersByLabel = new Map();
+  for (const reason of failureReasonSummary?.failure_reasons ?? []) {
+    const blockerLabel = safeBlockerLabel(reason);
+    if (blockerLabel) {
+      blockersByLabel.set(blockerLabel, {
+        schema: "iris_production_probe_blocker_v1",
+        blocker_label: blockerLabel,
+        status: "blocked",
+      });
+    }
+  }
+  for (const component of missingComponentSummary?.components ?? []) {
+    const blockerLabel = safeBlockerLabel(`missing_${component.component_label}`);
+    if (blockerLabel) {
+      blockersByLabel.set(blockerLabel, {
+        schema: "iris_production_probe_blocker_v1",
+        blocker_label: blockerLabel,
+        status: "blocked",
+      });
+    }
+  }
+  const blockers = [...blockersByLabel.values()].sort((left, right) =>
+    left.blocker_label.localeCompare(right.blocker_label)
+  );
+  const summary = {
+    schema: "iris_production_probe_blocker_summary_v1",
+    blocker_count: blockers.length,
+    blockers,
+    boundary_policy: {
+      safe_count_and_list_only: true,
+      no_raw_logs: true,
+      no_raw_error_body: true,
+      no_raw_commands: true,
+      no_raw_paths: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+    },
+  };
+  assertProductionProbeBlockerSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionProbeBlockerSummarySafe(
+  summary,
+  context = "production probe blocker summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PROBE_BLOCKER_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_production_probe_blocker_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(summary.blockers)) {
+    throw new ContractError(`${context}: blockers must be an array`);
+  }
+  if (
+    !Number.isInteger(summary.blocker_count) ||
+    summary.blocker_count !== summary.blockers.length
+  ) {
+    throw new ContractError(`${context}: invalid blocker count`);
+  }
+  const labels = new Set();
+  for (const blocker of summary.blockers) {
+    assertProductionProbeBlockerSafe(blocker, context);
+    if (labels.has(blocker.blocker_label)) {
+      throw new ContractError(`${context}: duplicate blocker label`);
+    }
+    labels.add(blocker.blocker_label);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "safe_count_and_list_only",
+    "no_raw_logs",
+    "no_raw_error_body",
+    "no_raw_commands",
+    "no_raw_paths",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_payloads",
+  ], context);
+}
+
+function assertProductionProbeBlockerSafe(blocker, context) {
+  if (!blocker || typeof blocker !== "object" || Array.isArray(blocker)) {
+    throw new ContractError(`${context}: blocker is required`);
+  }
+  assertNoForbiddenProductionProbeFields(blocker, context);
+  for (const field of Object.keys(blocker)) {
+    if (!PRODUCTION_PROBE_BLOCKER_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected blocker field ${field}`);
+    }
+  }
+  if (blocker.schema !== "iris_production_probe_blocker_v1") {
+    throw new ContractError(`${context}: invalid blocker schema`);
+  }
+  if (blocker.blocker_label !== safeBlockerLabel(blocker.blocker_label)) {
+    throw new ContractError(`${context}: invalid blocker label`);
+  }
+  if (blocker.status !== "blocked") {
+    throw new ContractError(`${context}: invalid blocker status`);
+  }
+}
+
+export function createProductionProbeDirectRemediationPolicy() {
+  const policy = {
+    schema: "iris_production_probe_direct_remediation_policy_v1",
+    probe_is_read_only: true,
+    auto_obs_setting_change_allowed: false,
+    auto_tts_setting_change_allowed: false,
+    auto_live2d_setting_change_allowed: false,
+    auto_command_execution_allowed: false,
+    boundary_policy: {
+      read_only_probe_result: true,
+      no_auto_obs_mutation: true,
+      no_auto_tts_mutation: true,
+      no_auto_live2d_mutation: true,
+      no_command_execution: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+    },
+  };
+  assertProductionProbeDirectRemediationPolicySafe(policy);
+  return policy;
+}
+
+export function assertProductionProbeDirectRemediationPolicySafe(
+  policy,
+  context = "production probe direct remediation policy"
+) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: policy is required`);
+  }
+  assertNoForbiddenProductionProbeFields(policy, context);
+  for (const field of Object.keys(policy)) {
+    if (!PRODUCTION_PROBE_DIRECT_REMEDIATION_POLICY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (policy.schema !== "iris_production_probe_direct_remediation_policy_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (policy.probe_is_read_only !== true) {
+    throw new ContractError(`${context}: probe must be read only`);
+  }
+  for (const field of [
+    "auto_obs_setting_change_allowed",
+    "auto_tts_setting_change_allowed",
+    "auto_live2d_setting_change_allowed",
+    "auto_command_execution_allowed",
+  ]) {
+    if (policy[field] !== false) {
+      throw new ContractError(`${context}: direct remediation must be disabled`);
+    }
+  }
+  assertBoundaryPolicy(policy.boundary_policy, [
+    "read_only_probe_result",
+    "no_auto_obs_mutation",
+    "no_auto_tts_mutation",
+    "no_auto_live2d_mutation",
+    "no_command_execution",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_payloads",
+  ], context);
+}
+
+export function createProductionProbeAdminSummary({
+  readinessStateCounts = {},
+  blockerSummary = null,
+  verificationStatus = "configuration_attention",
+} = {}) {
+  assertReadinessStateCountsSafe(
+    readinessStateCounts,
+    "production probe admin summary readiness counts"
+  );
+  if (blockerSummary) {
+    assertProductionProbeBlockerSummarySafe(
+      blockerSummary,
+      "production probe admin summary blockers"
+    );
+  }
+  const attentionCount =
+    readinessStateCounts.configuration_waiting +
+    readinessStateCounts.runtime_waiting +
+    readinessStateCounts.real_device_waiting +
+    readinessStateCounts.operator_review_required;
+  const summary = {
+    schema: "iris_production_probe_admin_summary_v1",
+    ready_count: readinessStateCounts.ready,
+    degraded_count: verificationStatus === "configured_probe_attention" ? 1 : 0,
+    blocked_count: blockerSummary?.blocker_count ?? 0,
+    attention_count: attentionCount,
+    boundary_policy: {
+      counts_only: true,
+      no_raw_diagnostics: true,
+      no_raw_payloads: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionProbeAdminSummarySafe(summary);
+  return summary;
+}
+
+export function createAdminProductionReadinessFixture({
+  readinessStateCounts = {
+    ready: 0,
+    configuration_waiting: 1,
+    runtime_waiting: 1,
+    real_device_waiting: 1,
+    operator_review_required: 1,
+  },
+  blockerSummary = null,
+  verificationStatus = "configuration_attention",
+} = {}) {
+  const dashboardSummary = createProductionProbeAdminSummary({
+    readinessStateCounts,
+    blockerSummary,
+    verificationStatus,
+  });
+  assertProductionProbeAdminSummarySafe(dashboardSummary);
+  return {
+    schema: "iris_admin_production_readiness_fixture_v1",
+    dashboard_summary: dashboardSummary,
+    safe_dashboard_summary_only: true,
+    boundary_policy: {
+      dashboard_summary_only: true,
+      no_raw_sensitive_fields: true,
+      no_raw_diagnostics: true,
+      no_raw_payloads: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+}
+
+export function assertAdminProductionReadinessFixtureSafe(
+  fixture,
+  context = "admin production readiness fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  assertNoForbiddenProductionProbeFields(fixture, context);
+  const allowedFields = new Set([
+    "schema",
+    "dashboard_summary",
+    "safe_dashboard_summary_only",
+    "boundary_policy",
+    "adapter_validation_required",
+  ]);
+  for (const field of Object.keys(fixture)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field ${field}`);
+    }
+  }
+  if (
+    fixture.schema !== "iris_admin_production_readiness_fixture_v1" ||
+    fixture.safe_dashboard_summary_only !== true ||
+    fixture.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  assertProductionProbeAdminSummarySafe(fixture.dashboard_summary, context);
+  assertBoundaryPolicy(fixture.boundary_policy, [
+    "dashboard_summary_only",
+    "no_raw_sensitive_fields",
+    "no_raw_diagnostics",
+    "no_raw_payloads",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_candidates",
+    "no_commands",
+  ], context);
+}
+
+export function assertProductionProbeAdminSummarySafe(
+  summary,
+  context = "production probe admin summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PROBE_ADMIN_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_production_probe_admin_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of [
+    "ready_count",
+    "degraded_count",
+    "blocked_count",
+    "attention_count",
+  ]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "counts_only",
+    "no_raw_diagnostics",
+    "no_raw_payloads",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_candidates",
+    "no_commands",
+  ], context);
+}
+
+export function createProductionProbeOperatorChecklist({ nextTaskSummary = {} } = {}) {
+  const candidates = [
+    ["status_check", nextTaskSummary.next_status_script],
+    ["runtime_verification", nextTaskSummary.next_runtime_verification_script],
+    ["runtime_handoff_status", nextTaskSummary.runtime_handoff_status_script],
+    ["production_loop_verification", nextTaskSummary.production_loop_verification_script],
+    ["postgres_admin_save_preflight", nextTaskSummary.postgres_admin_save_preflight_script],
+    ["admin_review_auth_gate", nextTaskSummary.admin_review_auth_gate_script],
+    ["admin_review_validator_run_plan", nextTaskSummary.admin_review_validator_run_plan_script],
+    ["startup_checklist", nextTaskSummary.next_startup_checklist_script],
+    ["launch_check", nextTaskSummary.next_launch_script],
+    ["readiness_check", nextTaskSummary.next_readiness_script],
+  ];
+  const checks = candidates
+    .map(([label, script]) => ({
+      schema: "iris_production_probe_operator_check_v1",
+      check_label: label,
+      script_name: safeScriptName(script),
+      status: script ? "available" : "not_applicable",
+    }))
+    .filter((check) => check.script_name !== null || check.status === "not_applicable");
+  const checklist = {
+    schema: "iris_production_probe_operator_checklist_v1",
+    check_count: checks.length,
+    checks,
+    boundary_policy: {
+      safe_labels_and_script_names_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_paths: true,
+      no_payloads: true,
+      no_commands: true,
+    },
+  };
+  assertProductionProbeOperatorChecklistSafe(checklist);
+  return checklist;
+}
+
+export function assertProductionProbeOperatorChecklistSafe(
+  checklist,
+  context = "production probe operator checklist"
+) {
+  if (!checklist || typeof checklist !== "object" || Array.isArray(checklist)) {
+    throw new ContractError(`${context}: checklist is required`);
+  }
+  assertNoForbiddenProductionProbeFields(checklist, context);
+  for (const field of Object.keys(checklist)) {
+    if (!PRODUCTION_PROBE_OPERATOR_CHECKLIST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (checklist.schema !== "iris_production_probe_operator_checklist_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(checklist.checks)) {
+    throw new ContractError(`${context}: checks must be an array`);
+  }
+  if (
+    !Number.isInteger(checklist.check_count) ||
+    checklist.check_count !== checklist.checks.length
+  ) {
+    throw new ContractError(`${context}: invalid check count`);
+  }
+  for (const check of checklist.checks) {
+    assertProductionProbeOperatorCheckSafe(check, context);
+  }
+  assertBoundaryPolicy(checklist.boundary_policy, [
+    "safe_labels_and_script_names_only",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_paths",
+    "no_payloads",
+    "no_commands",
+  ], context);
+}
+
+function assertProductionProbeOperatorCheckSafe(check, context) {
+  if (!check || typeof check !== "object" || Array.isArray(check)) {
+    throw new ContractError(`${context}: check is required`);
+  }
+  assertNoForbiddenProductionProbeFields(check, context);
+  for (const field of Object.keys(check)) {
+    if (!PRODUCTION_PROBE_OPERATOR_CHECK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected check field ${field}`);
+    }
+  }
+  if (check.schema !== "iris_production_probe_operator_check_v1") {
+    throw new ContractError(`${context}: invalid check schema`);
+  }
+  if (!/^[a-z0-9_]+$/.test(check.check_label)) {
+    throw new ContractError(`${context}: invalid check label`);
+  }
+  if (check.script_name !== null && check.script_name !== safeScriptName(check.script_name)) {
+    throw new ContractError(`${context}: invalid script name`);
+  }
+  if (!["available", "not_applicable"].includes(check.status)) {
+    throw new ContractError(`${context}: invalid check status`);
+  }
+}
+
+export function createProductionProbeReadinessAuditEvent({
+  generatedAtMs = Date.now(),
+  verificationStatus = "configuration_attention",
+} = {}) {
+  const event = {
+    schema: "iris_production_probe_readiness_audit_event_v1",
+    actor_role: "system",
+    audit_action: "readiness_status_update",
+    safe_target: "production_probe",
+    result_status:
+      verificationStatus === "configured_probe_ready" ? "ready" : "attention",
+    timestamp_ms: Number.isFinite(Number(generatedAtMs))
+      ? Math.trunc(Number(generatedAtMs))
+      : 0,
+    boundary_policy: {
+      safe_audit_fields_only: true,
+      no_raw_payloads: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionProbeReadinessAuditEventSafe(event);
+  return event;
+}
+
+export function assertProductionProbeReadinessAuditEventSafe(
+  event,
+  context = "production probe readiness audit event"
+) {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
+    throw new ContractError(`${context}: event is required`);
+  }
+  assertNoForbiddenProductionProbeFields(event, context);
+  for (const field of Object.keys(event)) {
+    if (!PRODUCTION_PROBE_AUDIT_EVENT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (event.schema !== "iris_production_probe_readiness_audit_event_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["system", "operator"].includes(event.actor_role)) {
+    throw new ContractError(`${context}: invalid actor role`);
+  }
+  if (event.audit_action !== "readiness_status_update") {
+    throw new ContractError(`${context}: invalid audit action`);
+  }
+  if (event.safe_target !== "production_probe") {
+    throw new ContractError(`${context}: invalid safe target`);
+  }
+  if (!["ready", "attention"].includes(event.result_status)) {
+    throw new ContractError(`${context}: invalid result status`);
+  }
+  if (!Number.isInteger(event.timestamp_ms) || event.timestamp_ms < 0) {
+    throw new ContractError(`${context}: invalid timestamp`);
+  }
+  assertBoundaryPolicy(event.boundary_policy, [
+    "safe_audit_fields_only",
+    "no_raw_payloads",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_candidates",
+    "no_commands",
+  ], context);
+}
+
+export function createProductionProbeRepeatedBlockerGroupSummary({
+  blockers = [],
+} = {}) {
+  const groupCounts = new Map();
+  for (const blocker of Array.isArray(blockers) ? blockers : []) {
+    const componentLabel = safeBlockerLabel(blocker?.blocker_label);
+    if (!componentLabel || blocker?.status !== "blocked") continue;
+    const key = `${componentLabel}\u0000blocked`;
+    groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
+  }
+  const groups = [...groupCounts.entries()]
+    .map(([key, count]) => {
+      const [componentLabel, status] = key.split("\u0000");
+      return {
+        schema: "iris_production_probe_repeated_blocker_group_v1",
+        component_label: componentLabel,
+        status,
+        count,
+      };
+    })
+    .sort((left, right) => left.component_label.localeCompare(right.component_label));
+  const summary = {
+    schema: "iris_production_probe_repeated_blocker_group_summary_v1",
+    group_count: groups.length,
+    groups,
+    boundary_policy: {
+      component_status_count_only: true,
+      no_raw_error_detail: true,
+      no_raw_logs: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+    },
+  };
+  assertProductionProbeRepeatedBlockerGroupSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionProbeRepeatedBlockerGroupSummarySafe(
+  summary,
+  context = "production probe repeated blocker group summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PROBE_REPEATED_BLOCKER_GROUP_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_production_probe_repeated_blocker_group_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(summary.groups)) {
+    throw new ContractError(`${context}: groups must be an array`);
+  }
+  if (!Number.isInteger(summary.group_count) || summary.group_count !== summary.groups.length) {
+    throw new ContractError(`${context}: invalid group count`);
+  }
+  for (const group of summary.groups) {
+    assertProductionProbeRepeatedBlockerGroupSafe(group, context);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "component_status_count_only",
+    "no_raw_error_detail",
+    "no_raw_logs",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_payloads",
+  ], context);
+}
+
+function assertProductionProbeRepeatedBlockerGroupSafe(group, context) {
+  if (!group || typeof group !== "object" || Array.isArray(group)) {
+    throw new ContractError(`${context}: group is required`);
+  }
+  assertNoForbiddenProductionProbeFields(group, context);
+  for (const field of Object.keys(group)) {
+    if (!PRODUCTION_PROBE_REPEATED_BLOCKER_GROUP_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected group field ${field}`);
+    }
+  }
+  if (group.schema !== "iris_production_probe_repeated_blocker_group_v1") {
+    throw new ContractError(`${context}: invalid group schema`);
+  }
+  if (group.component_label !== safeBlockerLabel(group.component_label)) {
+    throw new ContractError(`${context}: invalid component label`);
+  }
+  if (group.status !== "blocked") {
+    throw new ContractError(`${context}: invalid group status`);
+  }
+  if (!Number.isInteger(group.count) || group.count < 1) {
+    throw new ContractError(`${context}: invalid group count`);
   }
 }
 
@@ -665,6 +1728,93 @@ function assertProductionProbeHandoffSummarySafe(summary, report, context) {
   }
   if (summary.probe_mode !== report.probe_mode) {
     throw new ContractError(`${context}: invalid production handoff mode`);
+  }
+  assertProductionProbeFixtureRealSummarySafe(
+    summary.fixture_real_readiness_summary,
+    `${context}: handoff fixture real readiness summary`
+  );
+  if (
+    JSON.stringify(summary.fixture_real_readiness_summary) !==
+    JSON.stringify(report.fixture_real_readiness_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff fixture real readiness summary`);
+  }
+  assertProductionProbeSafeFailureReasonSummarySafe(
+    summary.failure_reason_summary,
+    `${context}: handoff failure reason summary`
+  );
+  if (
+    JSON.stringify(summary.failure_reason_summary) !==
+    JSON.stringify(report.failure_reason_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff failure reason summary`);
+  }
+  assertProductionProbeMissingComponentSummarySafe(
+    summary.missing_component_summary,
+    `${context}: handoff missing component summary`
+  );
+  if (
+    JSON.stringify(summary.missing_component_summary) !==
+    JSON.stringify(report.missing_component_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff missing component summary`);
+  }
+  assertProductionProbeBlockerSummarySafe(
+    summary.blocker_summary,
+    `${context}: handoff blocker summary`
+  );
+  if (
+    JSON.stringify(summary.blocker_summary) !==
+    JSON.stringify(report.blocker_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff blocker summary`);
+  }
+  assertProductionProbeDirectRemediationPolicySafe(
+    summary.direct_remediation_policy,
+    `${context}: handoff direct remediation policy`
+  );
+  if (
+    JSON.stringify(summary.direct_remediation_policy) !==
+    JSON.stringify(report.direct_remediation_policy)
+  ) {
+    throw new ContractError(`${context}: invalid handoff direct remediation policy`);
+  }
+  assertProductionProbeAdminSummarySafe(
+    summary.admin_summary,
+    `${context}: handoff admin summary`
+  );
+  if (
+    JSON.stringify(summary.admin_summary) !==
+    JSON.stringify(report.admin_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff admin summary`);
+  }
+  assertProductionProbeOperatorChecklistSafe(
+    summary.operator_checklist,
+    `${context}: handoff operator checklist`
+  );
+  if (
+    JSON.stringify(summary.operator_checklist) !==
+    JSON.stringify(report.operator_checklist)
+  ) {
+    throw new ContractError(`${context}: invalid handoff operator checklist`);
+  }
+  assertProductionProbeReadinessAuditEventSafe(
+    summary.audit_event,
+    `${context}: handoff audit event`
+  );
+  if (JSON.stringify(summary.audit_event) !== JSON.stringify(report.audit_event)) {
+    throw new ContractError(`${context}: invalid handoff audit event`);
+  }
+  assertProductionProbeRepeatedBlockerGroupSummarySafe(
+    summary.repeated_blocker_group_summary,
+    `${context}: handoff repeated blocker group summary`
+  );
+  if (
+    JSON.stringify(summary.repeated_blocker_group_summary) !==
+    JSON.stringify(report.repeated_blocker_group_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff repeated blocker group summary`);
   }
   if (summary.readiness_status !== report.readiness_status) {
     throw new ContractError(`${context}: invalid production handoff readiness`);
@@ -2499,4 +3649,34 @@ function safeText(value, maxLength = 160) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function safeComponentLabel(value) {
+  const text = safeText(value, 80);
+  if (!/^[a-z0-9_:-]+$/.test(text)) return "";
+  if (/(?:endpoint|token|secret|password|url|path|command|payload)/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function safeBlockerLabel(value) {
+  const text = safeText(value, 100);
+  if (!/^[a-z0-9_:-]+$/.test(text)) return "";
+  if (/(?:endpoint|token|secret|password|url|path|command|payload|log)/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
+function safeScriptName(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const text = safeText(value, 120);
+  const match = /^npm run ([a-z0-9:_-]+)(?: -- .*)?$/i.exec(text);
+  const scriptName = match ? match[1] : text;
+  if (!/^[a-z0-9:_-]+$/i.test(scriptName)) return null;
+  if (/(?:endpoint|token|secret|password|url|path|payload)/i.test(scriptName)) {
+    return null;
+  }
+  return scriptName;
 }

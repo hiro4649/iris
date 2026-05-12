@@ -2,7 +2,9 @@ import {
   assertAdapterPacketSafe,
   createLive2dAdapterPacket,
   createSubtitleAdapterPacket,
+  createTtsAdapterSourceStatusFallback,
   createTtsAdapterPacket,
+  createTtsUnsupportedVoiceSafeError,
 } from "../../adapters/adapterPackets.js";
 import { ContractError } from "../../core/contracts.js";
 import { createMotionCueFromEnvelope } from "../presence/motionCue.js";
@@ -34,6 +36,10 @@ const FORBIDDEN_FIXTURE_FIELDS = new Set([
   "community_memory_candidates",
   "approved_memory_record",
   "approved_relationship_record",
+  "candidate",
+  "candidates",
+  "raw_audio",
+  "raw_subtitle_payload",
   "api_key",
   "apiKey",
   "oauth_token",
@@ -121,6 +127,13 @@ export function createIntegrationFixtures({ generatedAtMs = Date.now() } = {}) {
     speechRateProfile,
     languageProfile,
     subtitleCue,
+    ttsAdapterGuidance: {
+      voice_hint: "fixture_iris_voice",
+      model_hint: "fixture_tts_model",
+      locale_hint: languageProfile.response_language,
+      speech_rate_hint: speechRateProfile.base_rate,
+      subtitle_hint: subtitleCue.subtitle_language,
+    },
   });
   const live2dPacket = createLive2dAdapterPacket(envelope, {
     motionCue,
@@ -228,6 +241,188 @@ export function createIntegrationFixtures({ generatedAtMs = Date.now() } = {}) {
   };
   assertIntegrationFixturesSafe(fixtures);
   return fixtures;
+}
+
+export function createVoiceSubtitlePublicStateFixture({ generatedAtMs = Date.now() } = {}) {
+  const fixtures = createIntegrationFixtures({ generatedAtMs });
+  const ttsPacket = fixtures.adapter_packets.tts;
+  const publicState = {
+    schema: "iris_voice_subtitle_public_state_fixture_v1",
+    selected_language: ttsPacket.language_profile.response_language,
+    subtitle_status: ttsPacket.subtitle_cue.subtitle_text ? "enabled" : "disabled",
+    speech_rate_label: ttsPacket.speech_rate_profile.base_rate,
+    boundary_policy: {
+      public_voice_subtitle_labels_only: true,
+      no_trace_or_event_ids: true,
+      no_raw_subtitle_payload: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertVoiceSubtitlePublicStateFixtureSafe(publicState);
+  return publicState;
+}
+
+export function assertVoiceSubtitlePublicStateFixtureSafe(
+  publicState,
+  context = "voice subtitle public state fixture"
+) {
+  assertFixtureObjectKeys(
+    publicState,
+    [
+      "schema",
+      "selected_language",
+      "subtitle_status",
+      "speech_rate_label",
+      "boundary_policy",
+      "adapter_validation_required",
+    ],
+    context
+  );
+  if (publicState.schema !== "iris_voice_subtitle_public_state_fixture_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["enabled", "disabled"].includes(publicState.subtitle_status)) {
+    throw new ContractError(`${context}: invalid subtitle status`);
+  }
+  assertExactPolicyFields(
+    publicState.boundary_policy,
+    [
+      "public_voice_subtitle_labels_only",
+      "no_trace_or_event_ids",
+      "no_raw_subtitle_payload",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  if (publicState.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter_validation_required must be true`);
+  }
+  assertNoForbiddenFixtureFields(publicState, context);
+}
+
+export function createVoiceSubtitleUnsafeFieldFixture({ generatedAtMs = Date.now() } = {}) {
+  const safePublicState = createVoiceSubtitlePublicStateFixture({ generatedAtMs });
+  const unsafeCases = [
+    ["endpoint", { endpoint: "https://tts.invalid" }],
+    ["token", { token: "secret-token" }],
+    ["raw_audio", { raw_audio: "base64-audio" }],
+    ["raw_subtitle_payload", { raw_subtitle_payload: { text: "raw subtitle" } }],
+    ["candidate", { candidate: { kind: "unsafe_voice_subtitle" } }],
+  ];
+  const results = unsafeCases.map(([field, payload]) => {
+    let rejected = false;
+    try {
+      assertVoiceSubtitlePublicStateFixtureSafe({
+        ...safePublicState,
+        ...payload,
+      });
+    } catch (error) {
+      if (!(error instanceof ContractError)) throw error;
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new ContractError("voice subtitle unsafe field fixture: unsafe field accepted", {
+        field,
+      });
+    }
+    return { field, result: "reject" };
+  });
+  return {
+    schema: "iris_voice_subtitle_unsafe_field_fixture_v1",
+    checked_field_count: results.length,
+    rejected_field_count: results.filter((result) => result.result === "reject").length,
+    boundary_policy: {
+      endpoint_values_rejected: true,
+      token_values_rejected: true,
+      audio_values_rejected: true,
+      subtitle_payload_values_rejected: true,
+      candidate_values_rejected: true,
+      safe_fixture_labels_only: true,
+    },
+    adapter_validation_required: true,
+  };
+}
+
+export function createVoiceSubtitleFallbackFixture() {
+  const unsupportedVoice = createTtsUnsupportedVoiceSafeError();
+  const sourceFallback = createTtsAdapterSourceStatusFallback({
+    sourceVerified: false,
+    sourceStatus: "licensed",
+  });
+  const fixture = {
+    schema: "iris_voice_subtitle_fallback_fixture_v1",
+    voice_status: unsupportedVoice.error_status,
+    language_status: "unsupported_language_degraded",
+    fallback_status: "placeholder",
+    readiness_state: "attention_required",
+    production_ready: false,
+    voice_safe_code: unsupportedVoice.safe_code,
+    source_handoff_status: sourceFallback.handoff_status,
+    boundary_policy: {
+      unsupported_voice_degrades: true,
+      unsupported_language_degrades: true,
+      placeholder_or_attention_only: true,
+      not_production_ready: true,
+      no_raw_voice_values: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertVoiceSubtitleFallbackFixtureSafe(fixture);
+  return fixture;
+}
+
+export function assertVoiceSubtitleFallbackFixtureSafe(
+  fixture,
+  context = "voice subtitle fallback fixture"
+) {
+  assertFixtureObjectKeys(
+    fixture,
+    [
+      "schema",
+      "voice_status",
+      "language_status",
+      "fallback_status",
+      "readiness_state",
+      "production_ready",
+      "voice_safe_code",
+      "source_handoff_status",
+      "boundary_policy",
+      "adapter_validation_required",
+    ],
+    context
+  );
+  if (
+    fixture.schema !== "iris_voice_subtitle_fallback_fixture_v1" ||
+    fixture.voice_status !== "summary_only_error" ||
+    fixture.language_status !== "unsupported_language_degraded" ||
+    !["placeholder", "degraded", "operator_attention_required"].includes(fixture.fallback_status) ||
+    fixture.readiness_state === "ready" ||
+    fixture.production_ready !== false
+  ) {
+    throw new ContractError(`${context}: invalid fallback status`);
+  }
+  assertExactPolicyFields(
+    fixture.boundary_policy,
+    [
+      "unsupported_voice_degrades",
+      "unsupported_language_degrades",
+      "placeholder_or_attention_only",
+      "not_production_ready",
+      "no_raw_voice_values",
+      "no_endpoint_values",
+      "no_tokens",
+    ],
+    `${context}: boundary policy`
+  );
+  if (fixture.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter_validation_required must be true`);
+  }
+  assertNoForbiddenFixtureFields(fixture, context);
 }
 
 export function assertIntegrationFixturesSafe(fixtures, context = "integration fixtures") {
@@ -553,8 +748,14 @@ function createFixtureFinalOutput() {
     },
     affect_snapshot: affectSnapshot,
     phase15_continuity_envelope: {
+      schema: "iris_phase04_approved_action_v1",
       trace_id: "fixture-trace",
       event_id: "fixture-event",
+      handoff_route: "adapter",
+      handoff_timestamp_status: "fresh",
+      handoff_issued_at_ms: 0,
+      handoff_expires_at_ms: 4102444800000,
+      handoff_max_age_ms: 4102444800000,
       action_type: "SPEAK",
       target_presence_id: "viewer",
       tone: "friendly",
@@ -567,7 +768,6 @@ function createFixtureFinalOutput() {
         intensity: "medium",
         adapter_validation_required: true,
       },
-      affect_snapshot: affectSnapshot,
     },
   };
 }

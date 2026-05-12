@@ -20,6 +20,68 @@ const LOCAL_BRIDGE_WORKER_CLI_PAYLOAD_FIELDS = new Set([
   "boundary_policy",
   "local_debug_paths",
 ]);
+const BRIDGE_HEARTBEAT_SAFE_STATUS_FIELDS = new Set([
+  "schema",
+  "last_seen_ms",
+  "status",
+  "age_bucket",
+  "boundary_policy",
+]);
+
+export function createBridgeHeartbeatSafeStatus({
+  lastSeenMs = null,
+  nowMs = Date.now(),
+  staleAfterMs = 15_000,
+} = {}) {
+  const normalizedLastSeenMs = safeNonNegativeNumber(lastSeenMs);
+  const normalizedNowMs = safeNonNegativeNumber(nowMs) ?? Date.now();
+  const normalizedStaleAfterMs = safeNonNegativeNumber(staleAfterMs) ?? 15_000;
+  const ageMs =
+    normalizedLastSeenMs === null ? null : Math.max(0, normalizedNowMs - normalizedLastSeenMs);
+  const status =
+    ageMs === null ? "missing" : ageMs > normalizedStaleAfterMs ? "stale" : "connected";
+  const summary = {
+    schema: "iris_bridge_heartbeat_safe_status_v1",
+    last_seen_ms: normalizedLastSeenMs,
+    status,
+    age_bucket: summarizeHeartbeatAgeBucket(ageMs, normalizedStaleAfterMs),
+    boundary_policy: {
+      last_seen_status_age_bucket_only: true,
+      no_raw_bridge_payload: true,
+    },
+  };
+  assertBridgeHeartbeatSafeStatus(summary);
+  return summary;
+}
+
+export function assertBridgeHeartbeatSafeStatus(
+  summary,
+  context = "bridge heartbeat safe status"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary object required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!BRIDGE_HEARTBEAT_SAFE_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_bridge_heartbeat_safe_status_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["connected", "stale", "missing"].includes(summary.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  if (!["fresh", "stale", "missing"].includes(summary.age_bucket)) {
+    throw new ContractError(`${context}: invalid age bucket`);
+  }
+  if (
+    summary.boundary_policy?.last_seen_status_age_bucket_only !== true ||
+    summary.boundary_policy?.no_raw_bridge_payload !== true
+  ) {
+    throw new ContractError(`${context}: unsafe boundary policy`);
+  }
+}
 
 export function createLocalBridgeWorkerCliPayload({
   report,
@@ -286,6 +348,17 @@ function createLocalPathBoundaryPolicy() {
     no_path_values_by_default: true,
     production_handoff_summary_counts_only: true,
   };
+}
+
+function summarizeHeartbeatAgeBucket(ageMs, staleAfterMs) {
+  if (ageMs === null) return "missing";
+  return ageMs > staleAfterMs ? "stale" : "fresh";
+}
+
+function safeNonNegativeNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function createWorkerProductionHandoffSummary({ report = null, status = null, mode }) {

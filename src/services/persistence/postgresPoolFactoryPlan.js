@@ -74,6 +74,33 @@ const POSTGRES_POOL_FACTORY_PLAN_FIELDS = new Set([
   "private_factory_contract",
   "boundary_policy",
 ]);
+const POSTGRES_CONFIG_SAFE_SUMMARY_SCHEMA =
+  "iris_postgres_config_safe_summary_v1";
+const POSTGRES_CONFIG_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "status",
+  "configured",
+  "missing",
+]);
+const DB_ADAPTER_CONFIG_REDACTION_SUMMARY_SCHEMA =
+  "iris_db_adapter_config_redaction_summary_v1";
+const DB_ADAPTER_CONFIG_REDACTION_SUMMARY_FIELDS = new Set([
+  "schema",
+  "status",
+  "configured_count",
+  "missing_count",
+  "boundary_policy",
+]);
+const POSTGRES_CONNECTION_READINESS_SCHEMA =
+  "iris_postgres_connection_readiness_classifier_v1";
+const POSTGRES_CONNECTION_READINESS_FIELDS = new Set([
+  "schema",
+  "readiness_status",
+  "connection_configured",
+  "connection_verified",
+  "db_connection_attempted",
+  "operator_attention_required",
+]);
 const PRIVATE_FACTORY_CONTRACT_FIELDS = new Set([
   "schema",
   "connection_string_must_remain_private",
@@ -134,6 +161,195 @@ export function createPostgresPoolFactoryPlan({
   };
   assertPostgresPoolFactoryPlanSafe(plan);
   return plan;
+}
+
+export function createPostgresConfigSafeSummary({
+  env = process.env,
+} = {}) {
+  const connectionConfigured = Boolean(
+    String(env.IRIS_POSTGRES_CONNECTION_STRING ?? "").trim()
+  );
+  const summary = {
+    schema: POSTGRES_CONFIG_SAFE_SUMMARY_SCHEMA,
+    status: connectionConfigured ? "configured" : "missing",
+    configured: connectionConfigured ? ["IRIS_POSTGRES_CONNECTION_STRING"] : [],
+    missing: connectionConfigured ? [] : ["IRIS_POSTGRES_CONNECTION_STRING"],
+  };
+  assertPostgresConfigSafeSummary(summary);
+  return summary;
+}
+
+export function assertPostgresConfigSafeSummary(
+  summary,
+  context = "postgres config safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  if (summary.schema !== POSTGRES_CONFIG_SAFE_SUMMARY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!POSTGRES_CONFIG_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field ${field}`);
+    }
+  }
+  if (!["configured", "missing"].includes(summary.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  assertEnvNameList(summary.configured, `${context}: configured`);
+  assertEnvNameList(summary.missing, `${context}: missing`);
+  assertNoUnsafeText(summary, context);
+}
+
+export function createDbAdapterConfigRedactionSummary({
+  env = process.env,
+} = {}) {
+  const configuredCount = String(env.IRIS_POSTGRES_CONNECTION_STRING ?? "").trim()
+    ? 1
+    : 0;
+  const missingCount = configuredCount === 1 ? 0 : 1;
+  const summary = {
+    schema: DB_ADAPTER_CONFIG_REDACTION_SUMMARY_SCHEMA,
+    status: configuredCount === 1 ? "configured" : "missing",
+    configured_count: configuredCount,
+    missing_count: missingCount,
+    boundary_policy: {
+      status_and_counts_only: true,
+      private_values_redacted: true,
+      adapter_public_safe: true,
+      no_db_connection_attempted: true,
+    },
+  };
+  assertDbAdapterConfigRedactionSummarySafe(summary);
+  return summary;
+}
+
+export function assertDbAdapterConfigRedactionSummarySafe(
+  summary,
+  context = "db adapter config redaction summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  if (summary.schema !== DB_ADAPTER_CONFIG_REDACTION_SUMMARY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!DB_ADAPTER_CONFIG_REDACTION_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field ${field}`);
+    }
+  }
+  if (!["configured", "missing"].includes(summary.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  for (const field of ["configured_count", "missing_count"]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (summary.configured_count + summary.missing_count !== 1) {
+    throw new ContractError(`${context}: invalid config counts`);
+  }
+  if (
+    summary.status !==
+    (summary.configured_count === 1 ? "configured" : "missing")
+  ) {
+    throw new ContractError(`${context}: status/count mismatch`);
+  }
+  assertExactBoundaryPolicy(
+    summary.boundary_policy,
+    {
+      status_and_counts_only: true,
+      private_values_redacted: true,
+      adapter_public_safe: true,
+      no_db_connection_attempted: true,
+    },
+    context
+  );
+  for (const value of Object.values(summary.boundary_policy)) {
+    if (value !== true) {
+      throw new ContractError(`${context}: boundary policy must be true`);
+    }
+  }
+  assertPublicSafeObject(summary, context);
+  assertNoUnsafeText(summary, context);
+}
+
+export function createPostgresConnectionReadinessClassifier({
+  env = process.env,
+  connectionVerified = false,
+  dbConnectionAttempted = false,
+} = {}) {
+  const connectionConfigured = Boolean(
+    String(env.IRIS_POSTGRES_CONNECTION_STRING ?? "").trim()
+  );
+  const attempted = dbConnectionAttempted === true;
+  const verified = attempted && connectionVerified === true;
+  const classifier = {
+    schema: POSTGRES_CONNECTION_READINESS_SCHEMA,
+    readiness_status: verified ? "verified_ready" : "blocked_pending_real_db_connection",
+    connection_configured: connectionConfigured,
+    connection_verified: verified,
+    db_connection_attempted: attempted,
+    operator_attention_required: verified !== true,
+  };
+  assertPostgresConnectionReadinessClassifierSafe(classifier);
+  return classifier;
+}
+
+export function assertPostgresConnectionReadinessClassifierSafe(
+  classifier,
+  context = "postgres connection readiness classifier"
+) {
+  if (!classifier || typeof classifier !== "object" || Array.isArray(classifier)) {
+    throw new ContractError(`${context}: classifier must be an object`);
+  }
+  if (classifier.schema !== POSTGRES_CONNECTION_READINESS_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(classifier)) {
+    if (!POSTGRES_CONNECTION_READINESS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected classifier field ${field}`);
+    }
+  }
+  if (
+    !["blocked_pending_real_db_connection", "verified_ready"].includes(
+      classifier.readiness_status
+    )
+  ) {
+    throw new ContractError(`${context}: invalid readiness status`);
+  }
+  for (const field of [
+    "connection_configured",
+    "connection_verified",
+    "db_connection_attempted",
+    "operator_attention_required",
+  ]) {
+    if (typeof classifier[field] !== "boolean") {
+      throw new ContractError(`${context}: invalid boolean ${field}`);
+    }
+  }
+  if (
+    classifier.connection_verified !== true &&
+    classifier.readiness_status === "verified_ready"
+  ) {
+    throw new ContractError(`${context}: unverified connection must not be ready`);
+  }
+  if (
+    classifier.db_connection_attempted !== true &&
+    (classifier.connection_verified === true ||
+      classifier.readiness_status === "verified_ready")
+  ) {
+    throw new ContractError(`${context}: real db connection is required for ready`);
+  }
+  if (
+    classifier.connection_verified !== true &&
+    classifier.operator_attention_required !== true
+  ) {
+    throw new ContractError(`${context}: unverified connection requires attention`);
+  }
+  assertNoUnsafeText(classifier, context);
 }
 
 export function assertPostgresPoolFactoryPlanSafe(
@@ -278,5 +494,16 @@ function assertNoUnsafeText(value, context) {
   const serialized = JSON.stringify(value);
   if (UNSAFE_PUBLIC_TEXT_PATTERN.test(serialized)) {
     throw new ContractError(`${context}: unsafe public text detected`);
+  }
+}
+
+function assertEnvNameList(list, context) {
+  if (!Array.isArray(list)) {
+    throw new ContractError(`${context}: env list must be an array`);
+  }
+  for (const name of list) {
+    if (typeof name !== "string" || !/^[A-Z][A-Z0-9_]*$/.test(name)) {
+      throw new ContractError(`${context}: unsafe env name`);
+    }
   }
 }

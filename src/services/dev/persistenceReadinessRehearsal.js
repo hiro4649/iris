@@ -429,6 +429,84 @@ export function createPersistenceReadinessRehearsal({
   return rehearsal;
 }
 
+export function createRelationshipMemoryDbPreflightFixture() {
+  const fixture = {
+    schema: "iris_relationship_memory_db_preflight_fixture_v1",
+    preflight_status: "candidate_direct_commit_rejected",
+    safe_status: "validation_gate_required",
+    checked_flow_count: 2,
+    rejected_direct_commit_count: 2,
+    memory_direct_commit_rejected: true,
+    relationship_direct_commit_rejected: true,
+    safe_output_only: true,
+    boundary_policy: {
+      candidates_require_approved_schema: true,
+      memory_direct_commit_blocked: true,
+      relationship_direct_commit_blocked: true,
+      status_counts_only: true,
+      no_memory_records: true,
+      no_relationship_records: true,
+      no_candidates: true,
+      no_commands: true,
+      no_secret_values: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertRelationshipMemoryDbPreflightFixtureSafe(fixture);
+  return fixture;
+}
+
+export function assertRelationshipMemoryDbPreflightFixtureSafe(
+  fixture,
+  context = "relationship memory DB preflight fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  const allowedFields = new Set([
+    "schema",
+    "preflight_status",
+    "safe_status",
+    "checked_flow_count",
+    "rejected_direct_commit_count",
+    "memory_direct_commit_rejected",
+    "relationship_direct_commit_rejected",
+    "safe_output_only",
+    "boundary_policy",
+    "adapter_validation_required",
+  ]);
+  for (const field of Object.keys(fixture)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`, { field });
+    }
+  }
+  if (
+    fixture.schema !== "iris_relationship_memory_db_preflight_fixture_v1" ||
+    fixture.preflight_status !== "candidate_direct_commit_rejected" ||
+    fixture.safe_status !== "validation_gate_required" ||
+    fixture.checked_flow_count !== 2 ||
+    fixture.rejected_direct_commit_count !== 2 ||
+    fixture.memory_direct_commit_rejected !== true ||
+    fixture.relationship_direct_commit_rejected !== true ||
+    fixture.safe_output_only !== true ||
+    fixture.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid safe preflight fixture`);
+  }
+  assertBoundaryPolicy(fixture.boundary_policy, [
+    "candidates_require_approved_schema",
+    "memory_direct_commit_blocked",
+    "relationship_direct_commit_blocked",
+    "status_counts_only",
+    "no_memory_records",
+    "no_relationship_records",
+    "no_candidates",
+    "no_commands",
+    "no_secret_values",
+  ], `${context}: boundary policy`);
+  assertNoForbiddenFields(fixture, context);
+}
+
 export function assertPersistenceReadinessRehearsalSafe(
   rehearsal,
   context = "persistence readiness rehearsal"

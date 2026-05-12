@@ -7607,6 +7607,69 @@ function createJobFreshnessPolicy(maxJobAgeMs) {
   };
 }
 
+export function classifyBridgePacketTimestampReadiness(
+  packet,
+  { nowMs = Date.now(), maxPacketAgeMs = 24 * 3_600_000 } = {}
+) {
+  const jobFreshnessPolicy = createJobFreshnessPolicy(maxPacketAgeMs);
+  const freshness = classifyJobFreshness(
+    {
+      created_at_ms:
+        packet?.created_at_ms ?? packet?.createdAtMs ?? packet?.created_ms ?? packet?.createdMs,
+    },
+    { nowMs, jobFreshnessPolicy }
+  );
+  const stale = freshness.job_freshness_status === "expired";
+  const summary = {
+    schema: "iris_bridge_packet_timestamp_readiness_v1",
+    packet_timestamp_status: stale ? "stale" : freshness.job_freshness_status,
+    readiness_state: stale ? "runtime_waiting" : "ready",
+    ready: stale !== true,
+    age_bucket: stale ? "stale" : freshness.job_freshness_status === "fresh" ? "fresh" : "unknown",
+    max_age_configured: jobFreshnessPolicy.expiry_enabled === true,
+    boundary_policy: {
+      stale_packet_not_ready: true,
+      no_raw_packet: true,
+      summary_only: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertBridgePacketTimestampReadinessSafe(summary);
+  return summary;
+}
+
+export function assertBridgePacketTimestampReadinessSafe(
+  summary,
+  context = "bridge packet timestamp readiness"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenEnginePublicFields(summary, context);
+  if (summary.schema !== "iris_bridge_packet_timestamp_readiness_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["fresh", "stale", "not_checked"].includes(summary.packet_timestamp_status)) {
+    throw new ContractError(`${context}: invalid packet timestamp status`);
+  }
+  if (!["ready", "runtime_waiting"].includes(summary.readiness_state)) {
+    throw new ContractError(`${context}: invalid readiness state`);
+  }
+  if (summary.packet_timestamp_status === "stale") {
+    if (summary.ready !== false || summary.readiness_state !== "runtime_waiting") {
+      throw new ContractError(`${context}: stale packet must not be ready`);
+    }
+  }
+  for (const field of ["stale_packet_not_ready", "no_raw_packet", "summary_only"]) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation required`);
+  }
+}
+
 function classifyJobFreshness(job, { nowMs, jobFreshnessPolicy }) {
   if (jobFreshnessPolicy?.expiry_enabled !== true) {
     return {

@@ -100,6 +100,15 @@ const POSTGRES_BACKUP_RESTORE_REHEARSAL_STATUS_FIELDS = new Set([
   "raw_detail_exposed",
   "boundary_policy",
 ]);
+const POSTGRES_RESTORE_CONFIRMATION_GUARD_FIELDS = new Set([
+  "schema",
+  "restore_status",
+  "dry_run_completed",
+  "schema_validation_passed",
+  "operator_confirmation_present",
+  "restore_executed",
+  "boundary_policy",
+]);
 
 export function createPostgresHealthRollbackRehearsal({
   env = process.env,
@@ -204,7 +213,7 @@ export function createPostgresBackupRestoreRehearsalStatus({
       safe_status_only: true,
       no_backup_locations: true,
       no_database_dump_values: true,
-      no_credentials: true,
+      sensitive_values_hidden: true,
       no_connection_values: true,
       no_statement_text: true,
     },
@@ -247,7 +256,7 @@ export function assertPostgresBackupRestoreRehearsalStatusSafe(
     safe_status_only: true,
     no_backup_locations: true,
     no_database_dump_values: true,
-    no_credentials: true,
+    sensitive_values_hidden: true,
     no_connection_values: true,
     no_statement_text: true,
   };
@@ -265,6 +274,108 @@ export function assertPostgresBackupRestoreRehearsalStatusSafe(
     )
   ) {
     throw new ContractError(`${context}: unsafe backup detail exposed`);
+  }
+}
+
+export function createPostgresRestoreConfirmationGuard({
+  dryRunCompleted = false,
+  schemaValidationPassed = false,
+  operatorConfirmationPresent = false,
+} = {}) {
+  const allowed =
+    dryRunCompleted === true &&
+    schemaValidationPassed === true &&
+    operatorConfirmationPresent === true;
+  const guard = {
+    schema: "iris_postgres_restore_confirmation_guard_v1",
+    restore_status: allowed ? "ready_for_operator_restore" : "blocked_pending_restore_confirmation",
+    dry_run_completed: dryRunCompleted === true,
+    schema_validation_passed: schemaValidationPassed === true,
+    operator_confirmation_present: operatorConfirmationPresent === true,
+    restore_executed: false,
+    boundary_policy: {
+      dry_run_required: true,
+      schema_validation_required: true,
+      operator_confirmation_required: true,
+      no_restore_executed_by_guard: true,
+      no_backup_locations: true,
+      no_database_dump_values: true,
+      sensitive_values_hidden: true,
+    },
+  };
+  assertPostgresRestoreConfirmationGuardSafe(guard);
+  return guard;
+}
+
+export function assertPostgresRestoreConfirmationGuardSafe(
+  guard,
+  context = "postgres restore confirmation guard"
+) {
+  if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+    throw new ContractError(`${context}: guard must be an object`);
+  }
+  if (guard.schema !== "iris_postgres_restore_confirmation_guard_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(guard)) {
+    if (!POSTGRES_RESTORE_CONFIRMATION_GUARD_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected guard field ${field}`);
+    }
+  }
+  if (
+    ![
+      "ready_for_operator_restore",
+      "blocked_pending_restore_confirmation",
+    ].includes(guard.restore_status)
+  ) {
+    throw new ContractError(`${context}: invalid restore status`);
+  }
+  for (const field of [
+    "dry_run_completed",
+    "schema_validation_passed",
+    "operator_confirmation_present",
+    "restore_executed",
+  ]) {
+    if (typeof guard[field] !== "boolean") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  const allowed =
+    guard.dry_run_completed === true &&
+    guard.schema_validation_passed === true &&
+    guard.operator_confirmation_present === true;
+  if (
+    guard.restore_status !==
+    (allowed ? "ready_for_operator_restore" : "blocked_pending_restore_confirmation")
+  ) {
+    throw new ContractError(`${context}: restore status mismatch`);
+  }
+  if (guard.restore_executed !== false) {
+    throw new ContractError(`${context}: guard must not mark restore executed`);
+  }
+  const required = {
+    dry_run_required: true,
+    schema_validation_required: true,
+    operator_confirmation_required: true,
+    no_restore_executed_by_guard: true,
+    no_backup_locations: true,
+    no_database_dump_values: true,
+    sensitive_values_hidden: true,
+  };
+  for (const [field, value] of Object.entries(required)) {
+    if (guard.boundary_policy?.[field] !== value) {
+      throw new ContractError(`${context}: boundary policy ${field} must be true`);
+    }
+  }
+  const serialized = JSON.stringify(guard);
+  if (
+    /postgres:\/\//i.test(serialized) ||
+    /https?:\/\//i.test(serialized) ||
+    /\b(raw[_-]?db[_-]?dump|db[_-]?dump|backup[_-]?path|raw[_-]?backup[_-]?path|secret|token|password|select |insert |update |delete )\b/i.test(
+      serialized
+    )
+  ) {
+    throw new ContractError(`${context}: unsafe restore detail exposed`);
   }
 }
 

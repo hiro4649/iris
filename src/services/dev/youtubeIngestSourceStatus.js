@@ -75,6 +75,10 @@ const YOUTUBE_API_CONFIGURED_STATUS_FIELDS = new Set([
 const OAUTH_TOKEN_REDACTION_STATUS_FIELDS = new Set([
   "schema",
   "redaction_status",
+  "oauth_readiness_status",
+  "oauth_configured",
+  "oauth_missing",
+  "oauth_expired",
   "logs_safe",
   "public_view_safe",
   "admin_ordinary_view_safe",
@@ -106,9 +110,12 @@ const MODERATION_FILTER_SAFE_SUMMARY_FIELDS = new Set([
 const SUPPORT_DONATION_NORMALIZER_SAFE_OUTPUT_FIELDS = new Set([
   "schema",
   "normalizer_status",
+  "output_kind",
   "support_event_type",
   "amount_source",
   "support_event_count",
+  "moderation_precheck_status",
+  "relationship_growth_suppressed",
   "boundary_policy",
 ]);
 const INGEST_BACKOFF_STATUS_FIELDS = new Set([
@@ -130,6 +137,13 @@ const LATEST_SAFE_EVENT_COUNTS_FIELDS = new Set([
   "source",
   "event_type_counts",
   "total_count",
+  "boundary_policy",
+]);
+const YOUTUBE_INGEST_PACKET_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "source",
+  "ingest_status",
+  "event_count",
   "boundary_policy",
 ]);
 const SUPPORT_MESSAGE_SAFE_SUMMARY_FIELDS = new Set([
@@ -210,6 +224,7 @@ const SUPPORT_AMOUNT_SOURCE_KINDS = [
   "membership_count",
   "unknown",
 ];
+const SUPPORT_MODERATION_STATES = ["allowed", "watch", "limited", "blocked", "muted"];
 const URL_PATTERN = /https?:\/\//i;
 
 export function createYouTubeApiConfiguredStatus({ env = process.env } = {}) {
@@ -284,15 +299,29 @@ export function assertYouTubeApiConfiguredStatusSafe(
   assertNoYouTubeApiConfiguredStatusLeak(status, context);
 }
 
-export function createOAuthTokenRedactionStatus() {
+export function createOAuthTokenRedactionStatus({
+  configured = false,
+  expired = false,
+} = {}) {
+  const isConfigured = configured === true;
+  const isExpired = isConfigured && expired === true;
   const status = {
     schema: "iris_auth_secret_redaction_status_v1",
     redaction_status: "redacted",
+    oauth_readiness_status: isExpired
+      ? "expired"
+      : isConfigured
+        ? "configured"
+        : "missing",
+    oauth_configured: isConfigured,
+    oauth_missing: !isConfigured,
+    oauth_expired: isExpired,
     logs_safe: true,
     public_view_safe: true,
     admin_ordinary_view_safe: true,
     diagnostics_safe: true,
     boundary_policy: {
+      readiness_status_only: true,
       no_oauth_token: true,
       no_refresh_token: true,
       no_access_token: true,
@@ -325,6 +354,30 @@ export function assertOAuthTokenRedactionStatusSafe(
   if (status.redaction_status !== "redacted") {
     throw new ContractError(`${context}: invalid redaction status`);
   }
+  if (!["configured", "missing", "expired"].includes(status.oauth_readiness_status)) {
+    throw new ContractError(`${context}: invalid OAuth readiness status`);
+  }
+  for (const field of ["oauth_configured", "oauth_missing", "oauth_expired"]) {
+    if (typeof status[field] !== "boolean") {
+      throw new ContractError(`${context}: invalid OAuth readiness flag`, { field });
+    }
+  }
+  if (
+    (status.oauth_readiness_status === "configured" &&
+      (status.oauth_configured !== true ||
+        status.oauth_missing !== false ||
+        status.oauth_expired !== false)) ||
+    (status.oauth_readiness_status === "missing" &&
+      (status.oauth_configured !== false ||
+        status.oauth_missing !== true ||
+        status.oauth_expired !== false)) ||
+    (status.oauth_readiness_status === "expired" &&
+      (status.oauth_configured !== true ||
+        status.oauth_missing !== false ||
+        status.oauth_expired !== true))
+  ) {
+    throw new ContractError(`${context}: OAuth readiness status mismatch`);
+  }
   for (const field of [
     "logs_safe",
     "public_view_safe",
@@ -338,6 +391,7 @@ export function assertOAuthTokenRedactionStatusSafe(
   assertBoundaryPolicy(
     status.boundary_policy,
     [
+      "readiness_status_only",
       "no_oauth_token",
       "no_refresh_token",
       "no_access_token",
@@ -575,15 +629,25 @@ export function createSupportDonationNormalizerSafeOutput({
   supportEventType = "normalizedSupportEvent",
   amountSource = "unknown",
   supportEventCount = 0,
+  moderationState = "allowed",
 } = {}) {
+  const moderationPrecheckStatus = safeSupportModerationState(moderationState);
   const output = {
     schema: "iris_support_donation_normalizer_safe_output_v1",
     normalizer_status: normalized === true ? "normalized" : "attention_required",
+    output_kind: "summary_candidate",
     support_event_type: safeSupportDonationEventType(supportEventType),
     amount_source: safeSupportDonationAmountSource(amountSource),
     support_event_count: safeNonNegativeInteger(supportEventCount),
+    moderation_precheck_status: moderationPrecheckStatus,
+    relationship_growth_suppressed: ["blocked", "limited", "muted"].includes(
+      moderationPrecheckStatus
+    ),
     boundary_policy: {
       safe_normalized_labels_only: true,
+      summary_candidate_only: true,
+      moderation_prechecked_before_relationship_growth: true,
+      relationship_growth_suppressed_when_limited_or_blocked: true,
       no_raw_support_message: true,
       no_private_ids: true,
       no_amount_comparison: true,
@@ -614,6 +678,9 @@ export function assertSupportDonationNormalizerSafeOutput(
   if (!["normalized", "attention_required"].includes(output.normalizer_status)) {
     throw new ContractError(`${context}: invalid normalizer status`);
   }
+  if (output.output_kind !== "summary_candidate") {
+    throw new ContractError(`${context}: output must remain summary candidate`);
+  }
   if (!SUPPORT_EVENT_TYPES.includes(output.support_event_type)) {
     throw new ContractError(`${context}: invalid support event type`);
   }
@@ -621,10 +688,25 @@ export function assertSupportDonationNormalizerSafeOutput(
     throw new ContractError(`${context}: invalid amount source`);
   }
   assertNonNegativeInteger(output.support_event_count, `${context}: support_event_count`);
+  if (!SUPPORT_MODERATION_STATES.includes(output.moderation_precheck_status)) {
+    throw new ContractError(`${context}: invalid moderation precheck status`);
+  }
+  if (typeof output.relationship_growth_suppressed !== "boolean") {
+    throw new ContractError(`${context}: relationship growth suppression must be boolean`);
+  }
+  if (
+    ["blocked", "limited", "muted"].includes(output.moderation_precheck_status) &&
+    output.relationship_growth_suppressed !== true
+  ) {
+    throw new ContractError(`${context}: moderation state must suppress relationship growth`);
+  }
   assertBoundaryPolicy(
     output.boundary_policy,
     [
       "safe_normalized_labels_only",
+      "summary_candidate_only",
+      "moderation_prechecked_before_relationship_growth",
+      "relationship_growth_suppressed_when_limited_or_blocked",
       "no_raw_support_message",
       "no_private_ids",
       "no_amount_comparison",
@@ -803,6 +885,68 @@ export function createLatestSafeEventCounts({
   };
   assertLatestSafeEventCounts(summary);
   return summary;
+}
+
+export function createYouTubeIngestPacketSafeSummary({
+  source = "youtube_live_chat",
+  ingestStatus = "received",
+  eventCount = 0,
+} = {}) {
+  const summary = {
+    schema: "iris_youtube_ingest_packet_safe_summary_v1",
+    source: safeEventCountSource(source),
+    ingest_status: safeIngestPacketStatus(ingestStatus),
+    event_count: safeNonNegativeInteger(eventCount),
+    boundary_policy: {
+      source_status_count_only: true,
+      no_raw_comment_text: true,
+      no_tokens: true,
+      no_api_response: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertYouTubeIngestPacketSafeSummary(summary);
+  return summary;
+}
+
+export function assertYouTubeIngestPacketSafeSummary(
+  summary,
+  context = "youtube ingest packet safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!YOUTUBE_INGEST_PACKET_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_youtube_ingest_packet_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!SAFE_EVENT_COUNT_SOURCE_LABELS.includes(summary.source)) {
+    throw new ContractError(`${context}: invalid source`);
+  }
+  if (!["received", "normalized", "ignored", "error"].includes(summary.ingest_status)) {
+    throw new ContractError(`${context}: invalid ingest status`);
+  }
+  assertNonNegativeInteger(summary.event_count, `${context}: event_count`);
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "source_status_count_only",
+      "no_raw_comment_text",
+      "no_tokens",
+      "no_api_response",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoYouTubeIngestPacketSummaryLeak(summary, context);
 }
 
 export function assertLatestSafeEventCounts(
@@ -1507,6 +1651,11 @@ function safeSupportDonationAmountSource(value) {
   return SUPPORT_AMOUNT_SOURCE_KINDS.includes(normalized) ? normalized : "unknown";
 }
 
+function safeSupportModerationState(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return SUPPORT_MODERATION_STATES.includes(normalized) ? normalized : "allowed";
+}
+
 function assertNoSupportDonationNormalizerLeak(value, context, path = "root") {
   if (typeof value === "string") {
     if (
@@ -1611,6 +1760,38 @@ function safeEventCountSource(value) {
   return SAFE_EVENT_COUNT_SOURCE_LABELS.includes(normalized)
     ? normalized
     : "youtube_live_chat";
+}
+
+function safeIngestPacketStatus(value) {
+  const normalized = String(value ?? "").trim();
+  return ["received", "normalized", "ignored", "error"].includes(normalized)
+    ? normalized
+    : "received";
+}
+
+function assertNoYouTubeIngestPacketSummaryLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?comment|comment[_ -]?text|displayMessage|message[_ -]?text|oauth|refresh[_ -]?token|access[_ -]?token|bearer\s+|authorization|api[_ -]?response|response[_ -]?body|raw[_ -]?payload|payload|world[_ -]?command|input[_ -]?action[_ -]?candidate/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe ingest packet material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoYouTubeIngestPacketSummaryLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoYouTubeIngestPacketSummaryLeak(child, context, `${path}.${field}`);
+  }
 }
 
 function assertNoLatestSafeEventCountsLeak(value, context, path = "root") {

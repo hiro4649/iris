@@ -91,9 +91,11 @@ export function createObsBridgeSetupRequest({
     safe_area: overlayConfig.safe_area,
     class_hints: overlayConfig.class_hints,
     operator_setup_only: true,
+    confirmation_required: true,
     boundary_policy: {
       configuration_only: true,
       not_runtime_expression_command: true,
+      explicit_confirmation_required: true,
       no_live_payloads: true,
       no_raw_text: true,
       no_candidates: true,
@@ -338,6 +340,7 @@ function createObsBridgeSetupSuccessReport({ request, ack, generatedAtMs }) {
       fallback: "bridge_status_omitted",
     }),
     request_id_present: safeText(ack.request_id, 160) !== "",
+    confirmation_required: true,
     configured: ack.configured !== false,
     source_name: request.obs_browser_source.source_name,
     scene_configured: request.obs_browser_source.scene_name !== "",
@@ -358,6 +361,7 @@ function createObsBridgeSetupFailureReport({ request, generatedAtMs, error }) {
     generated_at_ms: generatedAtMs,
     bridge_status: "attention",
     request_id_present: false,
+    confirmation_required: true,
     configured: false,
     source_name: request.obs_browser_source.source_name,
     scene_configured: request.obs_browser_source.scene_name !== "",
@@ -385,6 +389,7 @@ function createObsBridgeSetupFailureReport({ request, generatedAtMs, error }) {
 function createObsBridgeSetupReportBoundaryPolicy() {
   return {
     configuration_only: true,
+    explicit_confirmation_required: true,
     report_hides_endpoint_values: true,
     no_live_payloads: true,
     no_raw_text: true,
@@ -406,9 +411,13 @@ export function assertObsBridgeSetupRequestSafe(
   if (request.operator_setup_only !== true) {
     throw new ContractError(`${context}: operator_setup_only is required`);
   }
+  if (request.confirmation_required !== true) {
+    throw new ContractError(`${context}: confirmation_required is required`);
+  }
   assertObsBridgeBoundaryPolicySafe(request.boundary_policy, context, [
     "configuration_only",
     "not_runtime_expression_command",
+    "explicit_confirmation_required",
     "no_live_payloads",
     "no_raw_text",
     "no_candidates",
@@ -441,6 +450,9 @@ export function assertObsBridgeSetupReportSafe(
   if (typeof report.request_id_present !== "boolean") {
     throw new ContractError(`${context}: invalid request_id_present`);
   }
+  if (report.confirmation_required !== true) {
+    throw new ContractError(`${context}: confirmation_required is required`);
+  }
   for (const field of ["configured", "scene_configured", "event_stream_enabled"]) {
     if (typeof report[field] !== "boolean") {
       throw new ContractError(`${context}: invalid ${field}`);
@@ -461,6 +473,7 @@ export function assertObsBridgeSetupReportSafe(
   }
   const requiredBoundaryFields = [
     "configuration_only",
+    "explicit_confirmation_required",
     "report_hides_endpoint_values",
     "no_live_payloads",
     "no_raw_text",

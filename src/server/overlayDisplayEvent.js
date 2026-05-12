@@ -48,6 +48,20 @@ const FORBIDDEN_OVERLAY_EVENT_FIELDS = new Set([
   "command",
   "command_payload",
 ]);
+const OVERLAY_PICKUP_PACKET_ALLOWED_FIELDS = new Set([
+  "schema",
+  "generated_at_ms",
+  "packet_status",
+  "payload_kind",
+  "health",
+  "display",
+  "timing",
+  "class_hints",
+  "bridge",
+  "camera",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 
 export function createOverlayDisplayEvent(state, { nowMs = Date.now() } = {}) {
   const status = createOverlayStatus(state, { nowMs });
@@ -138,6 +152,70 @@ export function assertOverlayDisplayEventSafe(event, context = "overlay display 
     "read_only_display_event",
   ], context);
   if (event.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter_validation_required must be true`);
+  }
+}
+
+export function createOverlayPickupPacket(source = {}, { nowMs = Date.now() } = {}) {
+  const event = source?.schema === "iris_overlay_display_event_v1"
+    ? source
+    : createOverlayDisplayEvent(source, { nowMs });
+  if (!event || typeof event !== "object" || Array.isArray(event) || event.schema !== "iris_overlay_display_event_v1") {
+    throw new ContractError("overlay pickup packet source must be an overlay display event");
+  }
+  const packet = {
+    schema: "iris_overlay_pickup_packet_v1",
+    generated_at_ms: Number(event.generated_at_ms ?? nowMs),
+    packet_status: event.health === "fresh" ? "ready" : "runtime_waiting",
+    payload_kind: event.payload_kind ?? null,
+    health: event.health,
+    display: structuredClone(event.display),
+    timing: structuredClone(event.timing),
+    class_hints: Array.isArray(event.class_hints) ? event.class_hints.slice(0, 16) : [],
+    bridge: structuredClone(event.bridge),
+    camera: structuredClone(event.camera),
+    boundary_policy: {
+      sanitized_overlay_pickup_only: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+      no_raw_overlay_events: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertOverlayPickupPacketSafe(packet);
+  return packet;
+}
+
+export function assertOverlayPickupPacketSafe(packet, context = "overlay pickup packet") {
+  if (!packet || typeof packet !== "object" || Array.isArray(packet)) {
+    throw new ContractError(`${context}: packet object required`);
+  }
+  assertNoForbiddenOverlayEventFields(packet, context);
+  for (const field of Object.keys(packet)) {
+    if (!OVERLAY_PICKUP_PACKET_ALLOWED_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unsupported packet field`, { field });
+    }
+  }
+  if (packet.schema !== "iris_overlay_pickup_packet_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["ready", "runtime_waiting"].includes(packet.packet_status)) {
+    throw new ContractError(`${context}: invalid packet status`);
+  }
+  if (packet.health === "stale" && packet.packet_status === "ready") {
+    throw new ContractError(`${context}: stale pickup must not be ready`);
+  }
+  assertBoundaryPolicy(packet.boundary_policy, [
+    "sanitized_overlay_pickup_only",
+    "no_endpoint_values",
+    "no_tokens",
+    "no_raw_overlay_events",
+    "no_candidates",
+    "no_commands",
+  ], context);
+  if (packet.adapter_validation_required !== true) {
     throw new ContractError(`${context}: adapter_validation_required must be true`);
   }
 }

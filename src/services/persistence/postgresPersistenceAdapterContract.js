@@ -6,6 +6,18 @@ const MEMORY_WRITE_PLAN_SCHEMA = "iris_postgres_memory_write_plan_v1";
 const RELATIONSHIP_WRITE_PLAN_SCHEMA = "iris_postgres_relationship_write_plan_v1";
 const OPERATOR_POLICY_WRITE_PLAN_SCHEMA =
   "iris_postgres_operator_policy_write_plan_v1";
+const MEMORY_SUMMARY_INDEX_ENTRY_SCHEMA =
+  "iris_postgres_memory_summary_index_entry_v1";
+const STREAM_SESSION_HISTORY_ENTRY_SCHEMA =
+  "iris_postgres_stream_session_history_entry_v1";
+const GAMEPLAY_MEMORY_SUMMARY_ENTRY_SCHEMA =
+  "iris_postgres_gameplay_memory_summary_entry_v1";
+const MEDIA_WATCH_MEMORY_SUMMARY_ENTRY_SCHEMA =
+  "iris_postgres_media_watch_memory_summary_entry_v1";
+const SUPPORT_DONATION_SUMMARY_ENTRY_SCHEMA =
+  "iris_postgres_support_donation_summary_entry_v1";
+const CANDIDATE_REVIEW_AUDIT_ENTRY_SCHEMA =
+  "iris_postgres_candidate_review_audit_entry_v1";
 
 const FORBIDDEN_PUBLIC_FIELDS = new Set([
   "world_command",
@@ -119,6 +131,57 @@ const OPERATOR_POLICY_WRITE_PLAN_FIELDS = new Set([
   "adapter_contract",
   "boundary_policy",
 ]);
+const MEMORY_SUMMARY_INDEX_ENTRY_FIELDS = new Set([
+  "schema",
+  "memory_id",
+  "type",
+  "summary",
+  "status",
+]);
+const STREAM_SESSION_HISTORY_ENTRY_FIELDS = new Set([
+  "schema",
+  "session_id",
+  "summary",
+  "event_count",
+  "support_event_count",
+  "time_bucket",
+  "status",
+]);
+const GAMEPLAY_MEMORY_SUMMARY_ENTRY_FIELDS = new Set([
+  "schema",
+  "title",
+  "session",
+  "summary",
+  "safe_tags",
+  "status",
+]);
+const MEDIA_WATCH_MEMORY_SUMMARY_ENTRY_FIELDS = new Set([
+  "schema",
+  "short_reaction",
+  "rights_risk",
+  "status",
+]);
+const SUPPORT_DONATION_SUMMARY_ENTRY_FIELDS = new Set([
+  "schema",
+  "gratitude_context",
+  "support_event_type",
+  "status",
+]);
+const CANDIDATE_REVIEW_AUDIT_ENTRY_FIELDS = new Set([
+  "schema",
+  "candidate_kind",
+  "status",
+  "reviewer_role",
+  "safe_reason",
+]);
+const UNSAFE_HISTORY_TEXT_PATTERN =
+  /\b(raw[_ -]?comment|comment[_ -]?body|raw[_ -]?support|support[_ -]?text|support[_ -]?message|private[_ -]?viewer[_ -]?id|viewer[_ -]?id|raw[_ -]?payload|payload|raw[_ -]?screen|screen[_ -]?capture|raw[_ -]?action|action[_ -]?candidate|world[_ -]?command|input[_ -]?action[_ -]?candidate)\b/i;
+const UNSAFE_MEDIA_WATCH_TEXT_PATTERN =
+  /\b(dialogue|quoted[_ -]?line|subtitle|subtitles|caption|lyrics|lyric|melody|transcript|script[_ -]?excerpt|existing[_ -]?song|existing[_ -]?music)\b/i;
+const UNSAFE_SUPPORT_DONATION_TEXT_PATTERN =
+  /\b(amount[_ -]?comparison|ranking|rank|pay[_ -]?to[_ -]?rank|payment[_ -]?derived|exclusive[_ -]?friendship|exclusive[_ -]?access|higher[_ -]?than|top[_ -]?supporter|biggest[_ -]?donor|currency|usd|jpy|yen|dollar|superchat[_ -]?amount|support[_ -]?amount)\b/i;
+const UNSAFE_CANDIDATE_REVIEW_TEXT_PATTERN =
+  /\b(raw[_ -]?candidate|candidate[_ -]?payload|payload|raw[_ -]?comment|support[_ -]?text|private[_ -]?viewer[_ -]?id|viewer[_ -]?id|hidden[_ -]?score|world[_ -]?command|input[_ -]?action[_ -]?candidate|memory[_ -]?candidate|relationship[_ -]?update[_ -]?candidate)\b/i;
 const ADAPTER_CONTRACT_FIELDS = new Set([
   "schema",
   "prepared_statement_required",
@@ -187,6 +250,136 @@ const OPERATOR_POLICY_AUDIT_COLUMN_NAMES = [
   "owner_confirmed",
   "event_at_ms",
 ];
+
+export function createPostgresMemorySummaryIndexEntry(approvedRecord) {
+  assertApprovedMemoryInput(approvedRecord, "PostgreSQL memory summary index entry");
+  const entry = {
+    schema: MEMORY_SUMMARY_INDEX_ENTRY_SCHEMA,
+    memory_id: safePublicText(approvedRecord.memory_id ?? approvedRecord.event_id, {
+      maxLength: 120,
+      fallback: "memory",
+    }),
+    type: safeId(approvedRecord.memory_type, "memory"),
+    summary: safePublicText(approvedRecord.summary, {
+      maxLength: 180,
+      fallback: "summary_unavailable",
+    }),
+    status: "approved_summary_indexed",
+  };
+  assertPostgresMemorySummaryIndexEntrySafe(entry);
+  return entry;
+}
+
+export function createPostgresStreamSessionHistoryEntry({
+  sessionId = "session",
+  summary = "",
+  eventCount = 0,
+  supportEventCount = 0,
+  timeBucket = "session_time_bucket",
+  status = "approved_session_summary",
+} = {}) {
+  const entry = {
+    schema: STREAM_SESSION_HISTORY_ENTRY_SCHEMA,
+    session_id: safePublicText(sessionId, {
+      maxLength: 120,
+      fallback: "session",
+    }),
+    summary: safePublicText(summary, {
+      maxLength: 180,
+      fallback: "session_summary_unavailable",
+    }),
+    event_count: safeNonNegativeInteger(eventCount),
+    support_event_count: safeNonNegativeInteger(supportEventCount),
+    time_bucket: safeId(timeBucket, "session_time_bucket"),
+    status: safeId(status, "approved_session_summary"),
+  };
+  assertPostgresStreamSessionHistoryEntrySafe(entry);
+  return entry;
+}
+
+export function createPostgresGameplayMemorySummaryEntry({
+  title = "game session",
+  session = "game_session",
+  summary = "",
+  safeTags = [],
+  status = "approved_gameplay_summary",
+} = {}) {
+  const entry = {
+    schema: GAMEPLAY_MEMORY_SUMMARY_ENTRY_SCHEMA,
+    title: safePublicText(title, {
+      maxLength: 80,
+      fallback: "game_session",
+    }),
+    session: safePublicText(session, {
+      maxLength: 120,
+      fallback: "game_session",
+    }),
+    summary: safePublicText(summary, {
+      maxLength: 180,
+      fallback: "gameplay_summary_unavailable",
+    }),
+    safe_tags: normalizeSafeTags(safeTags),
+    status: safeId(status, "approved_gameplay_summary"),
+  };
+  assertPostgresGameplayMemorySummaryEntrySafe(entry);
+  return entry;
+}
+
+export function createPostgresMediaWatchMemorySummaryEntry({
+  shortReaction = "",
+  rightsRisk = "unknown",
+  status = "approved_media_watch_summary",
+} = {}) {
+  const entry = {
+    schema: MEDIA_WATCH_MEMORY_SUMMARY_ENTRY_SCHEMA,
+    short_reaction: safeMediaWatchText(shortReaction, {
+      maxLength: 160,
+      fallback: "media_watch_reaction_summary_unavailable",
+    }),
+    rights_risk: safeId(rightsRisk, "unknown"),
+    status: safeId(status, "approved_media_watch_summary"),
+  };
+  assertPostgresMediaWatchMemorySummaryEntrySafe(entry);
+  return entry;
+}
+
+export function createPostgresSupportDonationSummaryEntry({
+  gratitudeContext = "",
+  supportEventType = "support_event",
+  status = "approved_support_summary",
+} = {}) {
+  const entry = {
+    schema: SUPPORT_DONATION_SUMMARY_ENTRY_SCHEMA,
+    gratitude_context: safeSupportDonationText(gratitudeContext, {
+      maxLength: 160,
+      fallback: "support_gratitude_summary",
+    }),
+    support_event_type: safeId(supportEventType, "support_event"),
+    status: safeId(status, "approved_support_summary"),
+  };
+  assertPostgresSupportDonationSummaryEntrySafe(entry);
+  return entry;
+}
+
+export function createPostgresCandidateReviewAuditEntry({
+  candidateKind = "candidate",
+  status = "review_required",
+  reviewerRole = "operator",
+  safeReason = "candidate_review_required",
+} = {}) {
+  const entry = {
+    schema: CANDIDATE_REVIEW_AUDIT_ENTRY_SCHEMA,
+    candidate_kind: safeCandidateReviewLabel(candidateKind, "candidate"),
+    status: safeId(status, "review_required"),
+    reviewer_role: safeId(reviewerRole, "operator"),
+    safe_reason: safeCandidateReviewText(safeReason, {
+      maxLength: 120,
+      fallback: "candidate_review_required",
+    }),
+  };
+  assertPostgresCandidateReviewAuditEntrySafe(entry);
+  return entry;
+}
 
 export function createPostgresMemoryWritePlan(approvedRecord, { generatedAtMs = Date.now() } = {}) {
   assertApprovedMemoryInput(approvedRecord, "PostgreSQL memory write plan");
@@ -396,6 +589,202 @@ export function assertPostgresOperatorPolicyWritePlanSafe(
   }
 }
 
+export function assertPostgresMemorySummaryIndexEntrySafe(
+  entry,
+  context = "postgres memory summary index entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== MEMORY_SUMMARY_INDEX_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!MEMORY_SUMMARY_INDEX_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected index field ${field}`);
+    }
+  }
+  if (entry.status !== "approved_summary_indexed") {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  for (const field of ["memory_id", "type", "summary"]) {
+    if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+    if (UNSAFE_PUBLIC_TEXT_PATTERN.test(entry[field])) {
+      throw new ContractError(`${context}: unsafe ${field}`);
+    }
+  }
+}
+
+export function assertPostgresStreamSessionHistoryEntrySafe(
+  entry,
+  context = "postgres stream session history entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== STREAM_SESSION_HISTORY_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!STREAM_SESSION_HISTORY_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected history field ${field}`);
+    }
+  }
+  if (!["approved_session_summary", "safe_session_summary"].includes(entry.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  for (const field of ["session_id", "summary", "time_bucket", "status"]) {
+    if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+    if (UNSAFE_PUBLIC_TEXT_PATTERN.test(entry[field]) || UNSAFE_HISTORY_TEXT_PATTERN.test(entry[field])) {
+      throw new ContractError(`${context}: unsafe ${field}`);
+    }
+  }
+  for (const field of ["event_count", "support_event_count"]) {
+    if (!Number.isInteger(entry[field]) || entry[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+}
+
+export function assertPostgresGameplayMemorySummaryEntrySafe(
+  entry,
+  context = "postgres gameplay memory summary entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== GAMEPLAY_MEMORY_SUMMARY_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!GAMEPLAY_MEMORY_SUMMARY_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected gameplay summary field ${field}`);
+    }
+  }
+  if (entry.status !== "approved_gameplay_summary") {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  for (const field of ["title", "session", "summary", "status"]) {
+    if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+    if (
+      UNSAFE_PUBLIC_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_HISTORY_TEXT_PATTERN.test(entry[field])
+    ) {
+      throw new ContractError(`${context}: unsafe ${field}`);
+    }
+  }
+  if (!Array.isArray(entry.safe_tags)) {
+    throw new ContractError(`${context}: safe tags must be an array`);
+  }
+  for (const tag of entry.safe_tags) {
+    if (typeof tag !== "string" || tag.trim() === "") {
+      throw new ContractError(`${context}: invalid safe tag`);
+    }
+    if (UNSAFE_PUBLIC_TEXT_PATTERN.test(tag) || UNSAFE_HISTORY_TEXT_PATTERN.test(tag)) {
+      throw new ContractError(`${context}: unsafe safe tag`);
+    }
+  }
+}
+
+export function assertPostgresMediaWatchMemorySummaryEntrySafe(
+  entry,
+  context = "postgres media watch memory summary entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== MEDIA_WATCH_MEMORY_SUMMARY_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!MEDIA_WATCH_MEMORY_SUMMARY_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected media watch field ${field}`);
+    }
+  }
+  if (!["approved_media_watch_summary", "rights_review_required"].includes(entry.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  for (const field of ["short_reaction", "rights_risk", "status"]) {
+    if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+    if (
+      UNSAFE_PUBLIC_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_HISTORY_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_MEDIA_WATCH_TEXT_PATTERN.test(entry[field])
+    ) {
+      throw new ContractError(`${context}: unsafe ${field}`);
+    }
+  }
+}
+
+export function assertPostgresSupportDonationSummaryEntrySafe(
+  entry,
+  context = "postgres support donation summary entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== SUPPORT_DONATION_SUMMARY_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!SUPPORT_DONATION_SUMMARY_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected support summary field ${field}`);
+    }
+  }
+  if (entry.status !== "approved_support_summary") {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  for (const field of ["gratitude_context", "support_event_type", "status"]) {
+    if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+    if (
+      UNSAFE_PUBLIC_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_HISTORY_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_SUPPORT_DONATION_TEXT_PATTERN.test(entry[field])
+    ) {
+      throw new ContractError(`${context}: unsafe ${field}`);
+    }
+  }
+}
+
+export function assertPostgresCandidateReviewAuditEntrySafe(
+  entry,
+  context = "postgres candidate review audit entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== CANDIDATE_REVIEW_AUDIT_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!CANDIDATE_REVIEW_AUDIT_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected audit field ${field}`);
+    }
+  }
+  for (const field of ["candidate_kind", "status", "reviewer_role", "safe_reason"]) {
+    if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+    if (
+      UNSAFE_PUBLIC_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_HISTORY_TEXT_PATTERN.test(entry[field]) ||
+      UNSAFE_CANDIDATE_REVIEW_TEXT_PATTERN.test(entry[field])
+    ) {
+      throw new ContractError(`${context}: unsafe ${field}`);
+    }
+  }
+}
+
 function assertWritePlanSafe(plan, { context, schema, expectedRecordKind, tableNames }) {
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
     throw new ContractError(`${context}: plan must be an object`);
@@ -545,6 +934,10 @@ function assertApprovedInputBase(record, context, schema) {
     "commit",
     "write",
     "apply",
+    "memory_candidate",
+    "raw_payload",
+    "raw_memory_body",
+    "memory_candidate_payload",
     "relationship_update_candidate",
     "memory_carryover_candidate",
     "memory_carryover_candidates",
@@ -612,6 +1005,59 @@ function safeId(value, fallback) {
     .replace(/^_|_$/g, "");
   if (!text || UNSAFE_PUBLIC_TEXT_PATTERN.test(text)) return fallback;
   return text.slice(0, 80);
+}
+
+function safePublicText(value, { maxLength, fallback }) {
+  const text = String(value ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (
+    !text ||
+    UNSAFE_PUBLIC_TEXT_PATTERN.test(text) ||
+    UNSAFE_HISTORY_TEXT_PATTERN.test(text)
+  ) {
+    return fallback;
+  }
+  return text.slice(0, maxLength);
+}
+
+function safeNonNegativeInteger(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return 0;
+  return Math.trunc(number);
+}
+
+function normalizeSafeTags(values) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((value) => safeId(value, ""))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function safeMediaWatchText(value, { maxLength, fallback }) {
+  const text = safePublicText(value, { maxLength, fallback });
+  if (UNSAFE_MEDIA_WATCH_TEXT_PATTERN.test(text)) return fallback;
+  return text;
+}
+
+function safeSupportDonationText(value, { maxLength, fallback }) {
+  const text = safePublicText(value, { maxLength, fallback });
+  if (UNSAFE_SUPPORT_DONATION_TEXT_PATTERN.test(text)) return fallback;
+  return text;
+}
+
+function safeCandidateReviewText(value, { maxLength, fallback }) {
+  const text = safePublicText(value, { maxLength, fallback });
+  if (UNSAFE_CANDIDATE_REVIEW_TEXT_PATTERN.test(text)) return fallback;
+  return text;
+}
+
+function safeCandidateReviewLabel(value, fallback) {
+  const label = safeId(value, fallback);
+  if (UNSAFE_CANDIDATE_REVIEW_TEXT_PATTERN.test(label)) return fallback;
+  return label;
 }
 
 function assertSafeTableName(value, context) {

@@ -118,6 +118,7 @@ export function createHumanLikenessEvaluation({
   executionEndpoints = {},
   persistenceWriters = {},
   canonicalEnumFields = {},
+  productionReadiness = null,
 } = {}) {
   assertNoWorldCommand(event, "Human likeness event input");
   assertNoWorldCommand(coreResult, "Human likeness core input");
@@ -178,6 +179,7 @@ export function createHumanLikenessEvaluation({
     executionEndpoints,
     persistenceWriters,
     canonicalEnumFields,
+    productionReadiness,
     relationshipDeepening,
     memoryRecall,
     gameCommentary,
@@ -534,6 +536,7 @@ function detectCriticalViolations({
   gameCommentary,
   gamePlayer,
   streamLifecycle,
+  productionReadiness,
 }) {
   const violations = [];
   if (containsAnyForbidden(adapterPackets, new Set(["input_action_candidate", "relationship_update_candidate"]))) {
@@ -615,7 +618,93 @@ function detectCriticalViolations({
   if (streamLifecycle.reflection_safety_result?.status !== "safe") {
     violations.push("stream_lifecycle_reflection_unsafe");
   }
+  if (hasProductionBlocker(productionReadiness)) {
+    violations.push("production_blocker_unresolved");
+  }
   return violations;
+}
+
+export function createPhase27ProductionBlockerEvaluation({
+  productionReadiness = {},
+} = {}) {
+  const critical_violations = hasProductionBlocker(productionReadiness)
+    ? ["production_blocker_unresolved"]
+    : [];
+  const ci_fail_reasons = [...critical_violations];
+  const evaluation = {
+    schema: "iris_phase27_production_blocker_evaluation_v1",
+    evaluation_status: critical_violations.length > 0 ? "review_required" : "pass",
+    review_required: critical_violations.length > 0,
+    critical_violations,
+    ci_fail_reasons,
+    safe_violation_summary:
+      critical_violations.length > 0 ? "production_blocker_review_required" : "none",
+    boundary_policy: {
+      production_blocker_safe_violation_only: true,
+      real_process_unconfirmed_not_ready: true,
+      no_raw_logs: true,
+      no_raw_payloads: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+    },
+  };
+  assertPhase27ProductionBlockerEvaluationSafe(evaluation);
+  return evaluation;
+}
+
+export function assertPhase27ProductionBlockerEvaluationSafe(
+  evaluation,
+  context = "Phase27 production blocker evaluation"
+) {
+  if (!evaluation || typeof evaluation !== "object" || Array.isArray(evaluation)) {
+    throw new ContractError(`${context}: evaluation required`);
+  }
+  const allowedFields = new Set([
+    "schema",
+    "evaluation_status",
+    "review_required",
+    "critical_violations",
+    "ci_fail_reasons",
+    "safe_violation_summary",
+    "boundary_policy",
+  ]);
+  for (const field of Object.keys(evaluation)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected field`, { field });
+    }
+  }
+  if (
+    evaluation.schema !== "iris_phase27_production_blocker_evaluation_v1" ||
+    !["pass", "review_required"].includes(evaluation.evaluation_status) ||
+    typeof evaluation.review_required !== "boolean" ||
+    !Array.isArray(evaluation.critical_violations) ||
+    !Array.isArray(evaluation.ci_fail_reasons)
+  ) {
+    throw new ContractError(`${context}: invalid evaluation`);
+  }
+  if (
+    evaluation.critical_violations.includes("production_blocker_unresolved") &&
+    (evaluation.review_required !== true ||
+      !evaluation.ci_fail_reasons.includes("production_blocker_unresolved"))
+  ) {
+    throw new ContractError(`${context}: production blocker must require review`);
+  }
+  assertNoWorldCommand(evaluation, context);
+  assertNoForbiddenFieldsRecursive(evaluation, context);
+  assertNoUnsafeExportText(evaluation, context);
+}
+
+function hasProductionBlocker(productionReadiness) {
+  if (!productionReadiness || typeof productionReadiness !== "object") return false;
+  return (
+    productionReadiness.production_ready === false ||
+    productionReadiness.real_processes_confirmed === false ||
+    productionReadiness.real_readiness_status === "real_blocked" ||
+    productionReadiness.readiness_status === "blocked" ||
+    productionReadiness.readiness_state === "runtime_waiting" ||
+    productionReadiness.readiness_state === "real_device_waiting" ||
+    productionReadiness.readiness_state === "operator_review_required"
+  );
 }
 
 function buildCiFailReasons(axis_scores, critical_violations) {
@@ -708,6 +797,9 @@ function buildRecommendedFixes(ci_fail_reasons, critical_violations) {
   }
   if (critical_violations.includes("unsafe_laughter_candidate")) {
     fixes.push("laughter_safety_review");
+  }
+  if (critical_violations.includes("production_blocker_unresolved")) {
+    fixes.push("production_readiness_review");
   }
   if (ci_fail_reasons.includes("expression_profile_quality_below_threshold")) {
     fixes.push("expression_profile_quality_review");

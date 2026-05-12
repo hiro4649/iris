@@ -18,6 +18,7 @@ import { assertSubtitleCueSafe } from "../services/voice/subtitleCue.js";
 
 const FORBIDDEN_PACKET_FIELDS = new Set([
   "world_command",
+  "obs_command",
   "input_action",
   "input_action_candidate",
   "approved_game_input_action",
@@ -42,6 +43,7 @@ const FORBIDDEN_PACKET_FIELDS = new Set([
   "endpoint_url",
   "api_key",
   "api_token",
+  "secret",
   "token",
   "access_token",
   "oauth_token",
@@ -49,6 +51,9 @@ const FORBIDDEN_PACKET_FIELDS = new Set([
   "bearer_token",
   "authorization",
   "raw_audio",
+  "raw_payload",
+  "raw_renderer_payload",
+  "renderer_payload",
   "audio_data",
   "raw_audio_body",
   "raw_phoneme_debug",
@@ -73,6 +78,28 @@ const TTS_ADAPTER_GUIDANCE_ALLOWED_FIELDS = new Set([
   "subtitle_hint",
   "speech_rate_hint",
 ]);
+const LIVE2D_ADAPTER_CUE_GUIDANCE_ALLOWED_FIELDS = new Set([
+  "expression_guidance",
+  "gaze_guidance",
+  "breath_guidance",
+  "motion_guidance",
+]);
+const TTS_UNSUPPORTED_VOICE_SAFE_ERROR_FIELDS = new Set([
+  "schema",
+  "adapter_kind",
+  "error_status",
+  "safe_code",
+  "summary_only",
+  "boundary_policy",
+]);
+const TTS_ADAPTER_SOURCE_STATUS_FIELDS = new Set([
+  "schema",
+  "adapter_kind",
+  "source_verified",
+  "safe_source_status",
+  "handoff_status",
+  "boundary_policy",
+]);
 const TTS_FIXTURE_PACKET_PREVIEW_FIELDS = new Set([
   "schema",
   "preview_status",
@@ -88,6 +115,62 @@ const LIVE2D_FIXTURE_CUE_PREVIEW_FIELDS = new Set([
   "packet_field_count",
   "motion_track_count",
   "boundary_policy",
+]);
+const SUBTITLE_ADAPTER_PACKET_ALLOWED_FIELDS = new Set([
+  "schema",
+  "adapter_kind",
+  "trace_id",
+  "trace_id_present",
+  "event_id",
+  "event_id_present",
+  "subtitle_text",
+  "subtitle_language",
+  "display_start_ms",
+  "display_end_ms",
+  "line_break_plan",
+  "safe_area_policy",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const FORBIDDEN_ADAPTER_ACTION_ENVELOPE_FIELDS = new Set([
+  "reaction",
+  "context",
+  "task_candidate",
+  "task_type",
+  "task_type_candidate",
+  "phase02_reaction",
+  "phase03_context",
+  "phase08_goal_candidate",
+  "input_action_candidate",
+  "candidate_kind",
+  "requires_validation",
+  "world_command",
+  "candidate",
+  "candidates",
+]);
+const APPROVED_ADAPTER_ACTION_ENVELOPE_SCHEMAS = new Set([
+  "iris_phase04_approved_action_v1",
+  "iris_approved_action_v1",
+  "iris_adapter_approved_action_envelope_v1",
+]);
+const ADAPTER_HANDOFF_ROUTE_LABELS = new Set(["normal", "adapter", "review"]);
+const APPROVED_ADAPTER_ACTION_ENVELOPE_FIELDS = new Set([
+  "schema",
+  "trace_id",
+  "event_id",
+  "handoff_route",
+  "handoff_timestamp_status",
+  "handoff_issued_at_ms",
+  "handoff_expires_at_ms",
+  "handoff_max_age_ms",
+  "action_type",
+  "target_presence_id",
+  "tone",
+  "emotion",
+  "character_tag",
+  "final_normalized_status",
+  "continuity_maintained",
+  "performance_cue",
 ]);
 
 export function createTtsAdapterPacket(
@@ -213,6 +296,138 @@ export function assertTtsAdapterGuidanceSafe(guidance, context = "TTS adapter gu
   }
 }
 
+export function createTtsUnsupportedVoiceSafeError() {
+  const summary = {
+    schema: "iris_tts_unsupported_voice_safe_error_v1",
+    adapter_kind: "tts",
+    error_status: "summary_only_error",
+    safe_code: "unsupported_voice_model_locale",
+    summary_only: true,
+    boundary_policy: {
+      no_raw_vendor_diagnostics: true,
+      no_voice_values: true,
+      no_model_values: true,
+      no_locale_values: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+    },
+  };
+  assertTtsUnsupportedVoiceSafeError(summary);
+  return summary;
+}
+
+export function assertTtsUnsupportedVoiceSafeError(
+  summary,
+  context = "TTS unsupported voice safe error"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!TTS_UNSUPPORTED_VOICE_SAFE_ERROR_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (
+    summary.schema !== "iris_tts_unsupported_voice_safe_error_v1" ||
+    summary.adapter_kind !== "tts" ||
+    summary.error_status !== "summary_only_error" ||
+    summary.safe_code !== "unsupported_voice_model_locale" ||
+    summary.summary_only !== true
+  ) {
+    throw new ContractError(`${context}: invalid safe error`);
+  }
+  for (const field of [
+    "no_raw_vendor_diagnostics",
+    "no_voice_values",
+    "no_model_values",
+    "no_locale_values",
+    "no_endpoint_values",
+    "no_tokens",
+  ]) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoForbiddenPacketFields(summary, context);
+}
+
+export function createTtsAdapterSourceStatusFallback({
+  sourceVerified = false,
+  sourceStatus = "operator_attention_required",
+} = {}) {
+  const verified = sourceVerified === true;
+  const safeSourceStatus = verified
+    ? normalizeTtsAdapterSourceStatus(sourceStatus)
+    : normalizeTtsAdapterSourceStatus("operator_attention_required");
+  const summary = {
+    schema: "iris_tts_adapter_source_status_fallback_v1",
+    adapter_kind: "tts",
+    source_verified: verified,
+    safe_source_status: safeSourceStatus,
+    handoff_status:
+      safeSourceStatus === "licensed"
+        ? "licensed_handoff"
+        : safeSourceStatus === "placeholder"
+          ? "placeholder_handoff"
+          : "operator_attention_required",
+    boundary_policy: {
+      no_real_voice_values: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+      summary_only: true,
+      unverified_source_not_ready: true,
+    },
+  };
+  assertTtsAdapterSourceStatusFallback(summary);
+  return summary;
+}
+
+export function assertTtsAdapterSourceStatusFallback(
+  summary,
+  context = "TTS adapter source status fallback"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!TTS_ADAPTER_SOURCE_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (
+    summary.schema !== "iris_tts_adapter_source_status_fallback_v1" ||
+    summary.adapter_kind !== "tts" ||
+    typeof summary.source_verified !== "boolean" ||
+    !["licensed", "placeholder", "operator_attention_required"].includes(
+      summary.safe_source_status
+    ) ||
+    !["licensed_handoff", "placeholder_handoff", "operator_attention_required"].includes(
+      summary.handoff_status
+    )
+  ) {
+    throw new ContractError(`${context}: invalid source status fallback`);
+  }
+  if (
+    summary.source_verified !== true &&
+    !["operator_attention_required", "placeholder"].includes(summary.safe_source_status)
+  ) {
+    throw new ContractError(`${context}: unverified source must use safe fallback`);
+  }
+  for (const field of [
+    "no_real_voice_values",
+    "no_endpoint_values",
+    "no_tokens",
+    "summary_only",
+    "unverified_source_not_ready",
+  ]) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoForbiddenPacketFields(summary, context);
+}
+
 export function createTtsFixturePacketPreview(packet) {
   assertAdapterPacketSafe(packet, "TTS fixture packet preview source packet");
   if (packet.adapter_kind !== "tts") {
@@ -296,8 +511,10 @@ export function createLive2dAdapterPacket(
     personalityHabit = null,
     expressionProfile = null,
     autonomousExpression = null,
+    live2dAdapterGuidance = null,
   } = {}
 ) {
+  assertApprovedActionEnvelopeForAdapter(envelope, "Live2D adapter packet envelope");
   assertNoWorldCommand(envelope, "Live2D adapter packet envelope");
   assertMotionCueSafe(motionCue, "Live2D adapter packet motion cue");
   assertPerformancePlanSafe(performancePlan, "Live2D adapter packet performance plan");
@@ -353,10 +570,300 @@ export function createLive2dAdapterPacket(
     personality_habit: personalityHabit,
     expression_profile: expressionProfile,
     autonomous_expression: autonomousExpression,
+    live2d_adapter_guidance: sanitizeLive2dAdapterCueGuidance(live2dAdapterGuidance),
     adapter_validation_required: true,
   };
+  assertLive2dRecoveryCueRequired(packet, "Live2D adapter packet");
   assertAdapterPacketSafe(packet, "Live2D adapter packet");
   return packet;
+}
+
+export function sanitizeLive2dAdapterCueGuidance(guidance) {
+  if (guidance == null) return null;
+  if (typeof guidance !== "object" || Array.isArray(guidance)) {
+    throw new ContractError("Live2D adapter cue guidance: guidance must be an object");
+  }
+  const sanitized = {};
+  for (const [field, value] of Object.entries(guidance)) {
+    const normalized = normalizePacketField(field);
+    if (
+      !LIVE2D_ADAPTER_CUE_GUIDANCE_ALLOWED_FIELDS.has(normalized) ||
+      isForbiddenPacketField(normalized)
+    ) {
+      continue;
+    }
+    const safeValue = sanitizeAdapterPacketValue(value);
+    if (safeValue === undefined) continue;
+    sanitized[normalized] = safeValue;
+  }
+  assertLive2dAdapterCueGuidanceSafe(sanitized);
+  return sanitized;
+}
+
+export function assertLive2dAdapterCueGuidanceSafe(
+  guidance,
+  context = "Live2D adapter cue guidance"
+) {
+  if (guidance == null) return;
+  if (typeof guidance !== "object" || Array.isArray(guidance)) {
+    throw new ContractError(`${context}: guidance must be an object`);
+  }
+  for (const field of Object.keys(guidance)) {
+    const normalized = normalizePacketField(field);
+    if (
+      normalized !== field ||
+      !LIVE2D_ADAPTER_CUE_GUIDANCE_ALLOWED_FIELDS.has(normalized) ||
+      isForbiddenPacketField(field)
+    ) {
+      throw new ContractError(`${context}: unsafe guidance field`, { field });
+    }
+  }
+  assertNoForbiddenPacketFields(guidance, context);
+}
+
+export function assertLive2dRecoveryCueRequired(packet, context = "Live2D adapter packet") {
+  if (!packet || typeof packet !== "object" || Array.isArray(packet)) {
+    throw new ContractError(`${context}: packet object required`);
+  }
+  if (!requiresLive2dRecoveryPlan(packet)) return;
+  if (!hasLive2dRecoveryPlan(packet)) {
+    throw new ContractError(`${context}: closeup/laugh/scream cue requires recovery plan`);
+  }
+}
+
+export function assertApprovedActionEnvelopeForAdapter(
+  envelope,
+  context = "Adapter action envelope"
+) {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
+    throw new ContractError(`${context}: approved action envelope required`);
+  }
+  assertNoWorldCommand(envelope, context);
+  assertNoForbiddenActionEnvelopeFields(envelope, context);
+  assertApprovedActionEnvelopeAllowlist(envelope, context);
+  assertAdapterHandoffRouteLabel(envelope, context);
+  assertAdapterHandoffFreshTimestamp(envelope, context);
+  for (const field of ["trace_id", "event_id", "action_type", "target_presence_id", "tone", "character_tag"]) {
+    if (String(envelope[field] ?? "").trim() === "") {
+      throw new ContractError(`${context}: missing approved action field`, { field });
+    }
+  }
+  if (!canonical.actionTypes.has(envelope.action_type)) {
+    throw new ContractError(`${context}: invalid action_type`, {
+      action_type: envelope.action_type,
+    });
+  }
+  assertTargetPresenceReadyForAdapter(envelope, context);
+}
+
+export function createAdapterHandoffFixtureRegressionPack({ nowMs = Date.now() } = {}) {
+  const approved = {
+    schema: "iris_phase04_approved_action_v1",
+    trace_id: "trace",
+    event_id: "event",
+    handoff_route: "adapter",
+    handoff_timestamp_status: "fresh",
+    handoff_issued_at_ms: nowMs,
+    handoff_expires_at_ms: nowMs + 10000,
+    handoff_max_age_ms: 10000,
+    action_type: "SPEAK",
+    target_presence_id: "iris",
+    tone: "calm",
+    emotion: "neutral",
+    character_tag: "iris",
+  };
+  const fixtures = [
+    ["approved", approved, true],
+    ["blocked_target", { ...approved, target_presence_id: "blocked" }, false],
+    ["stale_timestamp", { ...approved, handoff_timestamp_status: "stale" }, false],
+    ["candidate_mixed", { ...approved, candidate_kind: "adapter_shortcut" }, false],
+  ];
+  const results = fixtures.map(([fixture, envelope, shouldPass]) => {
+    let passed = false;
+    try {
+      assertApprovedActionEnvelopeForAdapter(envelope, "Adapter handoff fixture regression");
+      passed = true;
+    } catch (error) {
+      if (!(error instanceof ContractError)) throw error;
+    }
+    if (passed !== shouldPass) {
+      throw new ContractError("Adapter handoff fixture regression: unexpected fixture result", {
+        fixture,
+      });
+    }
+    return { fixture, result: passed ? "pass" : "reject" };
+  });
+  return {
+    schema: "iris_adapter_handoff_fixture_regression_pack_v1",
+    fixture_count: results.length,
+    approved_passed: results.find((result) => result.fixture === "approved")?.result === "pass",
+    blocked_rejected:
+      results.find((result) => result.fixture === "blocked_target")?.result === "reject",
+    stale_rejected:
+      results.find((result) => result.fixture === "stale_timestamp")?.result === "reject",
+    candidate_rejected:
+      results.find((result) => result.fixture === "candidate_mixed")?.result === "reject",
+    boundary_policy: {
+      safe_fixture_labels_only: true,
+      no_raw_payload_values: true,
+      no_world_command_values: true,
+      no_secret_values: true,
+      no_candidate_payload_values: true,
+    },
+  };
+}
+
+function assertApprovedActionEnvelopeAllowlist(envelope, context) {
+  for (const field of Object.keys(envelope)) {
+    if (!APPROVED_ADAPTER_ACTION_ENVELOPE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: field is outside approved adapter schema`, { field });
+    }
+  }
+  if (
+    Object.hasOwn(envelope, "schema") &&
+    !APPROVED_ADAPTER_ACTION_ENVELOPE_SCHEMAS.has(envelope.schema)
+  ) {
+    throw new ContractError(`${context}: schema is not approved for adapter handoff`, {
+      schema: envelope.schema,
+    });
+  }
+}
+
+function assertAdapterHandoffFreshTimestamp(envelope, context) {
+  const status = String(envelope.handoff_timestamp_status ?? "fresh").trim().toLowerCase();
+  if (["stale", "expired"].includes(status)) {
+    throw new ContractError(`${context}: stale handoff timestamp cannot enter adapter`);
+  }
+  const expiresAtMs = Number(envelope.handoff_expires_at_ms);
+  if (Number.isFinite(expiresAtMs) && expiresAtMs < Date.now()) {
+    throw new ContractError(`${context}: handoff timestamp expired`);
+  }
+  const issuedAtMs = Number(envelope.handoff_issued_at_ms);
+  const maxAgeMs = Number(envelope.handoff_max_age_ms);
+  if (Number.isFinite(issuedAtMs) && Number.isFinite(maxAgeMs) && maxAgeMs >= 0) {
+    if (Date.now() - issuedAtMs > maxAgeMs) {
+      throw new ContractError(`${context}: handoff timestamp is stale`);
+    }
+  }
+}
+
+function assertAdapterHandoffRouteLabel(envelope, context) {
+  const route = String(envelope.handoff_route ?? "").trim();
+  if (!ADAPTER_HANDOFF_ROUTE_LABELS.has(route)) {
+    throw new ContractError(`${context}: handoff_route label is required`);
+  }
+  if (route === "review") {
+    throw new ContractError(`${context}: review route cannot enter adapter execution handoff`);
+  }
+}
+
+function assertTargetPresenceReadyForAdapter(envelope, context) {
+  const targetPresenceId = String(envelope.target_presence_id ?? "").trim();
+  if (
+    targetPresenceId === "" ||
+    /^(blocked|missing|target_presence_blocked|target_presence_missing|presence:blocked|presence:missing)$/i.test(
+      targetPresenceId
+    )
+  ) {
+    throw new ContractError(`${context}: target_presence_id is not adapter-ready`);
+  }
+}
+
+export function assertAdapterWorldCommandOutputBoundary(
+  output,
+  context = "Adapter world command output"
+) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    throw new ContractError(`${context}: output required`);
+  }
+  if (!Object.hasOwn(output, "world_command")) {
+    assertNoWorldCommand(output, context);
+    return;
+  }
+  if (
+    output.schema !== "iris_adapter_world_command_output_v1" ||
+    output.adapter_transform_completed !== true ||
+    output.core_export === true ||
+    output.public_summary === true
+  ) {
+    throw new ContractError(`${context}: world_command allowed only after adapter transform`);
+  }
+  const envelope = { ...output };
+  delete envelope.world_command;
+  assertNoWorldCommand(envelope, context);
+}
+
+export function createAdapterErrorSafeSummary({
+  component = "adapter",
+  status = "error",
+  safeCode = "adapter_error",
+} = {}) {
+  const summary = {
+    schema: "iris_adapter_error_safe_summary_v1",
+    component: safeAdapterSummaryLabel(component, "adapter"),
+    status: safeAdapterSummaryLabel(status, "error"),
+    safe_code: safeAdapterSummaryLabel(safeCode, "adapter_error"),
+    boundary_policy: {
+      component_status_safe_code_only: true,
+      no_endpoint_values: true,
+      no_tokens: true,
+      no_raw_commands: true,
+      no_raw_responses: true,
+      vendor_response_values_excluded: true,
+      renderer_response_values_excluded: true,
+      obs_response_values_excluded: true,
+      game_response_values_excluded: true,
+      payload_values_excluded: true,
+      command_values_excluded: true,
+      sensitive_values_excluded: true,
+      unapproved_values_excluded: true,
+    },
+  };
+  assertAdapterErrorSafeSummary(summary);
+  return summary;
+}
+
+export function assertAdapterErrorSafeSummary(
+  summary,
+  context = "Adapter error safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  const allowedFields = new Set(["schema", "component", "status", "safe_code", "boundary_policy"]);
+  for (const field of Object.keys(summary)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_adapter_error_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of ["component", "status", "safe_code"]) {
+    if (summary[field] !== safeAdapterSummaryLabel(summary[field], "")) {
+      throw new ContractError(`${context}: unsafe summary label`, { field });
+    }
+  }
+  for (const field of [
+    "component_status_safe_code_only",
+    "no_endpoint_values",
+    "no_tokens",
+    "no_raw_commands",
+    "no_raw_responses",
+    "vendor_response_values_excluded",
+    "renderer_response_values_excluded",
+    "obs_response_values_excluded",
+    "game_response_values_excluded",
+    "payload_values_excluded",
+    "command_values_excluded",
+    "sensitive_values_excluded",
+    "unapproved_values_excluded",
+  ]) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoForbiddenPacketFields(summary, context);
 }
 
 export function createLive2dFixtureCuePreview(packet) {
@@ -459,25 +966,16 @@ export function createSubtitleAdapterPacket(
     event_id_present: String(finalOutput.event_id ?? "").trim() !== "",
     subtitle_text: subtitleCue.subtitle_text ?? "",
     subtitle_language: subtitleCue.subtitle_language,
-    script_direction: subtitleCue.script_direction,
     display_start_ms: subtitleCue.display_start_ms,
     display_end_ms: subtitleCue.display_end_ms,
     line_break_plan: subtitleCue.line_break_plan,
     safe_area_policy: subtitleCue.safe_area_policy,
-    reading_speed_guard: subtitleCue.reading_speed_guard,
-    readability_profile: subtitleCue.readability_profile,
-    adapter_guidance: subtitleCue.adapter_guidance ?? null,
-    sync_source: subtitleCue.sync_source,
-    language_profile: languageProfile,
-    speech_rate_profile: speechRateProfile,
-    performance_timing: performancePlan
-      ? {
-          total_duration_ms: performancePlan.total_duration_ms,
-          track_count:
-            Number(performancePlan.tracks?.speech?.length ?? 0) +
-            Number(performancePlan.tracks?.motion?.length ?? 0),
-        }
-      : null,
+    boundary_policy: {
+      subtitle_display_guidance_only: true,
+      no_memory_ids: true,
+      no_candidates: true,
+      no_commands: true,
+    },
     adapter_validation_required: true,
   };
   assertAdapterPacketSafe(packet, "Subtitle adapter packet");
@@ -501,6 +999,7 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
     throw new ContractError(`${context}: adapter_validation_required must be true`);
   }
   assertNoForbiddenPacketFields(packet, context);
+  assertAdapterHandoffTracePreserved(packet, context);
   if (packet.adapter_kind === "tts") {
     assertSpeechCueSafe(packet.speech_cue, `${context} speech cue`);
     assertPerformancePlanSafe(packet.performance_plan, `${context} performance plan`);
@@ -568,8 +1067,14 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
         `${context} autonomous expression`
       );
     }
+    assertLive2dAdapterCueGuidanceSafe(
+      packet.live2d_adapter_guidance,
+      `${context} Live2D adapter cue guidance`
+    );
+    assertLive2dRecoveryCueRequired(packet, context);
   }
   if (packet.adapter_kind === "subtitle") {
+    assertSubtitleAdapterPacketAllowlist(packet, context);
     if (typeof packet.subtitle_text !== "string") {
       throw new ContractError(`${context}: subtitle_text must be a string`);
     }
@@ -586,11 +1091,8 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
         line_break_plan: packet.line_break_plan,
         max_line_count: 2,
         safe_area_policy: packet.safe_area_policy,
-        sync_source: packet.sync_source,
-        reading_speed_guard: packet.reading_speed_guard,
-        readability_profile: packet.readability_profile,
-        script_direction: packet.script_direction,
-        adapter_guidance: packet.adapter_guidance,
+        sync_source: "subtitle_adapter_packet",
+        script_direction: inferSubtitlePacketScriptDirection(packet),
         adapter_validation_required: true,
       },
       `${context} subtitle cue`
@@ -602,6 +1104,56 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
       assertSpeechRateProfileSafe(packet.speech_rate_profile, `${context} speech rate profile`);
     }
   }
+}
+
+function assertAdapterHandoffTracePreserved(packet, context) {
+  const traceIdPresent = String(packet.trace_id ?? "").trim() !== "";
+  const eventIdPresent = String(packet.event_id ?? "").trim() !== "";
+  if (
+    traceIdPresent !== true ||
+    eventIdPresent !== true ||
+    packet.trace_id_present !== true ||
+    packet.event_id_present !== true
+  ) {
+    throw new ContractError(`${context}: trace_id and event_id are required`);
+  }
+}
+
+function assertSubtitleAdapterPacketAllowlist(packet, context) {
+  for (const field of Object.keys(packet)) {
+    if (!SUBTITLE_ADAPTER_PACKET_ALLOWED_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unsupported subtitle adapter packet field`, { field });
+    }
+  }
+  if (
+    packet.boundary_policy?.subtitle_display_guidance_only !== true ||
+    packet.boundary_policy?.no_memory_ids !== true ||
+    packet.boundary_policy?.no_candidates !== true ||
+    packet.boundary_policy?.no_commands !== true
+  ) {
+    throw new ContractError(`${context}: unsafe subtitle adapter boundary policy`);
+  }
+}
+
+export function sanitizeAdapterPacketCommonFields(payload) {
+  return sanitizeAdapterPacketValue(payload);
+}
+
+function sanitizeAdapterPacketValue(value) {
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeAdapterPacketValue(item))
+      .filter((item) => item !== undefined);
+  }
+
+  const sanitized = {};
+  for (const [field, child] of Object.entries(value)) {
+    if (isForbiddenPacketField(field)) continue;
+    if (typeof child === "string" && containsUnsafeAdapterGuidanceValue(child)) continue;
+    sanitized[field] = sanitizeAdapterPacketValue(child);
+  }
+  return sanitized;
 }
 
 function assertNoForbiddenPacketFields(value, context, path = "root") {
@@ -627,6 +1179,26 @@ function assertNoForbiddenPacketFields(value, context, path = "root") {
   }
 }
 
+function assertNoForbiddenActionEnvelopeFields(value, context, path = "root") {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoForbiddenActionEnvelopeFields(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    const normalized = normalizePacketField(field);
+    if (FORBIDDEN_ADAPTER_ACTION_ENVELOPE_FIELDS.has(normalized)) {
+      throw new ContractError(`${context}: upstream action candidate cannot enter adapter`, {
+        field,
+        path,
+      });
+    }
+    assertNoForbiddenActionEnvelopeFields(child, context, `${path}.${field}`);
+  }
+}
+
 function isForbiddenPacketField(field) {
   return FORBIDDEN_PACKET_FIELDS.has(normalizePacketField(field));
 }
@@ -641,6 +1213,31 @@ function containsUnsafeAdapterGuidanceValue(value) {
   return /\bhttps?:\/\/|\b(?:api[_-]?key|oauth[_-]?token|token|authorization|password|secret)\s*[:=]|\bBearer\s+|(?:^|[\\/:])(?:dataset|datasets|model|models)(?:[\\/]|$)|\.(?:wav|mp3|flac|ogg|opus|m4a)\b/iu.test(
     value
   );
+}
+
+function safeAdapterSummaryLabel(value, fallback) {
+  const raw = String(value ?? "").trim();
+  if (
+    raw === "" ||
+    containsUnsafeAdapterGuidanceValue(raw) ||
+    /\b(endpoint|token|secret|authorization|raw[_-]?command|raw[_-]?response|raw[_-]?(?:vendor|renderer|obs|game)[_-]?response|(?:vendor|renderer|obs|game)[_-]?response|raw[_-]?payload|world[_-]?command|candidate)\b/iu.test(raw)
+  ) {
+    return fallback;
+  }
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_:-]+/gu, "_")
+    .replace(/_+/gu, "_")
+    .replace(/^_+|_+$/gu, "");
+  if (
+    text === "" ||
+    containsUnsafeAdapterGuidanceValue(text) ||
+    /\b(endpoint|token|secret|authorization|raw_command|raw_response|raw_vendor_response|vendor_response|raw_renderer_response|renderer_response|raw_obs_response|obs_response|raw_game_response|game_response|raw_payload|world_command|candidate)\b/iu.test(text)
+  ) {
+    return fallback;
+  }
+  return text.slice(0, 80);
 }
 
 function assertNoUnsafeTtsFixturePreviewMaterial(value, context, path = "root") {
@@ -697,4 +1294,47 @@ function isSafeTtsGuidanceValue(value) {
     return trimmed !== "" && !containsUnsafeAdapterGuidanceValue(trimmed);
   }
   return typeof value === "number" ? Number.isFinite(value) : typeof value === "boolean";
+}
+
+function normalizeTtsAdapterSourceStatus(status) {
+  const normalized = String(status ?? "").trim().toLowerCase();
+  return ["licensed", "placeholder", "operator_attention_required"].includes(normalized)
+    ? normalized
+    : "operator_attention_required";
+}
+
+function requiresLive2dRecoveryPlan(packet) {
+  const motionStyle = String(packet.motion_cue?.motion_style ?? "").toLowerCase();
+  const cameraLevel = String(packet.camera_proximity?.proximity_level ?? "").toLowerCase();
+  const cameraProfile = String(
+    packet.camera_proximity?.camera_proximity_profile ?? ""
+  ).toLowerCase();
+  const autonomousState = String(
+    packet.autonomous_expression?.autonomous_state_id ?? ""
+  ).toLowerCase();
+  return (
+    motionStyle.includes("laugh") ||
+    motionStyle.includes("scream") ||
+    autonomousState.includes("scream") ||
+    ["close", "face_near", "extreme_closeup"].includes(cameraLevel) ||
+    cameraProfile.includes("close") ||
+    cameraProfile.includes("face")
+  );
+}
+
+function hasLive2dRecoveryPlan(packet) {
+  return (
+    packet.camera_proximity?.recovery_plan?.required === true ||
+    packet.affective_continuity?.breath_recovery_plan?.required === true ||
+    packet.affective_continuity?.affective_state?.recovery_required === true ||
+    packet.body_continuity?.body_motion_plan?.recovery_state === "recovering" ||
+    packet.body_continuity?.breath_plan?.breath_profile === "burst_laugh_profile"
+  );
+}
+
+function inferSubtitlePacketScriptDirection(packet) {
+  const segmentDirection = packet.line_break_plan?.find?.((segment) =>
+    ["ltr", "rtl"].includes(segment?.direction)
+  )?.direction;
+  return ["ltr", "rtl"].includes(segmentDirection) ? segmentDirection : "ltr";
 }

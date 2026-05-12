@@ -111,6 +111,18 @@ const PERSISTENCE_STAGE_INTEGRATIONS = new Set([
   "admin_review_private_runner_gate",
   "production_vector_memory",
 ]);
+const POSTGRES_FALLBACK_MODE_LABEL_FIELDS = new Set([
+  "schema",
+  "backend_label",
+  "production_backend_recommended",
+  "operator_attention_required",
+  "boundary_policy",
+]);
+const SAFE_FALLBACK_BACKEND_LABELS = new Set([
+  "json_local_mvp_fallback",
+  "postgresql_production_backend",
+  "unknown_fallback",
+]);
 
 export function createPersistencePreflightReport({
   env = process.env,
@@ -374,6 +386,81 @@ export function assertPersistencePreflightReportSafe(
   }
 }
 
+export function createPostgresFallbackModeLabel({
+  backend = "json_store",
+} = {}) {
+  const backendLabel = normalizeFallbackBackendLabel(backend);
+  const label = {
+    schema: "iris_postgres_fallback_mode_label_v1",
+    backend_label: backendLabel,
+    production_backend_recommended:
+      backendLabel === "postgresql_production_backend",
+    operator_attention_required:
+      backendLabel !== "postgresql_production_backend",
+    boundary_policy: {
+      safe_label_only: true,
+      fallback_not_production_recommendation: true,
+      no_connection_values: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+    },
+  };
+  assertPostgresFallbackModeLabelSafe(label);
+  return label;
+}
+
+export function assertPostgresFallbackModeLabelSafe(
+  label,
+  context = "postgres fallback mode label"
+) {
+  if (!label || typeof label !== "object" || Array.isArray(label)) {
+    throw new ContractError(`${context}: label is required`);
+  }
+  assertNoForbiddenPersistencePreflightFields(label, context);
+  if (label.schema !== "iris_postgres_fallback_mode_label_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(label)) {
+    if (!POSTGRES_FALLBACK_MODE_LABEL_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected label field`);
+    }
+  }
+  if (!SAFE_FALLBACK_BACKEND_LABELS.has(label.backend_label)) {
+    throw new ContractError(`${context}: invalid backend label`);
+  }
+  if (typeof label.production_backend_recommended !== "boolean") {
+    throw new ContractError(`${context}: invalid production recommendation flag`);
+  }
+  if (typeof label.operator_attention_required !== "boolean") {
+    throw new ContractError(`${context}: invalid operator attention flag`);
+  }
+  if (
+    label.backend_label === "postgresql_production_backend" &&
+    label.production_backend_recommended !== true
+  ) {
+    throw new ContractError(`${context}: PostgreSQL production label mismatch`);
+  }
+  if (
+    label.backend_label !== "postgresql_production_backend" &&
+    (label.production_backend_recommended !== false ||
+      label.operator_attention_required !== true)
+  ) {
+    throw new ContractError(`${context}: fallback must not be production recommended`);
+  }
+  const requiredBoundaryPolicy = [
+    "safe_label_only",
+    "fallback_not_production_recommendation",
+    "no_connection_values",
+    "no_endpoint_values",
+    "no_secret_values",
+  ];
+  for (const key of requiredBoundaryPolicy) {
+    if (label.boundary_policy?.[key] !== true) {
+      throw new ContractError(`${context}: boundary policy ${key} must be true`);
+    }
+  }
+}
+
 function buildAttentionReasons({ env, persistenceCheck, vectorCheck }) {
   const missingEnv = uniqueEnvNames([
     ...persistenceCheck.missing_env,
@@ -406,6 +493,17 @@ function normalizePersistenceBackend(value) {
   const text = String(value ?? "json_store").trim().toLowerCase();
   if (text === "postgres" || text === "postgresql") return "postgresql";
   return "json_store";
+}
+
+function normalizeFallbackBackendLabel(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "postgres" || text === "postgresql") {
+    return "postgresql_production_backend";
+  }
+  if (["json", "json_store", "local", "mvp", "fallback"].includes(text)) {
+    return "json_local_mvp_fallback";
+  }
+  return "unknown_fallback";
 }
 
 function clampInteger(value, min, max, fallback) {

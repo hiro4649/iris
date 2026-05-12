@@ -10,6 +10,16 @@ const SAFE_FIELDS = new Set([
   "aggregate_update_required",
   "boundary_policy",
 ]);
+const AGGREGATE_GUARD_FIELDS = new Set([
+  "schema",
+  "aggregate_update_status",
+  "record_kind",
+  "approved_record_required",
+  "approved_record_present",
+  "candidate_input_present",
+  "aggregate_update_allowed",
+  "boundary_policy",
+]);
 const BOUNDARY_FIELDS = [
   "approved_relationship_record_required",
   "validator_approval_required",
@@ -98,6 +108,101 @@ export function assertPostgresRelationshipEventLedgerBoundarySafe(
     throw new ContractError(`${context}: unapproved input must be blocked`);
   }
   assertBoundaryPolicy(boundary.boundary_policy, context);
+}
+
+export function createPostgresRelationshipAggregateSchemaGuard({
+  approvedRecord = null,
+  relationshipCandidate = null,
+} = {}) {
+  const approvedRecordPresent = isApprovedRelationshipRecord(approvedRecord);
+  const candidateInputPresent =
+    relationshipCandidate !== null && relationshipCandidate !== undefined;
+  const updateAllowed = approvedRecordPresent === true && candidateInputPresent !== true;
+  const guard = {
+    schema: "iris_postgres_relationship_aggregate_schema_guard_v1",
+    aggregate_update_status: updateAllowed
+      ? "approved_record_ready"
+      : "approved_record_required",
+    record_kind: updateAllowed ? "approved_relationship" : "unapproved_input",
+    approved_record_required: true,
+    approved_record_present: approvedRecordPresent,
+    candidate_input_present: candidateInputPresent,
+    aggregate_update_allowed: updateAllowed,
+    boundary_policy: {
+      approved_relationship_record_required: true,
+      validator_approval_required: true,
+      no_candidate_direct_write: true,
+      no_public_record_values: true,
+      no_private_identity_values: true,
+      no_private_scores: true,
+    },
+  };
+  assertPostgresRelationshipAggregateSchemaGuardSafe(guard);
+  return guard;
+}
+
+export function assertPostgresRelationshipAggregateSchemaGuardSafe(
+  guard,
+  context = "PostgreSQL relationship aggregate schema guard"
+) {
+  if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+    throw new ContractError(`${context}: guard required`);
+  }
+  assertNoUnsafeStringValues(guard, context);
+  if (guard.schema !== "iris_postgres_relationship_aggregate_schema_guard_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(guard)) {
+    if (!AGGREGATE_GUARD_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["approved_record_ready", "approved_record_required"].includes(
+      guard.aggregate_update_status
+    )
+  ) {
+    throw new ContractError(`${context}: invalid aggregate update status`);
+  }
+  if (!["approved_relationship", "unapproved_input"].includes(guard.record_kind)) {
+    throw new ContractError(`${context}: invalid record kind`);
+  }
+  if (guard.approved_record_required !== true) {
+    throw new ContractError(`${context}: approved record is required`);
+  }
+  for (const field of [
+    "approved_record_present",
+    "candidate_input_present",
+    "aggregate_update_allowed",
+  ]) {
+    if (typeof guard[field] !== "boolean") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    guard.aggregate_update_allowed === true &&
+    (guard.approved_record_present !== true || guard.candidate_input_present === true)
+  ) {
+    throw new ContractError(`${context}: aggregate update requires approved record only`);
+  }
+  if (
+    guard.aggregate_update_allowed !== true &&
+    guard.aggregate_update_status !== "approved_record_required"
+  ) {
+    throw new ContractError(`${context}: unapproved input must be blocked`);
+  }
+  for (const [field, value] of Object.entries({
+    approved_relationship_record_required: true,
+    validator_approval_required: true,
+    no_candidate_direct_write: true,
+    no_public_record_values: true,
+    no_private_identity_values: true,
+    no_private_scores: true,
+  })) {
+    if (guard.boundary_policy?.[field] !== value) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
 }
 
 function isApprovedRelationshipRecord(record) {

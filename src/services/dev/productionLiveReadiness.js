@@ -116,6 +116,66 @@ const READINESS_STATES = new Set([
   "real_device_waiting",
   "operator_review_required",
 ]);
+const PRODUCTION_READINESS_BLOCKER_CLASSIFICATIONS = new Set([
+  "BLOCKED",
+  "attention",
+  "ready",
+  "degraded",
+]);
+const PRODUCTION_READINESS_BLOCKER_CLASSIFIER_FIELDS = new Set([
+  "schema",
+  "classification",
+  "readiness_state",
+  "safe_status",
+  "real_runtime_confirmed",
+  "ready_allowed",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_COMPONENT_DEPENDENCY_MAP_FIELDS = new Set([
+  "schema",
+  "component_count",
+  "ready_component_count",
+  "attention_component_count",
+  "components",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_SAFE_NEXT_ACTION_FIELDS = new Set([
+  "schema",
+  "action_kind",
+  "next_safe_script",
+  "operator_action_label",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_FIXTURE_MODE_LABEL_FIELDS = new Set([
+  "schema",
+  "fixture_status",
+  "real_readiness_status",
+  "fixture_success_is_real_ready",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "readiness_status",
+  "ready_count",
+  "attention_count",
+  "blocked_count",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_COMPONENT_DEPENDENCY_FIELDS = new Set([
+  "schema",
+  "component_id",
+  "dependency_status",
+  "readiness_state",
+  "required_for_live",
+]);
+const PRODUCTION_READINESS_COMPONENT_IDS = new Set([
+  "local_bridge",
+  "tts",
+  "live2d",
+  "subtitle",
+  "obs",
+  "overlay_pickup",
+]);
 const PRODUCTION_LIVE_READINESS_REPORT_FIELDS = new Set([
   "schema",
   "generated_at_ms",
@@ -202,6 +262,56 @@ const FOUNDATION_OBS_PICKUP_STARTUP_SUMMARY_FIELDS = new Set([
   "obs_pickup_startup_state",
   "boundary_policy",
   "adapter_validation_required",
+]);
+const PRODUCTION_READINESS_BLOCKER_CLASSIFIER_BOUNDARY_FIELDS = new Set([
+  "fixed_classification_only",
+  "real_runtime_required_for_ready",
+  "no_readiness_sweetening",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_COMPONENT_DEPENDENCY_BOUNDARY_FIELDS = new Set([
+  "safe_component_status_summary_only",
+  "component_ids_are_fixed",
+  "status_counts_only",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_paths",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_SAFE_NEXT_ACTION_BOUNDARY_FIELDS = new Set([
+  "safe_script_or_operator_label_only",
+  "no_endpoint_values",
+  "no_paths",
+  "no_tokens",
+  "no_secret_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_FIXTURE_MODE_LABEL_BOUNDARY_FIELDS = new Set([
+  "fixture_and_real_readiness_separated",
+  "fixture_success_not_real_ready",
+  "no_readiness_sweetening",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "status_and_counts_only",
+  "no_raw_logs",
+  "redacted_raw_payload_values",
+  "redacted_network_values",
+  "redacted_auth_values",
+  "redacted_review_items",
+  "no_control_directives",
 ]);
 const GAMEPLAY_STAGE_GATE_SCRIPTS = Object.freeze({
   configuration_gate: "npm run dev:gameplay:preflight",
@@ -909,6 +1019,385 @@ export function assertProductionLiveReadinessReportSafe(
   }
 }
 
+export function createProductionReadinessBlockerClassifier({
+  readinessState = "runtime_waiting",
+  status = "runtime_waiting",
+  realRuntimeConfirmed = false,
+} = {}) {
+  const safeReadinessState = READINESS_STATES.has(readinessState)
+    ? readinessState
+    : "operator_review_required";
+  const safeStatus = safeGateDetailLabel(status) ?? "attention";
+  const realConfirmed = realRuntimeConfirmed === true;
+  const classification = classifyProductionReadinessBlocker({
+    readinessState: safeReadinessState,
+    status: safeStatus,
+    realRuntimeConfirmed: realConfirmed,
+  });
+  const summary = {
+    schema: "iris_production_readiness_blocker_classifier_v1",
+    classification,
+    readiness_state: safeReadinessState,
+    safe_status: safeStatus,
+    real_runtime_confirmed: realConfirmed,
+    ready_allowed: classification === "ready",
+    boundary_policy: {
+      fixed_classification_only: true,
+      real_runtime_required_for_ready: true,
+      no_readiness_sweetening: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionReadinessBlockerClassifierSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessBlockerClassifierSafe(
+  summary,
+  context = "production readiness blocker classifier"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_BLOCKER_CLASSIFIER_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected classifier field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_production_readiness_blocker_classifier_v1"
+  ) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (
+    !PRODUCTION_READINESS_BLOCKER_CLASSIFICATIONS.has(summary.classification)
+  ) {
+    throw new ContractError(`${context}: invalid classification`);
+  }
+  assertSafeReadinessState(summary.readiness_state, context);
+  if (
+    typeof summary.safe_status !== "string" ||
+    !SAFE_STAGE_STATUS_PATTERN.test(summary.safe_status)
+  ) {
+    throw new ContractError(`${context}: invalid safe status`);
+  }
+  if (typeof summary.real_runtime_confirmed !== "boolean") {
+    throw new ContractError(`${context}: invalid runtime confirmation flag`);
+  }
+  if (typeof summary.ready_allowed !== "boolean") {
+    throw new ContractError(`${context}: invalid ready allowed flag`);
+  }
+  if (
+    summary.real_runtime_confirmed !== true &&
+    (summary.classification === "ready" || summary.ready_allowed === true)
+  ) {
+    throw new ContractError(`${context}: unconfirmed runtime cannot be ready`);
+  }
+  if (
+    summary.ready_allowed !==
+    (summary.classification === "ready" &&
+      summary.readiness_state === "ready" &&
+      summary.real_runtime_confirmed === true)
+  ) {
+    throw new ContractError(`${context}: ready flag mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_BLOCKER_CLASSIFIER_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessComponentDependencyMap({
+  localBridgeStatus = "runtime_waiting",
+  ttsStatus = "runtime_waiting",
+  live2dStatus = "runtime_waiting",
+  subtitleStatus = "runtime_waiting",
+  obsStatus = "real_device_waiting",
+  overlayPickupStatus = "real_device_waiting",
+} = {}) {
+  const components = [
+    componentDependency("local_bridge", localBridgeStatus),
+    componentDependency("tts", ttsStatus),
+    componentDependency("live2d", live2dStatus),
+    componentDependency("subtitle", subtitleStatus),
+    componentDependency("obs", obsStatus),
+    componentDependency("overlay_pickup", overlayPickupStatus),
+  ];
+  const summary = {
+    schema: "iris_production_readiness_component_dependency_map_v1",
+    component_count: components.length,
+    ready_component_count: components.filter(
+      (component) => component.readiness_state === "ready"
+    ).length,
+    attention_component_count: components.filter(
+      (component) => component.readiness_state !== "ready"
+    ).length,
+    components,
+    boundary_policy: {
+      safe_component_status_summary_only: true,
+      component_ids_are_fixed: true,
+      status_counts_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_paths: true,
+      no_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionReadinessComponentDependencyMapSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessComponentDependencyMapSafe(
+  summary,
+  context = "production readiness component dependency map"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_COMPONENT_DEPENDENCY_MAP_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected dependency map field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_production_readiness_component_dependency_map_v1"
+  ) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(summary.components) || summary.components.length !== 6) {
+    throw new ContractError(`${context}: six component dependencies required`);
+  }
+  const seen = new Set();
+  for (const component of summary.components) {
+    assertProductionReadinessComponentDependencySafe(component, context);
+    if (seen.has(component.component_id)) {
+      throw new ContractError(`${context}: duplicate component dependency`);
+    }
+    seen.add(component.component_id);
+  }
+  for (const componentId of PRODUCTION_READINESS_COMPONENT_IDS) {
+    if (!seen.has(componentId)) {
+      throw new ContractError(`${context}: missing component dependency`);
+    }
+  }
+  if (
+    summary.component_count !== summary.components.length ||
+    summary.ready_component_count !==
+      summary.components.filter((item) => item.readiness_state === "ready").length ||
+    summary.attention_component_count !==
+      summary.components.filter((item) => item.readiness_state !== "ready").length
+  ) {
+    throw new ContractError(`${context}: invalid component counts`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_COMPONENT_DEPENDENCY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessSafeNextAction({
+  nextScript = null,
+  operatorActionLabel = "operator_attention_required",
+} = {}) {
+  const safeScript = isSafeScriptName(nextScript) ? nextScript : null;
+  const safeOperatorLabel =
+    safeGateDetailLabel(operatorActionLabel) ?? "operator_attention_required";
+  const summary = {
+    schema: "iris_production_readiness_safe_next_action_v1",
+    action_kind: safeScript ? "safe_script" : "operator_action_label",
+    next_safe_script: safeScript,
+    operator_action_label: safeScript ? null : safeOperatorLabel,
+    boundary_policy: {
+      safe_script_or_operator_label_only: true,
+      no_endpoint_values: true,
+      no_paths: true,
+      no_tokens: true,
+      no_secret_values: true,
+      no_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionReadinessSafeNextActionSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessSafeNextActionSafe(
+  summary,
+  context = "production readiness safe next action"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_SAFE_NEXT_ACTION_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected next action field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_safe_next_action_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["safe_script", "operator_action_label"].includes(summary.action_kind)) {
+    throw new ContractError(`${context}: invalid action kind`);
+  }
+  if (summary.action_kind === "safe_script") {
+    if (!isSafeScriptName(summary.next_safe_script)) {
+      throw new ContractError(`${context}: invalid next safe script`);
+    }
+    if (summary.operator_action_label !== null) {
+      throw new ContractError(`${context}: script action must not carry label`);
+    }
+  } else {
+    if (summary.next_safe_script !== null) {
+      throw new ContractError(`${context}: label action must not carry script`);
+    }
+    if (
+      typeof summary.operator_action_label !== "string" ||
+      !SAFE_STAGE_STATUS_PATTERN.test(summary.operator_action_label)
+    ) {
+      throw new ContractError(`${context}: invalid operator action label`);
+    }
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_SAFE_NEXT_ACTION_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessFixtureModeLabel({
+  fixturePassed = false,
+  realRuntimeConfirmed = false,
+} = {}) {
+  const fixturePass = fixturePassed === true;
+  const realReady = realRuntimeConfirmed === true;
+  const summary = {
+    schema: "iris_production_readiness_fixture_mode_label_v1",
+    fixture_status: fixturePass ? "fixture_pass" : "fixture_attention",
+    real_readiness_status: realReady ? "real_ready" : "real_blocked",
+    fixture_success_is_real_ready: false,
+    boundary_policy: {
+      fixture_and_real_readiness_separated: true,
+      fixture_success_not_real_ready: true,
+      no_readiness_sweetening: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+  };
+  assertProductionReadinessFixtureModeLabelSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessFixtureModeLabelSafe(
+  summary,
+  context = "production readiness fixture mode label"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_FIXTURE_MODE_LABEL_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture mode field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_fixture_mode_label_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["fixture_pass", "fixture_attention"].includes(summary.fixture_status)) {
+    throw new ContractError(`${context}: invalid fixture status`);
+  }
+  if (!["real_ready", "real_blocked"].includes(summary.real_readiness_status)) {
+    throw new ContractError(`${context}: invalid real readiness status`);
+  }
+  if (summary.fixture_success_is_real_ready !== false) {
+    throw new ContractError(`${context}: fixture success cannot imply real readiness`);
+  }
+  if (
+    summary.fixture_status === "fixture_pass" &&
+    summary.real_readiness_status === "real_ready" &&
+    summary.fixture_success_is_real_ready !== false
+  ) {
+    throw new ContractError(`${context}: fixture pass and real ready must stay separated`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_FIXTURE_MODE_LABEL_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessPublicSafeSummary({
+  readinessStatus = "blocked",
+  readyCount = 0,
+  attentionCount = 0,
+  blockedCount = 0,
+} = {}) {
+  const summary = {
+    schema: "iris_production_readiness_public_safe_summary_v1",
+    readiness_status: safePublicReadinessStatus(readinessStatus),
+    ready_count: safePublicCount(readyCount),
+    attention_count: safePublicCount(attentionCount),
+    blocked_count: safePublicCount(blockedCount),
+    boundary_policy: {
+      status_and_counts_only: true,
+      no_raw_logs: true,
+      redacted_raw_payload_values: true,
+      redacted_network_values: true,
+      redacted_auth_values: true,
+      redacted_review_items: true,
+      no_control_directives: true,
+    },
+  };
+  assertProductionReadinessPublicSafeSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessPublicSafeSummarySafe(
+  summary,
+  context = "production readiness public safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected public summary field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_public_safe_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["blocked", "attention", "degraded", "ready"].includes(summary.readiness_status)) {
+    throw new ContractError(`${context}: invalid readiness status`);
+  }
+  for (const field of ["ready_count", "attention_count", "blocked_count"]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
 function assertProductionHandoffSummarySafe(summary, report, context) {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
     throw new ContractError(`${context}: production handoff summary is required`);
@@ -1406,6 +1895,116 @@ function summarizeGateReadinessState(gate) {
     return "real_device_waiting";
   }
   return "operator_review_required";
+}
+
+function classifyProductionReadinessBlocker({
+  readinessState,
+  status,
+  realRuntimeConfirmed,
+}) {
+  if (status.includes("attention")) return "attention";
+  if (readinessState === "ready" && realRuntimeConfirmed === true) {
+    return status.includes("degraded") ? "degraded" : "ready";
+  }
+  if (
+    readinessState === "runtime_waiting" ||
+    readinessState === "real_device_waiting" ||
+    realRuntimeConfirmed !== true
+  ) {
+    return "BLOCKED";
+  }
+  if (status.includes("degraded")) return "degraded";
+  return "attention";
+}
+
+function componentDependency(componentId, status) {
+  const dependencyStatus = safeGateDetailLabel(status) ?? "attention";
+  return {
+    schema: "iris_production_readiness_component_dependency_v1",
+    component_id: componentId,
+    dependency_status: dependencyStatus,
+    readiness_state: readinessStateForComponentDependency(dependencyStatus),
+    required_for_live: true,
+  };
+}
+
+function readinessStateForComponentDependency(status) {
+  if (status === "ready" || status === "configured") return "ready";
+  if (
+    status.includes("configuration") ||
+    status.includes("missing") ||
+    status.includes("not_configured")
+  ) {
+    return "configuration_waiting";
+  }
+  if (
+    status.includes("worker") ||
+    status.includes("runtime") ||
+    status.includes("stale")
+  ) {
+    return "runtime_waiting";
+  }
+  if (
+    status.includes("obs") ||
+    status.includes("pickup") ||
+    status.includes("engine") ||
+    status.includes("device")
+  ) {
+    return "real_device_waiting";
+  }
+  return "operator_review_required";
+}
+
+function assertProductionReadinessComponentDependencySafe(component, context) {
+  if (!component || typeof component !== "object" || Array.isArray(component)) {
+    throw new ContractError(`${context}: component dependency is required`);
+  }
+  for (const field of Object.keys(component)) {
+    if (!PRODUCTION_READINESS_COMPONENT_DEPENDENCY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected component dependency field`);
+    }
+  }
+  if (
+    component.schema !== "iris_production_readiness_component_dependency_v1"
+  ) {
+    throw new ContractError(`${context}: invalid component dependency schema`);
+  }
+  if (!PRODUCTION_READINESS_COMPONENT_IDS.has(component.component_id)) {
+    throw new ContractError(`${context}: invalid component id`);
+  }
+  if (
+    typeof component.dependency_status !== "string" ||
+    !SAFE_STAGE_STATUS_PATTERN.test(component.dependency_status)
+  ) {
+    throw new ContractError(`${context}: invalid component dependency status`);
+  }
+  assertSafeReadinessState(component.readiness_state, context);
+  if (
+    component.readiness_state !==
+    readinessStateForComponentDependency(component.dependency_status)
+  ) {
+    throw new ContractError(`${context}: component readiness mismatch`);
+  }
+  if (component.required_for_live !== true) {
+    throw new ContractError(`${context}: component must be required for live`);
+  }
+}
+
+function safePublicReadinessStatus(status) {
+  const safeStatus = safeGateDetailLabel(status);
+  if (safeStatus === "ready") return "ready";
+  if (safeStatus === "attention") return "attention";
+  if (safeStatus === "degraded") return "degraded";
+  if (safeStatus === "blocked" || safeStatus === "runtime_waiting") {
+    return "blocked";
+  }
+  return "attention";
+}
+
+function safePublicCount(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return 0;
+  return Math.trunc(number);
 }
 
 function countReadinessStates(states) {

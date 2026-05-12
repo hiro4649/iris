@@ -69,13 +69,25 @@ import { normalizeExternalTopicObservation } from "../src/adapters/topics/extern
 import { createHttpExternalTopicSource } from "../src/adapters/topics/httpExternalTopicSource.js";
 import {
   assertAdapterPacketSafe,
+  assertAdapterErrorSafeSummary,
+  assertAdapterWorldCommandOutputBoundary,
+  assertApprovedActionEnvelopeForAdapter,
+  assertLive2dAdapterCueGuidanceSafe,
+  assertLive2dRecoveryCueRequired,
   assertLive2dFixtureCuePreviewSafe,
   assertTtsFixturePacketPreviewSafe,
+  assertTtsAdapterSourceStatusFallback,
+  assertTtsUnsupportedVoiceSafeError,
   createLive2dAdapterPacket,
   createLive2dFixtureCuePreview,
+  createAdapterErrorSafeSummary,
+  createTtsAdapterSourceStatusFallback,
+  createTtsUnsupportedVoiceSafeError,
   createTtsFixturePacketPreview,
   createSubtitleAdapterPacket,
   createTtsAdapterPacket,
+  sanitizeLive2dAdapterCueGuidance,
+  sanitizeAdapterPacketCommonFields,
 } from "../src/adapters/adapterPackets.js";
 import {
   assertGameControlResultSafe,
@@ -191,11 +203,23 @@ import {
 } from "../src/services/persistence/candidateValidator.js";
 import {
   assertPostgresMemoryWritePlanSafe,
+  assertPostgresCandidateReviewAuditEntrySafe,
+  assertPostgresMemorySummaryIndexEntrySafe,
+  assertPostgresGameplayMemorySummaryEntrySafe,
+  assertPostgresMediaWatchMemorySummaryEntrySafe,
   assertPostgresOperatorPolicyWritePlanSafe,
   assertPostgresRelationshipWritePlanSafe,
+  assertPostgresStreamSessionHistoryEntrySafe,
+  assertPostgresSupportDonationSummaryEntrySafe,
+  createPostgresMemorySummaryIndexEntry,
+  createPostgresCandidateReviewAuditEntry,
+  createPostgresGameplayMemorySummaryEntry,
+  createPostgresMediaWatchMemorySummaryEntry,
   createPostgresMemoryWritePlan,
   createPostgresOperatorPolicyWritePlan,
   createPostgresRelationshipWritePlan,
+  createPostgresStreamSessionHistoryEntry,
+  createPostgresSupportDonationSummaryEntry,
 } from "../src/services/persistence/postgresPersistenceAdapterContract.js";
 import {
   assertMockPostgresPersistenceResultSafe,
@@ -222,9 +246,29 @@ import {
   resolvePostgresPoolClassFromModule,
 } from "../src/services/persistence/postgresPgModuleResolver.js";
 import {
+  assertPostgresConfigSafeSummary,
+  assertPostgresConnectionReadinessClassifierSafe,
   assertPostgresPoolFactoryPlanSafe,
+  createPostgresConfigSafeSummary,
+  createPostgresConnectionReadinessClassifier,
   createPostgresPoolFactoryPlan,
 } from "../src/services/persistence/postgresPoolFactoryPlan.js";
+import {
+  assertPostgresBoundedQueryPolicySafe,
+  assertPostgresViewerIdentityStableKeyRedactionSafe,
+  createPostgresBoundedQueryPolicy,
+  createPostgresViewerIdentityStableKeyRedaction,
+} from "../src/services/persistence/postgresProfilePaginationGuard.js";
+import {
+  assertPostgresRelationshipAggregateSchemaGuardSafe,
+  assertPostgresRelationshipEventLedgerBoundarySafe,
+  createPostgresRelationshipAggregateSchemaGuard,
+  createPostgresRelationshipEventLedgerBoundary,
+} from "../src/services/persistence/postgresRelationshipEventLedgerBoundary.js";
+import {
+  assertPostgresModerationBlocklistSchemaPreflightSafe,
+  createPostgresModerationBlocklistSchemaPreflight,
+} from "../src/services/persistence/postgresModerationRecallPrecheck.js";
 import {
   assertPostgresPrivatePoolFactoryResultSafe,
   assertPostgresPrivatePoolFactoryStatusSafe,
@@ -249,6 +293,10 @@ import {
 import {
   assertOperatorPolicyAuditEntrySafe,
   assertOperatorPolicyAuditLogStatusSafe,
+  assertPostgresOperatorAuditTrailEntrySafe,
+  assertPostgresAuditSummaryRedactionSafe,
+  createPostgresAuditSummaryRedaction,
+  createPostgresOperatorAuditTrailEntry,
   createJsonOperatorPolicyAuditLog,
   createOperatorPolicyAuditEntry,
 } from "../src/services/persistence/operatorPolicyAuditLog.js";
@@ -407,6 +455,7 @@ import {
   assertIngestBackoffStatusSafe,
   assertLatestSafeEventCounts,
   assertOAuthTokenRedactionStatusSafe,
+  assertYouTubeIngestPacketSafeSummary,
   assertIngestDedupeWindowSummarySafe,
   assertLiveChatIdDiscoveryStatusSafe,
   assertModerationFilterSafeSummary,
@@ -418,6 +467,7 @@ import {
   createIngestBackoffStatus,
   createLatestSafeEventCounts,
   createOAuthTokenRedactionStatus,
+  createYouTubeIngestPacketSafeSummary,
   createIngestDedupeWindowSummary,
   createLiveChatIdDiscoveryStatus,
   createModerationFilterSafeSummary,
@@ -449,7 +499,9 @@ import {
 } from "../src/services/dev/youtubeIngestReadinessRehearsal.js";
 import {
   assertPersistencePreflightReportSafe,
+  assertPostgresFallbackModeLabelSafe,
   createPersistencePreflightReport,
+  createPostgresFallbackModeLabel,
 } from "../src/services/dev/persistencePreflight.js";
 import {
   assertPersistenceLaunchPlanSafe,
@@ -457,7 +509,13 @@ import {
 } from "../src/services/dev/persistenceLaunchPlan.js";
 import {
   assertPostgresPersistenceMigrationPlanSafe,
+  assertPostgresIndexReadinessPrecheck,
+  assertPostgresMigrationPreflightSummary,
+  assertPostgresSchemaManifestSafeValidation,
+  createPostgresIndexReadinessPrecheck,
+  createPostgresMigrationPreflightSummary,
   createPostgresPersistenceMigrationPlan,
+  createPostgresSchemaManifestSafeValidation,
 } from "../src/services/dev/postgresPersistenceMigrationPlan.js";
 import {
   assertPostgresMigrationReviewGateSafe,
@@ -812,8 +870,10 @@ import { createIrisHttpServer, listen } from "../src/server/httpServer.js";
 import {
   assertOverlayDisplayEventSafe,
   assertOverlayEventStreamStatusSafe,
+  assertOverlayPickupPacketSafe,
   createOverlayDisplayEvent,
   createOverlayEventBus,
+  createOverlayPickupPacket,
 } from "../src/server/overlayDisplayEvent.js";
 import { renderAdminDashboardPage } from "../src/server/adminDashboardPage.js";
 import { assertOverlayStatusSafe, createOverlayStatus } from "../src/server/overlayStatus.js";
@@ -829,11 +889,13 @@ import {
 import { assertLocalBridgeOutboxJobSafe } from "../src/server/localBridgeOutbox.js";
 import {
   DEFAULT_LIVE_BRIDGE_WORKER_MAX_JOB_AGE_MS,
+  assertBridgePacketTimestampReadinessSafe,
   assertLocalBridgeEngineDrainReportSafe,
   assertLocalBridgeEventRenderManifestSafe,
   assertLocalBridgeEngineProcessReportSafe,
   assertLocalBridgeEngineReceiptSafe,
   assertLocalBridgeEngineStatusSafe,
+  classifyBridgePacketTimestampReadiness,
   createLocalBridgeEngineWorker,
 } from "../src/server/localBridgeEngineWorker.js";
 import {
@@ -841,7 +903,9 @@ import {
   createLocalBridgeRenderManifestOperatorReport,
 } from "../src/server/localBridgeRenderManifestReport.js";
 import {
+  assertBridgeHeartbeatSafeStatus,
   assertLocalBridgeWorkerCliPayloadSafe,
+  createBridgeHeartbeatSafeStatus,
   createLocalBridgeWorkerCliPayload,
   createLocalBridgeWorkerWatchPayload,
   isLocalBridgeWorkerReportOk,
@@ -906,6 +970,7 @@ import {
 } from "../src/server/voicevoxTtsEngineBridge.js";
 import {
   assertLive2dBridgePublicSafe,
+  createLive2dCueEngineBridgeHealth,
   createLive2dCueEngineBridgeServer,
 } from "../src/server/live2dCueEngineBridge.js";
 import {
@@ -6989,6 +7054,32 @@ const tests = [
       assert.equal(serialized.includes("operator_policy_audit_entry"), false);
       assert.equal(serialized.includes('"input_action_candidate"'), false);
       assertPostgresOperatorPolicyWritePlanSafe(plan);
+      const auditSummary = createPostgresAuditSummaryRedaction(auditEntry);
+      const serializedAuditSummary = JSON.stringify(auditSummary);
+      assert.deepEqual(Object.keys(auditSummary).sort(), [
+        "action_type",
+        "actor_role",
+        "boundary_policy",
+        "event_at_ms",
+        "schema",
+        "status",
+      ]);
+      assert.equal(auditSummary.actor_role, "owner");
+      assert.equal(auditSummary.action_type, "operator_policy_saved");
+      assert.equal(auditSummary.status, "saved");
+      assert.equal(auditSummary.event_at_ms, 2000);
+      assert.equal(serializedAuditSummary.includes("raw_payload"), false);
+      assert.equal(serializedAuditSummary.includes("private_viewer_id"), false);
+      assert.equal(serializedAuditSummary.includes("secret"), false);
+      assertPostgresAuditSummaryRedactionSafe(auditSummary);
+      assert.throws(
+        () =>
+          assertPostgresAuditSummaryRedactionSafe({
+            ...auditSummary,
+            raw_payload: { secret: "unsafe" },
+          }),
+        ContractError
+      );
       assert.throws(
         () =>
           assertPostgresOperatorPolicyWritePlanSafe({
@@ -7541,11 +7632,423 @@ const tests = [
         () =>
           createPostgresMemoryWritePlan(
             {
+              schema: "memory_candidate",
+              requires_validation: true,
+              event_id: "candidate-memory",
+              raw_payload: { summary: "raw memory candidate" },
+            },
+            { generatedAtMs: 1000 }
+          ),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createPostgresMemoryWritePlan(
+            {
+              ...approvedRecord,
+              raw_payload: { summary: "raw memory body" },
+            },
+            { generatedAtMs: 1000 }
+          ),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createPostgresMemoryWritePlan(
+            {
               ...approvedRecord,
               input_action_candidate: { action: "press_key" },
             },
             { generatedAtMs: 1000 }
           ),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL memory summary index allows only safe summary fields",
+    async () => {
+      const approvedRecord = {
+        schema: "approved_memory_record",
+        approved: true,
+        trace_id: "pg-memory-index-trace",
+        event_id: "pg-memory-index-event",
+        memory_id: "memory-index-1",
+        store: "long_term_memory",
+        summary: "A short approved memory summary is safe for the index.",
+        memory_type: "stream_experience",
+        linked_identity_id: "viewer:pg-memory-index",
+        source_phase: "phase26",
+        source_candidate_kind: "memory_carryover",
+        committed_at_ms: 1000,
+      };
+      const entry = createPostgresMemorySummaryIndexEntry(approvedRecord);
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "memory_id",
+        "schema",
+        "status",
+        "summary",
+        "type",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_memory_summary_index_entry_v1");
+      assert.equal(entry.memory_id, "memory-index-1");
+      assert.equal(entry.type, "stream_experience");
+      assert.equal(entry.summary, "A short approved memory summary is safe for the index.");
+      assert.equal(entry.status, "approved_summary_indexed");
+      assert.equal(serialized.includes("viewer:pg-memory-index"), false);
+      assert.equal(serialized.includes("raw memory body"), false);
+      assertPostgresMemorySummaryIndexEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresMemorySummaryIndexEntrySafe({
+            ...entry,
+            raw_memory_body: "raw memory body must not be indexed",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createPostgresMemorySummaryIndexEntry({
+            ...approvedRecord,
+            raw_memory_body: "raw memory body must not be indexed",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL stream session history schema omits raw comments and support text",
+    async () => {
+      const entry = createPostgresStreamSessionHistoryEntry({
+        sessionId: "stream-session-1",
+        summary: "A safe session summary with topic highlights.",
+        eventCount: 12,
+        supportEventCount: 2,
+        timeBucket: "stream_day_2026_05_13",
+      });
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "event_count",
+        "schema",
+        "session_id",
+        "status",
+        "summary",
+        "support_event_count",
+        "time_bucket",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_stream_session_history_entry_v1");
+      assert.equal(entry.session_id, "stream-session-1");
+      assert.equal(entry.summary, "A safe session summary with topic highlights.");
+      assert.equal(entry.event_count, 12);
+      assert.equal(entry.support_event_count, 2);
+      assert.equal(entry.time_bucket, "stream_day_2026_05_13");
+      assert.equal(entry.status, "approved_session_summary");
+      assert.equal(serialized.includes("raw comment"), false);
+      assert.equal(serialized.includes("raw support text"), false);
+      assertPostgresStreamSessionHistoryEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresStreamSessionHistoryEntrySafe({
+            ...entry,
+            raw_comments: ["raw comment body"],
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresStreamSessionHistoryEntrySafe({
+            ...entry,
+            support_text: "raw support text",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL gameplay memory summary schema omits raw screen and action candidates",
+    async () => {
+      const entry = createPostgresGameplayMemorySummaryEntry({
+        title: "Boss fight comeback",
+        session: "game-session-1",
+        summary: "IRIS recovered after a difficult fight and kept the mood light.",
+        safeTags: ["boss_fight", "recovery", "teamplay"],
+      });
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "safe_tags",
+        "schema",
+        "session",
+        "status",
+        "summary",
+        "title",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_gameplay_memory_summary_entry_v1");
+      assert.equal(entry.title, "Boss fight comeback");
+      assert.equal(entry.session, "game-session-1");
+      assert.equal(
+        entry.summary,
+        "IRIS recovered after a difficult fight and kept the mood light."
+      );
+      assert.deepEqual(entry.safe_tags, ["boss_fight", "recovery", "teamplay"]);
+      assert.equal(entry.status, "approved_gameplay_summary");
+      assert.equal(serialized.includes("raw screen"), false);
+      assert.equal(serialized.includes("raw action candidate"), false);
+      assertPostgresGameplayMemorySummaryEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresGameplayMemorySummaryEntrySafe({
+            ...entry,
+            raw_screen: "raw screen body",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresGameplayMemorySummaryEntrySafe({
+            ...entry,
+            raw_action_candidate: { action: "press_key" },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL media watch memory summary schema omits copyrighted source text",
+    async () => {
+      const entry = createPostgresMediaWatchMemorySummaryEntry({
+        shortReaction: "IRIS had a brief respectful reaction to the scene mood.",
+        rightsRisk: "low",
+      });
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "rights_risk",
+        "schema",
+        "short_reaction",
+        "status",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_media_watch_memory_summary_entry_v1");
+      assert.equal(
+        entry.short_reaction,
+        "IRIS had a brief respectful reaction to the scene mood."
+      );
+      assert.equal(entry.rights_risk, "low");
+      assert.equal(entry.status, "approved_media_watch_summary");
+      assert.equal(serialized.includes("lyrics"), false);
+      assert.equal(serialized.includes("subtitle"), false);
+      assert.equal(serialized.includes("melody"), false);
+      assertPostgresMediaWatchMemorySummaryEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresMediaWatchMemorySummaryEntrySafe({
+            ...entry,
+            raw_subtitles: "source subtitle text",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresMediaWatchMemorySummaryEntrySafe({
+            ...entry,
+            short_reaction: "lyrics from an existing song",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL support donation summary schema omits ranking and pay-to-rank data",
+    async () => {
+      const entry = createPostgresSupportDonationSummaryEntry({
+        gratitudeContext: "IRIS keeps a safe gratitude note for the kind support.",
+        supportEventType: "super_chat_event",
+      });
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "gratitude_context",
+        "schema",
+        "status",
+        "support_event_type",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_support_donation_summary_entry_v1");
+      assert.equal(
+        entry.gratitude_context,
+        "IRIS keeps a safe gratitude note for the kind support."
+      );
+      assert.equal(entry.support_event_type, "super_chat_event");
+      assert.equal(entry.status, "approved_support_summary");
+      assert.equal(serialized.includes("amount comparison"), false);
+      assert.equal(serialized.includes("ranking"), false);
+      assert.equal(serialized.includes("pay-to-rank"), false);
+      assertPostgresSupportDonationSummaryEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresSupportDonationSummaryEntrySafe({
+            ...entry,
+            amount_comparison: "higher than another viewer",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresSupportDonationSummaryEntrySafe({
+            ...entry,
+            gratitude_context: "top supporter ranking and pay-to-rank signal",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL moderation blocklist schema preflight hides raw harassment and private notes",
+    async () => {
+      const preflight = createPostgresModerationBlocklistSchemaPreflight({
+        moderationState: "blocked",
+        reasonCode: "harassment_policy",
+        safeNoteSummary: "moderation action requires safe distance",
+      });
+      const serialized = JSON.stringify(preflight);
+
+      assert.deepEqual(Object.keys(preflight).sort(), [
+        "boundary_policy",
+        "moderation_state",
+        "ordinary_view_safe",
+        "preflight_status",
+        "reason_code",
+        "safe_note_summary",
+        "schema",
+      ]);
+      assert.equal(
+        preflight.schema,
+        "iris_postgres_moderation_blocklist_schema_preflight_v1"
+      );
+      assert.equal(preflight.preflight_status, "schema_ready");
+      assert.equal(preflight.moderation_state, "blocked");
+      assert.equal(preflight.reason_code, "harassment_policy");
+      assert.equal(
+        preflight.safe_note_summary,
+        "moderation action requires safe distance"
+      );
+      assert.equal(preflight.ordinary_view_safe, true);
+      assert.equal(serialized.includes("raw harassment text"), false);
+      assert.equal(serialized.includes("private note"), false);
+      assertPostgresModerationBlocklistSchemaPreflightSafe(preflight);
+      assert.throws(
+        () =>
+          assertPostgresModerationBlocklistSchemaPreflightSafe({
+            ...preflight,
+            raw_harassment_text: "raw harassment text",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresModerationBlocklistSchemaPreflightSafe({
+            ...preflight,
+            safe_note_summary: "private note from moderator",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL candidate review audit schema omits raw candidate payload",
+    async () => {
+      const entry = createPostgresCandidateReviewAuditEntry({
+        candidateKind: "memory_candidate",
+        status: "rejected",
+        reviewerRole: "operator",
+        safeReason: "validator_schema_missing",
+      });
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "candidate_kind",
+        "reviewer_role",
+        "safe_reason",
+        "schema",
+        "status",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_candidate_review_audit_entry_v1");
+      assert.equal(entry.candidate_kind, "candidate");
+      assert.equal(entry.status, "rejected");
+      assert.equal(entry.reviewer_role, "operator");
+      assert.equal(entry.safe_reason, "validator_schema_missing");
+      assert.equal(serialized.includes("raw candidate payload"), false);
+      assertPostgresCandidateReviewAuditEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresCandidateReviewAuditEntrySafe({
+            ...entry,
+            raw_candidate_payload: { payload: "unsafe" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresCandidateReviewAuditEntrySafe({
+            ...entry,
+            safe_reason: "raw candidate payload exposed",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL operator audit trail schema omits secrets commands and raw payloads",
+    async () => {
+      const auditEntry = createOperatorPolicyAuditEntry({
+        eventId: "operator-audit-safe-entry",
+        settingId: "donation_amount_proportional_formula",
+        settingGroup: "relationship_delta",
+        policyVersion: "v1",
+        policyDigest: `sha256:${"a".repeat(64)}`,
+        decision: "saved",
+        actorRole: "owner",
+        ownerConfirmed: true,
+        eventAtMs: 1000,
+      });
+      const entry = createPostgresOperatorAuditTrailEntry(auditEntry);
+      const serialized = JSON.stringify(entry);
+
+      assert.deepEqual(Object.keys(entry).sort(), [
+        "action_type",
+        "actor_role",
+        "result",
+        "safe_target",
+        "schema",
+      ]);
+      assert.equal(entry.schema, "iris_postgres_operator_audit_trail_entry_v1");
+      assert.equal(entry.actor_role, "owner");
+      assert.equal(entry.action_type, "operator_policy_saved");
+      assert.equal(
+        entry.safe_target,
+        "relationship_delta_donation_amount_proportional_formula"
+      );
+      assert.equal(entry.result, "saved");
+      assert.equal(serialized.includes("secret"), false);
+      assert.equal(serialized.includes("token"), false);
+      assert.equal(serialized.includes("raw payload"), false);
+      assertPostgresOperatorAuditTrailEntrySafe(entry);
+      assert.throws(
+        () =>
+          assertPostgresOperatorAuditTrailEntrySafe({
+            ...entry,
+            raw_payload: { value: "unsafe" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresOperatorAuditTrailEntrySafe({
+            ...entry,
+            safe_target: "world_command",
+          }),
         ContractError
       );
     },
@@ -9042,6 +9545,266 @@ const tests = [
     },
   ],
   [
+    "PostgreSQL config safe summary exposes only status and env names",
+    async () => {
+      const summary = createPostgresConfigSafeSummary({
+        env: {
+          IRIS_POSTGRES_CONNECTION_STRING:
+            "postgres://secret-user:secret-pass@private-host/iris",
+        },
+      });
+      const serialized = JSON.stringify(summary);
+
+      assert.deepEqual(Object.keys(summary).sort(), [
+        "configured",
+        "missing",
+        "schema",
+        "status",
+      ]);
+      assert.equal(summary.status, "configured");
+      assert.deepEqual(summary.configured, ["IRIS_POSTGRES_CONNECTION_STRING"]);
+      assert.deepEqual(summary.missing, []);
+      assert.equal(serialized.includes("secret-user"), false);
+      assert.equal(serialized.includes("secret-pass"), false);
+      assert.equal(serialized.includes("private-host"), false);
+      assert.equal(serialized.includes("postgres://"), false);
+      assertPostgresConfigSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertPostgresConfigSafeSummary({
+            ...summary,
+            endpoint: "http://private.example",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresConfigSafeSummary({
+            ...summary,
+            configured: ["IRIS_POSTGRES_CONNECTION_STRING=postgres://secret"],
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL connection readiness stays blocked until real DB verification",
+    async () => {
+      const classifier = createPostgresConnectionReadinessClassifier({
+        env: {
+          IRIS_POSTGRES_CONNECTION_STRING:
+            "postgres://secret-user:secret-pass@private-host/iris",
+        },
+        connectionVerified: false,
+        dbConnectionAttempted: false,
+      });
+      const serialized = JSON.stringify(classifier);
+
+      assert.equal(
+        classifier.readiness_status,
+        "blocked_pending_real_db_connection"
+      );
+      assert.equal(classifier.connection_configured, true);
+      assert.equal(classifier.connection_verified, false);
+      assert.equal(classifier.db_connection_attempted, false);
+      assert.equal(classifier.operator_attention_required, true);
+      assert.equal(serialized.includes("secret-user"), false);
+      assert.equal(serialized.includes("secret-pass"), false);
+      assert.equal(serialized.includes("private-host"), false);
+      assert.equal(serialized.includes("postgres://"), false);
+      assertPostgresConnectionReadinessClassifierSafe(classifier);
+      assert.throws(
+        () =>
+          assertPostgresConnectionReadinessClassifierSafe({
+            ...classifier,
+            readiness_status: "verified_ready",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresConnectionReadinessClassifierSafe({
+            ...classifier,
+            operator_attention_required: false,
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL bounded query policy rejects unbounded and all-load requests",
+    async () => {
+      const readyPolicy = createPostgresBoundedQueryPolicy({
+        pageSize: 250,
+        keysetCursor: "cursor-1",
+      });
+      assert.equal(readyPolicy.policy_status, "bounded_keyset_ready");
+      assert.equal(readyPolicy.page_size, 100);
+      assert.equal(readyPolicy.keyset_cursor_required, true);
+      assert.equal(readyPolicy.keyset_cursor_present, true);
+      assert.equal(readyPolicy.unbounded_query_allowed, false);
+      assert.equal(readyPolicy.all_load_allowed, false);
+      assertPostgresBoundedQueryPolicySafe(readyPolicy);
+
+      const rejectedPolicy = createPostgresBoundedQueryPolicy({
+        allowUnbounded: true,
+        allowAllLoad: true,
+      });
+      assert.equal(
+        rejectedPolicy.policy_status,
+        "rejected_unbounded_or_missing_keyset"
+      );
+      assert.equal(rejectedPolicy.unbounded_query_allowed, false);
+      assert.equal(rejectedPolicy.all_load_allowed, false);
+      assert.equal(
+        JSON.stringify(rejectedPolicy).includes("load_all private query value"),
+        false
+      );
+      assertPostgresBoundedQueryPolicySafe(rejectedPolicy);
+      assert.throws(
+        () =>
+          assertPostgresBoundedQueryPolicySafe({
+            ...readyPolicy,
+            unbounded_query_allowed: true,
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresBoundedQueryPolicySafe({
+            ...readyPolicy,
+            all_load_allowed: true,
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL viewer identity stable key stays internal on public surfaces",
+    async () => {
+      const summary = createPostgresViewerIdentityStableKeyRedaction({
+        identityRecords: [
+          {
+            stable_identity_key: "stable-key-private-value",
+            private_viewer_id: "viewer-private-id",
+            display_name: "Hiro",
+          },
+        ],
+      });
+      const serialized = JSON.stringify(summary);
+
+      assert.equal(
+        summary.schema,
+        "iris_postgres_viewer_identity_stable_key_redaction_v1"
+      );
+      assert.equal(
+        summary.surface_status,
+        "stable_identity_internal_reference_only"
+      );
+      assert.equal(summary.identity_record_count, 1);
+      assert.equal(summary.stable_identity_key_internal_only, true);
+      assert.equal(summary.public_view_safe, true);
+      assert.equal(summary.admin_ordinary_view_safe, true);
+      assert.equal(summary.redacted_identity_count, 1);
+      assert.equal(serialized.includes("stable-key-private-value"), false);
+      assert.equal(serialized.includes("viewer-private-id"), false);
+      assert.equal(serialized.includes("Hiro"), false);
+      assertPostgresViewerIdentityStableKeyRedactionSafe(summary);
+      assert.throws(
+        () =>
+          assertPostgresViewerIdentityStableKeyRedactionSafe({
+            ...summary,
+            public_view_stable_identity_key: "stable-key-private-value",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertPostgresViewerIdentityStableKeyRedactionSafe({
+            ...summary,
+            public_view_safe: false,
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL relationship aggregate updates only from approved records",
+    async () => {
+      const approvedGuard = createPostgresRelationshipAggregateSchemaGuard({
+        approvedRecord: { schema: "approved_relationship_record", approved: true },
+      });
+      assert.equal(approvedGuard.aggregate_update_status, "approved_record_ready");
+      assert.equal(approvedGuard.aggregate_update_allowed, true);
+      assert.equal(approvedGuard.approved_record_present, true);
+      assert.equal(approvedGuard.candidate_input_present, false);
+      assertPostgresRelationshipAggregateSchemaGuardSafe(approvedGuard);
+
+      const candidateGuard = createPostgresRelationshipAggregateSchemaGuard({
+        relationshipCandidate: {
+          schema: "iris_relationship_update_candidate_v1",
+          candidate_kind: "relationship_update_candidate",
+          relation_score: 99,
+        },
+      });
+      const serialized = JSON.stringify(candidateGuard);
+      assert.equal(candidateGuard.aggregate_update_status, "approved_record_required");
+      assert.equal(candidateGuard.aggregate_update_allowed, false);
+      assert.equal(candidateGuard.approved_record_present, false);
+      assert.equal(candidateGuard.candidate_input_present, true);
+      assert.equal(serialized.includes("relationship_update_candidate"), false);
+      assert.equal(serialized.includes("relation_score"), false);
+      assertPostgresRelationshipAggregateSchemaGuardSafe(candidateGuard);
+      assert.throws(
+        () =>
+          assertPostgresRelationshipAggregateSchemaGuardSafe({
+            ...candidateGuard,
+            aggregate_update_allowed: true,
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "PostgreSQL relationship event ledger appends only approved records",
+    async () => {
+      const approvedBoundary = createPostgresRelationshipEventLedgerBoundary({
+        approvedRecord: { schema: "approved_relationship_record", approved: true },
+      });
+      assert.equal(approvedBoundary.ledger_append_status, "approved_record_ready");
+      assert.equal(approvedBoundary.record_kind, "approved_relationship");
+      assert.equal(approvedBoundary.approved_record_present, true);
+      assert.equal(approvedBoundary.event_ledger_append_allowed, true);
+      assert.equal(approvedBoundary.aggregate_update_required, true);
+      assertPostgresRelationshipEventLedgerBoundarySafe(approvedBoundary);
+
+      const candidateBoundary = createPostgresRelationshipEventLedgerBoundary({
+        relationshipCandidate: {
+          schema: "iris_relationship_update_candidate_v1",
+          candidate_kind: "relationship_update_candidate",
+          relation_score: 99,
+        },
+      });
+      const serialized = JSON.stringify(candidateBoundary);
+      assert.equal(candidateBoundary.ledger_append_status, "approved_record_required");
+      assert.equal(candidateBoundary.record_kind, "unapproved_input");
+      assert.equal(candidateBoundary.approved_record_present, false);
+      assert.equal(candidateBoundary.event_ledger_append_allowed, false);
+      assert.equal(candidateBoundary.aggregate_update_required, false);
+      assert.equal(serialized.includes("relationship_update_candidate"), false);
+      assert.equal(serialized.includes("relation_score"), false);
+      assertPostgresRelationshipEventLedgerBoundarySafe(candidateBoundary);
+      assert.throws(
+        () =>
+          assertPostgresRelationshipEventLedgerBoundarySafe({
+            ...candidateBoundary,
+            event_ledger_append_allowed: true,
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
     "PostgreSQL pool factory plan blocks missing connection config safely",
     async () => {
       const plan = createPostgresPoolFactoryPlan({
@@ -10177,17 +10940,45 @@ const tests = [
         supportEventType: "superChatEvent",
         amountSource: "tier",
         supportEventCount: 2,
+        moderationState: "allowed",
       });
 
       assert.equal(output.normalizer_status, "normalized");
+      assert.equal(output.output_kind, "summary_candidate");
       assert.equal(output.support_event_type, "superChatEvent");
       assert.equal(output.amount_source, "tier");
       assert.equal(output.support_event_count, 2);
+      assert.equal(output.moderation_precheck_status, "allowed");
+      assert.equal(output.relationship_growth_suppressed, false);
       assert.equal(output.boundary_policy.safe_normalized_labels_only, true);
+      assert.equal(output.boundary_policy.summary_candidate_only, true);
+      assert.equal(output.boundary_policy.moderation_prechecked_before_relationship_growth, true);
+      assert.equal(
+        output.boundary_policy.relationship_growth_suppressed_when_limited_or_blocked,
+        true
+      );
       assert.equal(output.boundary_policy.no_raw_support_message, true);
       assert.equal(output.boundary_policy.no_private_ids, true);
       assert.equal(output.boundary_policy.no_amount_comparison, true);
       assertSupportDonationNormalizerSafeOutput(output);
+      const blockedOutput = createSupportDonationNormalizerSafeOutput({
+        moderationState: "blocked",
+      });
+      const limitedOutput = createSupportDonationNormalizerSafeOutput({
+        moderationState: "limited",
+      });
+      assert.equal(blockedOutput.relationship_growth_suppressed, true);
+      assert.equal(limitedOutput.relationship_growth_suppressed, true);
+      assertSupportDonationNormalizerSafeOutput(blockedOutput);
+      assertSupportDonationNormalizerSafeOutput(limitedOutput);
+      assert.throws(
+        () =>
+          assertSupportDonationNormalizerSafeOutput({
+            ...blockedOutput,
+            relationship_growth_suppressed: false,
+          }),
+        ContractError
+      );
       assert.throws(
         () =>
           assertSupportDonationNormalizerSafeOutput({
@@ -10201,6 +10992,14 @@ const tests = [
           assertSupportDonationNormalizerSafeOutput({
             ...output,
             private_id: "private viewer id",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertSupportDonationNormalizerSafeOutput({
+            ...output,
+            output_kind: "direct_normalized_payload",
           }),
         ContractError
       );
@@ -10341,6 +11140,53 @@ const tests = [
               ...summary.event_type_counts,
               raw_payload: 1,
             },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "YouTube ingest packet safe summary exposes only source status and count",
+    async () => {
+      const summary = createYouTubeIngestPacketSafeSummary({
+        source: "youtube_live_chat",
+        ingestStatus: "normalized",
+        eventCount: 3,
+      });
+      const serialized = JSON.stringify(summary);
+
+      assert.equal(summary.schema, "iris_youtube_ingest_packet_safe_summary_v1");
+      assert.equal(summary.source, "youtube_live_chat");
+      assert.equal(summary.ingest_status, "normalized");
+      assert.equal(summary.event_count, 3);
+      assert.equal(summary.boundary_policy.source_status_count_only, true);
+      assert.equal(summary.boundary_policy.no_raw_comment_text, true);
+      assert.equal(summary.boundary_policy.no_tokens, true);
+      assert.equal(summary.boundary_policy.no_api_response, true);
+      assert.equal(serialized.includes("raw comment text"), false);
+      assert.equal(serialized.includes("unsafe-token"), false);
+      assertYouTubeIngestPacketSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertYouTubeIngestPacketSafeSummary({
+            ...summary,
+            raw_comment_text: "raw comment text",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertYouTubeIngestPacketSafeSummary({
+            ...summary,
+            token: "unsafe-token",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertYouTubeIngestPacketSafeSummary({
+            ...summary,
+            api_response: { items: [] },
           }),
         ContractError
       );
@@ -13071,14 +13917,26 @@ const tests = [
   [
     "OAuth token redaction status hides tokens from public surfaces",
     () => {
-      const status = createOAuthTokenRedactionStatus();
+      const status = createOAuthTokenRedactionStatus({ configured: true });
+      const expired = createOAuthTokenRedactionStatus({ configured: true, expired: true });
+      const missing = createOAuthTokenRedactionStatus();
       const serialized = JSON.stringify(status);
 
       assert.equal(status.redaction_status, "redacted");
+      assert.equal(status.oauth_readiness_status, "configured");
+      assert.equal(status.oauth_configured, true);
+      assert.equal(status.oauth_missing, false);
+      assert.equal(status.oauth_expired, false);
+      assert.equal(expired.oauth_readiness_status, "expired");
+      assert.equal(expired.oauth_configured, true);
+      assert.equal(expired.oauth_expired, true);
+      assert.equal(missing.oauth_readiness_status, "missing");
+      assert.equal(missing.oauth_missing, true);
       assert.equal(status.logs_safe, true);
       assert.equal(status.public_view_safe, true);
       assert.equal(status.admin_ordinary_view_safe, true);
       assert.equal(status.diagnostics_safe, true);
+      assert.equal(status.boundary_policy.readiness_status_only, true);
       assert.equal(status.boundary_policy.no_oauth_token, true);
       assert.equal(status.boundary_policy.no_refresh_token, true);
       assert.equal(status.boundary_policy.no_access_token, true);
@@ -13086,6 +13944,8 @@ const tests = [
       assert.equal(serialized.includes("secret-refresh-token"), false);
       assert.equal(serialized.includes("Bearer secret-access-token"), false);
       assertOAuthTokenRedactionStatusSafe(status);
+      assertOAuthTokenRedactionStatusSafe(expired);
+      assertOAuthTokenRedactionStatusSafe(missing);
       assert.throws(
         () =>
           assertOAuthTokenRedactionStatusSafe({
@@ -13099,6 +13959,14 @@ const tests = [
           assertOAuthTokenRedactionStatusSafe({
             ...status,
             refresh_token: "secret-refresh-token",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertOAuthTokenRedactionStatusSafe({
+            ...status,
+            oauth_readiness_status: "expired",
           }),
         ContractError
       );
@@ -18796,6 +19664,28 @@ const tests = [
       );
       assertApprovedGameInputActionSafe(approvedKeyValidation.approved_game_input_action);
       assertGameActionValidationSafe(approvedKeyValidation);
+      assert.throws(
+        () =>
+          assertApprovedGameInputActionSafe({
+            ...approvedKeyValidation.approved_game_input_action,
+            parameters: {
+              ...approvedKeyValidation.approved_game_input_action.parameters,
+              os_command: "powershell Start-Process",
+            },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertApprovedGameInputActionSafe({
+            ...approvedKeyValidation.approved_game_input_action,
+            parameters: {
+              ...approvedKeyValidation.approved_game_input_action.parameters,
+              click_payload: { x: 100, y: 100 },
+            },
+          }),
+        ContractError
+      );
 
       const unsupportedKeyValidation = validateGameActionCandidate({
         event: {},
@@ -31515,6 +32405,38 @@ const tests = [
         env,
         generatedAtMs: 1000,
       });
+      const fallbackModeLabel = createPostgresFallbackModeLabel({
+        backend: "json_store",
+      });
+      assert.equal(
+        fallbackModeLabel.schema,
+        "iris_postgres_fallback_mode_label_v1"
+      );
+      assert.equal(fallbackModeLabel.backend_label, "json_local_mvp_fallback");
+      assert.equal(fallbackModeLabel.production_backend_recommended, false);
+      assert.equal(fallbackModeLabel.operator_attention_required, true);
+      assert.equal(
+        fallbackModeLabel.boundary_policy.fallback_not_production_recommendation,
+        true
+      );
+      assertPostgresFallbackModeLabelSafe(fallbackModeLabel);
+      const postgresModeLabel = createPostgresFallbackModeLabel({
+        backend: "postgresql",
+      });
+      assert.equal(
+        postgresModeLabel.backend_label,
+        "postgresql_production_backend"
+      );
+      assert.equal(postgresModeLabel.production_backend_recommended, true);
+      assert.equal(postgresModeLabel.operator_attention_required, false);
+      assert.throws(
+        () =>
+          assertPostgresFallbackModeLabelSafe({
+            ...fallbackModeLabel,
+            production_backend_recommended: true,
+          }),
+        ContractError
+      );
       assert.equal(
         readyPersistencePreflight.schema,
         "iris_persistence_preflight_report_v1"
@@ -33082,6 +34004,148 @@ const tests = [
         false
       );
       assertPostgresPersistenceMigrationPlanSafe(readyPostgresMigrationPlan);
+      const postgresSchemaManifestValidation =
+        createPostgresSchemaManifestSafeValidation({
+          manifest: {
+            table_names: [
+              "viewer_identity_profiles",
+              "relationship_aggregates",
+              "relationship_event_ledger",
+              "approved_memory_summaries",
+              "memory_summary_index",
+              "candidate_review_audit",
+              "operator_audit_trail",
+            ],
+          },
+        });
+      const serializedPostgresSchemaManifestValidation = JSON.stringify(
+        postgresSchemaManifestValidation
+      );
+      assert.equal(postgresSchemaManifestValidation.validation_status, "pass");
+      assert.equal(postgresSchemaManifestValidation.db_connection_attempted, false);
+      assert.equal(postgresSchemaManifestValidation.expected_group_count, 4);
+      assert.equal(postgresSchemaManifestValidation.ready_group_count, 4);
+      assert.equal(postgresSchemaManifestValidation.missing_group_count, 0);
+      assert.equal(
+        postgresSchemaManifestValidation.boundary_policy.manifest_only,
+        true
+      );
+      assert.equal(
+        postgresSchemaManifestValidation.boundary_policy.no_db_connection_attempted,
+        true
+      );
+      assert.equal(
+        serializedPostgresSchemaManifestValidation.includes("postgres://"),
+        false
+      );
+      assert.equal(
+        serializedPostgresSchemaManifestValidation.includes("select "),
+        false
+      );
+      assertPostgresSchemaManifestSafeValidation(
+        postgresSchemaManifestValidation
+      );
+      const missingSchemaManifestValidation =
+        createPostgresSchemaManifestSafeValidation({
+          manifest: { table_names: ["viewer_identity_profiles"] },
+        });
+      assert.equal(
+        missingSchemaManifestValidation.validation_status,
+        "missing_required_schema"
+      );
+      assert.throws(
+        () =>
+          assertPostgresSchemaManifestSafeValidation({
+            ...postgresSchemaManifestValidation,
+            db_connection_attempted: true,
+          }),
+        ContractError
+      );
+      const postgresMigrationPreflightSummary =
+        createPostgresMigrationPreflightSummary({
+          migrations: [
+            { migration_id: "001_viewer_identity_profiles", status: "applied" },
+            { migration_id: "002_relationship_state", status: "pending" },
+            {
+              migration_id: "003_approved_memory_summaries",
+              status: "missing",
+              raw_sql: "select * from private_table",
+            },
+          ],
+        });
+      const serializedPostgresMigrationPreflightSummary = JSON.stringify(
+        postgresMigrationPreflightSummary
+      );
+      assert.equal(postgresMigrationPreflightSummary.preflight_status, "missing");
+      assert.equal(postgresMigrationPreflightSummary.migration_count, 3);
+      assert.equal(postgresMigrationPreflightSummary.applied_count, 1);
+      assert.equal(postgresMigrationPreflightSummary.pending_count, 1);
+      assert.equal(postgresMigrationPreflightSummary.missing_count, 1);
+      assert.equal(
+        postgresMigrationPreflightSummary.boundary_policy
+          .migration_status_counts_only,
+        true
+      );
+      assert.equal(
+        serializedPostgresMigrationPreflightSummary.includes("select *"),
+        false
+      );
+      assert.equal(
+        serializedPostgresMigrationPreflightSummary.includes("private_table"),
+        false
+      );
+      assertPostgresMigrationPreflightSummary(
+        postgresMigrationPreflightSummary
+      );
+      assert.throws(
+        () =>
+          assertPostgresMigrationPreflightSummary({
+            ...postgresMigrationPreflightSummary,
+            raw_sql: "select * from private_table",
+          }),
+        ContractError
+      );
+      const postgresIndexReadinessPrecheck = createPostgresIndexReadinessPrecheck({
+        availableIndexIds: [
+          "idx_viewer_identity_stable_key",
+          "idx_relationship_public_level",
+          "idx_memory_viewer_time",
+          "idx_operator_audit_time",
+          "select * from private_table",
+        ],
+      });
+      const serializedPostgresIndexReadinessPrecheck = JSON.stringify(
+        postgresIndexReadinessPrecheck
+      );
+      assert.equal(
+        postgresIndexReadinessPrecheck.precheck_status,
+        "missing_required_index"
+      );
+      assert.equal(postgresIndexReadinessPrecheck.required_index_count, 18);
+      assert.equal(postgresIndexReadinessPrecheck.ready_index_count, 4);
+      assert.equal(postgresIndexReadinessPrecheck.missing_index_count, 14);
+      assert.equal(
+        postgresIndexReadinessPrecheck.boundary_policy
+          .index_name_and_status_only,
+        true
+      );
+      assert.equal(
+        serializedPostgresIndexReadinessPrecheck.includes("select *"),
+        false
+      );
+      assert.equal(
+        serializedPostgresIndexReadinessPrecheck.includes("private_table"),
+        false
+      );
+      assertPostgresIndexReadinessPrecheck(postgresIndexReadinessPrecheck);
+      assert.throws(
+        () =>
+          assertPostgresIndexReadinessPrecheck({
+            ...postgresIndexReadinessPrecheck,
+            query: "select * from private_table",
+          }),
+        ContractError
+      );
       assert.throws(
         () =>
           assertPostgresPersistenceMigrationPlanSafe({
@@ -54662,6 +55726,38 @@ const tests = [
     },
   ],
   [
+    "bridge packet timestamp guard marks stale packets runtime waiting",
+    () => {
+      const stale = classifyBridgePacketTimestampReadiness(
+        { created_at_ms: 1000, raw_payload: { text: "must not surface" } },
+        { nowMs: 2000, maxPacketAgeMs: 500 }
+      );
+      const fresh = classifyBridgePacketTimestampReadiness(
+        { created_at_ms: 1800 },
+        { nowMs: 2000, maxPacketAgeMs: 500 }
+      );
+      const serialized = JSON.stringify(stale);
+
+      assert.equal(stale.packet_timestamp_status, "stale");
+      assert.equal(stale.readiness_state, "runtime_waiting");
+      assert.equal(stale.ready, false);
+      assert.equal(stale.boundary_policy.stale_packet_not_ready, true);
+      assert.equal(serialized.includes("must not surface"), false);
+      assert.equal(fresh.packet_timestamp_status, "fresh");
+      assert.equal(fresh.readiness_state, "ready");
+      assert.equal(fresh.ready, true);
+      assertBridgePacketTimestampReadinessSafe(stale);
+      assert.throws(
+        () =>
+          assertBridgePacketTimestampReadinessSafe({
+            ...stale,
+            ready: true,
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
     "local bridge engine worker expires stale outbox jobs before engine calls",
     async () => {
       const tempDir = mkdtempSync(join(tmpdir(), "iris-local-engine-stale-job-"));
@@ -56016,6 +57112,45 @@ const tests = [
     },
   ],
   [
+    "bridge heartbeat safe status exposes only last seen status and age bucket",
+    () => {
+      const connected = createBridgeHeartbeatSafeStatus({
+        lastSeenMs: 10_000,
+        nowMs: 11_000,
+        staleAfterMs: 5_000,
+      });
+      const stale = createBridgeHeartbeatSafeStatus({
+        lastSeenMs: 1_000,
+        nowMs: 11_000,
+        staleAfterMs: 5_000,
+        raw_bridge_payload: { token: "unsafe" },
+      });
+      const missing = createBridgeHeartbeatSafeStatus({
+        lastSeenMs: null,
+        nowMs: 11_000,
+      });
+      const serialized = JSON.stringify(stale);
+
+      assert.equal(connected.status, "connected");
+      assert.equal(connected.age_bucket, "fresh");
+      assert.equal(stale.status, "stale");
+      assert.equal(stale.age_bucket, "stale");
+      assert.equal(missing.status, "missing");
+      assert.equal(missing.age_bucket, "missing");
+      assert.equal(serialized.includes("unsafe"), false);
+      assert.equal(serialized.includes('"raw_bridge_payload"'), false);
+      assertBridgeHeartbeatSafeStatus(connected);
+      assert.throws(
+        () =>
+          assertBridgeHeartbeatSafeStatus({
+            ...connected,
+            raw_bridge_payload: { token: "unsafe" },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
     "local bridge worker CLI hides local paths by default",
     async () => {
       const tempDir = mkdtempSync(join(tmpdir(), "iris-local-worker-cli-"));
@@ -56445,6 +57580,385 @@ const tests = [
     },
   ],
   [
+    "TTS adapter source status fallback hides unverified real voice values",
+    () => {
+      const unverified = createTtsAdapterSourceStatusFallback({
+        sourceVerified: false,
+        sourceStatus: "licensed",
+        voice: "real-voice-id",
+        token: "secret-token",
+      });
+      const verifiedPlaceholder = createTtsAdapterSourceStatusFallback({
+        sourceVerified: true,
+        sourceStatus: "placeholder",
+      });
+      const serialized = JSON.stringify(unverified);
+
+      assert.equal(unverified.source_verified, false);
+      assert.equal(unverified.safe_source_status, "operator_attention_required");
+      assert.equal(unverified.handoff_status, "operator_attention_required");
+      assert.equal(verifiedPlaceholder.safe_source_status, "placeholder");
+      assert.equal(verifiedPlaceholder.handoff_status, "placeholder_handoff");
+      assert.equal(serialized.includes("real-voice-id"), false);
+      assert.equal(serialized.includes("secret-token"), false);
+      assertTtsAdapterSourceStatusFallback(unverified);
+      assert.throws(
+        () =>
+          assertTtsAdapterSourceStatusFallback({
+            ...unverified,
+            safe_source_status: "licensed",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertTtsAdapterSourceStatusFallback({
+            ...unverified,
+            voice: "real-voice-id",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "TTS unsupported voice model locale returns summary-only safe error",
+    () => {
+      const summary = createTtsUnsupportedVoiceSafeError({
+        voice: "unsafe-voice",
+        model: "unsafe-model",
+        locale: "xx-UNSUPPORTED",
+        raw_vendor_diagnostics: "raw vendor diagnostics token=unsafe",
+      });
+      const serialized = JSON.stringify(summary);
+
+      assert.equal(summary.adapter_kind, "tts");
+      assert.equal(summary.error_status, "summary_only_error");
+      assert.equal(summary.safe_code, "unsupported_voice_model_locale");
+      assert.equal(summary.summary_only, true);
+      assert.equal(summary.boundary_policy.no_raw_vendor_diagnostics, true);
+      assert.equal(serialized.includes("unsafe-voice"), false);
+      assert.equal(serialized.includes("unsafe-model"), false);
+      assert.equal(serialized.includes("xx-UNSUPPORTED"), false);
+      assert.equal(serialized.includes("raw vendor diagnostics"), false);
+      assert.equal(serialized.includes("token=unsafe"), false);
+      assertTtsUnsupportedVoiceSafeError(summary);
+      assert.throws(
+        () =>
+          assertTtsUnsupportedVoiceSafeError({
+            ...summary,
+            raw_vendor_diagnostics: "raw vendor diagnostics",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "adapter error safe summary exposes only component status and safe code",
+    () => {
+      const summary = createAdapterErrorSafeSummary({
+        component: "tts_adapter",
+        status: "degraded",
+        safeCode: "http_status",
+      });
+      const unsafeSummary = createAdapterErrorSafeSummary({
+        component: "http://127.0.0.1:9000/tts",
+        status: "token=secret",
+        safeCode: "raw_response",
+      });
+
+      assert.equal(summary.component, "tts_adapter");
+      assert.equal(summary.status, "degraded");
+      assert.equal(summary.safe_code, "http_status");
+      assert.equal(summary.boundary_policy.component_status_safe_code_only, true);
+      assert.equal(summary.boundary_policy.no_endpoint_values, true);
+      assert.equal(summary.boundary_policy.no_tokens, true);
+      assert.equal(summary.boundary_policy.no_raw_commands, true);
+      assert.equal(summary.boundary_policy.no_raw_responses, true);
+      assert.equal(unsafeSummary.component, "adapter");
+      assert.equal(unsafeSummary.status, "error");
+      assert.equal(unsafeSummary.safe_code, "adapter_error");
+      assertAdapterErrorSafeSummary(summary);
+      assert.throws(
+        () =>
+          assertAdapterErrorSafeSummary({
+            ...summary,
+            endpoint: "http://127.0.0.1:9000/tts",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertAdapterErrorSafeSummary({
+            ...summary,
+            raw_command: { execute: "unsafe" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertAdapterErrorSafeSummary({
+            ...summary,
+            raw_response: "raw response body",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "adapter world command output boundary rejects core and public exposure",
+    () => {
+      assertAdapterWorldCommandOutputBoundary({
+        schema: "iris_adapter_world_command_output_v1",
+        adapter_kind: "live2d",
+        adapter_transform_completed: true,
+        world_command: { kind: "motion_cue", motion_style: "talk" },
+      });
+      assert.throws(
+        () =>
+          assertAdapterWorldCommandOutputBoundary({
+            schema: "iris_core_export_v1",
+            core_export: true,
+            world_command: { kind: "unsafe_core_command" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertAdapterWorldCommandOutputBoundary({
+            schema: "iris_public_summary_v1",
+            public_summary: true,
+            world_command: { kind: "unsafe_public_command" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertAdapterWorldCommandOutputBoundary({
+            schema: "iris_adapter_world_command_output_v1",
+            adapter_transform_completed: true,
+            public_summary: true,
+            world_command: { kind: "unsafe_public_adapter_command" },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "adapter action envelope guard rejects upstream reaction context and task candidates",
+    () => {
+      const approvedActionEnvelope = {
+        trace_id: "trace",
+        event_id: "event",
+        action_type: "SPEAK",
+        target_presence_id: "iris",
+        tone: "calm",
+        emotion: "neutral",
+        character_tag: "iris",
+      };
+
+      assertApprovedActionEnvelopeForAdapter(approvedActionEnvelope);
+      assert.throws(
+        () =>
+          assertApprovedActionEnvelopeForAdapter({
+            ...approvedActionEnvelope,
+            reaction: { intent: "respond" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertApprovedActionEnvelopeForAdapter({
+            ...approvedActionEnvelope,
+            nested: { context: { conversation_state: "engaged" } },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertApprovedActionEnvelopeForAdapter({
+            ...approvedActionEnvelope,
+            taskCandidate: { task_type: "unsafe_direct_task" },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "adapter packet common sanitizer removes unsafe adapter fields",
+    () => {
+      const sanitized = sanitizeAdapterPacketCommonFields({
+        schema: "iris_adapter_packet_v1",
+        adapter_kind: "tts",
+        safe_status: "configured",
+        world_command: { command: "unsafe" },
+        secret: "secret-value",
+        token: "token-value",
+        raw_payload: { body: "unsafe" },
+        candidate: { action: "unsafe" },
+        commit: { memory: "unsafe" },
+        nested: {
+          safe_label: "ok",
+          worldCommand: { command: "unsafe" },
+          candidatePayload: { payload: "unsafe" },
+          memoryCommit: { text: "unsafe" },
+          apiToken: "token-value",
+          rawPayload: { body: "unsafe" },
+        },
+      });
+      const serialized = JSON.stringify(sanitized);
+
+      assert.equal(sanitized.safe_status, "configured");
+      assert.deepEqual(sanitized.nested, { safe_label: "ok" });
+      assert.equal(serialized.includes("world_command"), false);
+      assert.equal(serialized.includes("worldCommand"), false);
+      assert.equal(serialized.includes("secret-value"), false);
+      assert.equal(serialized.includes("token-value"), false);
+      assert.equal(serialized.includes("raw_payload"), false);
+      assert.equal(serialized.includes("rawPayload"), false);
+      assert.equal(serialized.includes("candidate"), false);
+      assert.equal(serialized.includes("commit"), false);
+    },
+  ],
+  [
+    "Live2D adapter cue guidance allowlist removes commands and raw renderer payloads",
+    () => {
+      const sanitized = sanitizeLive2dAdapterCueGuidance({
+        expression_guidance: "soft_smile",
+        gaze_guidance: { target: "camera" },
+        breath_guidance: "calm",
+        motion_guidance: { style: "talk" },
+        obs_command: { scene: "unsafe" },
+        world_command: { command: "unsafe" },
+        raw_renderer_payload: { body: "unsafe" },
+        rendererPayload: { body: "unsafe" },
+        endpoint: "https://renderer.example/internal",
+      });
+      const serialized = JSON.stringify(sanitized);
+
+      assert.deepEqual(Object.keys(sanitized).sort(), [
+        "breath_guidance",
+        "expression_guidance",
+        "gaze_guidance",
+        "motion_guidance",
+      ]);
+      assertLive2dAdapterCueGuidanceSafe(sanitized);
+      assert.equal(serialized.includes("obs_command"), false);
+      assert.equal(serialized.includes("world_command"), false);
+      assert.equal(serialized.includes("raw_renderer_payload"), false);
+      assert.equal(serialized.includes("rendererPayload"), false);
+      assert.equal(serialized.includes("https://renderer.example/internal"), false);
+      assert.throws(
+        () =>
+          assertLive2dAdapterCueGuidanceSafe({
+            expression_guidance: "soft_smile",
+            raw_renderer_payload: { body: "unsafe" },
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "Live2D status redacts model paths motion paths and renderer endpoints",
+    () => {
+      const status = createLive2dCueEngineBridgeHealth({
+        rendererEndpoint: "http://127.0.0.1:9123/live2d-engine",
+        rendererHealthEndpoint: "http://127.0.0.1:9123/health",
+        rendererApiKey: "secret-live2d-key",
+        defaultModelId: "C:/private/model.model3.json",
+        defaultSceneId: "C:/private/motion.motion3.json",
+        healthCheck: { performed: true, reachable: true },
+      });
+      const serialized = JSON.stringify(status);
+
+      assertLive2dBridgePublicSafe(status);
+      assert.equal(status.configured.model, true);
+      assert.equal(status.configured.scene, true);
+      assert.equal(serialized.includes("http://127.0.0.1:9123"), false);
+      assert.equal(serialized.includes("secret-live2d-key"), false);
+      assert.equal(serialized.includes("model.model3.json"), false);
+      assert.equal(serialized.includes("motion.motion3.json"), false);
+      assert.throws(
+        () =>
+          assertLive2dBridgePublicSafe({
+            ...status,
+            renderer_endpoint: "http://127.0.0.1:9123/live2d-engine",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLive2dBridgePublicSafe({
+            ...status,
+            model_path: "C:/private/model.model3.json",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLive2dBridgePublicSafe({
+            ...status,
+            raw_motion_path: "C:/private/motion.motion3.json",
+          }),
+        ContractError
+      );
+    },
+  ],
+  [
+    "Live2D closeup laugh and scream cues require recovery plan",
+    () => {
+      const basePacket = {
+        schema: "iris_adapter_packet_v1",
+        adapter_kind: "live2d",
+        action_type: "SPEAK",
+        motion_cue: {
+          schema: "iris_motion_cue_v1",
+          motion_style: "laugh_big",
+          adapter_validation_required: true,
+        },
+        performance_plan: {
+          schema: "iris_performance_plan_v1",
+          total_duration_ms: 1000,
+          sync_mode: "tts_leads_live2d",
+          tracks: { speech: [], mouth: [], breath: [], expression: [], motion: [] },
+          adapter_validation_required: true,
+        },
+        adapter_validation_required: true,
+      };
+
+      assert.throws(() => assertLive2dRecoveryCueRequired(basePacket), ContractError);
+      assert.throws(
+        () =>
+          assertLive2dRecoveryCueRequired({
+            ...basePacket,
+            motion_cue: { ...basePacket.motion_cue, motion_style: "surprise_scream" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          assertLive2dRecoveryCueRequired({
+            ...basePacket,
+            motion_cue: { ...basePacket.motion_cue, motion_style: "talk" },
+            camera_proximity: {
+              proximity_level: "extreme_closeup",
+              camera_proximity_profile: "camera_face_extreme_closeup",
+            },
+          }),
+        ContractError
+      );
+      assertLive2dRecoveryCueRequired({
+        ...basePacket,
+        affective_continuity: {
+          breath_recovery_plan: { required: true },
+        },
+      });
+      assertLive2dRecoveryCueRequired({
+        ...basePacket,
+        motion_cue: { ...basePacket.motion_cue, motion_style: "talk" },
+      });
+    },
+  ],
+  [
     "adapter packets reject command field injection",
     async () => {
       const finalOutput = {
@@ -56731,6 +58245,39 @@ const tests = [
           adapter_validation_required: true,
         },
       });
+      assert.deepEqual(Object.keys(subtitlePacket).sort(), [
+        "adapter_kind",
+        "adapter_validation_required",
+        "boundary_policy",
+        "display_end_ms",
+        "display_start_ms",
+        "event_id",
+        "event_id_present",
+        "line_break_plan",
+        "safe_area_policy",
+        "schema",
+        "subtitle_language",
+        "subtitle_text",
+        "trace_id",
+        "trace_id_present",
+      ]);
+      assert.equal(subtitlePacket.boundary_policy.subtitle_display_guidance_only, true);
+      assert.equal(subtitlePacket.boundary_policy.no_memory_ids, true);
+      assert.equal(subtitlePacket.boundary_policy.no_candidates, true);
+      assert.equal(subtitlePacket.boundary_policy.no_commands, true);
+      assert.equal(JSON.stringify(subtitlePacket).includes("selected_memory_ids"), false);
+      assert.equal(JSON.stringify(subtitlePacket).includes('"candidate":'), false);
+      assert.equal(JSON.stringify(subtitlePacket).includes("world_command"), false);
+      assert.equal(JSON.stringify(subtitlePacket).includes("obs_command"), false);
+      assertAdapterPacketSafe(subtitlePacket);
+      assert.throws(
+        () =>
+          assertAdapterPacketSafe({
+            ...subtitlePacket,
+            adapter_guidance: { schema: "iris_subtitle_adapter_guidance_v1" },
+          }),
+        ContractError
+      );
       subtitlePacket.line_break_plan[0].execute = "unsafe";
       assert.throws(() => assertAdapterPacketSafe(subtitlePacket), ContractError);
     },
@@ -59873,6 +61420,47 @@ const tests = [
       assert.equal(serializedSensitiveSubtitleEvent.includes("http://127.0.0.1"), false);
       assert.equal(serializedSensitiveSubtitleEvent.includes("https://example.com"), false);
       assertOverlayDisplayEventSafe(sensitiveSubtitleEvent);
+      const pickupPacket = createOverlayPickupPacket(
+        {
+          ...displayEvent,
+          endpoint: "https://overlay.example/private",
+          token: "unsafe-token",
+          raw_overlay_event: { subtitle_text: "unsafe raw event" },
+          input_action_candidate: { action: "jump" },
+          command: "SetCurrentProgramScene",
+        },
+        { nowMs: state.updated_at_ms + 140 }
+      );
+      const serializedPickupPacket = JSON.stringify(pickupPacket);
+      assert.equal(pickupPacket.schema, "iris_overlay_pickup_packet_v1");
+      assert.equal(pickupPacket.boundary_policy.sanitized_overlay_pickup_only, true);
+      assert.equal(Object.hasOwn(pickupPacket, "endpoint"), false);
+      assert.equal(Object.hasOwn(pickupPacket, "token"), false);
+      assert.equal(Object.hasOwn(pickupPacket, "raw_overlay_event"), false);
+      assert.equal(Object.hasOwn(pickupPacket, "input_action_candidate"), false);
+      assert.equal(Object.hasOwn(pickupPacket, "command"), false);
+      assert.equal(serializedPickupPacket.includes("https://overlay.example"), false);
+      assert.equal(serializedPickupPacket.includes("unsafe-token"), false);
+      assert.equal(serializedPickupPacket.includes("SetCurrentProgramScene"), false);
+      assertOverlayPickupPacketSafe(pickupPacket);
+      assert.throws(() => assertOverlayPickupPacketSafe({ ...pickupPacket, endpoint: "https://overlay.example/private" }), ContractError);
+      assert.throws(() => assertOverlayPickupPacketSafe({ ...pickupPacket, token: "unsafe-token" }), ContractError);
+      assert.throws(() => assertOverlayPickupPacketSafe({ ...pickupPacket, raw_overlay_event: {} }), ContractError);
+      assert.throws(() => assertOverlayPickupPacketSafe({ ...pickupPacket, command: "SetCurrentProgramScene" }), ContractError);
+      const stalePickupPacket = createOverlayPickupPacket(
+        {
+          ...displayEvent,
+          health: "stale",
+        },
+        { nowMs: state.updated_at_ms + 150 }
+      );
+      assert.equal(stalePickupPacket.packet_status, "runtime_waiting");
+      assert.equal(stalePickupPacket.health, "stale");
+      assertOverlayPickupPacketSafe(stalePickupPacket);
+      assert.throws(
+        () => assertOverlayPickupPacketSafe({ ...stalePickupPacket, packet_status: "ready" }),
+        ContractError
+      );
       assert.throws(
         () =>
           assertOverlayDisplayEventSafe({
@@ -60759,7 +62347,9 @@ const tests = [
 
         assert.equal(received.schema, "iris_obs_bridge_setup_request_v1");
         assert.equal(received.operator_setup_only, true);
+        assert.equal(received.confirmation_required, true);
         assert.equal(received.boundary_policy.not_runtime_expression_command, true);
+        assert.equal(received.boundary_policy.explicit_confirmation_required, true);
         assert.equal(
           received.obs_browser_source.browser_source_url,
           "http://127.0.0.1:8787/overlay"
@@ -60801,6 +62391,7 @@ const tests = [
         );
         assert.equal(report.schema, "iris_obs_bridge_setup_report_v1");
         assert.equal(report.bridge_status, "configured");
+        assert.equal(report.confirmation_required, true);
         assert.equal(report.configured, true);
         assert.equal(report.scene_configured, true);
         assert.equal(report.source_dimensions.width, 1920);
@@ -60827,6 +62418,14 @@ const tests = [
           () =>
             assertObsBridgeSetupRequestSafe({
               ...received,
+              confirmation_required: false,
+            }),
+          ContractError
+        );
+        assert.throws(
+          () =>
+            assertObsBridgeSetupRequestSafe({
+              ...received,
               adapter_validation_required: false,
             }),
           ContractError
@@ -60836,6 +62435,14 @@ const tests = [
             assertObsBridgeSetupReportSafe({
               ...report,
               configured: false,
+            }),
+          ContractError
+        );
+        assert.throws(
+          () =>
+            assertObsBridgeSetupReportSafe({
+              ...report,
+              confirmation_required: false,
             }),
           ContractError
         );

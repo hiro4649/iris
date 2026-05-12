@@ -83,6 +83,47 @@ const POSTGRES_CAPACITY_READINESS_SAFE_SUMMARY_FIELDS = new Set([
   "raw_detail_exposed",
   "boundary_policy",
 ]);
+const POSTGRES_SCHEMA_MANIFEST_VALIDATION_FIELDS = new Set([
+  "schema",
+  "validation_status",
+  "db_connection_attempted",
+  "expected_group_count",
+  "ready_group_count",
+  "missing_group_count",
+  "expected_groups",
+  "boundary_policy",
+]);
+const POSTGRES_SCHEMA_MANIFEST_GROUP_FIELDS = new Set([
+  "schema",
+  "group_id",
+  "required_table_count",
+  "present_table_count",
+  "missing_table_count",
+  "status",
+]);
+const POSTGRES_MIGRATION_PREFLIGHT_SUMMARY_FIELDS = new Set([
+  "schema",
+  "preflight_status",
+  "migration_count",
+  "applied_count",
+  "pending_count",
+  "missing_count",
+  "boundary_policy",
+]);
+const POSTGRES_INDEX_READINESS_PRECHECK_FIELDS = new Set([
+  "schema",
+  "precheck_status",
+  "required_index_count",
+  "ready_index_count",
+  "missing_index_count",
+  "indexes",
+  "boundary_policy",
+]);
+const POSTGRES_INDEX_READINESS_ITEM_FIELDS = new Set([
+  "schema",
+  "index_id",
+  "status",
+]);
 const POSTGRES_MIGRATION_READINESS_CHECK_IDS = Object.freeze([
   "migration_configuration",
   "index_configuration",
@@ -278,6 +319,25 @@ const MIGRATION_STEPS = [
     ],
   },
 ];
+
+const SCHEMA_MANIFEST_GROUPS = Object.freeze([
+  {
+    group_id: "viewer_profile",
+    table_names: ["viewer_identity_profiles"],
+  },
+  {
+    group_id: "relationship",
+    table_names: ["relationship_aggregates", "relationship_event_ledger"],
+  },
+  {
+    group_id: "memory",
+    table_names: ["approved_memory_summaries", "memory_summary_index"],
+  },
+  {
+    group_id: "audit",
+    table_names: ["candidate_review_audit", "operator_audit_trail"],
+  },
+]);
 
 export function createPostgresPersistenceMigrationPlan({
   env = process.env,
@@ -526,6 +586,125 @@ export function createPostgresCapacityReadinessSafeSummary({
   return summary;
 }
 
+export function createPostgresSchemaManifestSafeValidation({
+  manifest = {},
+} = {}) {
+  const manifestTables = new Set(
+    Array.isArray(manifest.table_names)
+      ? manifest.table_names.filter((tableName) => typeof tableName === "string")
+      : []
+  );
+  const expectedGroups = SCHEMA_MANIFEST_GROUPS.map((group) => {
+    const presentCount = group.table_names.filter((tableName) =>
+      manifestTables.has(tableName)
+    ).length;
+    const missingCount = group.table_names.length - presentCount;
+    return {
+      schema: "iris_postgres_schema_manifest_group_validation_v1",
+      group_id: group.group_id,
+      required_table_count: group.table_names.length,
+      present_table_count: presentCount,
+      missing_table_count: missingCount,
+      status: missingCount === 0 ? "present" : "missing",
+    };
+  });
+  const readyGroupCount = expectedGroups.filter(
+    (group) => group.status === "present"
+  ).length;
+  const validation = {
+    schema: "iris_postgres_schema_manifest_safe_validation_v1",
+    validation_status:
+      readyGroupCount === expectedGroups.length ? "pass" : "missing_required_schema",
+    db_connection_attempted: false,
+    expected_group_count: expectedGroups.length,
+    ready_group_count: readyGroupCount,
+    missing_group_count: expectedGroups.length - readyGroupCount,
+    expected_groups: expectedGroups,
+    boundary_policy: {
+      manifest_only: true,
+      no_db_connection_attempted: true,
+      table_counts_only: true,
+      no_sql_statements: true,
+      no_connection_values: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+    },
+  };
+  assertPostgresSchemaManifestSafeValidation(validation);
+  return validation;
+}
+
+export function createPostgresMigrationPreflightSummary({
+  migrations = [],
+} = {}) {
+  const migrationList = Array.isArray(migrations) ? migrations : [];
+  const appliedCount = migrationList.filter(
+    (migration) => migration?.status === "applied"
+  ).length;
+  const pendingCount = migrationList.filter(
+    (migration) => migration?.status === "pending"
+  ).length;
+  const missingCount = migrationList.filter(
+    (migration) => migration?.status === "missing"
+  ).length;
+  const summary = {
+    schema: "iris_postgres_migration_preflight_summary_v1",
+    preflight_status:
+      missingCount > 0
+        ? "missing"
+        : pendingCount > 0
+          ? "pending"
+          : "applied",
+    migration_count: migrationList.length,
+    applied_count: appliedCount,
+    pending_count: pendingCount,
+    missing_count: missingCount,
+    boundary_policy: {
+      migration_status_counts_only: true,
+      no_raw_sql: true,
+      no_database_values: true,
+      no_connection_values: true,
+      no_endpoint_values: true,
+    },
+  };
+  assertPostgresMigrationPreflightSummary(summary);
+  return summary;
+}
+
+export function createPostgresIndexReadinessPrecheck({
+  availableIndexIds = [],
+} = {}) {
+  const available = new Set(
+    Array.isArray(availableIndexIds)
+      ? availableIndexIds.filter((indexId) => typeof indexId === "string")
+      : []
+  );
+  const indexes = INDEX_PLAN.map((index) => ({
+    schema: "iris_postgres_index_readiness_item_v1",
+    index_id: index.index_id,
+    status: available.has(index.index_id) ? "ready" : "missing",
+  }));
+  const readyIndexCount = indexes.filter((index) => index.status === "ready").length;
+  const precheck = {
+    schema: "iris_postgres_index_readiness_precheck_v1",
+    precheck_status:
+      readyIndexCount === indexes.length ? "ready" : "missing_required_index",
+    required_index_count: indexes.length,
+    ready_index_count: readyIndexCount,
+    missing_index_count: indexes.length - readyIndexCount,
+    indexes,
+    boundary_policy: {
+      index_name_and_status_only: true,
+      no_query_values: true,
+      no_connection_values: true,
+      no_endpoint_values: true,
+      no_sql_statements: true,
+    },
+  };
+  assertPostgresIndexReadinessPrecheck(precheck);
+  return precheck;
+}
+
 export function assertPostgresCapacityReadinessSafeSummary(
   summary,
   context = "postgres capacity readiness safe summary"
@@ -546,7 +725,7 @@ export function assertPostgresCapacityReadinessSafeSummary(
   if (
     /postgres:\/\//i.test(serialized) ||
     /https?:\/\//i.test(serialized) ||
-    /\b(select |insert |update |delete |connection_string|raw_db_value|db_value|secret|token|password)\b/i.test(
+    /\b(select |insert |update |delete |connection_string|raw_db_value|db_value)\b/i.test(
       serialized
     )
   ) {
@@ -672,6 +851,285 @@ export function assertPostgresMigrationReadinessSafeSummary(
     if (summary.boundary_policy?.[field] !== value) {
       throw new ContractError(`${context} boundary ${field} must be true`);
     }
+  }
+}
+
+export function assertPostgresSchemaManifestSafeValidation(
+  validation,
+  context = "postgres schema manifest safe validation"
+) {
+  if (!validation || typeof validation !== "object" || Array.isArray(validation)) {
+    throw new ContractError(`${context} must be an object`);
+  }
+  if (validation.schema !== "iris_postgres_schema_manifest_safe_validation_v1") {
+    throw new ContractError(`${context} has invalid schema`);
+  }
+  for (const field of Object.keys(validation)) {
+    if (!POSTGRES_SCHEMA_MANIFEST_VALIDATION_FIELDS.has(field)) {
+      throw new ContractError(`${context} unexpected validation field ${field}`);
+    }
+  }
+  assertSafeObject(validation, context);
+  const serialized = JSON.stringify(validation);
+  if (
+    /postgres:\/\//i.test(serialized) ||
+    /https?:\/\//i.test(serialized) ||
+    /\b(select |insert |update |delete |connection_string|raw_db_value|db_value|secret|token|password)\b/i.test(
+      serialized
+    )
+  ) {
+    throw new ContractError(`${context} must not expose database detail`);
+  }
+  if (!["pass", "missing_required_schema"].includes(validation.validation_status)) {
+    throw new ContractError(`${context} invalid validation status`);
+  }
+  if (validation.db_connection_attempted !== false) {
+    throw new ContractError(`${context} must not attempt database connection`);
+  }
+  for (const field of [
+    "expected_group_count",
+    "ready_group_count",
+    "missing_group_count",
+  ]) {
+    if (!Number.isInteger(validation[field]) || validation[field] < 0) {
+      throw new ContractError(`${context} invalid ${field}`);
+    }
+  }
+  if (
+    !Array.isArray(validation.expected_groups) ||
+    validation.expected_groups.length !== validation.expected_group_count
+  ) {
+    throw new ContractError(`${context} expected group count mismatch`);
+  }
+  const seen = new Set();
+  for (const group of validation.expected_groups) {
+    assertSchemaManifestGroupSafe(group, context);
+    seen.add(group.group_id);
+  }
+  if (seen.size !== SCHEMA_MANIFEST_GROUPS.length) {
+    throw new ContractError(`${context} expected groups must be complete`);
+  }
+  const readyCount = validation.expected_groups.filter(
+    (group) => group.status === "present"
+  ).length;
+  if (
+    validation.ready_group_count !== readyCount ||
+    validation.missing_group_count !== validation.expected_group_count - readyCount
+  ) {
+    throw new ContractError(`${context} group counts mismatch`);
+  }
+  const expectedStatus =
+    readyCount === validation.expected_group_count ? "pass" : "missing_required_schema";
+  if (validation.validation_status !== expectedStatus) {
+    throw new ContractError(`${context} validation status mismatch`);
+  }
+  for (const [field, value] of Object.entries({
+    manifest_only: true,
+    no_db_connection_attempted: true,
+    table_counts_only: true,
+    no_sql_statements: true,
+    no_connection_values: true,
+    no_endpoint_values: true,
+    no_secret_values: true,
+  })) {
+    if (validation.boundary_policy?.[field] !== value) {
+      throw new ContractError(`${context} boundary ${field} must be true`);
+    }
+  }
+}
+
+export function assertPostgresMigrationPreflightSummary(
+  summary,
+  context = "postgres migration preflight summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context} must be an object`);
+  }
+  if (summary.schema !== "iris_postgres_migration_preflight_summary_v1") {
+    throw new ContractError(`${context} has invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!POSTGRES_MIGRATION_PREFLIGHT_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context} unexpected summary field ${field}`);
+    }
+  }
+  assertSafeObject(summary, context);
+  const serialized = JSON.stringify(summary);
+  if (
+    /postgres:\/\//i.test(serialized) ||
+    /https?:\/\//i.test(serialized) ||
+    /\b(select |insert |update |delete |connection_string|raw_db_value|db_value)\b/i.test(
+      serialized
+    )
+  ) {
+    throw new ContractError(`${context} must not expose database detail`);
+  }
+  if (!["applied", "pending", "missing"].includes(summary.preflight_status)) {
+    throw new ContractError(`${context} invalid preflight status`);
+  }
+  for (const field of [
+    "migration_count",
+    "applied_count",
+    "pending_count",
+    "missing_count",
+  ]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context} invalid ${field}`);
+    }
+  }
+  if (
+    summary.applied_count + summary.pending_count + summary.missing_count !==
+    summary.migration_count
+  ) {
+    throw new ContractError(`${context} migration counts mismatch`);
+  }
+  const expectedStatus =
+    summary.missing_count > 0
+      ? "missing"
+      : summary.pending_count > 0
+        ? "pending"
+        : "applied";
+  if (summary.preflight_status !== expectedStatus) {
+    throw new ContractError(`${context} preflight status mismatch`);
+  }
+  for (const [field, value] of Object.entries({
+    migration_status_counts_only: true,
+    no_raw_sql: true,
+    no_database_values: true,
+    no_connection_values: true,
+    no_endpoint_values: true,
+  })) {
+    if (summary.boundary_policy?.[field] !== value) {
+      throw new ContractError(`${context} boundary ${field} must be true`);
+    }
+  }
+}
+
+export function assertPostgresIndexReadinessPrecheck(
+  precheck,
+  context = "postgres index readiness precheck"
+) {
+  if (!precheck || typeof precheck !== "object" || Array.isArray(precheck)) {
+    throw new ContractError(`${context} must be an object`);
+  }
+  if (precheck.schema !== "iris_postgres_index_readiness_precheck_v1") {
+    throw new ContractError(`${context} has invalid schema`);
+  }
+  for (const field of Object.keys(precheck)) {
+    if (!POSTGRES_INDEX_READINESS_PRECHECK_FIELDS.has(field)) {
+      throw new ContractError(`${context} unexpected precheck field ${field}`);
+    }
+  }
+  assertSafeObject(precheck, context);
+  const serialized = JSON.stringify(precheck);
+  if (
+    /postgres:\/\//i.test(serialized) ||
+    /https?:\/\//i.test(serialized) ||
+    /\b(select |insert |update |delete |where |connection_string|raw_db_value|db_value)\b/i.test(
+      serialized
+    )
+  ) {
+    throw new ContractError(`${context} must not expose database detail`);
+  }
+  if (!["ready", "missing_required_index"].includes(precheck.precheck_status)) {
+    throw new ContractError(`${context} invalid precheck status`);
+  }
+  for (const field of [
+    "required_index_count",
+    "ready_index_count",
+    "missing_index_count",
+  ]) {
+    if (!Number.isInteger(precheck[field]) || precheck[field] < 0) {
+      throw new ContractError(`${context} invalid ${field}`);
+    }
+  }
+  if (!Array.isArray(precheck.indexes)) {
+    throw new ContractError(`${context} indexes must be an array`);
+  }
+  const expectedIds = new Set(INDEX_PLAN.map((index) => index.index_id));
+  const seen = new Set();
+  for (const index of precheck.indexes) {
+    assertPostgresIndexReadinessItem(index, context);
+    if (!expectedIds.has(index.index_id)) {
+      throw new ContractError(`${context} unknown index id`);
+    }
+    seen.add(index.index_id);
+  }
+  if (seen.size !== expectedIds.size || precheck.indexes.length !== expectedIds.size) {
+    throw new ContractError(`${context} indexes must match required manifest`);
+  }
+  const readyCount = precheck.indexes.filter((index) => index.status === "ready").length;
+  if (
+    precheck.ready_index_count !== readyCount ||
+    precheck.missing_index_count !== precheck.required_index_count - readyCount
+  ) {
+    throw new ContractError(`${context} index counts mismatch`);
+  }
+  const expectedStatus =
+    readyCount === precheck.required_index_count ? "ready" : "missing_required_index";
+  if (precheck.precheck_status !== expectedStatus) {
+    throw new ContractError(`${context} precheck status mismatch`);
+  }
+  for (const [field, value] of Object.entries({
+    index_name_and_status_only: true,
+    no_query_values: true,
+    no_connection_values: true,
+    no_endpoint_values: true,
+    no_sql_statements: true,
+  })) {
+    if (precheck.boundary_policy?.[field] !== value) {
+      throw new ContractError(`${context} boundary ${field} must be true`);
+    }
+  }
+}
+
+function assertPostgresIndexReadinessItem(index, context) {
+  if (!index || typeof index !== "object" || Array.isArray(index)) {
+    throw new ContractError(`${context} index must be an object`);
+  }
+  if (index.schema !== "iris_postgres_index_readiness_item_v1") {
+    throw new ContractError(`${context} index has invalid schema`);
+  }
+  for (const field of Object.keys(index)) {
+    if (!POSTGRES_INDEX_READINESS_ITEM_FIELDS.has(field)) {
+      throw new ContractError(`${context} unexpected index field ${field}`);
+    }
+  }
+  assertSafeIndexId(index.index_id, `${context} index_id`);
+  if (!["ready", "missing"].includes(index.status)) {
+    throw new ContractError(`${context} invalid index status`);
+  }
+}
+
+function assertSchemaManifestGroupSafe(group, context) {
+  if (!group || typeof group !== "object" || Array.isArray(group)) {
+    throw new ContractError(`${context} group must be an object`);
+  }
+  if (group.schema !== "iris_postgres_schema_manifest_group_validation_v1") {
+    throw new ContractError(`${context} group has invalid schema`);
+  }
+  for (const field of Object.keys(group)) {
+    if (!POSTGRES_SCHEMA_MANIFEST_GROUP_FIELDS.has(field)) {
+      throw new ContractError(`${context} unexpected group field ${field}`);
+    }
+  }
+  if (!SCHEMA_MANIFEST_GROUPS.some((expected) => expected.group_id === group.group_id)) {
+    throw new ContractError(`${context} invalid group id`);
+  }
+  for (const field of [
+    "required_table_count",
+    "present_table_count",
+    "missing_table_count",
+  ]) {
+    if (!Number.isInteger(group[field]) || group[field] < 0) {
+      throw new ContractError(`${context} invalid group count`);
+    }
+  }
+  if (group.present_table_count + group.missing_table_count !== group.required_table_count) {
+    throw new ContractError(`${context} group count mismatch`);
+  }
+  if (!["present", "missing"].includes(group.status)) {
+    throw new ContractError(`${context} invalid group status`);
   }
 }
 

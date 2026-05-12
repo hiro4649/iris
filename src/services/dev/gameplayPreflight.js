@@ -278,6 +278,83 @@ export function createGameplayPreflightReport({
   return report;
 }
 
+export function createGameAdapterProductionPreflightFixture({
+  realInputConfirmed = false,
+  gameControlMode = "manual_approval",
+} = {}) {
+  const realConfirmed = realInputConfirmed === true;
+  const fixture = {
+    schema: "iris_game_adapter_production_preflight_fixture_v1",
+    preflight_status: realConfirmed ? "attention_required" : "blocked",
+    default_control_mode: "manual_approval",
+    requested_control_mode: safeGameControlPreflightMode(gameControlMode),
+    safe_mode: "manual_approval",
+    real_input_confirmed: realConfirmed,
+    real_control_allowed: false,
+    next_readiness_state: realConfirmed ? "operator_review_required" : "real_device_waiting",
+    boundary_policy: {
+      manual_approval_default: true,
+      safe_mode_without_real_input_confirmation: true,
+      real_input_confirmation_required: true,
+      no_action_candidates: true,
+      no_approved_actions: true,
+      no_commands: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertGameAdapterProductionPreflightFixtureSafe(fixture);
+  return fixture;
+}
+
+export function assertGameAdapterProductionPreflightFixtureSafe(
+  fixture,
+  context = "game adapter production preflight fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  const allowedFields = new Set([
+    "schema",
+    "preflight_status",
+    "default_control_mode",
+    "requested_control_mode",
+    "safe_mode",
+    "real_input_confirmed",
+    "real_control_allowed",
+    "next_readiness_state",
+    "boundary_policy",
+    "adapter_validation_required",
+  ]);
+  for (const field of Object.keys(fixture)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`, { field });
+    }
+  }
+  if (
+    fixture.schema !== "iris_game_adapter_production_preflight_fixture_v1" ||
+    fixture.default_control_mode !== "manual_approval" ||
+    fixture.safe_mode !== "manual_approval" ||
+    typeof fixture.real_input_confirmed !== "boolean" ||
+    fixture.real_control_allowed !== false ||
+    fixture.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid safe control fixture`);
+  }
+  if (fixture.real_input_confirmed !== true && fixture.preflight_status !== "blocked") {
+    throw new ContractError(`${context}: unconfirmed real input must stay blocked`);
+  }
+  if (!["manual_approval", "approved_safe_adapter"].includes(fixture.requested_control_mode)) {
+    throw new ContractError(`${context}: invalid requested control mode`);
+  }
+  if (!READINESS_STATES.has(fixture.next_readiness_state)) {
+    throw new ContractError(`${context}: invalid readiness state`);
+  }
+  assertGameAdapterProductionPreflightBoundaryPolicySafe(fixture.boundary_policy, context);
+  assertNoForbiddenGameplayPreflightFields(fixture, context);
+}
+
 export function assertGameplayPreflightReportSafe(
   report,
   context = "gameplay preflight report"
@@ -753,6 +830,37 @@ function assertBoundaryPolicySafe(policy, context) {
       throw new ContractError(`${context}: ${field} boundary required`);
     }
   }
+}
+
+function assertGameAdapterProductionPreflightBoundaryPolicySafe(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const requiredFields = [
+    "manual_approval_default",
+    "safe_mode_without_real_input_confirmation",
+    "real_input_confirmation_required",
+    "no_action_candidates",
+    "no_approved_actions",
+    "no_commands",
+    "no_endpoint_values",
+    "no_secret_values",
+  ];
+  const allowedFields = new Set(requiredFields);
+  for (const field of Object.keys(policy)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary policy field ${field}`);
+    }
+  }
+  for (const field of requiredFields) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: invalid production preflight boundary`);
+    }
+  }
+}
+
+function safeGameControlPreflightMode(value) {
+  return value === "approved_safe_adapter" ? "approved_safe_adapter" : "manual_approval";
 }
 
 function assertSafeScriptName(script, context) {

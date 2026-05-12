@@ -6,6 +6,8 @@ import { classifyStoreReadError } from "./storeStatusErrors.js";
 const STORE_SCHEMA = "iris_operator_policy_audit_log_v1";
 const ENTRY_SCHEMA = "iris_operator_policy_audit_entry_v1";
 const STATUS_SCHEMA = "iris_operator_policy_audit_log_status_v1";
+const POSTGRES_OPERATOR_AUDIT_TRAIL_ENTRY_SCHEMA =
+  "iris_postgres_operator_audit_trail_entry_v1";
 
 const DECISIONS = new Set(["validated", "blocked", "saved"]);
 const ADMIN_AUDIT_ACTION_TYPES = new Set([
@@ -23,6 +25,10 @@ const FORBIDDEN_FIELDS = new Set([
   "write",
   "apply",
   "candidate",
+  "raw_candidate",
+  "raw_candidate_payload",
+  "raw_comment",
+  "raw_comment_text",
   "command",
   "policy_config",
   "endpoint",
@@ -78,6 +84,21 @@ const ADMIN_AUDIT_TRAIL_SAFE_ENTRY_FIELDS = new Set([
   "result",
   "event_at_ms",
   "boundary_policy",
+]);
+const POSTGRES_AUDIT_SUMMARY_REDACTION_FIELDS = new Set([
+  "schema",
+  "actor_role",
+  "action_type",
+  "status",
+  "event_at_ms",
+  "boundary_policy",
+]);
+const POSTGRES_OPERATOR_AUDIT_TRAIL_ENTRY_FIELDS = new Set([
+  "schema",
+  "actor_role",
+  "action_type",
+  "safe_target",
+  "result",
 ]);
 const ADMIN_AUDIT_TRAIL_SAFE_BOUNDARY_POLICY = {
   actor_role_only: true,
@@ -255,6 +276,118 @@ export function assertAdminAuditTrailSafeEntry(
   }
   assertNoForbiddenShape(entry, context);
   assertNoUnsafeText(entry, context);
+}
+
+export function createPostgresAuditSummaryRedaction(
+  entry,
+  context = "PostgreSQL audit summary redaction"
+) {
+  assertOperatorPolicyAuditEntrySafe(entry, context);
+  const summary = {
+    schema: "iris_postgres_audit_summary_redaction_v1",
+    actor_role: entry.actor_role,
+    action_type: safeAuditActionType(entry),
+    status: entry.decision,
+    event_at_ms: entry.event_at_ms,
+    boundary_policy: {
+      actor_role_action_status_timestamp_only: true,
+      redacted_values_hidden: true,
+      private_ids_hidden: true,
+      sensitive_values_hidden: true,
+      policy_values_hidden: true,
+    },
+  };
+  assertPostgresAuditSummaryRedactionSafe(summary, context);
+  return summary;
+}
+
+export function createPostgresOperatorAuditTrailEntry(
+  entry,
+  context = "PostgreSQL operator audit trail entry"
+) {
+  assertOperatorPolicyAuditEntrySafe(entry, context);
+  const safeEntry = {
+    schema: POSTGRES_OPERATOR_AUDIT_TRAIL_ENTRY_SCHEMA,
+    actor_role: entry.actor_role,
+    action_type: safeAuditActionType(entry),
+    safe_target: safeAuditTarget(entry),
+    result: entry.decision,
+  };
+  assertPostgresOperatorAuditTrailEntrySafe(safeEntry, context);
+  return safeEntry;
+}
+
+export function assertPostgresOperatorAuditTrailEntrySafe(
+  entry,
+  context = "PostgreSQL operator audit trail entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry must be an object`);
+  }
+  if (entry.schema !== POSTGRES_OPERATOR_AUDIT_TRAIL_ENTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(entry)) {
+    if (!POSTGRES_OPERATOR_AUDIT_TRAIL_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!entry.actor_role || !/^[a-z0-9][a-z0-9_-]{1,100}$/i.test(entry.actor_role)) {
+    throw new ContractError(`${context}: invalid actor role`);
+  }
+  if (!ADMIN_AUDIT_ACTION_TYPES.has(entry.action_type)) {
+    throw new ContractError(`${context}: invalid action type`);
+  }
+  if (!entry.safe_target || !/^[a-z0-9][a-z0-9_-]{1,100}$/i.test(entry.safe_target)) {
+    throw new ContractError(`${context}: invalid safe target`);
+  }
+  if (!DECISIONS.has(entry.result)) {
+    throw new ContractError(`${context}: invalid result`);
+  }
+  assertNoForbiddenShape(entry, context);
+  assertNoUnsafeText(entry, context);
+}
+
+export function assertPostgresAuditSummaryRedactionSafe(
+  summary,
+  context = "PostgreSQL audit summary redaction"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  if (summary.schema !== "iris_postgres_audit_summary_redaction_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!POSTGRES_AUDIT_SUMMARY_REDACTION_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field ${field}`);
+    }
+  }
+  if (!summary.actor_role || !/^[a-z0-9][a-z0-9_-]{1,100}$/i.test(summary.actor_role)) {
+    throw new ContractError(`${context}: invalid actor role`);
+  }
+  if (!ADMIN_AUDIT_ACTION_TYPES.has(summary.action_type)) {
+    throw new ContractError(`${context}: invalid action type`);
+  }
+  if (!DECISIONS.has(summary.status)) {
+    throw new ContractError(`${context}: invalid status`);
+  }
+  if (!Number.isInteger(summary.event_at_ms) || summary.event_at_ms < 0) {
+    throw new ContractError(`${context}: invalid timestamp`);
+  }
+  for (const [field, value] of Object.entries({
+    actor_role_action_status_timestamp_only: true,
+    redacted_values_hidden: true,
+    private_ids_hidden: true,
+    sensitive_values_hidden: true,
+    policy_values_hidden: true,
+  })) {
+    if (summary.boundary_policy?.[field] !== value) {
+      throw new ContractError(`${context}: boundary policy ${field} must be true`);
+    }
+  }
+  assertNoForbiddenShape(summary, context);
+  assertNoUnsafeText(summary, context);
 }
 
 export function assertOperatorPolicyAuditEntrySafe(

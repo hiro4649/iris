@@ -13,6 +13,15 @@ const SAFE_FIELDS = new Set([
   "safe_recall_mode",
   "boundary_policy",
 ]);
+const BLOCKLIST_SCHEMA_PREFLIGHT_FIELDS = new Set([
+  "schema",
+  "preflight_status",
+  "moderation_state",
+  "reason_code",
+  "safe_note_summary",
+  "ordinary_view_safe",
+  "boundary_policy",
+]);
 const BOUNDARY_FIELDS = [
   "moderation_precheck_before_recall",
   "suppressed_state_blocks_private_recall",
@@ -23,10 +32,19 @@ const BOUNDARY_FIELDS = [
   "no_candidate_payloads",
   "no_command_output",
 ];
+const BLOCKLIST_BOUNDARY_FIELDS = [
+  "moderation_state_required",
+  "reason_code_required",
+  "safe_note_summary_only",
+  "ordinary_view_redacted",
+  "no_raw_harassment_text",
+  "no_private_notes",
+  "no_private_identity_values",
+];
 const UNSAFE_FIELD_PATTERN =
-  /(?:^|_)(private_viewer_id|viewer_id|raw_memory|memory_body|candidate|relationship_update_candidate|world_command|command|commit|endpoint|token)(?:$|_)/i;
+  /(?:^|_)(private_viewer_id|viewer_id|raw_memory|memory_body|raw_harassment_text|harassment_text|private_note|candidate|relationship_update_candidate|world_command|command|commit|endpoint|token)(?:$|_)/i;
 const UNSAFE_TEXT_PATTERN =
-  /\b(private[_-]?viewer[_-]?id|viewer[_-]?id|raw[_-]?memory|memory[_-]?body|candidate|relationship[_-]?update[_-]?candidate|world[_-]?command|command|commit|endpoint|token|postgres:\/\/)\b|https?:\/\//i;
+  /\b(private[\s_-]?viewer[\s_-]?id|viewer[\s_-]?id|raw[\s_-]?memory|memory[\s_-]?body|raw[\s_-]?harassment|harassment[\s_-]?text|private[\s_-]?note|candidate|relationship[\s_-]?update[\s_-]?candidate|world[\s_-]?command|command|commit|endpoint|token|postgres:\/\/)\b|https?:\/\//i;
 
 export function createPostgresModerationRecallPrecheck({
   moderationState = "allowed",
@@ -46,6 +64,26 @@ export function createPostgresModerationRecallPrecheck({
   };
   assertPostgresModerationRecallPrecheckSafe(precheck);
   return precheck;
+}
+
+export function createPostgresModerationBlocklistSchemaPreflight({
+  moderationState = "watch",
+  reasonCode = "policy_review",
+  safeNoteSummary = "moderation review required",
+} = {}) {
+  const preflight = {
+    schema: "iris_postgres_moderation_blocklist_schema_preflight_v1",
+    preflight_status: "schema_ready",
+    moderation_state: normalizeModerationState(moderationState),
+    reason_code: safeLabel(reasonCode, "policy_review"),
+    safe_note_summary: safeSummary(safeNoteSummary, "moderation_review_required"),
+    ordinary_view_safe: true,
+    boundary_policy: Object.fromEntries(
+      BLOCKLIST_BOUNDARY_FIELDS.map((field) => [field, true])
+    ),
+  };
+  assertPostgresModerationBlocklistSchemaPreflightSafe(preflight);
+  return preflight;
 }
 
 export function assertPostgresModerationRecallPrecheckSafe(
@@ -98,6 +136,44 @@ export function assertPostgresModerationRecallPrecheckSafe(
   assertBoundaryPolicy(precheck.boundary_policy, context);
 }
 
+export function assertPostgresModerationBlocklistSchemaPreflightSafe(
+  preflight,
+  context = "PostgreSQL moderation blocklist schema preflight"
+) {
+  if (!preflight || typeof preflight !== "object" || Array.isArray(preflight)) {
+    throw new ContractError(`${context}: preflight required`);
+  }
+  assertNoUnsafeStringValues(preflight, context);
+  if (preflight.schema !== "iris_postgres_moderation_blocklist_schema_preflight_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(preflight)) {
+    if (!BLOCKLIST_SCHEMA_PREFLIGHT_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (preflight.preflight_status !== "schema_ready") {
+    throw new ContractError(`${context}: invalid preflight status`);
+  }
+  if (!MODERATION_STATES.has(preflight.moderation_state)) {
+    throw new ContractError(`${context}: invalid moderation state`);
+  }
+  if (!isSafeLabel(preflight.reason_code)) {
+    throw new ContractError(`${context}: invalid reason code`);
+  }
+  if (
+    typeof preflight.safe_note_summary !== "string" ||
+    preflight.safe_note_summary.trim() === "" ||
+    UNSAFE_TEXT_PATTERN.test(preflight.safe_note_summary)
+  ) {
+    throw new ContractError(`${context}: invalid safe note summary`);
+  }
+  if (preflight.ordinary_view_safe !== true) {
+    throw new ContractError(`${context}: ordinary view must be safe`);
+  }
+  assertBlocklistBoundaryPolicy(preflight.boundary_policy, context);
+}
+
 function normalizeModerationState(value) {
   const state = String(value ?? "").trim();
   return MODERATION_STATES.has(state) ? state : "watch";
@@ -118,6 +194,48 @@ function assertBoundaryPolicy(policy, context) {
       throw new ContractError(`${context}: ${field} boundary required`);
     }
   }
+}
+
+function assertBlocklistBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const allowed = new Set(BLOCKLIST_BOUNDARY_FIELDS);
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const field of BLOCKLIST_BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function safeLabel(value, fallback) {
+  const label = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  if (!isSafeLabel(label)) return fallback;
+  return label.slice(0, 80);
+}
+
+function isSafeLabel(value) {
+  return /^[a-z][a-z0-9_]{0,79}$/.test(String(value ?? "")) &&
+    !UNSAFE_TEXT_PATTERN.test(String(value ?? ""));
+}
+
+function safeSummary(value, fallback) {
+  const text = String(value ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text || UNSAFE_TEXT_PATTERN.test(text)) return fallback;
+  return text.slice(0, 160);
 }
 
 function assertNoUnsafeStringValues(value, context, path = "root") {
