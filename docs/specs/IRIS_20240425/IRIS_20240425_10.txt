@@ -1,0 +1,409 @@
+# IRIS 開発仕様書
+
+## Phase10 完全拘束版（最終確定版・回復可能戦略制御版）
+
+中長期行動戦略・方向拘束・goal→strategy単一変換フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase07 / Phase08 / Phase09 / Phase06 の canonical export を入力とする。
+
+本フェーズは
+
+👉 **IRISの中長期的な行動方向を固定しつつ、異常時でも停止せず回復可能な戦略拘束層**
+
+である。
+
+---
+
+## 重要定義（絶対）
+
+Phase10は行動を決めない
+Phase10はaction_typeを決めない
+
+👉 Phase10は
+**方向を固定し、かつ回復を制御する層**
+
+---
+
+## 01. 目的
+
+goalとstrategyの乖離排除
+短期イベントによる戦略変動防止
+人格と戦略の整合維持
+異常時でも停止しない
+異常状態から回復可能にする
+
+---
+
+## 02. スコープ
+
+Strategy Observation
+Identity Anchor Binding
+Goal → Strategy Conversion Engine
+Strategy State
+Strategy Stability Engine
+Constraint Alignment
+Emergency Fallback Engine
+Fallback Exit Controller（追加・最重要）
+Goal Stack
+Behavior Policy
+Theme Controller
+Priority Planner
+Routing Hint
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type決定
+world_command生成
+memory更新
+人格生成
+実行処理
+
+---
+
+## 04. 完成定義
+
+同一入力で同一strategy
+goal→strategy一意変換
+短期変化でstrategy不変
+停止ゼロ
+fallback発動100%
+fallbackから回復可能
+Phase09違反strategyゼロ
+p95 < 50ms
+p99 < 80ms
+
+---
+
+## 05. 全体構造
+
+```text id="k7v2mx"
+Phase07
++ Phase08
++ Phase09
++ Phase06
+-> Strategy Observation
+-> Identity Anchor Binding
+-> Goal → Strategy Conversion Engine
+-> Strategy State
+-> Strategy Stability Engine
+-> Constraint Alignment
+-> Emergency Fallback Engine
+-> Fallback Exit Controller
+-> Goal Stack
+-> Behavior Policy
+-> Theme Controller
+-> Priority Planner
+-> Routing Hint
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+strategyは1つのみ
+goalからのみ決定
+identity違反禁止
+Phase09違反禁止
+短期変更禁止
+停止禁止
+
+---
+
+## 07. 入力契約
+
+```json id="m4k9tz"
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase07_value_score": 0.0,
+  "phase08_primary_goal": "STRENGTHEN_RELATION|CONTINUE_TOPIC|EXPLORE_NEW|STABILIZE_STATE",
+  "phase08_primary_goal_priority": 0.0,
+  "phase09_constraint_status": "pass|degrade|reject",
+  "phase06_character_sync_score": 0.0,
+  "character_tag": "soft|playful|tease|hype|calm",
+  "tone": "friendly|playful|excited|calm",
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 08. Goal → Strategy Conversion Engine
+
+```json id="p8x3nr"
+{
+  "selected_goal": "STRENGTHEN_RELATION",
+  "strategy_mode": "engage",
+  "confidence": 0.0
+}
+```
+
+---
+
+## 変換ルール
+
+```text id="v2t6qp"
+strategyは必ずphase08_primary_goalのみから決定
+```
+
+---
+
+## マッピング
+
+```text id="z3k7fw"
+STRENGTHEN_RELATION → engage
+CONTINUE_TOPIC → focus
+EXPLORE_NEW → explore
+STABILIZE_STATE → maintain
+```
+
+---
+
+## 09. Strategy State
+
+```json id="c5x1nv"
+{
+  "strategy_mode": "engage",
+  "strategy_age": 0,
+  "strategy_locked": true,
+  "fallback_active": false
+}
+```
+
+---
+
+## 10. Strategy Stability Engine
+
+```json id="r9m4kj"
+{
+  "stability_score": 0.0,
+  "instability_score": 0.0
+}
+```
+
+---
+
+## 計算
+
+```text id="y4t8zc"
+instability =
+短期変化 + goal変動 + tone変動 + constraint揺れ
+```
+
+---
+
+## 閾値
+
+```text id="u3p9kd"
+instability >= 0.3 → degrade
+instability >= 0.5 → fallback発動
+```
+
+---
+
+## 11. Constraint Alignment
+
+```json id="q6v2nx"
+{
+  "constraint_status": "pass|degrade|reject"
+}
+```
+
+---
+
+## 12. Emergency Fallback Engine
+
+```json id="f1k7rp"
+{
+  "fallback_triggered": true,
+  "fallback_strategy": "maintain"
+}
+```
+
+---
+
+## 発動条件
+
+```text id="n2k5xm"
+phase09 == reject
+または
+instability >= 0.5
+```
+
+---
+
+## 動作
+
+```text id="b8p1zs"
+strategy_mode = maintain
+strategy_locked = true
+fallback_active = true
+strategy_age = 0
+```
+
+---
+
+## 13. Fallback Exit Controller（最重要）
+
+👉 今回の核心修正
+
+```json id="g7r3mt"
+{
+  "fallback_exit": true
+}
+```
+
+---
+
+## 解除条件
+
+```text id="x5c9vw"
+instability < 0.2
+かつ
+phase09_constraint_status == pass
+```
+
+---
+
+## 解除動作
+
+```text id="z9k2qn"
+fallback_active = false
+strategy_locked = false
+通常strategy復帰
+```
+
+---
+
+## 制約
+
+fallback中はstrategy変更禁止
+
+---
+
+## 14. Goal Stack
+
+```json id="w3p7ky"
+{
+  "goals": [
+    {"goal_id": "STRENGTHEN_RELATION", "priority": 0.9}
+  ]
+}
+```
+
+---
+
+## 15. Behavior Policy
+
+```json id="d4n8xt"
+{
+  "allowed_behaviors": ["talk", "react", "observe"],
+  "restricted_behaviors": ["aggressive", "manipulative"]
+}
+```
+
+---
+
+## 16. Theme Controller
+
+```json id="v1k9rp"
+{
+  "active_theme": "friendly_streamer",
+  "consistency_score": 0.0
+}
+```
+
+---
+
+## 17. Priority Planner
+
+```json id="t6z2mx"
+{
+  "selected_goal": "STRENGTHEN_RELATION",
+  "confidence": 0.0
+}
+```
+
+---
+
+## 18. Routing Hint
+
+```json id="m2x8kp"
+{
+  "strategy_mode": "engage",
+  "routing_hint": "relationship_priority"
+}
+```
+
+---
+
+## 19. 出力契約
+
+```json id="k5q3nv"
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "strategy_mode": "engage|focus|explore|maintain",
+  "fallback_active": true,
+  "selected_goal": "STRENGTHEN_RELATION",
+  "constraint_status": "pass|degrade|reject",
+  "stability_score": 0.0,
+  "instability_score": 0.0
+}
+```
+
+---
+
+## 20. HARD制約
+
+goal無視
+複数strategy
+短期変更
+identity違反
+Phase09無視
+fallback未発動
+回復不能状態
+
+---
+
+## 21. SOFT制約
+
+戦略固定過多
+変化不足
+単調化
+
+---
+
+## 22. 最小実行パス
+
+```text id="p3v9nx"
+Phase07
+-> goal→strategy
+-> stability
+-> constraint
+-> fallback
+-> exit_control
+-> export
+```
+
+---
+
+## 23. 本質
+
+Phase10は
+
+👉 方向を固定する
+👉 壊れたら守る
+👉 回復させる
+

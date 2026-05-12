@@ -1,0 +1,291 @@
+﻿# IRIS 開発仕様書
+
+## Phase16 完全整合版（身体連続性・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase15 が保証する自己整合・会話維持を前提として、IRIS の身体が常時「生きているように連続して見える」ための最小実装仕様を定義する。
+
+本フェーズの目的は、派手な演出を増やすことではない。
+IRIS の呼吸、視線、瞬き、姿勢、表情、物理揺れを、人格・感情・注意状態と矛盾なく連動させることだ。
+
+## 00.1 Phase00 拡張互換ルール
+
+Phase16〜27 は Phase00〜15 の後続拡張仕様である。
+Phase00 の canonical intent / conversation_state / action_type / tone / emotion / character_tag / task_type を追加・変更しない。
+
+本書に登場する body_state、laughter_state、response_mode などの名前は、Phase16 以降の内部制御ラベルであり、Phase00 canonical enum ではない。
+これらを canonical emotion / action_type / task_type として export してはならない。
+
+## 01. 目的
+
+Phase16 の目的は以下である。
+
+- 身体表現を Event / emotion / attention / speech と同期する
+- 表情・視線・呼吸・姿勢が別々に暴走しないようにする
+- 強い感情表現でも人格継続性を壊さない
+- Phase17 以降の会話リズム、感情持続、大爆笑、ゲーム表現の身体基盤を固定する
+
+## 02. スコープ
+
+対象は以下である。
+
+- Body State
+- Breath Controller
+- Blink Controller
+- Gaze Controller
+- Head / Torso Controller
+- Expression Transition Controller
+- Physics Coupling Controller
+- Body Continuity Validator
+
+## 03. 非スコープ
+
+以下は本フェーズで実装確定しない。
+
+- ゲーム画面認識
+- ゲーム操作
+- ユーザー関係深化
+- 長期記憶の採用判断
+- 専用 motion3 の大量追加
+
+## 04. 入力契約
+
+入力は Phase15 export を通常入力 source とする。
+
+Phase15 の出力契約に含まれない trace / action / emotion / target_presence などの値は、Phase15 が検証済み入力から保持する continuity envelope としてのみ参照してよい。
+Phase16 は Phase04 / Phase14 / Adapter を直接 consumer してはならない。
+
+Phase15 `final_decision` は Phase16 内で以下へ正規化する。
+
+- allow -> safety_status=safe
+- degrade -> safety_status=degrade
+- block -> safety_status=reject
+
+必須入力:
+
+- trace_id
+- event_id
+- timestamp
+- final_text
+- emotion
+- conversation_state
+- action_type
+- target_presence_id
+- safety_status
+
+canonical emotion は Phase00 の `neutral|happy|surprise|awkward` のみとする。
+`thinking` や `burst_laugh` などは body / affective profile 名であり、canonical emotion ではない。
+
+任意 side input:
+
+- audio_rms
+- speech_start
+- speech_end
+- attention_target
+- current_motion_state
+- emotion_intensity
+
+## 05. Body State
+
+Body State は IRIS の身体状態を表す。
+
+必須フィールド:
+
+- body_state_id
+- posture
+- breath_rate
+- breath_depth
+- gaze_target
+- blink_rate
+- expression_profile
+- motion_load
+- recovery_state
+
+Body State は人格そのものではない。
+Body State は人格コアを変更してはならない。
+
+## 06. Breath Controller
+
+呼吸は常時動作する。
+
+基本状態:
+
+- neutral: ゆるやかで安定
+- happy: やや軽く弾む
+- thinking_profile: 浅く遅い
+- low_mood_profile: 深く遅い
+- high_arousal_profile: 速めだが破綻しない
+- burst_laugh_profile: 不規則、短時間のみ
+
+呼吸は 0 に固定してはならない。
+無音でも微細な体幹呼吸を維持する。
+
+## 07. Gaze / Blink Controller
+
+視線は attention_target と連動する。
+
+ルール:
+
+- コメントを読む時は軽く下方向または横方向を見る
+- 深く考える時は視線を少し外す
+- 本気状態では視線固定を許可する
+- 照れでは短時間の視線逸らしを許可する
+- 視線移動は急激に跳ばさない
+
+瞬きは感情で変動する。
+
+- neutral: 通常
+- thinking_profile: やや減少
+- surprised_profile: 一瞬増加
+- shy: やや増加
+- serious: 減少
+
+`surprised_profile` は瞬き制御用の内部 profile 名であり、Phase00 canonical emotion は `surprise` のみである。
+
+## 08. Expression Transition
+
+表情遷移は補間必須である。
+
+原則:
+
+- 通常遷移: 0.15〜0.25 秒
+- 強感情遷移: 0.25〜0.45 秒
+- 回復遷移: 0.4〜1.2 秒
+
+1フレームで表情を切り替えてはならない。
+例外は高速ワンフレームリアクションのみであり、Phase14 / MVP v4.2 の範囲に従う。
+
+## 09. Physics Coupling
+
+髪、服、アクセサリー物理は身体の主運動に追従する。
+
+禁止:
+
+- 物理だけが過剰に揺れる
+- 呼吸と髪揺れが無関係に見える
+- 強モーション中に表情制御が競合する
+
+## 10. Extreme Laughter Motion Profile
+
+大爆笑の身体表現は burst_laugh body profile として扱う。
+これは canonical emotion ではなく、canonical emotion `happy` または `surprise` に従属する内部身体 profile である。
+
+構成:
+
+- 前傾
+- 肩揺れ
+- 目細め
+- 口大きめ
+- 呼吸乱れ
+- 短い復帰呼吸
+
+制約:
+
+- 連発禁止
+- 人を傷つける笑いでは発動禁止
+- 10 秒以上継続禁止
+- recovery_state を必ず経由する
+
+## 11. 出力契約
+
+Phase16 export:
+
+- event_id
+- body_state_id
+- body_motion_plan
+- expression_plan
+- breath_plan
+- gaze_plan
+- physics_plan
+- continuity_envelope
+- body_continuity_score
+- rejected_body_signals
+
+## 12. HARD 制約
+
+- Phase00 の単一人格原則に違反してはならない
+- 身体表現で人格を書き換えてはならない
+- safety_status が reject の場合、強モーションを発動してはならない
+- burst_laugh は攻撃・煽り・差別・炎上文脈で発動してはならない
+- 表情、ジェスチャー、motion3 の競合を放置してはならない
+
+## 13. STOP 条件
+
+以下の場合は body_safe_idle に落とす。
+
+- body_state が不正
+- motion conflict が解決不能
+- safety_status が unsafe
+- expression と emotion が矛盾
+- recovery_state が完了しない
+
+## 14. テスト仕様
+
+必須テスト:
+
+- neutral 時に呼吸が維持される
+- thinking 時に視線と瞬きが自然に変化する
+- burst_laugh 後に recovery_state を経由する
+- strong motion 中に表情制御が競合しない
+- unsafe event で強モーションが出ない
+
+## 15. 開発者向け最終指示
+
+Phase16 の目的は IRIS を派手に動かすことではない。
+IRIS の身体が、感情と注意を持つ存在として連続して見えることだ。
+
+## 16. Canonical Firewall
+
+Phase16 の body_state / expression_profile / breath_profile / gaze_profile / laughter body profile はすべて internal profile である。
+
+禁止:
+
+- internal profile を canonical emotion として export する
+- internal profile を action_type として export する
+- internal profile を task_type として export する
+
+必須:
+
+- Phase16 export は `internal_profile=true` を付与する
+- canonical field へ渡す場合は Phase00 canonical 値への明示 mapping を通す
+- mapping 不能な profile は reject する
+
+## 17. 自発的な小動作・悲鳴・鼻歌の身体基盤
+
+Phase16 は以下を internal body profile として扱ってよい。
+
+- `look_away_micro`
+- `screen_check_micro`
+- `thinking_gaze_drift`
+- `mood_hum_body`
+- `surprise_scream_body`
+- `happy_dance_body`
+- `happy_loud_sing_body`
+- `camera_approach_micro`
+- `camera_approach_close`
+- `camera_face_near`
+- `camera_face_extreme_closeup`
+- `camera_return_neutral`
+
+制約:
+
+- Phase04 `LOOK` / `GESTURE` / `SPEAK` を上書きしてはならない
+- ゲーム画面の視認性を妨げてはならない
+- 長時間の無視やユーザー切り捨てに見える動作は禁止
+- unsafe event では強い悲鳴・絶叫・過剰モーションを抑制する
+- happy_dance_body は短時間に限定し、画面視認性とゲーム集中を妨げてはならない
+- happy_loud_sing_body は TTS / voice adapter の音量上限と復帰 pause を必須とする
+- camera proximity profile は duration / cooldown / visibility / recovery_plan を必須とする
+- camera_face_extreme_closeup はレア演出とし、長時間の画面占有は禁止する
+- viewer comfort mode が有効な場合、接近演出は弱めるか停止する
+
+テスト:
+
+- よそ見が短時間で attention target へ戻る
+- 鼻歌 body profile が発話やゲーム集中を妨げない
+- surprise_scream_body が recovery_state を経由する
+- happy_dance_body が cooldown と視認性制約を守る
+- happy_loud_sing_body が短時間で通常会話へ戻る
+- camera_face_extreme_closeup が recovery_state と camera_return_neutral を経由する
+- camera proximity が game input / memory commit / relationship commit を発生させない

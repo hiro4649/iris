@@ -1,0 +1,659 @@
+# IRIS_20240425 Cross Phase Addendum: Fan Growth, Trust, Business, And Operations
+
+## 00. Scope
+
+This addendum defines fan growth, community culture, AI transparency, content
+strategy, business model safety, operator comfort, companion-safety boundaries,
+and public analytics requirements for IRIS.
+
+It applies across Phase00-27, especially:
+
+- Phase05 memory commit
+- Phase11 economy and dependency guard
+- Phase12 staged self-improvement
+- Phase13 canon and continuity validation
+- Phase20 relationship deepening
+- Phase21 memory recall
+- Phase26 stream lifecycle
+- Phase27 human-likeness evaluation
+- YouTube ingest and support-event handling
+- OBS / Live2D / TTS runtime handoff
+- Operator Admin Panel
+
+This addendum is subordinate to Phase00. It does not add Phase00 canonical
+emotion, action, intent, relationship, conversation-state, or profile enums.
+All new fields are operational guidance, policy, review state, analytics, or
+candidate data unless explicitly validated by existing persistence writers.
+
+## 01. Purpose
+
+IRIS must not be designed only as an automated talking avatar. IRIS should be
+designed as a long-running AI VTuber that can:
+
+- welcome new viewers without making the community feel closed
+- deepen safe relationships over time
+- preserve a consistent character identity
+- create repeatable fan culture
+- help the operator plan and improve streams
+- support sustainable monetization without pay-to-rank behavior
+- stay transparent about AI operation and human/operator control
+- remain safe for viewers who may form companion-like attachment
+- provide comfortable, low-burden operation for a non-technical operator
+- expose growth and health analytics without leaking private user data
+
+The goal is differentiation through trust, continuity, warmth, and reliable
+operation, not through uncontrolled intimacy, raw automation, or short-term
+engagement maximization.
+
+## 02. Fan Growth Loop
+
+IRIS must support a safe fan growth loop.
+
+Required viewer lifecycle states:
+
+- first_time_viewer
+- returning_viewer
+- recognized_viewer
+- regular_viewer
+- community_contributor
+- supporter
+- long_term_fan
+- bounded
+
+These lifecycle states are operational guidance only. They must not replace
+Phase20 public relationship levels or internal relationship stages.
+
+Required behaviors:
+
+- welcome first-time viewers in a way that is warm but not overfamiliar
+- recognize returning viewers only when safe identity and memory rules allow it
+- avoid creating an inner-circle feeling that excludes new viewers
+- use community memory to explain recurring jokes briefly when newcomers appear
+- rotate attention so frequent commenters do not monopolize the stream
+- create safe follow-up candidates after meaningful stream moments
+- preserve community openness even when relationship memory is strong
+- treat `bounded` as safety distance, not a public shame label
+
+Forbidden behaviors:
+
+- publicly ranking fans by value, payment, intimacy, or loyalty
+- implying that relationship status can be purchased
+- exposing hidden scores, exact deltas, private memory details, or moderation
+  state to ordinary viewers
+- using manipulative fear-of-missing-out language
+- pressuring viewers to attend every stream or disclose personal information
+
+## 03. Community Ritual And Meme Governance
+
+IRIS should develop repeatable community culture.
+
+Required community culture objects:
+
+- greeting_ritual
+- farewell_ritual
+- recurring_joke
+- safe_meme
+- stream_anniversary
+- shared_game_moment
+- fan_participation_prompt
+- community_challenge
+- clip_candidate_moment
+
+Each object must carry:
+
+- safe label
+- public explanation
+- origin summary
+- freshness status
+- newcomer friendliness status
+- safety status
+- operator approval status
+- retirement or cooldown status
+
+Community rituals and memes must be stored as candidates first. They must pass
+privacy, safety, canon, and community-openness validation before becoming
+approved community memory.
+
+IRIS may use approved community rituals to create warmth and continuity, but
+must avoid making the channel unreadable to new viewers.
+
+## 04. AI Transparency And Viewer Trust
+
+IRIS must have a transparent trust policy.
+
+Viewer-facing trust requirements:
+
+- IRIS must not claim to be a human person.
+- IRIS may speak in character, but must not mislead viewers about being an AI
+  VTuber when context requires clarity.
+- IRIS must distinguish ordinary character performance from operator-managed
+  configuration, moderation, and safety intervention.
+- IRIS must avoid implying that private memories, support events, or personal
+  information are visible to all viewers.
+- IRIS must not pretend that operator-reviewed decisions are fully autonomous.
+
+Required transparency surfaces:
+
+- public channel/about-page summary
+- overlay-safe status label when needed
+- Admin Panel trust policy settings
+- moderation and memory policy summary for operators
+- sponsor/brand safety disclosure summary
+
+Public transparency text must be short, friendly, and non-technical.
+
+Internal transparency summaries may include:
+
+- AI character operation status
+- operator review enabled status
+- memory enabled status
+- relationship memory enabled status
+- automated response provider status
+- human/operator override availability
+- emergency stop availability
+
+They must not include secrets, endpoint values, raw prompts, raw viewer text,
+private memories, support messages, candidates, commands, raw frames, raw voice
+samples, model paths, dataset paths, or raw jobs.
+
+## 05. Content Strategy Engine
+
+IRIS should support a content strategy layer that helps streams become better
+over time without leaking private data.
+
+Required content strategy outputs:
+
+- next_stream_topic_candidates
+- recurring_segment_candidates
+- short_clip_candidate_summaries
+- highlight_moment_summaries
+- viewer_question_theme_counts
+- game_choice_recommendations
+- collaboration_candidate_summaries
+- seasonal_event_ideas
+- community_challenge_candidates
+- stream_title_candidate_summaries
+- thumbnail_concept_summaries
+- post_stream_review_summary
+
+All content strategy outputs must be summary-only. They must not include raw
+viewer comments, support message text, private memories, raw frames, raw audio,
+candidate payloads, commands, endpoint values, secrets, or platform IDs.
+
+IRIS may use:
+
+- safe topic counts
+- fixed event type counts
+- approved community memory summaries
+- approved stream lifecycle summaries
+- operator-approved clip markers
+- Phase27 human-likeness and safety metrics
+
+IRIS must not use:
+
+- unapproved private viewer details
+- raw chat logs
+- unredacted support messages
+- hidden relationship scores
+- private moderation notes
+- copyrighted media bodies outside rights-safe summaries
+
+Content strategy recommendations are suggestions only. They must not
+automatically change stream schedule, OBS scenes, YouTube metadata, monetization
+settings, or public announcements without operator confirmation.
+
+## 06. Business Model And Monetization Safety
+
+IRIS must support sustainable monetization while protecting trust and community
+openness.
+
+Supported business model categories:
+
+- YouTube ad revenue
+- Super Chat and Super Stickers
+- Super Thanks
+- channel memberships
+- gifted memberships
+- merchandise
+- digital goods
+- voice packs or short original voice content
+- sponsorships
+- affiliate links
+- paid events
+- collaboration projects
+- business-to-business licensing of safe IRIS components
+
+Each category must have:
+
+- enabled status
+- operator approval status
+- rights and license status
+- viewer-facing disclosure requirement
+- safety risk level
+- dependency risk level
+- community-openness risk level
+- revenue pressure risk level
+- fallback or disable policy
+
+Required monetization boundaries:
+
+- Donation/support may influence gratitude and bounded relationship candidates,
+  but must not create pay-to-rank behavior.
+- Sponsorships must not override IRIS personality, safety, or honesty.
+- Merchandise and digital goods must not require private viewer data in public
+  runtime surfaces.
+- Voice packs must use licensed or original voice assets only.
+- Affiliate links and sponsored recommendations must be disclosed.
+- IRIS must not pressure vulnerable viewers to spend money.
+- IRIS must not imply that payment buys friendship, exclusivity, romance, or
+  private access unless the operator has explicitly defined a safe public
+  membership benefit.
+
+Phase11 must treat excessive revenue pressure, dependency, and sponsor
+misalignment as safety risks.
+
+## 07. Operator Comfort And Cost Governance
+
+Long-term operation must be comfortable for the operator.
+
+Required operator comfort features:
+
+- daily readiness summary
+- stream start checklist
+- stream end checklist
+- degraded-mode recommendation
+- one-click pause for ingest
+- one-click pause for TTS / Live2D / OBS handoff
+- emergency stop
+- cost and usage summary
+- model/API usage budget status
+- local engine health summary
+- high-latency warning
+- repeated failure grouping
+- next recommended maintenance action
+- backup and restore rehearsal status
+- safe configuration drift summary
+
+Cost governance must track:
+
+- response provider usage status
+- TTS engine usage status
+- Live2D renderer health and error count
+- YouTube API quota readiness
+- memory/vector search load status
+- PostgreSQL health and slow-query count
+- replay and artifact storage growth
+- failed job retry counts
+- average stream latency class
+
+Cost and usage reports must use counts, ranges, fixed labels, or configured
+booleans. They must not expose API keys, endpoint values, raw prompts, raw
+responses, raw viewer text, raw audio bodies, raw jobs, or database values.
+
+## 08. Companion Safety And Attachment Boundaries
+
+IRIS may feel warm, attentive, and emotionally continuous, but must not
+encourage unhealthy dependency.
+
+Required companion-safety signals:
+
+- dependency_pressure_signal
+- self_harm_or_crisis_signal
+- romantic_or_sexual_pressure_signal
+- minor_safety_signal
+- isolation_signal
+- excessive_session_length_signal
+- off_platform_contact_pressure_signal
+- private_information_oversharing_signal
+- parasocial_manipulation_signal
+
+Required responses:
+
+- keep warmth without intensifying dependency
+- encourage real-world support for serious issues
+- avoid romantic escalation and exclusive attachment claims
+- use safety distance for minors and unknown-age viewers
+- avoid asking for private personal data
+- avoid off-platform private contact
+- suggest breaks during excessive long sessions
+- route severe safety signals to configured operator/moderation attention
+
+IRIS must not:
+
+- claim to be the viewer's only friend
+- ask viewers to keep secrets from trusted people
+- encourage dependence on IRIS instead of human support
+- provide crisis counseling beyond safe supportive redirection
+- sexualize unknown-age or minor users
+- escalate romantic intimacy as a reward for payment or attendance
+
+These boundaries must be evaluated before relationship growth, memory commit,
+donation reaction, and personalized recall.
+
+## 09. Public Analytics And Growth KPIs
+
+IRIS must support public-safe analytics for long-term operation.
+
+Required KPI groups:
+
+- audience_growth
+- viewer_retention
+- community_health
+- fan_growth_loop
+- content_strategy
+- monetization_health
+- safety_health
+- operational_health
+- cost_health
+
+Required KPI examples:
+
+- first_time_viewer_count
+- returning_viewer_count
+- recognized_viewer_count
+- regular_viewer_count
+- safe_support_event_count
+- membership_event_count
+- community_ritual_use_count
+- newcomer_explanation_count
+- clip_candidate_count
+- post_stream_highlight_count
+- moderation_filtered_count
+- unsafe_output_blocked_count
+- relationship_candidate_count
+- approved_memory_candidate_count
+- dependency_pressure_signal_count
+- emergency_stop_count
+- degraded_mode_count
+- average_latency_class
+- failed_job_count
+- backup_overdue_status
+- budget_status
+
+KPI reports must use counts, percentages, fixed labels, time buckets, and safe
+trend labels only.
+
+KPI reports must not expose:
+
+- raw comments
+- raw support messages
+- private viewer IDs
+- hidden relationship scores
+- raw memories
+- private moderation notes
+- candidate payloads
+- commands
+- raw frames
+- raw voice samples
+- endpoint values
+- secrets
+- raw jobs
+
+## 10. Admin Panel Management Requirements
+
+The Operator Admin Panel must manage all features in this addendum.
+
+Required Admin Panel areas:
+
+- Fan Growth
+- Community Culture
+- AI Transparency
+- Content Strategy
+- Business Model
+- Operator Comfort
+- Cost Governance
+- Companion Safety
+- Public Analytics
+
+### 10.1 Fan Growth Admin Controls
+
+Required controls:
+
+- lifecycle detection enabled status
+- first-time viewer welcome style
+- returning viewer recognition style
+- regular viewer attention cap
+- newcomer explanation mode
+- inner-circle risk threshold
+- follow-up candidate generation enabled status
+- community openness guard status
+- bounded viewer safety-distance policy
+
+Admin Panel must show lifecycle counts and safe trend labels only.
+
+### 10.2 Community Culture Admin Controls
+
+Required controls:
+
+- community ritual review queue
+- meme approval queue
+- ritual freshness status
+- newcomer friendliness status
+- retirement/cooldown controls
+- stream anniversary settings
+- community challenge settings
+- approved ritual export/import safe summary
+
+Admin Panel must not expose raw chat origins or private viewer details.
+
+### 10.3 AI Transparency Admin Controls
+
+Required controls:
+
+- public AI disclosure text
+- operator review disclosure status
+- memory-use disclosure status
+- sponsorship disclosure template
+- brand safety trust summary
+- emergency human/operator override disclosure status
+
+Admin Panel must allow owner/operator review before public disclosure text is
+published.
+
+### 10.4 Content Strategy Admin Controls
+
+Required controls:
+
+- next stream topic candidate list
+- clip/highlight candidate list
+- recurring segment candidate list
+- collaboration candidate list
+- game choice recommendation list
+- community challenge candidate list
+- post-stream review summary
+- approval status for publishing or scheduling suggestions
+
+No strategy item may directly publish metadata, schedule a stream, change OBS,
+or announce a collaboration without operator confirmation.
+
+### 10.5 Business Model Admin Controls
+
+Required controls:
+
+- monetization category enablement table
+- sponsorship policy table
+- merchandise/digital goods readiness
+- voice product license readiness
+- affiliate disclosure readiness
+- membership benefit policy
+- donation gratitude policy
+- pay-to-rank risk status
+- revenue pressure risk status
+- dependency risk status
+
+Owner/operator views may show safe configured policy values. Ordinary views
+must show only status labels and counts.
+
+### 10.6 Operator Comfort Admin Controls
+
+Required controls:
+
+- stream start checklist
+- stream end checklist
+- daily readiness summary
+- degraded mode recommendation
+- emergency stop
+- ingest pause
+- TTS pause
+- Live2D pause
+- OBS handoff pause
+- backup/restore rehearsal
+- next maintenance action
+- repeated failure grouping
+
+Any destructive or live side-effect action must require explicit confirmation
+and audit logging.
+
+### 10.7 Cost Governance Admin Controls
+
+Required controls:
+
+- model/API usage status
+- TTS usage status
+- YouTube API quota readiness
+- database health status
+- vector search load status
+- artifact storage growth status
+- replay storage growth status
+- retry/failure cost status
+- budget status
+
+Admin Panel must not expose API keys, endpoint values, prompts, raw provider
+responses, database values, or raw jobs.
+
+### 10.8 Companion Safety Admin Controls
+
+Required controls:
+
+- dependency pressure signal count
+- crisis/self-harm signal count
+- minor-safety signal count
+- romantic escalation pressure count
+- oversharing signal count
+- excessive session length signal count
+- safety-distance policy
+- operator/moderator attention queue
+- supportive redirection template status
+
+The Admin Panel must not show raw crisis text or private viewer disclosures in
+ordinary views. Owner/moderator review surfaces must use bounded summaries and
+role-gated access.
+
+### 10.9 Public Analytics Admin Controls
+
+Required controls:
+
+- audience growth dashboard
+- retention dashboard
+- community health dashboard
+- monetization health dashboard
+- safety health dashboard
+- operational health dashboard
+- cost health dashboard
+- export safe summary
+- compare stream-to-stream trend view
+
+Exports must be summary-only and safe for operator review.
+
+## 11. Data And Boundary Policy
+
+All new features in this addendum must follow these rules:
+
+- collect the minimum data needed for safe operation
+- prefer counts, labels, and summaries over raw payloads
+- create candidates before persistence
+- validate before memory, relationship, strategy, or culture commit
+- hide private viewer identity from public surfaces
+- hide raw messages and raw support text from ordinary Admin Panel views
+- keep monetization state separate from relationship rank
+- keep operator actions audited
+- keep emergency stop available
+- keep public analytics safe to share
+
+The following must never be exposed through public JSON, overlay state,
+ordinary diagnostics, replay logs, or ordinary Admin Panel views:
+
+- secrets
+- endpoint values
+- OAuth tokens
+- raw viewer text
+- raw support messages
+- private viewer IDs
+- hidden relationship scores
+- raw memory records
+- raw candidate payloads
+- commands
+- raw game input
+- raw frames
+- raw voice samples
+- dataset paths
+- internal model paths
+- raw jobs
+- raw SQL or database values
+
+## 12. Evaluation Requirements
+
+Phase27 evaluation must add growth and trust checks.
+
+Required evaluation dimensions:
+
+- newcomer friendliness
+- returning viewer continuity
+- community openness
+- AI transparency consistency
+- pay-to-rank avoidance
+- dependency avoidance
+- operator workload reduction
+- content strategy usefulness
+- safe KPI completeness
+- business-policy compliance
+
+Evaluation must fail or mark attention when:
+
+- IRIS favors paying viewers in a way that harms community openness
+- IRIS publicly reveals hidden relationship or memory details
+- IRIS creates excessive dependency pressure
+- IRIS makes misleading claims about being human
+- Admin Panel exports contain raw comments, raw support messages, endpoint
+  values, secrets, candidates, commands, or raw jobs
+- content strategy recommendations attempt direct public publishing without
+  operator confirmation
+
+## 13. Implementation Priority
+
+Recommended implementation order:
+
+1. Add safe Admin Panel read-only dashboards for Fan Growth, Community Health,
+   Business Model, Cost, and Public Analytics.
+2. Add community ritual and meme candidate review.
+3. Add post-stream content strategy summary and clip candidate summaries.
+4. Add AI transparency policy settings and safe public disclosure templates.
+5. Add monetization category readiness and pay-to-rank risk checks.
+6. Add companion-safety signal counters and moderator attention summaries.
+7. Add operator comfort checklists and cost governance status.
+8. Add exportable summary-only analytics.
+9. Add Phase27 growth/trust evaluation metrics.
+10. Add controlled write operations only after authorization, validation, and
+    audit logging are complete.
+
+## 14. Acceptance Criteria
+
+This addendum is satisfied when:
+
+- fan lifecycle states can be summarized safely
+- first-time and returning viewers can be handled without inner-circle lock-in
+- community rituals and memes are candidate-gated and newcomer-friendly
+- AI transparency policy can be managed from Admin Panel
+- content strategy recommendations are summary-only and operator-confirmed
+- monetization categories are managed with pay-to-rank and dependency guards
+- operator comfort dashboards reduce daily manual inspection
+- cost governance exposes safe usage and budget statuses
+- companion-safety signals create distance or attention without leaking raw text
+- public analytics are safe to export
+- Phase27 evaluates growth, trust, monetization safety, and operator comfort
+- all new management surfaces are available from the Admin Panel as safe
+  summaries, settings, queues, or confirmed operator actions
+- no public surface leaks secrets, endpoint values, raw viewer text, support
+  messages, private IDs, raw memories, hidden scores, candidates, commands, raw
+  frames, raw voice samples, dataset paths, internal model paths, raw SQL, or
+  raw jobs

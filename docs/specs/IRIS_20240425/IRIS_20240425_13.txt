@@ -1,0 +1,417 @@
+# IRIS 開発仕様書
+
+## Phase13 完全拘束版（最終確定版・競合解決＋強制削除保証版）
+
+長期継承・制度記憶・存在固定制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase06 / Phase07 / Phase08 / Phase09 / Phase10 / Phase11 / Phase12 の canonical export を入力とする。
+
+本フェーズは
+
+👉 **IRISが時間・再起動・環境変化を超えて同一存在として継続するための固定層**
+
+である。
+
+---
+
+## 重要定義（絶対）
+
+Phase13は意思決定しない
+Phase13は行動しない
+
+👉 **変えてはいけないものを選別し固定する層**
+
+---
+
+## 01. 目的
+
+人格の長期維持
+再起動後の連続性保証
+短期成功による変質防止
+world分裂防止
+長期ドリフト抑制
+制度的継承の確立
+
+---
+
+## 02. スコープ
+
+Legacy Signal Intake
+Canon Selection Engine
+Canon Capacity Controller
+Canon Aging Engine
+Canon Eviction Engine
+Canon Conflict Resolver（追加・最重要）
+Institutional Memory Canon
+Legacy Invariant Engine
+Succession Safety Check
+Long-Horizon Drift Check
+Cross-World Continuity Review
+Reboot Continuity Plan
+Legacy Guard
+Institutional Audit Queue
+Civilization Review
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type決定
+world_command生成
+memory直接更新
+人格生成
+報酬決定
+実行処理
+
+---
+
+## 04. 完成定義
+
+canon選定完全再現可能
+canon上限維持
+人格分裂ゼロ
+world別人格ゼロ
+unsafe継承ゼロ
+reboot復元成功率100%
+drift暴走ゼロ
+削除未実行ゼロ
+競合未解決ゼロ
+p95 < 200ms
+p99 < 300ms
+
+---
+
+## 05. 全体構造
+
+```text id="h9z4rx"
+Phase12
++ Phase11
++ Phase10
++ Phase09
++ Phase08
++ Phase07
++ Phase06
+-> Legacy Signal Intake
+-> Canon Selection Engine
+-> Canon Capacity Controller
+-> Canon Aging Engine
+-> Canon Conflict Resolver
+-> Canon Eviction Engine
+-> Institutional Memory Canon
+-> Legacy Invariant Engine
+-> Succession Safety Check
+-> Long-Horizon Drift Check
+-> Cross-World Continuity Review
+-> Reboot Continuity Plan
+-> Legacy Guard
+-> Institutional Audit Queue
+-> Civilization Review
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+single identity維持
+world別人格禁止
+external truth禁止
+memory直接変更禁止
+下位フェーズ上書き禁止
+
+---
+
+## 07. 入力契約
+
+```json id="c8t2zp"
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase12_safety_status": "pass|degrade|reject",
+  "phase12_identity_match_score": 0.0,
+  "phase12_regression_detected": false,
+  "phase11_economy_health_score": 0.0,
+  "phase10_strategy_mode": "explore|focus|engage|maintain",
+  "phase09_constraint_status": "pass|degrade|reject",
+  "phase08_primary_goal": "string",
+  "phase08_primary_goal_priority": 0.0,
+  "phase07_character_alignment_score": 0.0,
+  "phase06_character_sync_score": 0.0,
+  "character_tag": "soft|playful|tease|hype|calm"
+}
+```
+
+---
+
+## 08. Canon Selection Engine
+
+```json id="z4p1wy"
+{
+  "candidate_score": 0.0,
+  "decision": "accept|reject"
+}
+```
+
+---
+
+## 評価式
+
+```text id="y2q8cx"
+candidate_score =
+0.30 character_alignment
+0.20 identity_match
+0.15 strategy_stability
+0.15 phase09_consistency
+0.10 goal_priority
+0.10 economy_health
+```
+
+---
+
+## 採用条件
+
+```text id="w1z7tm"
+score >= 0.80
+かつ safety_status == pass
+かつ regression_detected == false
+```
+
+---
+
+## 09. Canon Capacity Controller
+
+```json id="k3v9fz"
+{
+  "canon_count": 0,
+  "canon_limit": 64,
+  "eviction_required": false
+}
+```
+
+---
+
+## 10. Canon Aging Engine
+
+```json id="m6r2yx"
+{
+  "canon_age": 0,
+  "decay_factor": 0.0,
+  "effective_weight": 0.0
+}
+```
+
+---
+
+## 計算
+
+```text id="s5c8hk"
+effective_weight =
+confidence × stability × decay_factor
+```
+
+---
+
+## 11. Canon Conflict Resolver（最重要）
+
+```json id="u2n9jp"
+{
+  "conflict_detected": true,
+  "resolved_canon_id": "uuid"
+}
+```
+
+---
+
+## 競合定義
+
+```text id="r3p6vw"
+内容矛盾
+identity衝突
+行動制約衝突
+```
+
+---
+
+## 解決ルール（完全固定）
+
+```text id="e9y1zt"
+1. stability高い
+2. identity一致高い
+3. 新しいもの
+```
+
+---
+
+## 12. Canon Eviction Engine
+
+```json id="t7x2rm"
+{
+  "eviction_executed": true,
+  "evicted_ids": []
+}
+```
+
+---
+
+## 強制削除ルール
+
+```text id="n4v8sq"
+eviction_required == true → 必ず削除
+```
+
+```text id="d1k5hz"
+effective_weight < 0.2 → 強制削除
+```
+
+---
+
+## 13. Institutional Memory Canon
+
+```json id="g8p1lw"
+{
+  "canon_item_id": "uuid",
+  "confidence": 0.0,
+  "stability": 0.0,
+  "effective_weight": 0.0
+}
+```
+
+---
+
+## 条件
+
+confidence >= 0.85
+stability >= 0.85
+
+---
+
+## 14. Legacy Invariant Engine
+
+```json id="v3q7px"
+{
+  "invariant_status": "preserved|threatened|broken",
+  "threat_score": 0.0
+}
+```
+
+---
+
+## 15. Long-Horizon Drift Check
+
+```json id="c9y4mk"
+{
+  "drift_score": 0.0,
+  "risk": "safe|warning|unsafe"
+}
+```
+
+---
+
+## 条件
+
+0.5以上 → unsafe
+
+---
+
+## 16. Cross-World Continuity Review
+
+```json id="q6p8zx"
+{
+  "continuity_score": 0.0,
+  "fragmentation_risk": 0.0
+}
+```
+
+---
+
+## 17. Reboot Continuity Plan
+
+```json id="b4z1yn"
+{
+  "restore_order": ["identity", "memory", "relationship", "world"]
+}
+```
+
+---
+
+## 18. Legacy Guard
+
+```json id="k5x3tw"
+{
+  "phase_guard": [
+    {"target": "phase07", "status": "allow|deny"},
+    {"target": "phase08", "status": "allow|deny"},
+    {"target": "phase09", "status": "allow|deny"},
+    {"target": "phase10", "status": "allow|deny"},
+    {"target": "phase11", "status": "allow|deny"},
+    {"target": "phase12", "status": "allow|deny"}
+  ]
+}
+```
+
+---
+
+## 19. 出力契約
+
+```json id="r1t6qm"
+{
+  "trace_id": "uuid",
+  "canon_count": 0,
+  "drift_score": 0.0,
+  "continuity_score": 0.0
+}
+```
+
+---
+
+## 20. HARD制約
+
+人格分裂
+world別人格
+memory破壊
+external依存
+削除未実行
+競合未解決
+
+---
+
+## 21. SOFT制約
+
+過剰固定
+柔軟性不足
+
+---
+
+## 22. 最小実行パス
+
+```text id="p8t2zs"
+Phase12
+-> selection
+-> capacity
+-> aging
+-> conflict
+-> eviction
+-> drift
+-> continuity
+-> export
+```
+
+---
+
+## 23. 本質
+
+Phase13は
+
+👉 記憶ではない
+👉 評価でもない
+
+👉 **存在を固定する層**
+

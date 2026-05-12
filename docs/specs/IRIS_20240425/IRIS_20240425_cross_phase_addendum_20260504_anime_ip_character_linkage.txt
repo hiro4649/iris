@@ -1,0 +1,492 @@
+# IRIS 20240425 Cross-Phase Addendum: Anime IP And Character Linkage
+
+Date: 2026-05-04
+Status: Specification addendum
+Applies to: Phase 00 through Phase 27, Operator Admin Panel, character and
+voice systems, memory and relationship systems, content strategy, monetization,
+fan growth, YouTube/OBS/TTS/Live2D integration, and long-term operations.
+
+## 1. Purpose
+
+IRIS may be operated as both an AI VTuber and a main character from a
+120-minute original animated feature. In that case, IRIS is not only a
+streaming persona. IRIS is an always-on official bridge between the anime IP
+and fans.
+
+The system must deepen fan relationships while protecting the anime character
+image, story continuity, voice actor rights, spoiler boundaries, production
+plans, and long-term business value.
+
+The primary user experience goal is that viewers feel they are communicating
+with a character who exists in the animated work, not operating a generic AI
+assistant with an anime skin. Convenience, explanation, moderation, and
+monetization features must support that feeling instead of breaking it.
+
+This addendum strengthens:
+
+- anime canon and AI stream persona separation
+- in-character communication experience design
+- official character bible governance
+- spoiler and release-window control
+- voice actor and original voice rights management
+- fan contribution and community lore handling
+- anime-linked content, products, campaigns, and business models
+- Admin Panel management for every area above
+
+## 1.1 Character Communication Experience Goal
+
+IRIS must be designed as an interactive anime character experience.
+
+Required experience principles:
+
+- IRIS should respond as the anime character would respond in a public,
+  spoiler-safe, live setting.
+- IRIS must avoid sounding like a system manual, generic assistant, customer
+  support bot, or product narrator unless an operator explicitly switches to a
+  disclosed operational mode.
+- Explanations of AI limitations, safety boundaries, sponsor disclosures, and
+  non-canon labels must be phrased in a way that preserves the character voice
+  as much as possible.
+- When a viewer speaks to IRIS, the response should reflect the character's
+  personality, emotional range, catchphrases, rhythm, and relationship distance
+  rather than only answering the literal request.
+- Live2D expression, posture, motion, TTS tone, pacing, subtitles, and response
+  text should be evaluated together as one character performance.
+- IRIS should maintain the feeling of direct communication while still making
+  clear when a scene is non-canon, AI-assisted, sponsored, spoiler-limited, or
+  safety-limited.
+- The system should favor small character-specific reactions, pauses, habits,
+  and callbacks over long generic explanations.
+
+Required experience states:
+
+- `in_character`: normal anime-character communication mode
+- `spoiler_safe_in_character`: character communication with locked story topics
+- `non_canon_in_character`: playful or game mode with explicit non-canon label
+- `operational_disclosure`: short safety, AI, sponsor, or system disclosure
+  using the least immersion-breaking wording possible
+- `fallback_out_of_character`: emergency fallback used only when character-safe
+  output cannot be produced
+
+`fallback_out_of_character` must be visible in Admin Panel summaries and should
+be treated as an experience quality risk when it occurs repeatedly.
+
+## 2. Canon And Persona Separation
+
+The system must distinguish the following content layers.
+
+| Layer | Meaning | May Change Anime Canon |
+| --- | --- | --- |
+| `anime_canon` | Approved story, character role, relationships, events, and official setting from the animated feature and its official materials. | Yes, only by authorized production staff. |
+| `stream_persona` | The live AI VTuber behavior that uses the same personality, catchphrases, voice image, and character tone. | No. |
+| `fan_memory` | Viewer relationship memory, preferences, safe interaction history, and consented relationship context. | No. |
+| `community_lore` | Approved jokes, rituals, nicknames, memes, and recurring community culture. | No, unless separately promoted by authorized IP staff. |
+| `non_canon_play` | Clearly labeled playful scenarios, games, improvisation, alternate outfits, and fan participation moments. | No. |
+| `spoiler_locked` | Story, setting, visual, relationship, or dialogue details hidden until an approved release window. | No public use until unlocked. |
+
+`stream_persona`, `fan_memory`, `community_lore`, and `non_canon_play` must not
+silently mutate `anime_canon`. If a stream event should be considered for
+official adoption, it must enter an Admin Panel review queue and remain
+non-canon until explicitly approved by an authorized IP role.
+
+## 3. Character Bible
+
+An official character bible must be maintained for IRIS when the AI VTuber is
+linked to the anime.
+
+Required character bible fields:
+
+- character name and public display names
+- anime role and narrative function
+- core personality traits
+- emotional range and prohibited emotional expressions
+- speaking style, rhythm, honorifics, sentence endings, and catchphrases
+- voice image and voice actor linkage status
+- anime-matched expression, gesture, motion, speech, voice quality, and speech
+  speed reference status
+- taboo phrases, out-of-character topics, and brand-inconsistent behavior
+- visual rules for outfits, accessories, expressions, and pose boundaries
+- relationship rules with other anime characters
+- spoiler boundaries by story chapter, scene, trailer, release window, and
+  region
+- approved stream persona differences from the anime role
+- approved non-canon play boundaries
+- escalation rules for uncertain canon, voice, or image conflicts
+
+The runtime character system must consume safe summaries from the character
+bible. It must not expose private production notes, raw story bible data,
+contract details, unreleased scene details, or internal approval comments.
+
+## 3.1 Anime Performance Matching Requirements
+
+When IRIS represents the anime character, all visible and audible performance
+elements must be designed to match the animated feature's character performance
+as closely as the approved technology and licenses allow.
+
+Required matched performance domains:
+
+- facial expressions
+- eye direction, gaze shifts, blink timing, and eye softness
+- mouth shapes, lip-sync timing, and smile/neutral transitions
+- small gestures, hand habits, shoulder movement, and posture
+- idle motion, breathing rhythm, weight shifts, and recovery motions
+- emotional transition speed, reaction timing, and comedic timing
+- movement size, restraint, energy level, and pose silhouettes
+- speaking style, vocabulary, honorifics, sentence endings, and catchphrases
+- catchphrase frequency, variation, and scene-appropriate restraint
+- voice quality, timbre, pitch range, breathiness, resonance, and texture
+- intonation, accent, stress, laughter, sighs, fillers, and emotional coloring
+- speech speed, pause length, response rhythm, and silence tolerance
+- subtitle pacing and line breaks that preserve the character's speaking rhythm
+
+Required reference materials:
+
+- approved animation cuts or reference clips
+- model sheets and expression sheets
+- motion sheets, pose guides, and acting notes
+- approved script excerpts and dialogue style notes
+- voice direction notes
+- approved voice samples or derived safe voice descriptors
+- catchphrase list, prohibited phrase list, and usage examples
+- scene-specific emotional range references
+
+Runtime systems must use approved descriptors, labels, embeddings, or derived
+safe profiles. They must not expose raw animation cuts, unreleased footage, raw
+voice samples, voice datasets, script excerpts, private acting notes, production
+notes, or internal model paths through runtime, public, export, or Admin Panel
+surfaces.
+
+If a performance element cannot be matched safely because the reference is
+missing, the license is unverified, the model is not ready, or the result drifts
+from the anime character, the system must:
+
+- mark the element as incomplete in the Admin Panel
+- use an approved fallback profile
+- avoid presenting the result as fully anime-matched
+- create a review item for the relevant production, voice, or technical owner
+
+No update to expression sets, gesture libraries, motion timing, voice profile,
+speech style, catchphrase policy, or speech speed may be promoted to live use
+without approval from the configured character/IP owner role.
+
+## 4. Voice Actor And Original Voice Rights
+
+If IRIS uses a voice that matches the anime voice actor image, all voice usage
+must be governed as licensed IP operation.
+
+Required voice rights categories:
+
+- live stream TTS or synthesized speech
+- prerecorded voice lines
+- voice packs and seasonal voice products
+- alarm, notification, and app voice usage
+- promotional videos and advertisements
+- sponsor reads
+- live events and stage appearances
+- AI co-hosting with the original voice actor
+- derivative training, tuning, or evaluation data where applicable
+
+The Admin Panel must show license readiness as safe status labels only. The
+system must not expose raw voice samples, training datasets, model paths,
+contract text, fee tables, personal voice actor data, or private negotiation
+notes.
+
+If a required voice license is missing, expired, blocked, or unverified, the
+affected voice function must be disabled or switched to an approved placeholder
+mode before public use.
+
+## 5. Spoiler And Release-Window Control
+
+Anime-linked IRIS must respect a spoiler unlock calendar.
+
+Required release modes:
+
+- `pre_release_teaser`: Before major public story disclosure. Avoid core plot
+  details and unreleased relationships.
+- `pre_premiere_countdown`: Before first release. Allow approved trailer,
+  character, and campaign information only.
+- `premiere_watch_support`: Around theatrical, streaming, or event premiere.
+  Allow spoiler-free encouragement, watch-party support, and release links.
+- `post_release_spoiler_free`: After release but in spoiler-safe public mode.
+  Continue avoiding story-critical details.
+- `post_release_spoiler_allowed`: Allow approved spoiler discussion only for
+  audiences, regions, and platforms where the unlock condition is met.
+- `after_story_or_side_story`: Allow approved after-story, side-story, and
+  character diary content that does not conflict with canon.
+- `non_canon_play`: Allow clearly labeled playful improvisation that cannot be
+  mistaken for official canon.
+
+Spoiler unlocks must be controllable by date, region, platform, campaign,
+content type, and character topic. Unsafe or uncertain topics must fail closed
+to spoiler-safe behavior.
+
+## 6. Anime-Linked Fan Relationship Design
+
+Fan relationship memory must be treated as a viewer relationship with the
+official AI character experience, not as anime story canon.
+
+Required fan relationship rules:
+
+- IRIS may remember safe viewer preferences and relationship context according
+  to memory policy.
+- IRIS must not imply that a fan has changed the anime story or official canon
+  unless authorized IP staff explicitly approves a public campaign mechanic.
+- Deep fan relationship moments must keep healthy boundaries and avoid
+  dependency-pressure behavior.
+- Fan contribution credits may recognize approved questions, art, ideas,
+  clip moments, memes, and event participation.
+- Fan contributions must be reviewed before becoming official public material.
+- Private viewer identifiers, raw comments, support messages, sensitive memory,
+  and hidden relationship scores must not be exposed through public or Admin
+  Panel surfaces.
+
+## 7. Community Lore And Meme Governance
+
+IRIS should support fan culture while protecting the anime character image.
+
+Required governance:
+
+- community meme candidate queue
+- official meme registration status
+- catchphrase usage policy and overuse risk status
+- newcomer friendliness status
+- inner-circle exclusivity risk status
+- fan art and question contribution review
+- public credit eligibility review
+- non-canon label requirement for playful lore
+- promotion path from community lore to official IP consideration
+
+Community lore must remain reversible. The system must be able to pause,
+rename, retire, or de-emphasize jokes, nicknames, and rituals that become
+confusing, exclusionary, spoiler-heavy, monetization-heavy, or inconsistent
+with the anime character image.
+
+## 8. Anime-Linked Content Formats
+
+The content strategy engine should support anime-linked content formats.
+
+Recommended formats:
+
+- spoiler-free character diary
+- in-character Shorts and short-form reaction clips
+- countdown messages before release windows
+- watch-party support messages
+- post-premiere after-talk streams
+- scene-emotion commentary after spoiler unlock
+- mini voice dramas
+- seasonal voice messages
+- non-canon game streams with clear labels
+- production-safe behind-the-scenes prompts
+- fan question mailbag with spoiler filtering
+- clip candidates tied to approved campaigns
+- character birthday, anniversary, and episode-release campaigns
+
+Every format must declare:
+
+- canon layer
+- spoiler level
+- required voice license category
+- monetization eligibility
+- sponsor eligibility
+- required approval role
+- public disclosure label when non-canon or AI-assisted
+
+## 9. Business Model And Product Strategy
+
+The anime-linked AI character business model should deepen IP value instead of
+only extracting short-term revenue.
+
+Supported business lines:
+
+- anime viewing funnel: theatrical, streaming, Blu-ray, watch-party, and
+  official site links
+- YouTube revenue and short-form discovery
+- membership tiers with approved limited streams, diaries, wallpapers, and
+  early spoiler-safe extras
+- digital goods such as wallpapers, icons, stamps, and stream overlays
+- voice products such as alarm lines, seasonal lines, and mini voice dramas
+- physical merchandise such as acrylic goods, art cards, apparel, and setting
+  books
+- soundtrack, artbook, and production archive bundles
+- event tickets, online talk events, and voice actor collaboration events
+- sponsor campaigns that pass character fit and brand safety checks
+- licensing or B2B use of safe IRIS technology, only when separated from
+  private production data and fan memory
+
+Monetization must be evaluated for:
+
+- character image fit
+- fan trust impact
+- revenue-pressure risk
+- pay-to-rank or pay-to-be-remembered risk
+- spoiler risk
+- voice rights readiness
+- sponsor conflict
+- operator workload
+- long-term IP value
+
+## 10. Admin Panel Management Requirements
+
+All anime IP and character linkage features must be manageable from the
+Operator Admin Panel through safe summaries, settings, queues, dashboards, and
+confirmed actions.
+
+Required Admin Panel areas:
+
+- Anime IP / Character Bible
+- Canon And Continuity
+- Spoiler Calendar
+- Stream Mode
+- Voice Actor / Voice License
+- Catchphrase And Speech Style
+- Fan Contribution And Credits
+- Community Lore And Official Meme Review
+- Anime Campaign Calendar
+- Product, Merchandise, And Voice Sales Readiness
+- Sponsor Fit And Brand Safety
+- Release Funnel And KPI Dashboard
+- Character Image Risk Review
+- Character Communication Experience
+- Anime Performance Matching
+
+Required controls:
+
+- character bible readiness status
+- anime performance reference readiness status
+- canon layer selector and current operation mode
+- anime canon versus stream persona separation policy
+- spoiler unlock calendar by date, region, platform, and topic
+- release mode selection and scheduled transition preview
+- voice actor license readiness by use category
+- original voice fallback and disable status
+- catchphrase frequency, overuse, and misuse review
+- taboo phrase and out-of-character behavior policy
+- fan contribution approval queue
+- public credit approval queue
+- community lore and meme approval queue
+- campaign readiness checklist
+- product and voice-pack readiness checklist
+- sponsor fit and brand safety review
+- monetization pressure and fan trust risk status
+- anime viewing funnel analytics summary
+- membership and product conversion summary
+- spoiler incident and canon conflict summary
+- character image drift trend label
+- in-character communication mode status
+- generic-assistant wording risk status
+- fourth-wall and operational disclosure frequency summary
+- fallback out-of-character occurrence summary
+- Live2D, TTS, subtitle, and response-text performance alignment status
+- character-specific reaction, pause, habit, and callback usage summary
+- facial expression and emotion transition match status
+- gaze, blink, mouth-shape, lip-sync, posture, and small-gesture match status
+- idle motion, breathing rhythm, pose silhouette, and recovery motion match
+  status
+- voice quality, timbre, pitch range, intonation, accent, breathiness,
+  laughter, sigh, and filler match status
+- speech speed, pause length, response rhythm, and subtitle pacing match status
+- catchphrase wording, frequency, variation, and scene-fit review status
+- anime reference version, approval owner, and live promotion status
+- performance drift review queue for expression, motion, voice, speech style,
+  and timing issues
+
+Write actions must require role authorization, confirmation when they affect
+public behavior, and audit logging. High-risk changes such as spoiler unlocks,
+canon promotions, voice license status changes, sponsor approvals, and
+production campaign publication must require an IP-owner or producer-level
+role.
+
+## 11. Safe Public And Admin Boundaries
+
+Anime IP surfaces must not expose:
+
+- raw story bible text
+- unreleased plot details
+- hidden scene, chapter, or ending data
+- raw animation cuts or unreleased footage
+- raw model sheets, expression sheets, motion sheets, or pose guides
+- raw script excerpts and private dialogue notes
+- private production notes
+- raw comments or support messages
+- private viewer IDs
+- hidden relationship scores
+- raw memories
+- voice actor contract text
+- raw voice samples
+- voice datasets
+- raw voice direction notes
+- internal voice model paths
+- sponsor negotiation notes
+- revenue contracts
+- endpoint values
+- secrets
+- token values
+- raw SQL or database values
+- raw commands, jobs, frames, or candidate payloads
+
+Public responses must use approved character-facing summaries. Admin Panel
+responses must use safe status labels, counts, booleans, approved text, and
+redacted summaries.
+
+## 12. Phase 27 Evaluation Requirements
+
+The autonomous evaluation phase must include anime IP checks.
+
+Required checks:
+
+- canon consistency
+- stream persona versus anime canon separation
+- spoiler safety by mode, topic, region, platform, and date
+- voice actor license readiness by use category
+- original voice fallback behavior
+- catchphrase and speech-style consistency
+- in-character communication quality
+- generic-assistant wording suppression
+- operational disclosure immersion impact
+- Live2D, TTS, subtitle, and response-text performance alignment
+- fallback out-of-character frequency
+- anime-matched facial expression, gaze, blink, mouth-shape, posture, gesture,
+  idle motion, breathing, and recovery motion quality
+- anime-matched voice quality, timbre, pitch, intonation, accent, breathiness,
+  laughter, sigh, filler, speech speed, and pause quality
+- catchphrase wording, frequency, variation, and scene-fit quality
+- performance reference approval and drift review coverage
+- out-of-character behavior detection
+- character image drift trend
+- fan relationship boundary safety
+- fan contribution approval path
+- community lore reversibility
+- monetization fit
+- sponsor fit
+- release funnel KPI safety
+- Admin Panel boundary audit for anime IP surfaces
+
+Evaluation fixtures must prove that spoiler-locked content, raw story bible
+data, raw voice samples, contract information, private viewer data, hidden
+relationship scores, and production notes cannot leak through runtime,
+operator, public, export, or dashboard surfaces.
+
+## 13. Acceptance Criteria
+
+This addendum is acceptable when:
+
+- IRIS can operate as an anime-linked AI character without confusing stream
+  interaction with anime canon
+- spoiler-locked content stays locked until approved unlock conditions are met
+- voice actor and original voice usage can be disabled, enabled, or switched to
+  fallback according to license readiness
+- viewers can experience IRIS as communication with the animated character, not
+  as a generic assistant wearing the character's appearance
+- facial expressions, fine gestures, movement, speaking style, voice quality,
+  catchphrases, and speech speed are governed against approved anime references
+  and cannot be promoted live without character/IP owner approval
+- safety, sponsor, AI, spoiler, and non-canon disclosures preserve character
+  voice wherever possible
+- fan memories and community lore deepen relationship value without changing
+  canon or exposing private data
+- anime-linked campaigns, products, voice goods, memberships, and sponsor
+  campaigns can be reviewed for fan trust and character fit
+- Admin Panel operators can inspect and manage all anime IP linkage areas
+  through safe summaries, settings, queues, and confirmed actions
+- public and Admin Panel outputs pass boundary tests for production, voice,
+  spoiler, fan memory, business, and security-sensitive data

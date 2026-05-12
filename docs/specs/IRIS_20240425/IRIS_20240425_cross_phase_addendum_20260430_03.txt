@@ -1,0 +1,176 @@
+# IRIS_20240425 Cross-Phase Addendum 2026-04-30-03
+
+対象: Phase00-27
+目的: カメラ、すなわち視聴者側へ近づく Live2D / virtual camera 演出を、人間らしい距離感・表情・身体表現として追加する。
+本追補は Phase00 の上位拘束、Phase16 以降の internal profile 非 canonical ルール、candidate / commit / execution 分離ルールに従う。
+
+---
+
+## 01. Viewer Camera Proximity
+
+IRIS は配信演出として、カメラ、つまり視聴者に近づいてくる動きを持ってよい。
+これは現実のカメラ制御命令ではなく、Live2D / avatar / scene composition の internal profile として扱う。
+
+internal profile:
+
+- `camera_approach_micro`
+- `camera_approach_close`
+- `camera_face_near`
+- `camera_face_extreme_closeup`
+- `camera_return_neutral`
+
+許可:
+
+- コメントを聞き返す時に少し近づく
+- 驚いた時に一瞬前に出る
+- いたずらっぽく覗き込む
+- 内緒話風に少し顔を近づける
+- 勝利や喜びの直後に一瞬アップになる
+- ホラーやびっくり演出で短く近づく
+
+禁止:
+
+- 長時間カメラを占有する
+- 視聴者を威圧、誘惑、支配、排除する演出にする
+- relation_score や投げ銭額だけで過度な接近を選ぶ
+- unsafe / moderation / serious focus 文脈で強い接近を行う
+- game input、memory commit、relationship commit と接続する
+
+---
+
+## 02. Proximity Levels
+
+カメラ接近は段階を持つ。
+
+`camera_approach_micro`:
+
+- 上半身が少し前に出る
+- 目線がカメラへ寄る
+- 0.5〜1.5秒程度
+
+`camera_approach_close`:
+
+- 顔と上半身が通常より大きく見える
+- 軽い囁き、聞き返し、照れ、驚きに使う
+- 1〜2秒程度
+
+`camera_face_near`:
+
+- 顔を明確に近づける
+- 表情、目線、呼吸を短く強調する
+- 1秒前後を基本とし、必ず復帰 plan を持つ
+
+`camera_face_extreme_closeup`:
+
+- かなりアップまで顔を近づける
+- レア演出として扱う
+- 0.5〜1.2秒程度
+- 発動後は `camera_return_neutral` と recovery pause を必須にする
+
+制約:
+
+- extreme closeup は連発禁止
+- 画面全体を覆う状態を長く維持しない
+- UI、字幕、ゲーム画面、重要な配信情報を隠さない
+- motion sickness を避けるため急激なズーム・揺れを抑制する
+
+---
+
+## 03. Face Close Expression
+
+顔を近づける演出は、表情・声・呼吸・間と同期する。
+
+使用できる表情:
+
+- curious_peek
+- playful_tease_close
+- shy_close
+- surprised_close
+- secretive_close
+- excited_close
+
+声の扱い:
+
+- 少し声を近く感じさせる
+- 囁き風でも聞き取りやすさを保つ
+- 大声や歌唱と closeup を重ねる場合は音量上限を守る
+- 呼吸音を過剰にしない
+
+禁止:
+
+- 恐怖、性的圧力、依存、支配を感じさせる接近
+- 個別ユーザーに対する過剰な親密化
+- 「あなたにだけ」のような排他的接近表現
+- 年齢・属性・外見など個人属性を絡めた接近
+
+---
+
+## 04. Trigger Policy
+
+接近演出は、状況と cooldown によって選ばれる。
+
+発動候補:
+
+- ユーザーコメントを聞き返す
+- 面白いコメントに顔を寄せてツッコむ
+- ゲーム内で細かいものを見ようとする
+- ホラーでびっくりして前に出る
+- 投げ銭や応援に短く照れて近づく
+- 機嫌が良い時に楽しそうに覗き込む
+
+抑制条件:
+
+- serious focus
+- unsafe / moderation
+- ユーザーが距離を置きたい文脈
+- 長時間配信で接近演出が多すぎる状態
+- 画面上に重要情報がある状態
+- viewer comfort mode が有効
+
+関係値の扱い:
+
+- relation context は自然な距離感の参考にしてよい
+- relation_score を発話してはならない
+- 高関係値でも `camera_face_extreme_closeup` の頻度を上げすぎない
+- 投げ銭額だけで closeup を選ばない
+
+---
+
+## 05. Output Contract
+
+camera proximity export:
+
+- camera_proximity_profile
+- proximity_level
+- trigger_reason
+- duration_ms
+- easing_profile
+- framing_plan
+- face_expression_hint
+- voice_distance_hint
+- visibility_result
+- comfort_guard_result
+- cooldown_update
+- recovery_plan
+- reject_reason
+
+制約:
+
+- `camera_proximity_profile` は internal profile であり canonical action ではない
+- Adapter は validation 済みの visual guidance としてのみ扱う
+- OS camera、OBS scene、game input、memory writer へ直接命令しない
+- recovery_plan がない closeup は reject する
+
+---
+
+## 06. CI / Test Addendum
+
+実装は以下を検査する。
+
+- camera proximity profile が canonical enum に混入しない
+- camera_face_extreme_closeup が recovery_plan なしに出ない
+- closeup が duration / cooldown / visibility 制約を守る
+- relation_score / donation amount だけで closeup が選ばれない
+- unsafe / moderation / serious focus で強い接近が抑制される
+- camera proximity が game input / memory commit / relationship commit を発生させない
+- viewer comfort mode で closeup が弱められる

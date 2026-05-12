@@ -1,0 +1,376 @@
+# IRIS 開発仕様書
+
+## Phase11 完全拘束版（最終確定版・非侵食保証版）
+
+価値循環・関係性経済・評価隔離制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase07 / Phase09 / Phase10 の canonical export を入力とする。
+
+本フェーズは
+
+👉 **価値・信頼・関係性を評価・蓄積するが、人格・戦略へ一切影響させない隔離層**
+
+である。
+
+---
+
+## 重要定義（ここを間違えるな）
+
+Phase11は評価する
+Phase11は記録する
+
+👉 **意思決定には関与しない**
+👉 **上流フェーズへ影響を伝播しない**
+
+---
+
+## 01. 目的
+
+価値を循環させる
+関係性を蓄積する
+信頼を安定的に増加させる
+短期評価で挙動が歪まない
+人格・戦略を完全に保護する
+
+---
+
+## 02. スコープ
+
+Value Signal Intake
+Engagement Analyzer
+Trust Accumulator
+Contribution Tracker
+Exchange Policy Model
+Reward Signal Generator
+Economy Balance Monitor
+Dependency Guard
+Character Alignment Guard
+Strategy Contamination Guard
+Isolation Boundary（追加・最重要）
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type 決定
+world_command 生成
+戦略変更
+人格変更
+memory更新
+報酬実行
+課金処理
+
+---
+
+## 04. 完成定義
+
+評価結果が完全再現可能
+短期スパイク影響ゼロ
+特定ユーザー依存ゼロ
+人格影響ゼロ
+戦略影響ゼロ
+Phase10への影響伝播ゼロ
+p95 < 60ms
+p99 < 100ms
+
+---
+
+## 05. 全体構造
+
+```text
+Phase07 Export
++ Phase10 Export
++ Phase09 Export
+-> Value Signal Intake
+-> Engagement Analyzer
+-> Trust Accumulator
+-> Contribution Tracker
+-> Exchange Policy Model
+-> Reward Signal Generator
+-> Economy Balance Monitor
+-> Dependency Guard
+-> Character Alignment Guard
+-> Strategy Contamination Guard
+-> Isolation Boundary
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+評価は参照専用
+意思決定禁止
+人格影響禁止
+戦略影響禁止
+短期最適化禁止
+上流伝播禁止
+
+---
+
+## 07. 入力契約
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase07_value_score": 0.0,
+  "phase10_strategy_mode": "explore|focus|engage|maintain",
+  "phase09_constraint_status": "pass|degrade|reject",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "source": "youtube|minecraft|vrchat",
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 08. Value Signal Intake
+
+```json
+{
+  "signal_id": "uuid",
+  "signal_type": "chat|reaction|support",
+  "intensity": 0.0
+}
+```
+
+観測のみ
+解釈は後段
+
+---
+
+## 09. Engagement Analyzer
+
+```json
+{
+  "engagement_score": 0.0,
+  "attention_score": 0.0,
+  "interaction_density": 0.0
+}
+```
+
+---
+
+## 10. Trust Accumulator
+
+```json
+{
+  "user_id": "string",
+  "trust_score": 0.0,
+  "interaction_count": 0,
+  "decay_factor": 0.0
+}
+```
+
+---
+
+## 制約
+
+短期変動禁止
+スパイク無効化
+
+---
+
+## 11. Contribution Tracker
+
+```json
+{
+  "user_id": "string",
+  "contribution_score": 0.0,
+  "type": "chat|support|content"
+}
+```
+
+---
+
+## 12. Exchange Policy Model
+
+```json
+{
+  "exchange_mode": "free|reciprocal|rewarded",
+  "threshold": 0.0
+}
+```
+
+---
+
+## 13. Reward Signal Generator
+
+```json
+{
+  "reward_signal": 0.0,
+  "target": "user|system|community"
+}
+```
+
+※実行禁止
+※伝播禁止
+
+---
+
+## 14. Economy Balance Monitor
+
+```json
+{
+  "economy_health_score": 0.0,
+  "risk_flag": false
+}
+```
+
+---
+
+## 監視対象
+
+過剰収益依存
+無償過多
+偏り
+
+---
+
+## 15. Dependency Guard（重要）
+
+```json
+{
+  "user_dependency_score": 0.0,
+  "dependency_risk": "safe|warning|critical"
+}
+```
+
+---
+
+## 条件
+
+特定ユーザー比率 > 0.5 → critical
+
+---
+
+## 16. Character Alignment Guard（強化）
+
+```json
+{
+  "alignment_score": 0.0,
+  "status": "pass|reject"
+}
+```
+
+---
+
+## ルール
+
+reject = 即reject
+degrade存在なし
+
+---
+
+## 17. Strategy Contamination Guard（最重要）
+
+```json
+{
+  "contamination_score": 0.0,
+  "status": "safe|warning|critical"
+}
+```
+
+---
+
+## 判定
+
+短期評価により行動が変化 → critical
+
+---
+
+## 18. Isolation Boundary（最重要）
+
+👉 ここが今回の核心
+
+```json
+{
+  "phase11_visibility": "read_only_non_propagating"
+}
+```
+
+---
+
+## 絶対ルール
+
+```text
+Phase11出力は Phase10 / Phase08 / Phase07 に入力してはならない
+```
+
+```text
+Phase11は下流専用参照データである
+```
+
+---
+
+## 19. 出力契約
+
+```json
+{
+  "trace_id": "uuid",
+  "value_score": 0.0,
+  "engagement_score": 0.0,
+  "trust_score": 0.0,
+  "exchange_mode": "reciprocal",
+  "economy_health_score": 0.0,
+  "dependency_risk": "safe|warning|critical",
+  "contamination_score": 0.0,
+  "phase11_visibility": "read_only_non_propagating"
+}
+```
+
+---
+
+## 20. HARD制約
+
+人格影響
+戦略変更誘導
+特定ユーザー依存
+短期収益最適化
+上流影響伝播
+
+---
+
+## 21. SOFT制約
+
+収益偏り
+関係固定化
+過剰評価
+
+---
+
+## 22. 最小実行パス
+
+```text
+Phase07
+-> intake
+-> engagement
+-> trust
+-> contribution
+-> balance
+-> dependency
+-> contamination
+-> isolation
+-> export
+```
+
+---
+
+## 23. 本質
+
+Phase11は
+
+👉 経済ではない
+👉 評価でもない
+
+👉 **人格と戦略を守るための「隔離フィルター」**
+

@@ -1,0 +1,717 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase01 完全整合版（最終整合版・単体完結版）
+
+単一人格・複数 Presence 接続フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**として、その前提の上で IRIS を YouTube / Minecraft / VRChat など複数世界へ接続しても、**単一人格・単一意思決定主体として扱うための最小実装仕様**を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書に未定義の挙動は実装禁止とする。
+本書は Addendum を前提にしない。
+本書は旧版 Phase01 より優先される。
+
+このフェーズで作るものは以下だけである。
+
+world ごとの raw event を canonical Event として扱うこと
+複数 Presence を同時に保持すること
+最終意思決定主体を 1 つに固定すること
+canonical intent を最小集合で返すこと
+短期 Working Memory を持つこと
+speaker ownership を 1 つに固定すること
+Phase02 に渡す canonical export を返すこと
+trace_id によって Event → Intent → Export を追跡可能にすること
+
+このフェーズでは LLM を使わない。
+このフェーズでは長期記憶保存をしない。
+このフェーズでは人格進化をしない。
+このフェーズでは action_type を決めない。
+このフェーズでは world_command を生成しない。
+このフェーズの目的は、**IRIS が複数世界で分裂しない骨格を固定すること**だけである。
+
+---
+
+## 01. 目的
+
+Phase01 の目的は以下である。
+
+Core が platform-agnostic のまま Intent を返せること
+複数 Presence が存在しても人格主体が 1 つであること
+外部イベントを共通入力として処理できること
+Intent を最小 canonical set に固定すること
+短期 Working Memory を world 非依存で保持すること
+speaker ownership を deterministic に決定できること
+Phase02 に渡す export 契約を固定すること
+同一 trace_id で入力から出力まで追跡できること
+raw payload 全文を後続フェーズへ渡さないこと
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Event Validator
+Presence Registry
+Identity Candidate Registry
+Working Memory
+Intent Selector
+Speaker Arbitration
+Phase01 Export Builder
+Phase01 Logging
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+長期記憶保存
+relationship の本格更新
+感情生成
+高度な会話生成
+報酬最適化
+世界ごとの別人格運用
+自律行動最適化
+埋め込み検索
+動的学習
+action_type 決定
+world_command 生成
+fallback action 生成
+review path 処理
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、 Phase01 完了とみなす。
+
+Core が world SDK なしで単体ビルド可能であること
+Core 内に `youtube` `minecraft` `vrchat` 固有 SDK import が存在しないこと
+Event を受けて canonical intent を返せること
+複数 Presence を同時に registry へ保持できること
+複数 Presence が同時に存在しても speaker ownership が 1 件に決定されること
+同一 trace_id で Event → Intent → Export をログ追跡できること
+Working Memory が上限件数内で更新されること
+identity candidate を保持できるが auto link は行わないこと
+Schema 違反 Event は reject されること
+同一入力に対して同一 Intent が再現されること
+Phase01 Export が Phase00 の Phase01→Phase02 I/O 契約を満たすこと
+Phase01 単体で LLM 呼び出しが 0 件であること
+Phase01 Export に raw payload 全文が混入しないこと
+Phase01 停止時も最小実行パスの Event 検証と reject が壊れないこと
+
+---
+
+## 04. 全体構造
+
+Phase01 の通信構造は以下に固定する。
+
+```text
+Adapter -> EventBus -> Phase01 Core -> EventBus -> Phase02
+```
+
+Phase01 Core の内部構造は以下に固定する。
+
+```text
+Event Input
+-> Event Validator
+-> Presence Resolver
+-> Identity Candidate Resolver
+-> Working Memory Loader
+-> Intent Selector
+-> Speaker Arbitration
+-> Phase01 Export Builder
+-> Output
+```
+
+この順序以外は禁止する。
+ステップ統合は禁止する。
+Adapter 側へ判断を逃がすことは禁止する。
+Phase01 は action 層でも planner 層でもない。
+ここで決めるのは intent と presence ownership までである。
+
+---
+
+## 05. Phase00 準拠ルール
+
+本フェーズは最新 Phase00 に従い、以下を hard rule とする。
+
+Core は world SDK を import してはならない
+Adapter は intent を生成してはならない
+Adapter は memory / relation / goal を更新してはならない
+Phase01 は action_type を生成してはならない
+Phase01 は world_command を生成してはならない
+Phase01→Phase02 の required 出力は Phase00 I/O 契約に一致しなければならない
+trace_id は end-to-end で必須である
+Phase01 は raw payload を見てよい最後の層であり、後続フェーズへ raw payload 全文を渡してはならない
+Phase01 は review queue を受け取ってはならない
+Phase01 は identity を LINKED 確定してはならない
+
+---
+
+## 06. Canonical intent
+
+Phase01 で使用可能な intent は以下の最小集合のみとする。
+
+```text
+greet
+respond
+observe
+ignore
+```
+
+この 4 つ以外の外部公開 intent を追加してはならない。
+後続フェーズで内部 family を拡張することはあっても、Phase01 の公開 intent は増やさない。
+
+定義は以下に固定する。
+
+`greet`
+新規接触、参加、入室、初回メンション、再登場の歓迎系イベント
+
+`respond`
+IRIS に対する直接入力、名前呼び、返信要求、会話継続入力
+
+`observe`
+直接応答不要だが状況更新として保持すべきイベント
+
+`ignore`
+ノイズ、重複、低優先度、無関係入力
+
+---
+
+## 07. Event Input 契約
+
+Phase01 が受け取る Event は **Phase00 canonical Event Schema 準拠**であること。
+必須 root key は以下である。
+
+```json
+{
+  "event_id": "uuid",
+  "trace_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "timestamp_ms": 0,
+  "payload": {}
+}
+```
+
+追加で以下の正規化済み補助値を受け取ってよい。
+
+```json
+{
+  "target_presence_id": "uuid|null",
+  "mention_flag": false,
+  "priority": 0
+}
+```
+
+`mention_flag` と `priority` は Adapter が normalize した補助値として許可する。
+ただし Adapter は intent を決めてはならない。
+あくまで Event 補助情報の付与に限る。
+
+---
+
+## 08. Event Validator
+
+Event Validator は以下を確認する。
+
+必須 key の存在
+型整合
+source が canonical set 内であること
+timestamp_ms が妥当であること
+payload が object であること
+trace_id が空文字でないこと
+event_id が空文字でないこと
+
+fail 時は reject とする。
+補完は禁止する。
+`trace_id` 欠落を許可してはならない。
+`payload` 欠落時に空 object を自動補完してはならない。
+canonical 外 source を別 source へ読み替えてはならない。
+
+---
+
+## 09. Presence Registry
+
+Phase01 は Presence Registry を持つ。
+Presence Registry の役割は以下のみとする。
+
+active / idle / blocked の Presence 状態管理
+presence_root_id と presence_id の対応保持
+world ごとの接続中 Presence 一覧管理
+speaker ownership の判定素材供給
+
+Presence Registry がやってはならないことは以下とする。
+
+intent 生成
+identity link 確定
+memory 永続化
+world_command 発行
+relationship 更新
+
+最小保持構造は以下とする。
+
+```json
+{
+  "presence_root_id": "uuid",
+  "presence_id": "uuid",
+  "world": "youtube|minecraft|vrchat",
+  "status": "active|idle|blocked",
+  "speaker_token": false,
+  "last_seen_ms": 0
+}
+```
+
+`speaker_token=true` は同時に 1 Presence のみ許可する。
+複数に付与された場合は arbitration error とする。
+blocked Presence は Phase01 Export の `target_presence_id` 候補になれない。
+
+---
+
+## 10. Identity Candidate Registry
+
+Identity Candidate Registry は world 跨ぎで「同一人物かもしれない」候補を持つだけの層である。
+ここでは確定しない。
+ここで link しない。
+ここで relation を更新しない。
+
+最小 state は以下に固定する。
+
+```text
+UNLINKED
+CANDIDATE
+UNSAFE
+BLOCKED
+```
+
+Phase01 では `LINKED` を確定書き込みしてはならない。
+同名一致だけで candidate を確定してはならない。
+confidence threshold なし auto-link は hard fail とする。
+
+最小候補構造は以下とする。
+
+```json
+{
+  "candidate_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "external_user_key": "string",
+  "source": "youtube|minecraft|vrchat|system",
+  "candidate_state": "UNLINKED|CANDIDATE|UNSAFE|BLOCKED",
+  "confidence": 0.0
+}
+```
+
+`confidence` は候補評価用であり、確定リンク許可値ではない。
+Phase01 は candidate を保持するだけで終える。
+
+---
+
+## 11. Working Memory
+
+Working Memory は runtime 一時記憶であり、永続対象ではない。
+用途は以下のみとする。
+
+直近 event_id の保持
+直近 intent の保持
+直近 target_presence_id の保持
+speaker ownership 判定の補助
+重複 event 抑制
+短期ノイズ判定
+
+Working Memory は world 非依存でなければならない。
+ファイルや DB に永続化してはならない。
+Phase05 以降の memory segmentation を直接更新してはならない。
+
+最小構造は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "target_presence_id": "uuid|null",
+  "timestamp_ms": 0
+}
+```
+
+上限は固定長 queue とし、実装可能版では 32 件以内を推奨する。
+上限超過時は FIFO で削除する。
+raw payload 全文を保持してはならない。
+
+---
+
+## 12. Intent 決定ルール
+
+Phase01 の intent 決定は固定ルールで行う。
+LLM や生成モデルは使わない。
+
+最低限の判定ルールは以下とする。
+
+`greet`
+join / enter / reconnect / first mention / return after idle に該当するイベント
+
+`respond`
+mention_flag=true または target_presence_id が IRIS に向いている直接入力
+
+`observe`
+直接応答は不要だが、状態変化や周辺会話として短期保持価値がある入力
+
+`ignore`
+重複、ノイズ、低優先、無関係、破損気味の入力
+
+判定に使用してよいのは以下のみとする。
+
+source
+payload
+target_presence_id
+mention_flag
+priority
+Working Memory の直近 event 重複情報
+
+長期記憶や推論結果を参照してはならない。
+Phase02 以降の出力を逆参照してはならない。
+
+---
+
+## 13. Intent Selector の要件
+
+Intent Selector は以下を満たすこと。
+
+同一入力に対して deterministic であること
+例外時に `ignore` へフォールバックできること
+低優先度イベントを `observe` または `ignore` へ落とせること
+direct mention を優先して `respond` または `greet` に寄せられること
+重複 event を `ignore` に落とせること
+
+禁止事項は以下とする。
+
+Adapter 側へ判定を逃がすこと
+random で intent を変えること
+長期記憶参照
+identity 確定を条件に判定を変えること
+action_type を仮決定すること
+
+---
+
+## 14. Speaker Arbitration
+
+Speaker Arbitration は、複数 Presence が同時に active でも、**その瞬間の speaker ownership を 1 つに決める層**である。
+複数世界で同時に話者権を持ってはならない。
+
+入力に使ってよい要素は以下に限定する。
+
+target_presence_id
+mention_flag
+priority
+presence status
+last_seen_ms
+Working Memory の直近 speaker 情報
+
+決定ルールは deterministic に固定する。
+実装可能版では以下の優先順を推奨する。
+
+direct target_presence_id 一致
+
+> mention_flag=true な active presence
+> priority 高
+> last_seen_ms が新しい active presence
+> 既存 speaker 維持
+> なければ null
+
+ただし blocked Presence は常に敗者とする。
+複数勝者を返してはならない。
+speaker が決められない場合は `target_presence_id` を null にせず、Event 入力由来 target があればそれを優先し、なければ export を reject してはならず `observe` または `ignore` と整合する保守値へ寄せる。
+
+---
+
+## 15. Canonical export 契約
+
+Phase01 の canonical export は以下に固定する。
+Phase00 の Phase01→Phase02 契約に一致しなければならない。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "target_presence_id": "uuid",
+  "timestamp_ms": 0,
+  "speaker_token": true,
+  "mention_flag": false,
+  "priority": 0
+}
+```
+
+Required は以下とする。
+
+`trace_id`
+`event_id`
+`source`
+`intent`
+`target_presence_id`
+`timestamp_ms`
+
+Optional は以下とする。
+
+`speaker_token`
+`mention_flag`
+`priority`
+
+以下を export に含めてはならない。
+
+raw payload 全文
+world_command
+action_type
+skill_id
+linked_identity_id
+long text
+review queue field
+
+旧版で存在した `emotion` や `relationship_hint` を Phase01 export の required にしてはならない。
+それらは Phase01 の責務ではない。
+ここで盛ると Phase02/03/04 の責務を侵食する。
+
+---
+
+## 16. raw payload 境界ルール
+
+Phase01 は raw payload を見てよい最後の層である。
+ここはかなり重要だ。
+
+以下を hard rule とする。
+
+Phase02 以降へ raw payload 全文を渡してはならない
+Phase01 Export に raw payload 全文を混入してはならない
+Working Memory に raw payload 全文を保存してはならない
+Identity Candidate Registry に raw payload 全文を保存してはならない
+必要な補助情報は canonical key に圧縮して渡すこと
+
+この境界を破ると後続フェーズの deterministic 性が壊れる。
+ここは絶対に緩めるな。
+
+---
+
+## 17. Phase01 Logging
+
+Phase01 のログは最低限以下を含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase01",
+  "step": "validator|presence|identity_candidate|working_memory|intent_selector|speaker_arbitration|export_builder",
+  "result": "success|skip|reject|fail",
+  "latency_ms": 0
+}
+```
+
+追加で以下を記録してよい。
+
+```json
+{
+  "intent": "greet|respond|observe|ignore",
+  "target_presence_id": "uuid|null",
+  "speaker_token": true
+}
+```
+
+ただし raw payload 全文をログへ保存してはならない。
+linked identity 確定値をログに出してはならない。
+review route のような Phase01 非対象ルートを偽装してはならない。
+
+---
+
+## 18. 失敗時の挙動
+
+Phase01 は以下の原則で失敗を扱う。
+
+schema violation は reject
+trace_id 欠落は reject
+source 不正は reject
+speaker 重複は fail ではなく arbitration corrective path を試す
+identity auto-link 兆候は hard fail
+export 必須 key 欠落は fail
+raw payload 混入は fail
+
+保守的 fallback は `intent=ignore` までである。
+Action を返してはならない。
+旧版のような fallback action mapper をこのフェーズに置いてはならない。
+それは後段責務を壊す。
+
+---
+
+## 19. STOP 条件
+
+以下は Phase01 の停止条件とする。
+
+```text
+PHASE01_SCHEMA_VIOLATION
+PHASE01_SPEAKER_TOKEN_CONFLICT
+PHASE01_BOUNDARY_VIOLATION
+PHASE01_IDENTITY_AUTOLINK_VIOLATION
+PHASE01_TRACE_MISSING
+PHASE01_EXPORT_CONTRACT_VIOLATION
+PHASE01_RAW_PAYLOAD_EXPORT_VIOLATION
+```
+
+新規 STOP_REASON を増やす場合は `PHASE01_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 20. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase01_intent_selector.py
+    phase01_presence_registry.py
+    phase01_speaker_arbitration.py
+    phase01_working_memory.py
+    phase01_export_builder.py
+    phase01_validators.py
+  identity/
+    phase01_identity_candidates.py
+  runtime/logs/
+    phase01_runtime.log
+    phase01_error.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+旧版にあった `phase01_fallback_action_mapper.py` は最終整合版では不要とする。
+Phase01 が action を扱う設計を残すな。
+
+---
+
+## 21. テスト仕様
+
+unit test で最低限確認すること。
+
+Event validator が必須項目欠損を reject する
+intent selector が同一入力で同一 intent を返す
+speaker arbitration が単一勝者を返す
+identity candidate registry が auto link しない
+working memory が上限超過時に FIFO 削除する
+export builder が Phase00 I/O 契約どおりの required / optional key を返す
+raw payload が export に混入しない
+blocked presence が target_presence_id に選ばれない
+
+integration test で最低限確認すること。
+
+YouTube event -> respond -> Phase01 Export
+Minecraft join event -> greet -> Phase01 Export
+direct mention なしノイズ入力 -> ignore -> Phase01 Export
+複数 Presence 同時 active -> speaker 1 件のみ
+trace_id が最終 export まで引き継がれる
+raw payload が Phase02 consumer へ渡らない
+identity candidate が CANDIDATE 止まりで LINKED にならない
+
+ci test で最低限確認すること。
+
+Core 内 world SDK import 検出
+Adapter 内 forbidden function 検出
+speaker_token 重複検出
+auto link 禁止検出
+world_command 生成禁止検出
+Phase00 I/O 契約不一致検出
+raw payload export 混入検出
+Phase01 内 action_type 出力検出
+
+---
+
+## 22. CI fail 条件
+
+以下は CI fail とする。
+
+`phase01_*` モジュール内に world SDK import がある
+Adapter 内に `generate_intent` `update_memory` `update_relationship` `link_identity` 相当処理がある
+`speaker_token=true` が複数 Presence に同時付与される
+`linked_identity_id` が Phase01 内で確定書き込みされる
+Working Memory がファイルまたは DB に永続化される
+Action 出力に相当する `action_type` `skill_id` `world_command` フィールドを持つ
+trace_id なしで export が出力される
+Phase01 Export が Phase00 required key を欠いている
+Phase01 Export に raw payload が混入している
+Phase01 から review queue を読む実装がある
+
+---
+
+## 23. 実装順序
+
+Phase01 は以下の順で実装すること。
+
+Event validator を作る
+Presence registry を作る
+Identity candidate registry を作る
+Working Memory を作る
+Intent selector を作る
+Speaker arbitration を作る
+Phase01 Export Builder を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に会話品質や表現を触るのはダメだ。
+その時点で仕様がまた崩れる。
+
+---
+
+## 24. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+会話文生成
+長期記憶保存
+relationship の本格更新
+感情モデル拡張
+world ごとの性格差分
+candidate の auto merge
+ranking 学習
+random variation
+複数 Presence 同時発話
+Phase02 向け export に raw payload 全文を渡すこと
+action_type を仮決定すること
+fallback action を返すこと
+review path を処理すること
+
+---
+
+## 25. 開発者向け最終指示
+
+Phase01 の目的は、IRIS を面白くすることではない。
+IRIS を **分裂させないこと** である。
+
+ここで世界別ロジックを混ぜると、その後の全部が壊れる。
+ここで candidate を雑に link すると、後で relation と memory が汚染される。
+ここで speaker 制御を曖昧にすると、配信上で別人格に見える。
+ここで export 契約を曖昧にすると、Phase02 以降が全部ズレる。
+ここで raw payload 境界を緩めると、後段の deterministic 性が死ぬ。
+ここで action を返し始めると、Phase04 の責務が壊れる。
+
+このフェーズでは地味でいい。
+だが、ここを雑にやると後続フェーズは全部ゴミになる。
+最小構造を壊さず、deterministic に通ることだけを優先して実装すること。
+
+---
+

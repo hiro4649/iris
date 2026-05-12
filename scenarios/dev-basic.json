@@ -1,0 +1,55 @@
+{
+  "name": "dev-basic",
+  "steps": [
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-debug",
+      "text": "IRIS, hello"
+    },
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-debug",
+      "text": "IRIS, that was funny lol"
+    },
+    {
+      "kind": "game_observation",
+      "game_title": "Minecraft",
+      "scene_summary": "The player is near lava with low health",
+      "detected_events": ["lava nearby", "low health"],
+      "player_state": "three hearts",
+      "screen_confidence": 0.86
+    },
+    {
+      "kind": "donation",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-debug",
+      "message_text": "IRIS, keep going!",
+      "amount_tier": "medium",
+      "currency": "JPY"
+    },
+    {
+      "kind": "media_watch",
+      "media_kind": "youtube",
+      "media_title": "Shared clip",
+      "observation_summary": "A surprising scene happens and chat reacts.",
+      "detected_mood": "surprise",
+      "confidence": 0.82,
+      "rights_risk_note": "summary_only"
+    },
+    {
+      "kind": "external_topic",
+      "topic_title": "Light entertainment trend",
+      "topic_summary": "A harmless entertainment trend is being discussed online.",
+      "source_url": "https://example.com/topic",
+      "freshness_score": 0.78,
+      "source_trust_score": 0.66,
+      "risk_category": "general"
+    },
+    {
+      "kind": "idle",
+      "idle_reason": "scenario_pause"
+    }
+  ]
+}

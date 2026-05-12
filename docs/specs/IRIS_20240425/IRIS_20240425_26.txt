@@ -1,0 +1,243 @@
+﻿# IRIS 開発仕様書
+
+## Phase26 完全整合版（配信ライフサイクル・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase25 までの会話・身体・記憶・ゲーム体験を前提として、IRIS が配信前、配信中、配信後、次回配信へ連続して存在しているように扱うための最小実装仕様を定義する。
+
+本フェーズの目的は運用機能を増やすことではない。
+IRIS が毎回初期化されず、昨日の続きとして存在することだ。
+
+## 00.1 Memory Commit 非直結ルール
+
+Phase26 は配信後 reflection と memory carryover candidate を作る。
+Phase26 は memory / identity / community memory を直接更新してはならない。
+
+## 00.2 Canonical 非改変ルール
+
+Phase26 の session_phase は配信ライフサイクル用の内部状態であり、Phase00 canonical conversation_state ではない。
+`pre_stream` / `winding_down` / `post_stream` / `archived` を conversation_state として export してはならない。
+永続化は Phase05 / Phase06 / Phase13 の commit / sync / canon 制約を通過した場合のみ許可される。
+
+## 01. 目的
+
+- 配信開始前状態を作る
+- 配信中のテンション・疲労・記憶候補を追跡する
+- 配信後に振り返り、記憶整理、次回への持ち越しを行う
+- Community Memory と Long-Term Identity の更新候補を安全に整理する
+
+## 02. スコープ
+
+- Stream Session State
+- Pre-Stream Priming
+- In-Stream Continuity Tracker
+- Post-Stream Reflection
+- Memory Carryover Builder
+- Next Stream Seed
+- Life Cycle Validator
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase25 export
+- stream_id
+- timestamp
+- memory_candidates
+- relationship_updates
+- community_events
+
+side input:
+
+- stream_metrics
+- error_logs
+- viewer_summary
+- game_session_summary
+
+## 04. Stream Session State
+
+必須フィールド:
+
+- stream_id
+- session_phase
+- stream_mood
+- energy_level
+- key_events
+- shared_jokes
+- unresolved_topics
+- next_stream_seed
+
+session_phase:
+
+- pre_stream
+- opening
+- active
+- winding_down
+- post_stream
+- archived
+
+## 05. Pre-Stream Priming
+
+配信前に以下を準備する。
+
+- 前回の重要トピック
+- 最近のコミュニティミーム
+- 注意すべき安全事項
+- 当日の目標
+
+人格コアは変更しない。
+
+## 06. In-Stream Continuity
+
+配信中に追跡する。
+
+- 盛り上がり
+- 疲労
+- 笑いの履歴
+- 印象的コメント
+- ゲーム進行
+- 関係更新候補
+
+すべてを長期記憶に入れてはならない。
+
+## 07. Post-Stream Reflection
+
+配信後に以下を整理する。
+
+- 残すべき出来事
+- 捨てるべき雑談
+- 次回に触れるとよい話題
+- 改善点
+- 安全上の注意
+
+Phase05 / Phase13 の memory commit 制約に従う。
+
+## 08. Next Stream Seed
+
+次回配信へ持ち越す要素。
+
+例:
+
+- 前回の続き
+- 視聴者との約束
+- ゲーム目標
+- ミーム
+- 未解決の話題
+
+過剰な宿題化は禁止。
+
+## 09. 出力契約
+
+Phase26 export:
+
+- stream_lifecycle_state
+- post_stream_summary
+- memory_carryover_candidates
+- community_memory_candidates
+- next_stream_seed
+- reflection_safety_result
+
+## 10. HARD 制約
+
+- 記憶更新を Phase05 / Phase13 なしに確定してはならない
+- 配信後反省で人格コアを直接変更してはならない
+- 個人情報を next_stream_seed に不用意に入れてはならない
+- 炎上・荒れ話題をミーム化してはならない
+
+## 11. STOP 条件
+
+- stream_id 不正
+- memory_candidate unsafe
+- reflection が人格変更を要求
+- privacy risk
+- next_stream_seed が内輪化過多
+
+## 12. テスト仕様
+
+- 配信後 summary が生成される
+- 雑談すべてを長期記憶に入れない
+- 次回 seed が安全に生成される
+- 前回の続きとして自然に開始できる
+- privacy risk を拒否する
+
+## 13. 開発者向け最終指示
+
+Phase26 の目的は配信ログを増やすことではない。
+IRIS が時間をまたいで同じ存在として続いている感覚を守ることだ。
+
+## 14. Lifecycle Memory Firewall
+
+Phase26 の memory_carryover_candidates / community_memory_candidates / next_stream_seed は配信ライフサイクル候補であり、永続化命令ではない。
+
+必須:
+
+- memory_carryover_candidates は `requires_validation=true` を持つ
+- community_memory_candidates は privacy / safety / canon validator を通す
+- approved memory schema へ変換されるまで persistence writer に渡してはならない
+
+Fail:
+
+- memory_carryover_candidates が memory_store に直接 write された
+- community_memory_candidates が community memory に直接 commit された
+- next_stream_seed に private memory が guard なしに混入した
+
+## 15. ゲーム・配信長期記憶 Carryover
+
+Phase26 はゲームプレイとライブ配信の長期記憶候補を整理する。
+
+ゲーム記憶候補:
+
+- game_title
+- game_session_summary
+- memorable_success
+- memorable_failure
+- viewer_shared_game_moment
+- next_game_goal
+
+配信記憶候補:
+
+- stream_highlight
+- shared_joke
+- important_comment
+- unresolved_topic
+- next_stream_seed
+- safety_note
+
+制約:
+
+- すべて `memory_carryover_candidates` または `community_memory_candidates` として扱う
+- approved memory schema へ変換されるまで persistence writer に渡さない
+- Phase24 input_action_candidate を記憶として採用しない
+- ゲーム画面に映った個人情報・機密情報を記憶候補にしない
+- 新規視聴者を排除する内輪 seed を増やしすぎない
+
+## 16. Donation / Media Carryover
+
+Phase26 は投げ銭、投銭、スパチャ、donation、動画同時視聴体験を配信後の carryover 候補として整理してよい。
+
+投げ銭 memory 候補:
+
+- donation_appreciation_summary
+- donor_user_id
+- message_summary
+- stream_context
+- gratitude_followup_seed
+- relationship_candidate_reason
+
+動画視聴 memory 候補:
+
+- media_kind
+- media_title
+- observation_summary
+- shared_reaction_summary
+- viewer_comment_links
+- rights_risk_note
+
+制約:
+
+- donation amount の詳細比較を long-term memory に入れない
+- 支払いだけで関係値や次回対応を確定しない
+- 権利リスクのある台詞、字幕、歌詞、既存曲メロディを保存しない
+- media_watch_observation は read-only であり、truth / command / game input にしない
+- approved memory schema へ変換されるまで persistence writer に渡さない

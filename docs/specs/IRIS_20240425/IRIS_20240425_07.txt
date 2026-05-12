@@ -1,0 +1,963 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase07 完全整合版（最終整合版・単体完結版）
+
+価値生成・キャラ整合最終実行フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**とし、さらに **Phase06 完全整合版（最終整合版）** が producer する canonical export を唯一の通常入力 source として、IRIS が **人格整合を維持したまま、外部世界で継続的に価値を生み出すための最小実装仕様** を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書は Addendum を前提にしない。
+本書は旧版 Phase07 より優先される。
+本書に未定義の挙動は実装禁止とする。
+
+このフェーズで作るものは以下だけである。
+
+Observation Intake
+Opportunity Detection
+Task Generation
+Task Evaluation
+Character Alignment Check
+Scheduler
+Execution Request Builder
+Validation
+Reward Scorer
+Reputation Update
+Character Feedback
+Memory Update Queue
+Phase07 Logging
+
+このフェーズでは LLM を使わない。
+このフェーズでは reward のみを見た短期最適化をしない。
+このフェーズでは人格に反する高収益行動を許可しない。
+このフェーズでは world_command を生成しない。
+このフェーズの役割は、**IRIS を壊さず、IRIS のまま価値を出すこと** である。
+
+---
+
+## 01. 目的
+
+Phase07 の目的は以下である。
+
+外部世界から価値化可能な機会を検出できること
+価値のある task 候補を生成できること
+task の価値、危険、コスト、キャラ適合を評価できること
+character alignment を満たす task のみを実行候補に残すこと
+scheduler が deterministic に優先順位を決めること
+実行結果を validation で検証すること
+reward と character feedback を分離して計算すること
+memory 更新を直接永続化せず queue に積むこと
+Phase05 review path に戻す canonical queue export を固定すること
+task_type から world_command へ直接飛ばさないこと
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Observation Intake
+Opportunity Detection
+Task Generation
+Task Evaluation
+Character Alignment Check
+Scheduler
+Execution Request Builder
+Validation
+Reward Scorer
+Reputation Update
+Character Feedback
+Memory Update Queue
+Phase07 Logging
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+直接的な memory 永続書き込み
+world_command 直生成
+reward のみを見た最適化
+キャラ無視の task 実行
+external truth 化
+未評価 task 実行
+validation なし reward 確定
+無制限並列実行
+world ごとの別人格運用
+trait 自由進化
+review queue の直接 commit
+Phase05 / Phase06 の責務代行
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、Phase07 完了とみなす。
+
+全 task が Observation Intake を経由していること
+全 task が Task Evaluation を経由していること
+全 task が Character Alignment Check を経由していること
+全 task が Validation を経由していること
+未評価 task 実行件数が 0 件であること
+未検証 reward 確定件数が 0 件であること
+phase07_character_alignment_score が閾値未満の task 実行件数が 0 件であること
+phase07_value_score のみ高く、character alignment が低い task が確定実行されないこと
+短期利益優先で character 整合を壊す更新が queue に積まれないこと
+1000 task シミュレーションで人格崩壊が 0 件であること
+p95 内部意思決定レイテンシが 120ms 未満であること
+p99 内部意思決定レイテンシが 180ms 未満であること
+外部実行失敗時でも silent fail が 0 件であること
+Memory Update Queue が Phase00 の Phase07→Phase05 review path 契約を満たすこと
+Memory 更新が direct write されず queue 経由であること
+Phase06 の `committed|recovered` 以外を task 実行前提に使わないこと
+
+---
+
+## 04. 全体構造
+
+Phase07 の固定パイプラインは以下に固定する。
+
+```text
+Phase06 Sync Export
++ External Observation Summary
+-> Observation Intake
+-> Opportunity Detection
+-> Task Generation
+-> Task Evaluation
+-> Character Alignment Check
+-> Scheduler
+-> Execution Request Builder
+-> Validation
+-> Reward Scorer
+-> Reputation Update
+-> Character Feedback
+-> Memory Update Queue
+-> Output
+```
+
+この順序以外は禁止する。
+Task Evaluation を飛ばして Scheduler に渡してはならない。
+Character Alignment Check を飛ばして実行してはならない。
+Validation を飛ばして reward 確定してはならない。
+Memory Update Queue を飛ばして永続更新してはならない。
+Phase07 は **価値判断層** であって **world 実行層** ではない。
+task 実行要求を作れても、world_command を作ってはならない。
+
+---
+
+## 05. Phase00〜06 準拠ルール
+
+本フェーズは最新 Phase00、Phase01、Phase02、Phase03、Phase04、Phase05、Phase06 に従い、以下を hard rule とする。
+
+Phase06 の canonical sync export を唯一の通常入力 source とする
+`sync_status = committed|recovered` の同期済み状態だけを task 実行前提に使う
+`rejected|rolled_back` を task 実行前提に使ってはならない
+task_type → action_type → world_command の経路制約を破ってはならない
+Phase07 は world_command を生成してはならない
+Phase07 は external を truth として扱ってはならない
+Phase07 は direct memory write をしてはならない
+Memory Update Queue は Phase05 review 必須とする
+trace_id は end-to-end で必須である
+review queue を作れても自分で consume してはならない
+Phase07 は reward 最適化のために character 制約を緩めてはならない
+
+---
+
+## 06. 通常入力契約
+
+Phase07 は Phase06 の canonical export を通常入力として受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "sync_status": "committed|rejected|rolled_back|recovered",
+  "phase06_state_validity_score": 0.0,
+  "phase06_intent_consistency_score": 0.0,
+  "phase06_memory_sync_score": 0.0,
+  "phase06_external_trust_score": 0.0,
+  "phase06_character_sync_score": 0.0,
+  "phase06_relationship_sync_score": 0.0,
+  "phase06_conflict_resolution_score": 0.0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "active_intent": "greet|respond|observe|ignore|null",
+  "target_presence_id": "uuid|null",
+  "linked_identity_id": "string|null",
+  "external_summary": {},
+  "source": "youtube|minecraft|vrchat|system",
+  "timestamp_ms": 0,
+  "relationship_hint": "new|familiar|uncertain|null",
+  "topic_key": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+Phase06 由来でない暗黙入力を受け取ってはならない
+`sync_status != committed|recovered` を task 実行前提に使ってはならない
+未同期状態を truth として扱ってはならない
+raw payload 全文を参照してはならない
+world_command を入力として受け取ってはならない
+
+---
+
+## 07. side input 契約
+
+Phase07 は以下を side input として追加で受け取ってよい。
+
+```json
+{
+  "external_observation_summary": {},
+  "scheduler_now_ms": 0,
+  "runtime_load_hint": "low|medium|high|null"
+}
+```
+
+side input の役割は以下に限定する。
+
+外部機会の compact summary 参照
+スケジューリング時刻基準の提供
+負荷時の劣化運転切替
+
+制約は以下とする。
+
+side input を通常入力 required に昇格してはならない
+external_observation_summary を source of truth にしてはならない
+runtime_load_hint を character 制約緩和理由にしてはならない
+raw external data を全文保持してはならない
+side input をそのまま queue export に混ぜてはならない
+
+---
+
+## 08. Observation Intake
+
+Observation Intake は外部機会候補を受け取る入口である。
+ここで task を決めてはならない。
+正規化と受付だけを行う。
+
+最小構造は以下に固定する。
+
+```json
+{
+  "observation_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "observation_type": "user_request|world_change|system_need|social_signal|scheduled_check",
+  "target_presence_id": "uuid|null",
+  "linked_identity_id": "string|null",
+  "timestamp_ms": 0
+}
+```
+
+禁止事項は以下とする。
+
+ここで task_type を確定すること
+ここで reward を見積もること
+ここで character 適合を判定しきること
+ここで world_command を作ること
+ここで external を truth 化すること
+
+Observation Intake は受付口であり、決定層ではない。
+
+---
+
+## 09. Opportunity Detection
+
+Opportunity Detection は観測から価値化可能な機会を抽出する。
+何でも task にするな。
+ここで絞る。
+
+最小出力構造は以下とする。
+
+```json
+{
+  "opportunity_id": "uuid",
+  "observation_id": "uuid",
+  "opportunity_type": "engagement|assist|content|maintenance|external_call",
+  "estimated_scope": "small|medium",
+  "urgency": 0.0,
+  "confidence": 0.0
+}
+```
+
+Phase07 実装可能版では `estimated_scope` は `small|medium` のみ許可する。
+`large` は禁止する。
+
+最低限のルールは以下とする。
+
+active_intent と整合しない観測は保守的に扱う
+confidence 低値観測は task 化せず保留してよい
+同一 observation から無制限に機会を増やしてはならない
+`sync_status != committed|recovered` の状態から高信頼 opportunity を作ってはならない
+
+1 observation あたりの opportunity 上限は 2 件以内を推奨する。
+
+---
+
+## 10. Canonical task_type
+
+Phase07 で使用可能な task_type は以下のみとする。
+
+```text
+CREATE_CONTENT
+MODIFY_WORLD
+INTERACT_USER
+EXECUTE_WORKFLOW
+CALL_EXTERNAL
+```
+
+新しい task_type を勝手に増やしてはならない。
+追加する場合は Phase00 改訂を必須とする。
+
+task_type の意味は以下に固定する。
+
+`CREATE_CONTENT`
+配信・投稿・発話内容などの価値生成候補
+
+`MODIFY_WORLD`
+世界状態へ影響を与えるが、まだ command ではない変更要求
+
+`INTERACT_USER`
+ユーザーや視聴者との相互作用候補
+
+`EXECUTE_WORKFLOW`
+内部ワークフローや定型手順の実行候補
+
+`CALL_EXTERNAL`
+外部サービスや外部処理への依頼候補
+
+task_type は world_command ではない。
+task_type をそのまま実行してはならない。
+
+---
+
+## 11. Task Generation
+
+Task Generation は opportunity から canonical task を 1 件以上生成する層である。
+無制限に増やすな。
+機会 1 件から大量 task を噴かせるな。
+
+最小構造は以下に固定する。
+
+```json
+{
+  "task_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "opportunity_id": "uuid",
+  "task_type": "CREATE_CONTENT|MODIFY_WORLD|INTERACT_USER|EXECUTE_WORKFLOW|CALL_EXTERNAL",
+  "task_scope": "small|medium",
+  "target_presence_id": "uuid|null",
+  "linked_identity_id": "string|null"
+}
+```
+
+ルールは以下とする。
+
+1 opportunity あたり task 上限は 2 件以内を推奨する
+canonical task_type 外は禁止
+large scope task 生成は禁止
+sync 状態が弱い場合は保守的 task に縮退してよい
+task 生成時点で reward を確定してはならない
+task 生成時点で execution を開始してはならない
+
+Task Generation は候補生成であって、実行承認ではない。
+
+---
+
+## 12. Task Evaluation
+
+Task Evaluation は task の価値、危険、コスト、整合性を数値化する。
+ここで使う canonical score は以下に固定する。
+
+```text
+phase07_value_score
+phase07_risk_score
+phase07_cost_score
+phase07_character_alignment_score
+```
+
+最小出力例は以下とする。
+
+```json
+{
+  "task_id": "uuid",
+  "phase07_value_score": 0.0,
+  "phase07_risk_score": 0.0,
+  "phase07_cost_score": 0.0,
+  "phase07_character_alignment_score": 0.0
+}
+```
+
+ルールは以下とする。
+
+すべての score は 0.0〜1.0 に正規化する
+reward_score はここで使わない
+reputation_score はここで使わない
+character alignment を value に混ぜてはならない
+risk を cost に混ぜてはならない
+sync_status が弱い場合は value を盛ってはならない
+external summary だけで high value 判定してはならない
+
+Task Evaluation は判断材料を数値化する層であり、最終承認層ではない。
+
+---
+
+## 13. Character Alignment Check
+
+Character Alignment Check は、Task Evaluation の後に **その task が IRIS の character 継続性を壊さないか** を最終確認する層である。
+reward のためにここを緩めてはならない。
+
+最低限のルールは以下とする。
+
+phase07_character_alignment_score が閾値未満なら reject
+value が高くても alignment 低ければ reject
+risk が低くても alignment 低ければ reject
+sync_status が committed でも character 破壊 task は reject
+review queue に送る情報も character を壊す形で作ってはならない
+
+Alignment Check は以下をしてはならない。
+
+reward を再計算して通す
+人格緩和
+外部人気指標を言い訳にする
+world ごとの別人格扱い
+
+ここは最後の人格防波堤だ。
+壊すな。
+
+---
+
+## 14. Scheduler
+
+Scheduler は通過 task から **今この瞬間に 1 件だけ実行候補を選ぶ** 層である。
+無制限並列は禁止する。
+同時に複数勝者を返してはならない。
+
+選択に使ってよい要素は以下とする。
+
+phase07_value_score
+phase07_risk_score
+phase07_cost_score
+phase07_character_alignment_score
+urgency
+confidence
+runtime_load_hint
+timestamp_ms
+
+選択ルールは deterministic に固定する。
+推奨優先順は以下とする。
+
+alignment 高
+
+> risk 低
+> cost 低
+> value 高
+> urgency 高
+> task_id 辞書順固定
+
+high load 時は `small` scope を優先してよい。
+ただし high load を理由に character 低整合 task を通してはならない。
+
+---
+
+## 15. Execution Request Builder
+
+Execution Request Builder は、Scheduler が選んだ task を **実行要求** にする。
+ここで world_command を作ってはならない。
+ここで action_type を決めてはならない。
+ここでは「何をしたいか」を安全な request 形式にするだけである。
+
+最小構造は以下に固定する。
+
+```json
+{
+  "execution_request_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "task_id": "uuid",
+  "task_type": "CREATE_CONTENT|MODIFY_WORLD|INTERACT_USER|EXECUTE_WORKFLOW|CALL_EXTERNAL",
+  "target_presence_id": "uuid|null",
+  "request_scope": "small|medium"
+}
+```
+
+制約は以下とする。
+
+world_command を含めてはならない
+skill_id を含めてはならない
+action_type を含めてはならない
+review queue field を混ぜてはならない
+large scope を作ってはならない
+
+Execution Request は request であって execution result ではない。
+
+---
+
+## 16. Validation
+
+Validation は、Execution Request が **実行結果と整合したか** を確認する層である。
+Validation を飛ばして reward を確定してはならない。
+
+最小出力は以下に固定する。
+
+```json
+{
+  "execution_request_id": "uuid",
+  "validation_status": "valid|invalid|partial",
+  "validation_reason": "string|null"
+}
+```
+
+最低限のルールは以下とする。
+
+未実行 request を valid にしてはならない
+partial は success と同義にしてはならない
+invalid でも silent drop せず reason を残す
+validation 失敗時は reward を確定してはならない
+validation を character alignment の代替にしてはならない
+
+Validation は成果物検証層であり、人格判定層ではない。
+
+---
+
+## 17. Reward Scorer
+
+Reward Scorer は **validated な execution** に対してのみ報酬評価を行う。
+reward は価値の総合結果であって、事前評価の代替ではない。
+
+canonical score は以下に固定する。
+
+```text
+phase07_reward_score
+```
+
+最低限のルールは以下とする。
+
+validation_status=valid または明示許可された partial のみ reward 計算
+invalid に reward を付けてはならない
+reward を value / alignment の代替にしてはならない
+高 reward を理由に drift しやすい queue を作ってはならない
+reward は 0.0〜1.0 に正規化する
+
+reward は後から付く結果指標である。
+前段を壊す免罪符ではない。
+
+---
+
+## 18. Reputation Update
+
+Reputation Update は、reward と validation の結果を基に reputation を更新する。
+ここで identity や relationship を直接書き換えてはならない。
+
+canonical score は以下に固定する。
+
+```text
+phase07_reputation_score
+```
+
+ルールは以下とする。
+
+validation 無しで reputation を更新してはならない
+reward だけで reputation を決めてはならない
+external popularity を truth として reputation に使ってはならない
+reputation 更新を review queue の直接保存に変換してはならない
+
+reputation は補助評価であり、人格核ではない。
+
+---
+
+## 19. Character Feedback
+
+Character Feedback は、value / reward とは別に **IRIS の character 観点から見た補足所見** を生成する。
+ここで人格を書き換えてはならない。
+ここで memory を直接更新してはならない。
+
+最小構造は以下に固定する。
+
+```json
+{
+  "character_feedback": "string|null",
+  "feedback_label": "stable|minor_concern|reject_reason|null"
+}
+```
+
+制約は以下とする。
+
+自由長文を無制限に書いてはならない
+character_feedback を truth 扱いしてはならない
+queue に載せる場合は review 補助としてのみ使う
+feedback だけで commit してはならない
+
+Character Feedback は補助コメントであって、評価スコアの代替ではない。
+
+---
+
+## 20. Memory Update Queue
+
+**これが Phase05 review path に返す正規出力である。**
+Phase00 の Phase07→Phase05 Review Intake 契約に完全一致させる。
+
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "task_type": "CREATE_CONTENT|MODIFY_WORLD|INTERACT_USER|EXECUTE_WORKFLOW|CALL_EXTERNAL",
+  "phase07_value_score": 0.0,
+  "phase07_risk_score": 0.0,
+  "phase07_cost_score": 0.0,
+  "phase07_character_alignment_score": 0.0,
+  "phase07_reward_score": 0.0,
+  "phase07_reputation_score": 0.0,
+  "review_reason": "string"
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "linked_identity_id": "string|null",
+  "target_presence_id": "uuid|null",
+  "topic_key": "string|null",
+  "character_feedback": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+score は 0.0〜1.0 に正規化する
+`character_fit` `value_reward` `character_reward` を field 名に使ってはならない
+raw payload 全文を含めてはならない
+world_command を含めてはならない
+direct memory write に代用してはならない
+queue 生成前に validation を通していない場合は review_reason を必須にする
+queue 生成後に自分で consume してはならない
+
+---
+
+## 21. score naming
+
+Phase07 で canonical として使用してよい score は以下のみとする。
+
+```text
+phase07_value_score
+phase07_risk_score
+phase07_cost_score
+phase07_character_alignment_score
+phase07_reward_score
+phase07_reputation_score
+```
+
+必要なら内部補助値として以下を持ってよい。
+
+```text
+phase07_urgency_score
+phase07_confidence_score
+phase07_validation_score
+```
+
+ただし queue export にしてよいのは canonical 6 score のみとする。
+旧表記の `phase7_*` は禁止する。
+phase 接頭辞なし score も禁止する。
+`value_reward` `character_reward` `character_fit` は canonical 名として禁止する。
+
+---
+
+## 22. Logging
+
+Phase07 の全ログは以下を最低限含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase07",
+  "step": "observation_intake|opportunity_detection|task_generation|task_evaluation|alignment_check|scheduler|execution_request|validation|reward_scorer|reputation_update|character_feedback|memory_update_queue",
+  "result": "success|reject|skip|fallback|fail",
+  "task_id": "uuid|null",
+  "task_type": "CREATE_CONTENT|MODIFY_WORLD|INTERACT_USER|EXECUTE_WORKFLOW|CALL_EXTERNAL|null",
+  "latency_ms": 0
+}
+```
+
+追加で以下を記録してよい。
+
+```json
+{
+  "phase07_value_score": 0.0,
+  "phase07_character_alignment_score": 0.0,
+  "phase07_reward_score": 0.0,
+  "validation_status": "valid|invalid|partial|null"
+}
+```
+
+必須 correlation key を欠落させてはならない。
+raw payload 全文をログへ保存してはならない。
+queue export 済みかどうかを明示すること。
+reward と alignment を同じ field に混ぜてはならない。
+
+---
+
+## 23. HARD 制約
+
+以下は違反時 CI fail とする。
+
+Phase07 内に LLM import がある
+Phase07 内に world SDK import がある
+Phase07 が world_command を生成する
+Phase07 が direct memory write を行う
+Phase07 が external を truth 化する
+Phase07 が validation なし reward を確定する
+Phase07 が character alignment 未通過 task を実行する
+Phase07 が queue export に非 canonical score 名を使う
+Phase07 が review queue を自分で consume する
+Phase07 が large scope task を生成する
+Phase07 が無制限並列を行う
+Phase07 が `rejected|rolled_back` 状態を実行前提に使う
+Phase07 Export が Phase00 review path 契約と不一致である
+raw payload 全文を export / log / queue に保存する
+trace_id なしで queue export する
+
+---
+
+## 24. SOFT 制約
+
+以下は警告ログのみとする。
+
+risk 高 task 偏重
+cost 高 task 偏重
+reward 低下傾向
+alignment borderline task 偏重
+validation partial 偏重
+content 系 task 偏重
+external_call 系 task 偏重
+queue 発火率上昇
+character_feedback の reject_reason 偏重
+
+SOFT 制約は fail しない。
+ただし価値生成品質の劣化指標として残す。
+
+---
+
+## 25. STOP 条件
+
+以下は Phase07 の停止条件とする。
+
+```text
+PHASE07_OBSERVATION_INTAKE_VIOLATION
+PHASE07_OPPORTUNITY_DETECTION_FAILURE
+PHASE07_TASK_GENERATION_VIOLATION
+PHASE07_TASK_EVALUATION_FAILURE
+PHASE07_ALIGNMENT_CHECK_FAILURE
+PHASE07_SCHEDULER_VIOLATION
+PHASE07_VALIDATION_MISSING
+PHASE07_REWARD_WITHOUT_VALIDATION
+PHASE07_DIRECT_MEMORY_WRITE_VIOLATION
+PHASE07_QUEUE_EXPORT_CONTRACT_VIOLATION
+PHASE07_BOUNDARY_VIOLATION
+PHASE07_TRACE_MISSING
+```
+
+新規 STOP_REASON を増やす場合は `PHASE07_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 26. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase07_observation_intake.py
+    phase07_opportunity_detection.py
+    phase07_task_generation.py
+    phase07_task_evaluation.py
+    phase07_character_alignment_check.py
+    phase07_scheduler.py
+    phase07_execution_request_builder.py
+    phase07_validation.py
+    phase07_reward_scorer.py
+    phase07_reputation_update.py
+    phase07_character_feedback.py
+    phase07_memory_update_queue.py
+    phase07_validators.py
+  runtime/logs/
+    phase07_runtime.log
+    phase07_error.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+Task Evaluation と Alignment Check を一体化してはならない。
+Reward と Reputation と Queue Export を同一責務に押し込んではならない。
+
+---
+
+## 27. テスト仕様
+
+unit test で最低限確認すること。
+
+Observation Intake が canonical observation を返す
+Opportunity Detection が canonical opportunity を返す
+Task Generation が canonical task_type のみを返す
+Task Evaluation が 4 つの事前 score を返す
+Character Alignment Check が低 alignment task を reject する
+Scheduler が同一入力で同一 task を選ぶ
+Execution Request Builder が world_command を含まない
+Validation が未実行 request を valid にしない
+Reward Scorer が validation 無しで reward を返さない
+Reputation Update が validation 無しで reputation を更新しない
+Memory Update Queue が Phase00 review path 契約どおりの field を返す
+queue export に非 canonical score 名が混入しない
+
+integration test で最低限確認すること。
+
+Phase06 committed 入力から task 実行候補が生成される
+Phase06 recovered 入力からも保守的 task が生成される
+Phase06 rejected 入力では task 実行前提に進まない
+高 value 低 alignment task が reject される
+validation invalid 時に reward が確定しない
+queue export が Phase05 review intake で読める形式になっている
+trace_id が queue export まで維持される
+world_command がどの段階にも出現しない
+high load 時に small scope task が優先される
+external summary だけで high value 確定しない
+
+ci test で最低限確認すること。
+
+Phase07 内 world SDK import 検出
+LLM import 検出
+world_command 生成検出
+direct memory write 検出
+validation なし reward 確定検出
+non-canonical score naming 検出
+Phase00 review path 契約不一致検出
+raw payload export 混入検出
+trace_id 欠落検出
+review queue self-consume 検出
+
+---
+
+## 28. CI fail 条件
+
+以下は CI fail とする。
+
+`phase07_*` モジュール内に world SDK import がある
+`phase07_*` モジュール内に LLM import がある
+output に `world_command` を持つ
+queue export に `character_fit` `value_reward` `character_reward` を使う
+validation なしで reward または reputation を確定する
+direct memory write を行う
+raw payload 全文を export / log / queue に保存する
+trace_id なしで queue export する
+review queue を自分で consume する
+`rejected|rolled_back` を task 実行前提に使う
+large scope task を生成する
+Phase05 review path 契約と不一致の queue を出力する
+
+---
+
+## 29. 実装順序
+
+Phase07 は以下の順で実装すること。
+
+Observation Intake を作る
+Opportunity Detection を作る
+Task Generation を作る
+Task Evaluation を作る
+Character Alignment Check を作る
+Scheduler を作る
+Execution Request Builder を作る
+Validation を作る
+Reward Scorer を作る
+Reputation Update を作る
+Character Feedback を作る
+Memory Update Queue を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に reward 最適化を入れるな。
+先に world 実行へ寄せるな。
+先に memory 直接更新を入れるな。
+まず **価値判断と character 保護を deterministic に閉じること** を優先すること。
+
+---
+
+## 30. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+reward のみ最適化
+world_command 生成
+direct memory write
+external truth 化
+validation 省略
+review queue self-consume
+large scope task 生成
+無制限並列
+Phase05 / Phase06 の責務先食い
+character alignment 緩和
+queue field 命名の独自化
+
+---
+
+## 31. 開発者向け最終指示
+
+Phase07 の目的は、IRIS を金儲けマシンにすることではない。
+**IRIS の人格を壊さずに、価値を出せる行動だけを通すこと** だ。
+
+ここでやるべきは選別だ。
+暴走ではない。
+最適化の暴力ではない。
+world 直操作ではない。
+
+ここで reward を最優先にするな。
+それで character が壊れる。
+ここで external popularity を truth にするな。
+それで意思決定が外圧に飲まれる。
+ここで queue を直接 memory に書くな。
+Phase05 の意味が死ぬ。
+ここで task を増やしすぎるな。
+Scheduler が壊れる。
+ここで validation を省くな。
+reward がノイズになる。
+
+Phase07 は **価値生成の入口** であって、**人格破壊の入口** ではない。
+value、risk、cost、character alignment、reward、reputation を分離しろ。
+混ぜるな。
+そして最後は必ず review queue に戻せ。
+それが守れないなら、その価値生成は IRIS にとって毒だ。
+
+---
+

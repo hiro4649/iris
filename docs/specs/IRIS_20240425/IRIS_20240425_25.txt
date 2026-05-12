@@ -1,0 +1,168 @@
+# IRIS 開発仕様書
+
+## Phase25 完全整合版（ゲーム中感情身体統合・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase24 のゲーム操作主体を前提として、ゲーム中の感情、声、呼吸、視線、姿勢、表情、ジェスチャーを統合するための最小実装仕様を定義する。
+
+本フェーズの目的は、ゲームイベントに表情を貼ることではない。
+IRIS がゲームを体験しているように見える身体反応を作ることだ。
+
+## 00.1 Canonical 非改変ルール
+
+game_embodied_state は Phase25 内部の身体統合ラベルである。
+canonical emotion / action_type / conversation_state を追加してはならない。
+`burst_laugh_game` は Phase18 laughter_state に従属する内部身体 profile であり、canonical emotion ではない。
+
+## 01. 目的
+
+- ゲーム状況と感情身体を同期する
+- ピンチ、勝利、失敗、ホラー、珍事件、大爆笑を身体で表す
+- Phase16 の身体連続性と Phase18 の感情持続をゲーム文脈で統合する
+- 過剰演出でプレイ視認性を壊さない
+
+## 02. スコープ
+
+- Game Embodied State
+- Game Voice Affect
+- Game Breath Profile
+- Focus Posture Controller
+- Laughter / Recovery Motion
+- Embodied Game Validator
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase24 export
+- Phase23 commentary export
+- Phase18 affective export
+- Phase16 body export
+- game_situation_summary
+
+side input:
+
+- audio_rms
+- controller_intensity
+- viewer_reaction_score
+
+## 04. Game Embodied State
+
+state:
+
+- calm_play
+- focused
+- panic_light
+- celebration
+- mistake_freeze
+- horror_tension
+- burst_laugh_game
+- recovery
+
+各 state は body / voice / breath / gaze を持つ。
+
+## 05. State Mapping
+
+例:
+
+- low_health: focused または panic_light
+- objective_completed: celebration
+- player_mistake: mistake_freeze → recovery
+- horror_event: horror_tension
+- funny_bug: burst_laugh_game
+
+## 06. Voice Affect
+
+声は感情を示すが、聞き取りやすさを優先する。
+
+制約:
+
+- ピンチで早口になりすぎない
+- 大爆笑で長時間聞き取れない状態にしない
+- ホラーで過剰悲鳴にしない
+
+## 07. Body / Gaze
+
+ゲーム中:
+
+- focused: 視線固定、瞬き減少、姿勢締め
+- panic_light: 呼吸浅め、発話短め
+- celebration: 前傾、笑顔、声が弾む
+- mistake_freeze: 一瞬停止、目逸らし
+- burst_laugh_game: 肩揺れ、前傾、呼吸乱れ
+
+## 08. Play Visibility
+
+身体演出はゲーム画面の視認性を妨げてはならない。
+
+禁止:
+
+- 大きすぎる動きで画面を隠す
+- 長いモーションで操作不能にする
+- 強演出を連発する
+
+## 09. 出力契約
+
+Phase25 export:
+
+- game_embodied_state
+- voice_affect_plan
+- game_breath_plan
+- posture_plan
+- gaze_focus_plan
+- motion_visibility_result
+- embodied_recovery_plan
+
+## 10. HARD 制約
+
+- Phase16 の身体競合制約に違反してはならない
+- Phase18 の大爆笑安全制約に違反してはならない
+- ゲーム操作を妨げる身体演出は禁止
+- 視聴者や他プレイヤーを攻撃する表現は禁止
+
+## 11. STOP 条件
+
+- motion visibility risk
+- body conflict
+- unsafe laughter
+- input action 中断不可
+- recovery missing
+
+## 12. テスト仕様
+
+- low_health で focused body になる
+- mistake で freeze から recovery へ移る
+- funny_bug で安全な大爆笑候補になる
+- 強演出がゲーム画面を隠さない
+- recovery が必ず出る
+
+## 13. 開発者向け最終指示
+
+Phase25 の目的は IRIS を大げさに騒がせることではない。
+IRIS がゲームを身体で感じているように見えることだ。
+
+## 14. Camera Proximity During Gameplay
+
+Phase25 はゲーム中の身体表現として、カメラ接近や顔アップを internal profile で扱ってよい。
+
+許可:
+
+- 細かいゲーム画面を覗き込むように少し前へ出る
+- ホラーや驚きで一瞬カメラに寄る
+- 成功時に短く嬉しそうに近づく
+- 視聴者コメントへ軽く顔を寄せて反応する
+
+制約:
+
+- game visibility を最優先する
+- input action 中断不可の局面では接近演出を出さない
+- camera_face_extreme_closeup は 0.5〜1.2秒程度のレア演出にする
+- relation_score や投げ銭額だけで接近強度を上げない
+- closeup 後は必ず camera_return_neutral と embodied_recovery_plan を出す
+
+テスト:
+
+- closeup がゲーム画面を長時間隠さない
+- serious_focus では強い接近を抑制する
+- recovery がない camera proximity を reject する

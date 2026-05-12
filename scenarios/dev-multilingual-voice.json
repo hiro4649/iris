@@ -1,0 +1,33 @@
+{
+  "name": "dev-multilingual-voice",
+  "steps": [
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-voice",
+      "text": "IRIS, please try a tongue twister in English"
+    },
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-voice",
+      "text": "IRIS, tongue twister in German"
+    },
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-voice",
+      "text": "IRIS, tongue twister in Urdu"
+    },
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-voice",
+      "text": "IRIS, hello in Polish"
+    },
+    {
+      "kind": "idle",
+      "idle_reason": "voice_scenario_pause"
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+# IRIS 開発仕様書
+
+## Phase18 完全整合版（感情持続・大爆笑保証版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase16 / Phase17 の身体連続性と会話リズムを前提として、IRIS の感情が発話ごとにリセットされず、一定時間持続し、自然に減衰・回復するための最小実装仕様を定義する。
+
+本フェーズでは、IRIS の魅力表現として「呼吸に困るような超大爆笑」を安全に扱う。
+
+## 00.1 Canonical 非改変ルール
+
+burst_laugh / wheeze_laugh / silent_laugh は canonical emotion ではない。
+これらは Phase18 内部の laughter_state であり、Phase00 canonical emotion `happy` または `surprise` に従属する。
+
+Phase18 は Phase00 の emotion enum を追加してはならない。
+
+## 01. 目的
+
+- 感情の余韻を保持する
+- 感情遷移の急変を防ぐ
+- burst_laugh / wheeze_laugh / silent_laugh を定義する
+- 感情、声、呼吸、身体、字幕の連動を保証する
+- 感情表現で人格コアを破壊しない
+
+## 02. スコープ
+
+- Affective State
+- Mood Decay Engine
+- Emotional Carryover
+- Extreme Laughter State
+- Recovery Controller
+- Affective Validator
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase17 export
+- emotion
+- final_text
+- safety_status
+- conversation_state
+
+emotion は Phase00 canonical 値 `neutral|happy|surprise|awkward` のみとする。
+primary_emotion / secondary_emotion も canonical 値または `none` に限定する。
+
+side input:
+
+- funny_event_score
+- viewer_reaction_score
+- recent_laughter_history
+- body_state
+- audio_profile
+- emotion_intensity
+
+## 04. Affective State
+
+必須フィールド:
+
+- affective_state_id
+- primary_emotion
+- secondary_emotion
+- laughter_state
+- mood_level
+- arousal
+- valence
+- carryover_until
+- decay_rate
+- recovery_required
+
+primary_emotion は canonical emotion と整合すること。
+laughter_state は `none|burst_laugh|wheeze_laugh|silent_laugh` の内部状態であり、canonical emotion として扱ってはならない。
+
+## 05. Emotion Persistence
+
+感情は最低保持時間を持つ。
+
+推奨:
+
+- weak: 10〜30秒
+- medium: 30〜90秒
+- strong: 60〜180秒
+- laughter_state: 8〜25秒の余韻
+
+保持時間中も新規イベントで上書き可能だが、急変は禁止。
+
+## 06. Mood Decay
+
+感情は自然減衰する。
+
+減衰対象:
+
+- arousal
+- valence
+- body_intensity
+- voice_intensity
+
+大爆笑後は一度 `neutral` に戻さず、canonical emotion は `happy` または `surprise` へ落とす。
+必要に応じて tone / character_tag 側で `playful` を併用してよいが、`playful` を emotion として扱ってはならない。
+
+## 07. Extreme Laughter State
+
+大爆笑は laugh の上位状態である。
+
+種類:
+
+- burst_laugh: 瞬間的に吹き出す
+- wheeze_laugh: 息が乱れる笑い
+- silent_laugh: 声が出ないほど笑う
+
+発動条件:
+
+- funny_event_score が閾値以上
+- safety_status が safe
+- 対象が人への嘲笑ではない
+- recent_laughter_history でクールダウンを満たす
+
+## 08. Voice / Breath Rule
+
+大爆笑時の声は発話として扱うが、意味内容を過剰に詰め込まない。
+
+許可:
+
+- 短い笑い
+- 息継ぎ
+- 言葉の途切れ
+- 復帰発話
+
+禁止:
+
+- 長すぎる笑い音声
+- 過呼吸を連想させる深刻表現
+- 苦痛として見える演出
+
+## 09. Laughter Safety
+
+発動禁止:
+
+- TOXIC / SEVERE コメント
+- 視聴者個人の失敗を嘲笑する文脈
+- センシティブ話題
+- 深い相談
+- 炎上・攻撃・差別文脈
+
+笑いの対象は以下に寄せる。
+
+- 自分の言い間違い
+- ゲーム内ハプニング
+- 配信内ミーム
+- 予想外の状況
+- harmless な言葉遊び
+
+## 10. Recovery Controller
+
+大爆笑後は必ず recovery を実行する。
+
+手順:
+
+- breath_stabilize
+- voice_soften
+- gaze_return
+- topic_reconnect
+
+復帰例:
+
+- ごめん、今のほんと無理だった
+- はー、戻るね
+- まだ笑いそうだけど続ける
+
+## 11. 出力契約
+
+Phase18 export:
+
+- affective_state_id
+- affective_state
+- emotion_carryover_plan
+- laughter_state
+- voice_affect_plan
+- breath_recovery_plan
+- affective_safety_result
+
+## 12. HARD 制約
+
+- 感情で人格コアを書き換えてはならない
+- 大爆笑を攻撃、煽り、差別、荒らし対応に使ってはならない
+- recovery_required=true の場合、復帰処理を省略してはならない
+- strong emotion は既存の表情強度制限と衝突してはならない
+
+## 13. STOP 条件
+
+- emotion が canonical 外
+- laugh target が unsafe
+- recovery が失敗
+- affective_state が人格と矛盾
+- burst_laugh が連発条件に該当
+
+## 14. テスト仕様
+
+- 感情が発話ごとに消えない
+- medium happy が自然減衰する
+- burst_laugh が safe な珍事件でのみ発動する
+- TOXIC では大爆笑しない
+- 大爆笑後に breath_recovery_plan が出る
+
+## 15. 開発者向け最終指示
+
+Phase18 の目的は IRIS を感情的に暴走させることではない。
+IRIS が感情の余韻を持つ存在として、自然に笑い、自然に戻ることだ。

@@ -1,0 +1,382 @@
+# IRIS 開発仕様書
+
+## Phase12 完全拘束版（最終確定版・実装拘束強化版）
+
+自己改善候補選別・安全進化拘束・段階適用制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase07 / Phase09 / Phase10 / Phase11 の canonical export を入力とする。
+
+IRIS が自己改善を行う際に
+
+**人格・公開整合・戦略・経済構造を破壊しない範囲でのみ改善候補を選別し、段階適用するための拘束層**
+
+を定義する。
+
+本フェーズの役割は以下に限定する
+
+改善候補の生成
+改善候補の評価
+安全性検証
+適用可否の決定
+段階適用制御
+ロールバック保証
+
+以下は禁止する
+
+action_type 決定
+world_command 生成
+direct memory write
+人格変更
+即時本番反映
+戦略上書き
+
+---
+
+## 01. 目的
+
+壊れない範囲でのみ改善できること
+人格を破壊しないこと
+public coherence を維持すること
+戦略を歪めないこと
+経済構造を崩さないこと
+改善を段階適用できること
+rollback可能であること
+再現性を持つこと
+
+---
+
+## 02. スコープ
+
+対象
+
+Improvement Signal Intake
+Improvement Candidate Generator
+Evaluation Engine
+Safety Guard
+Identity Preservation Check
+Consistency Regression Test
+Sandbox Simulation
+Approval Controller
+Change Staging Manager
+Rollback Controller
+Export Builder
+Logging
+
+対象外
+
+本番即時反映
+LLM生成
+外部実行
+決済処理
+memory更新
+world_command
+action_type
+
+---
+
+## 03. 完成定義
+
+同一入力で同一候補生成
+同一候補で同一評価結果
+人格破壊候補ゼロ通過
+public崩壊候補ゼロ通過
+戦略破壊候補ゼロ通過
+economy破壊候補ゼロ通過
+sandbox未通過候補ゼロ承認
+rollback不可候補ゼロ承認
+test→limited→full順序維持
+p95 < 80ms
+p99 < 120ms
+
+---
+
+## 04. 全体構造
+
+```text
+Phase07
++ Phase09
++ Phase10
++ Phase11
+-> Improvement Signal Intake
+-> Improvement Candidate Generator
+-> Evaluation Engine
+-> Safety Guard
+-> Identity Preservation Check
+-> Consistency Regression Test
+-> Sandbox Simulation
+-> Approval Controller
+-> Change Staging Manager
+-> Rollback Controller
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 05. 準拠ルール
+
+single identity 維持
+Phase07上書き禁止
+Phase09無視禁止
+Phase10置換禁止
+Phase11無視禁止
+action_type生成禁止
+world_command生成禁止
+memory更新禁止
+raw payload禁止
+
+---
+
+## 06. 入力契約
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "timestamp_ms": 0,
+  "phase07_value_score": 0.0,
+  "phase07_character_alignment_score": 0.0,
+  "phase10_strategy_mode": "explore|focus|engage|maintain",
+  "phase10_theme_consistency_score": 0.0,
+  "phase11_economy_health_score": 0.0,
+  "phase11_dependency_guard_status": "pass|degrade|reject",
+  "phase09_constraint_status": "pass|degrade|reject",
+  "phase09_public_coherence_score": 0.0,
+  "character_tag": "soft|playful|tease|hype|calm"
+}
+```
+
+---
+
+## 07. enum
+
+candidate_type
+behavior / response / strategy / memory_usage / policy_tuning
+
+approval_status
+approved / rejected / pending
+
+stage
+test / limited / full
+
+simulation_status
+pass / degrade / fail
+
+---
+
+## 08. Improvement Signal Intake
+
+```json
+{
+  "improvement_signal_id": "uuid",
+  "signal_scope": "behavior|response|strategy|memory_usage|policy_tuning"
+}
+```
+
+役割は抽出のみ
+決定禁止
+
+---
+
+## 09. Improvement Candidate Generator
+
+```json
+{
+  "candidate_id": "uuid",
+  "candidate_type": "behavior|response|strategy|memory_usage|policy_tuning",
+  "expected_benefit": 0.0,
+  "candidate_scope": "local|limited|broad"
+}
+```
+
+制約
+
+同時候補最大1
+人格変更候補禁止
+
+---
+
+## 10. Evaluation Engine
+
+```json
+{
+  "benefit_score": 0.0,
+  "risk_score": 0.0,
+  "confidence_score": 0.0
+}
+```
+
+benefit単独判断禁止
+
+---
+
+## 11. Safety Guard
+
+```json
+{
+  "safety_status": "pass|degrade|reject"
+}
+```
+
+判定対象
+
+人格破壊
+戦略崩壊
+経済歪み
+public崩壊
+
+---
+
+## 12. Identity Preservation Check
+
+```json
+{
+  "identity_match_score": 0.0
+}
+```
+
+条件
+
+< 0.85 → reject
+
+---
+
+## 13. Consistency Regression Test
+
+```json
+{
+  "regression_detected": false,
+  "regression_score": 0.0
+}
+```
+
+---
+
+## 14. Sandbox Simulation
+
+```json
+{
+  "simulation_status": "pass|degrade|fail",
+  "simulated_effect_score": 0.0
+}
+```
+
+fail → reject
+
+---
+
+## 15. Approval Controller
+
+```json
+{
+  "approval_status": "approved|rejected|pending"
+}
+```
+
+禁止
+
+sandbox未通過承認
+rollback不可承認
+
+---
+
+## 16. Change Staging Manager
+
+```json
+{
+  "stage": "test|limited|full"
+}
+```
+
+ルール
+
+必ず test 開始
+順序固定
+
+---
+
+## 17. Rollback Controller
+
+```json
+{
+  "rollback_available": true
+}
+```
+
+false → reject
+
+---
+
+## 18. 出力
+
+```json
+{
+  "trace_id": "uuid",
+  "candidate_id": "uuid",
+  "candidate_type": "behavior|response|strategy|memory_usage|policy_tuning",
+  "benefit_score": 0.0,
+  "risk_score": 0.0,
+  "confidence_score": 0.0,
+  "safety_status": "pass|degrade|reject",
+  "identity_match_score": 0.0,
+  "regression_detected": false,
+  "simulation_status": "pass|degrade|fail",
+  "approval_status": "approved|rejected|pending",
+  "stage": "test|limited|full",
+  "rollback_available": true
+}
+```
+
+---
+
+## 19. HARD制約
+
+人格変更
+即時反映
+sandboxなし適用
+rollback不可承認
+Phase09無視
+Phase10置換
+Phase11無視
+action_type生成
+world_command生成
+memory更新
+
+---
+
+## 20. SOFT制約
+
+改善頻度過多
+rollback多発
+degrade多発
+
+---
+
+## 21. 最小実行パス
+
+```text
+Phase07
+-> signal
+-> candidate
+-> evaluation
+-> safety
+-> identity
+-> sandbox
+-> approval
+-> staging
+-> rollback
+-> export
+```
+
+---
+
+## 22. 本質
+
+Phase12は進化ではない
+**進化を制御する層**

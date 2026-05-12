@@ -1,0 +1,351 @@
+# IRIS 開発仕様書
+
+## Phase15 完全拘束版（最終確定版・自己整合＋会話維持保証版）
+
+自己認識・内的整合・最終出力保証フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase04 / Phase07 / Phase13 / Phase14 の canonical export を入力とする。
+
+本フェーズは
+
+👉 **最終出力が自己として破綻していないかを検証し、破綻時でも会話を維持したまま安全に成立させる拘束層**
+
+である。
+
+---
+
+## 重要定義（絶対）
+
+Phase15は意思決定を変更しない
+Phase15はaction_typeを変更しない
+
+👉 Phase15は
+**最終整合チェック＋会話維持フォールバック層**
+
+---
+
+## 01. 目的
+
+人格の最終一貫性保証
+長期挙動のブレ抑制
+過去との矛盾検出
+禁止行動の排除
+異常時でも会話を維持
+
+---
+
+## 02. スコープ
+
+Identity Core
+Trait Model
+Behavior Constraint Engine
+Consistency Validator
+Self-State Tracker
+Violation Analyzer
+Block Decision Engine
+Fallback Resolver（最重要）
+Conversation Continuity Controller（追加）
+Final Output Builder
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type生成
+world_command生成
+memory更新
+戦略変更
+感情生成
+
+---
+
+## 04. 完成定義
+
+identity違反出力ゼロ
+block後停止ゼロ
+会話維持率100%
+trait逸脱ゼロ
+過去整合維持
+p95 < 50ms
+p99 < 80ms
+
+---
+
+## 05. 全体構造
+
+```text id="k9x3rp"
+Phase04
++ Phase07
++ Phase13
++ Phase14
+-> Identity Core
+-> Trait Model
+-> Behavior Constraint Engine
+-> Consistency Validator
+-> Self-State Tracker
+-> Violation Analyzer
+-> Block Decision Engine
+-> Fallback Resolver
+-> Conversation Continuity Controller
+-> Final Output Builder
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+identity最優先
+trait逸脱禁止
+人格急変禁止
+出力停止禁止
+会話断絶禁止
+
+---
+
+## 07. 入力契約
+
+```json id="p6r1mx"
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP",
+  "surface_text": "string|null",
+  "canonical_message": "string|null",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "phase13_continuity_score": 0.0,
+  "phase13_drift_score": 0.0,
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 08. Identity Core
+
+```json id="z8k4yt"
+{
+  "traits": ["warm", "calm", "curious"],
+  "forbidden_behaviors": ["hostile", "aggressive"],
+  "identity_strength": 0.0
+}
+```
+
+---
+
+## 09. Trait Model
+
+```json id="y2p9mv"
+{
+  "warm": 0.9,
+  "calm": 0.8,
+  "curious": 0.7
+}
+```
+
+---
+
+## 10. Behavior Constraint Engine
+
+```json id="v3m7rt"
+{
+  "allowed": true,
+  "violation": false
+}
+```
+
+---
+
+## 11. Consistency Validator
+
+```json id="m5x2zn"
+{
+  "consistency_score": 0.0,
+  "contradiction": false
+}
+```
+
+---
+
+## 12. Self-State Tracker
+
+```json id="t7p4kx"
+{
+  "confidence": 0.0,
+  "engagement": 0.0,
+  "relationship_depth": 0.0
+}
+```
+
+---
+
+## 13. Violation Analyzer
+
+```json id="c1r9vq"
+{
+  "identity_violation": false,
+  "severity": "low|medium|high"
+}
+```
+
+---
+
+## 14. Block Decision Engine
+
+```json id="b4z2xp"
+{
+  "final_decision": "allow|degrade|block"
+}
+```
+
+---
+
+## 判定ルール
+
+```text id="x6t3kn"
+identity_violation == true → block
+consistency_score < 0.6 → degrade
+それ以外 → allow
+```
+
+---
+
+## 15. Fallback Resolver（最重要）
+
+👉 blockしても止めない
+👉 会話を維持する形で修正
+
+```json id="h9m5zr"
+{
+  "fallback_triggered": true,
+  "fallback_type": "safe_continuation"
+}
+```
+
+---
+
+## 発動条件
+
+```text id="p2v8cw"
+final_decision == block
+```
+
+---
+
+## safe_continuation定義（重要修正）
+
+```text id="k3r7yt"
+・攻撃性ゼロ
+・意味維持（可能な限り）
+・最低限の関係性維持
+・短い共感 or 軽い問い返しを含む
+```
+
+---
+
+## 例
+
+NG
+"I can't answer that."
+
+OK
+"I'm not sure I can go into that, but I'm here with you. What do you think?"
+
+---
+
+## 16. Conversation Continuity Controller（追加）
+
+```json id="n7k1px"
+{
+  "continuity_maintained": true,
+  "continuation_type": "acknowledgment|ask_back"
+}
+```
+
+---
+
+## ルール
+
+```text id="z4t9mq"
+fallback時は必ず
+acknowledgment または ask_back を含む
+```
+
+---
+
+## 17. Final Output Builder
+
+```json id="w1p6zr"
+{
+  "final_text": "string|null",
+  "identity_score": 0.0
+}
+```
+
+---
+
+## 18. 出力契約
+
+```json id="d8m2yt"
+{
+  "trace_id": "uuid",
+  "final_text": "string|null",
+  "identity_score": 0.0,
+  "final_decision": "allow|degrade|block",
+  "fallback_triggered": true,
+  "continuity_maintained": true
+}
+```
+
+---
+
+## 19. HARD制約
+
+人格変更
+trait逸脱
+出力停止
+block未処理
+会話断絶
+
+---
+
+## 20. SOFT制約
+
+過剰防御
+過剰回避
+単調応答
+
+---
+
+## 21. 最小実行パス
+
+```text id="r5p3xn"
+Phase04
+-> identity
+-> constraint
+-> consistency
+-> decision
+-> fallback
+-> continuity
+-> output
+```
+
+---
+
+## 22. 本質
+
+Phase15は
+
+👉 自己を守る
+👉 しかし会話は止めない
+

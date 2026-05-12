@@ -1,0 +1,345 @@
+import { ContractError } from "../../core/contracts.js";
+import {
+  summarizeLocalEndpointPolicyStatus,
+  summarizeLocalEndpointScope,
+} from "../../core/localEndpointPolicy.js";
+import { normalizeExternalTopicObservation } from "./externalTopicAdapter.js";
+
+const FORBIDDEN_TOPIC_BRIDGE_FIELDS = new Set([
+  "world_command",
+  "input_action",
+  "input_action_candidate",
+  "approved_game_input_action",
+  "execute",
+  "commit",
+  "write",
+  "apply",
+  "memory_write",
+  "direct_memory_write",
+  "commit_memory",
+  "relationship_update_candidate",
+  "memory_carryover_candidates",
+  "community_memory_candidates",
+  "approved_memory_record",
+  "approved_relationship_record",
+  "canonical",
+  "canonical_envelope",
+  "intent",
+  "conversation_state",
+  "action_type",
+  "tone",
+  "emotion",
+  "character_tag",
+  "task_type",
+  "relation_score",
+  "article_text",
+  "full_article_text",
+  "raw_article",
+  "raw_html",
+  "raw_body",
+  "body_text",
+  "verbatim_text",
+]);
+
+export function createHttpExternalTopicSource({
+  endpoint,
+  apiKey = "",
+  timeoutMs = 5000,
+  nowMs = () => Date.now(),
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  if (!endpoint) {
+    throw new ContractError("HTTP external topic endpoint is required");
+  }
+  if (typeof fetchImpl !== "function") {
+    throw new ContractError("HTTP external topic source requires fetch");
+  }
+  const safeTimeoutMs = clampInteger(timeoutMs, 100, 60_000, 5000);
+  const endpointScopeSummary = summarizeLocalEndpointScope(endpoint);
+  const localEndpointPolicyStatus = summarizeLocalEndpointPolicyStatus(endpointScopeSummary);
+
+  const bufferedTopics = [];
+  const status = {
+    source_kind: "http_external_topic_source",
+    local_endpoint_policy: "loopback_or_private_network_only",
+    local_endpoint_policy_status: localEndpointPolicyStatus,
+    bridge_endpoint_scope: endpointScopeSummary.endpoint_scope,
+    bridge_endpoint_locality_ok: endpointScopeSummary.local_endpoint_allowed,
+    request_count: 0,
+    last_item_count: 0,
+    last_error: null,
+    last_error_at_ms: null,
+  };
+
+  async function next() {
+    if (bufferedTopics.length > 0) {
+      return normalizeExternalTopicObservation(bufferedTopics.shift());
+    }
+
+    const topics = await fetchTopicBatch({
+      endpoint,
+      apiKey,
+      timeoutMs: safeTimeoutMs,
+      nowMs,
+      fetchImpl,
+      status,
+    });
+    bufferedTopics.push(...topics);
+    if (bufferedTopics.length === 0) return null;
+    return normalizeExternalTopicObservation(bufferedTopics.shift());
+  }
+
+  return {
+    source_kind: "http_external_topic_source",
+    next,
+    async nextBatch(limit = 10) {
+      const safeLimit = clampInteger(limit, 1, 50, 10);
+      const events = [];
+      while (events.length < safeLimit && bufferedTopics.length > 0) {
+        events.push(normalizeExternalTopicObservation(bufferedTopics.shift()));
+      }
+      if (events.length >= safeLimit) return events;
+      const topics = await fetchTopicBatch({
+        endpoint,
+        apiKey,
+        timeoutMs: safeTimeoutMs,
+        nowMs,
+        fetchImpl,
+        status,
+      });
+      bufferedTopics.push(...topics);
+      while (events.length < safeLimit && bufferedTopics.length > 0) {
+        events.push(normalizeExternalTopicObservation(bufferedTopics.shift()));
+      }
+      return events;
+    },
+    status() {
+      return createPublicStatus(status);
+    },
+  };
+}
+
+function createPublicStatus(status) {
+  return {
+    schema: "iris_http_external_topic_source_status_v1",
+    source_kind: status.source_kind,
+    local_endpoint_policy: status.local_endpoint_policy,
+    local_endpoint_policy_status: status.local_endpoint_policy_status,
+    bridge_endpoint_scope: status.bridge_endpoint_scope,
+    bridge_endpoint_locality_ok: status.bridge_endpoint_locality_ok,
+    request_count: status.request_count,
+    last_item_count: status.last_item_count,
+    last_error: status.last_error,
+    last_error_at_ms: status.last_error_at_ms,
+    boundary_policy: {
+      counts_only: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_raw_payloads: true,
+      no_text_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+}
+
+async function fetchTopicBatch({ endpoint, apiKey, timeoutMs, nowMs, fetchImpl, status }) {
+  const endpointScopeSummary = summarizeLocalEndpointScope(endpoint);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    status.request_count += 1;
+    status.local_endpoint_policy_status =
+      summarizeLocalEndpointPolicyStatus(endpointScopeSummary);
+    status.bridge_endpoint_scope = endpointScopeSummary.endpoint_scope;
+    status.bridge_endpoint_locality_ok = endpointScopeSummary.local_endpoint_allowed;
+    if (!endpointScopeSummary.local_endpoint_allowed) {
+      throw new ContractError("HTTP external topic source endpoint must be local", {
+        error_kind: "local_endpoint_policy_blocked",
+        endpoint_scope: endpointScopeSummary.endpoint_scope,
+        retryable: false,
+        operator_action_required: true,
+      });
+    }
+    const response = await fetchImpl(endpoint, {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+      },
+      signal: controller.signal,
+    });
+    if (response.status === 204) {
+      markTopicSuccess(status, 0);
+      return [];
+    }
+    if (!response.ok) {
+      throw new ContractError("HTTP external topic source request failed", {
+        status: response.status,
+        response_kind: "omitted",
+        error_kind: "http_status",
+      });
+    }
+    const responseText = await response.text();
+    const parsed = parseJsonResponse(responseText);
+    assertReadOnlyTopicBridgePayload(parsed, "HTTP external topic response");
+    assertExternalTopicBridgeAccepted(parsed);
+    const topics = extractTopics(parsed).map(toTopicInput);
+    markTopicSuccess(status, topics.length);
+    return topics;
+  } catch (error) {
+    markTopicFailure(status, classifyExternalTopicSourceError(error), nowMs);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function assertExternalTopicBridgeAccepted(parsed) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+  const bridgeStatus = safeText(
+    parsed.bridge_status ?? parsed.bridgeStatus ?? parsed.status ?? parsed.state ?? "",
+    80
+  )
+    .toLowerCase()
+    .replace(/[\s-]+/gu, "_");
+  if (
+    parsed.ok === false ||
+    parsed.success === false ||
+    parsed.accepted === false ||
+    ["failed", "rejected", "error", "target_failed", "target_unreachable"].includes(
+      bridgeStatus
+    )
+  ) {
+    throw new ContractError("HTTP external topic bridge returned failure", {
+      status: 200,
+      response_kind: "omitted",
+      error_kind: "http_status",
+    });
+  }
+}
+
+function markTopicSuccess(status, count) {
+  status.last_item_count = count;
+  status.last_error = null;
+  status.last_error_at_ms = null;
+}
+
+function markTopicFailure(status, errorKind, nowMs) {
+  status.last_item_count = 0;
+  status.last_error = errorKind;
+  status.last_error_at_ms = safeTimestamp(nowMs);
+}
+
+function classifyExternalTopicSourceError(error) {
+  if (error?.name === "AbortError") return "http_external_topic_timeout";
+  if (error instanceof ContractError) {
+    if (error.details?.error_kind === "local_endpoint_policy_blocked") {
+      return "local_endpoint_policy_blocked";
+    }
+    if (typeof error.details?.status === "number") return "http_external_topic_http_status";
+    if (String(error.message ?? "").includes("requires JSON")) {
+      return "http_external_topic_invalid_json";
+    }
+    if (
+      String(error.message ?? "").includes("read-only") ||
+      String(error.message ?? "").includes("summary-only")
+    ) {
+      return "http_external_topic_unsafe_payload";
+    }
+    return "http_external_topic_contract_error";
+  }
+  return "http_external_topic_request_error";
+}
+
+function safeTimestamp(nowMs) {
+  const value = typeof nowMs === "function" ? Number(nowMs()) : Date.now();
+  if (!Number.isFinite(value)) return Date.now();
+  return Math.trunc(value);
+}
+
+function parseJsonResponse(text) {
+  const raw = String(text ?? "");
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new ContractError("HTTP external topic source requires JSON response");
+  }
+}
+
+function extractTopics(parsed) {
+  if (!parsed) return [];
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed.topics)) return parsed.topics;
+  if (Array.isArray(parsed.items)) return parsed.items;
+  if (Array.isArray(parsed.observations)) return parsed.observations;
+  if (parsed.topic && typeof parsed.topic === "object") return [parsed.topic];
+  if (parsed.observation && typeof parsed.observation === "object") return [parsed.observation];
+  return [parsed];
+}
+
+function toTopicInput(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ContractError("HTTP external topic item must be an object");
+  }
+  const topic = {
+    trace_id: safeOptionalText(raw.trace_id),
+    event_id: safeOptionalText(raw.event_id ?? raw.platform_event_id ?? raw.id),
+    timestamp_ms: raw.timestamp_ms,
+    topic_title: safeText(raw.topic_title ?? raw.title ?? raw.headline ?? "unknown topic", 220),
+    topic_summary: safeText(raw.topic_summary ?? raw.summary ?? raw.text ?? "", 800),
+    source_url: safeText(raw.source_url ?? raw.url ?? "", 500),
+    retrieved_at_ms: raw.retrieved_at_ms ?? raw.published_at_ms,
+    freshness_score: raw.freshness_score ?? raw.freshness ?? 0.5,
+    source_trust_score: raw.source_trust_score ?? raw.trust_score ?? 0.5,
+    risk_category: safeText(raw.risk_category ?? raw.category ?? "general", 80),
+  };
+  if (!topic.trace_id) delete topic.trace_id;
+  if (!topic.event_id) delete topic.event_id;
+  if (topic.timestamp_ms === undefined || topic.timestamp_ms === null) {
+    delete topic.timestamp_ms;
+  }
+  if (topic.retrieved_at_ms === undefined || topic.retrieved_at_ms === null) {
+    delete topic.retrieved_at_ms;
+  }
+  return topic;
+}
+
+function safeOptionalText(value) {
+  if (value === undefined || value === null || value === "") return "";
+  return safeText(value, 160);
+}
+
+function safeText(value, maxLength = 160) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function clampInteger(value, min, max, fallback = min) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(number)));
+}
+
+function assertReadOnlyTopicBridgePayload(value, context, path = "root") {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertReadOnlyTopicBridgePayload(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (FORBIDDEN_TOPIC_BRIDGE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: topic bridge must be read-only and summary-only`, {
+        field,
+        path,
+      });
+    }
+    assertReadOnlyTopicBridgePayload(child, context, `${path}.${field}`);
+  }
+}

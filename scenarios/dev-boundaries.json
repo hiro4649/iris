@@ -1,0 +1,40 @@
+{
+  "name": "dev-boundaries",
+  "steps": [
+    {
+      "kind": "comment",
+      "display_name": "Hiro",
+      "author_channel_id": "hiro-boundary",
+      "text": "IRIS, hello again"
+    },
+    {
+      "kind": "game_observation",
+      "game_title": "Minecraft",
+      "scene_summary": "The screen is blurry and the player location is unclear.",
+      "detected_events": ["unclear screen", "unknown location"],
+      "player_state": "unknown",
+      "screen_confidence": 0.18
+    },
+    {
+      "kind": "game_observation",
+      "game_title": "Minecraft",
+      "scene_summary": "A chicken bumps the player into shallow water and the timing is funny.",
+      "detected_events": ["funny timing", "safe water", "no danger"],
+      "player_state": "safe in shallow water",
+      "screen_confidence": 0.92
+    },
+    {
+      "kind": "external_topic",
+      "topic_title": "Unverified medical claim",
+      "topic_summary": "An unverified health claim is circulating online.",
+      "source_url": "https://example.com/high-risk-topic",
+      "freshness_score": 0.6,
+      "source_trust_score": 0.3,
+      "risk_category": "medical"
+    },
+    {
+      "kind": "idle",
+      "idle_reason": "boundary_pause"
+    }
+  ]
+}

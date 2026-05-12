@@ -1,0 +1,287 @@
+# IRIS_20240425 Cross Phase Addendum: PostgreSQL Relationship Scale
+
+## 00. Scope
+
+This addendum upgrades the long-term viewer memory and relationship scale
+requirements for IRIS. It applies across Phase05 memory commit, Phase06 sync,
+Phase13 candidate validation, Phase20 relationship deepening, Phase21 stream
+carryover, Phase24 gameplay, Phase25 embodiment, Phase26 lifecycle, Phase27
+evaluation, and the Operator Admin Panel.
+
+This addendum supersedes the earlier small-store relationship level guidance
+when the system is configured for production-scale persistence. It remains
+subordinate to Phase00 and does not add Phase00 canonical enums.
+
+## 01. Production Persistence Requirement
+
+For long-term production operation, IRIS must support PostgreSQL-backed
+persistence for viewer relationship profiles, approved memories, relationship
+events, moderation state, and audit summaries.
+
+The production target is:
+
+- 1,000,000 or more viewer relationship profiles
+- long-term approved memory summaries linked to viewers, streams, games, media
+  watch sessions, and relationship events
+- high-volume read paths for live recall without blocking stream response
+- safe Admin Panel search, filtering, paging, moderation, backup, and restore
+- schema migrations with forward/backward compatibility checks
+
+JSON persistence remains acceptable only for local development, fixtures,
+small-scale MVP rehearsal, and emergency fallback. JSON storage must not be
+treated as the recommended backend for 1,000,000+ viewer production operation.
+
+## 02. Database Model
+
+The PostgreSQL persistence layer should separate:
+
+- viewer identity profile
+- relationship aggregate
+- relationship event ledger
+- approved memory record
+- memory summary index
+- stream/session history
+- game-play memory summary
+- media-watch memory summary
+- support/donation summary
+- moderation/blocklist record
+- candidate review audit
+- operator audit trail
+
+The relationship aggregate may be updated from approved relationship records
+only. Relationship candidates must never be committed directly.
+
+Recommended indexes:
+
+- viewer stable identity key
+- latest interaction timestamp
+- public relationship level
+- internal relationship stage
+- moderation state
+- memory owner scope
+- memory type
+- stream/session id
+- candidate review status
+- audit timestamp
+
+All query surfaces must support pagination and bounded result sizes.
+
+## 03. Relationship Scale Tiers
+
+IRIS must maintain separate internal and public relationship representations.
+
+Internal relationship scale:
+
+- `internal_relationship_stage` is an integer from 0 to 99.
+- It is used only for runtime nuance, recall priority, reaction shaping,
+  distance balancing, and safety review.
+- It must not be spoken by IRIS.
+- It must not be exposed to ordinary public JSON, overlay state, replay logs,
+  or viewer-facing UI.
+- It may be visible only in owner/operator Admin Panel views with safe role
+  permissions, explanatory labels, and no viewer ranking UI.
+
+Public relationship level:
+
+- `new`
+- `seen_before`
+- `recognized`
+- `returning`
+- `familiar`
+- `warm`
+- `trusted`
+- `long_term_friend`
+- `bounded`
+
+This is 8 positive/open relationship levels plus the separate safety-distance
+level `bounded`.
+
+`bounded` is not a low friendship rank. It means safety distance or moderation
+distance is being applied. It may coexist with historical familiarity, but live
+behavior must prioritize safety, privacy, and community openness.
+
+## 04. Mapping Guidance
+
+The implementation may map internal stages to public levels as follows:
+
+- 0-4: `new`
+- 5-14: `seen_before`
+- 15-27: `recognized`
+- 28-39: `returning`
+- 40-54: `familiar`
+- 55-69: `warm`
+- 70-84: `trusted`
+- 85-99: `long_term_friend`
+
+`bounded` overrides public presentation when moderation, safety, dependency,
+privacy, harassment, spam, manipulation, or community-openness risk requires
+distance.
+
+The exact thresholds may be tuned, but they must remain monotonic, bounded,
+testable, and documented. Tuning must not create pay-to-rank behavior.
+
+## 05. Memory Capacity
+
+IRIS must distinguish profile count from memory record count.
+
+Production target:
+
+- at least 1,000,000 viewer profiles
+- multiple approved memory summaries per active viewer
+- compressed or summarized long-term memories for inactive viewers
+- archival storage for old low-access memories
+- hot-cache recall for recent and high-relevance viewers
+- cold storage or archive recall for inactive viewers
+
+The system must not load all viewer profiles or all memories into process
+memory for ordinary runtime operation. Live recall must use indexed bounded
+queries, caches, and summaries.
+
+## 06. Performance Requirements
+
+Production-scale PostgreSQL operation must provide:
+
+- bounded page size for Admin Panel lists
+- cursor or keyset pagination for large lists
+- indexed lookup by viewer identity
+- bounded recent memory recall
+- bounded relationship event history queries
+- background summarization for long histories
+- retention and archival jobs
+- backup and restore rehearsals
+- migration checks before deploy
+- slow-query diagnostics without leaking query values
+
+No public report may expose raw SQL, database connection strings, credentials,
+endpoint values, raw viewer messages, support messages, candidates, commands,
+raw frames, raw voice samples, dataset paths, internal model paths, or raw job
+payloads.
+
+## 07. Moderation And Blocklist Requirement
+
+Production-scale relationship persistence must include a first-class
+moderation and blocklist model.
+
+Required moderation states:
+
+- `allowed`
+- `watch`
+- `limited`
+- `muted`
+- `blocked`
+- `appeal_pending`
+- `archived`
+
+Required blocklist capabilities:
+
+- block viewer by stable identity
+- unblock viewer after confirmation
+- temporary mute with expiry
+- limited interaction mode
+- moderation note summary
+- moderation reason code
+- moderator/owner audit trail
+- safe event counts
+- import/export safe blocklist backup
+- bulk search and pagination
+- no raw harassment text in ordinary views
+
+Moderation state must be checked before relationship updates, memory commits,
+comment reaction, support reaction, game communication, and public recall.
+
+Blocked or muted viewers must not receive personalized relationship growth
+behavior while the restriction is active. Existing approved memories may remain
+archived for safety/audit, but ordinary recall must suppress private or
+personalized references.
+
+## 08. Relationship Update Rules
+
+The 100-stage internal relationship scale must be updated only through approved
+relationship records.
+
+Allowed influences:
+
+- repeated healthy participation
+- positive conversation history
+- shared jokes and stream memories
+- cooperative game interactions
+- thoughtful support messages
+- long-term constructive presence
+- operator-approved corrections
+
+Restricted influences:
+
+- support/donation amount alone
+- message spam
+- attempts to manipulate relationship level
+- harassment followed by apology loops
+- parasocial pressure
+- off-platform pressure
+
+Negative or safety-related behavior should first apply moderation or bounded
+distance, not theatrical punishment. IRIS should avoid humiliating, ranking, or
+publicly calling out viewers.
+
+## 09. Admin Panel Requirements
+
+The Admin Panel must support PostgreSQL-scale operation.
+
+Required additions:
+
+- viewer relationship search with pagination
+- public relationship level filter
+- internal stage range filter for owner/operator only
+- moderation state filter
+- active/inactive viewer filter
+- recent interaction filter
+- memory count bucket filter
+- candidate review count filter
+- bulk-safe moderation actions
+- block/mute/unblock workflow
+- relationship profile archive workflow
+- long-term memory archive workflow
+- PostgreSQL health and migration status
+- index readiness status
+- backup/restore rehearsal status
+- slow-query safe summary
+- 1,000,000+ capacity readiness checklist
+
+Admin Panel ordinary views must show public levels and safe summaries. Internal
+stage details require role-gated views and must not create viewer-facing rank
+competition.
+
+## 10. Public Communication Policy
+
+IRIS must never say:
+
+- a viewer's internal relationship stage
+- a viewer's exact relationship score
+- a viewer's rank among other viewers
+- that a viewer paid enough to become close
+- that a viewer is more valuable than others
+- moderation history details in public
+
+IRIS may naturally express familiarity:
+
+- "久しぶり"
+- "前に話してたこと、少し覚えてるよ"
+- "また来てくれてうれしい"
+- "この話題、前にも盛り上がったね"
+
+The purpose is human-like continuity, not gamified viewer ranking.
+
+## 11. Acceptance Criteria
+
+This addendum is satisfied when:
+
+- PostgreSQL is the required production backend for 1,000,000+ viewer operation
+- JSON persistence is clearly marked as local/MVP/fallback only
+- internal relationship stage supports 0-99
+- public relationship level supports 8 positive/open levels plus `bounded`
+- `bounded` is treated as safety distance, not a public shame rank
+- Admin Panel supports paginated viewer search and moderation workflows
+- moderation/blocklist state is first-class and checked before personalization
+- memory and relationship candidates cannot bypass validators
+- public reports and ordinary Admin Panel views do not expose hidden scores,
+  raw messages, candidates, commands, secrets, endpoint values, raw frames,
+  raw voice samples, dataset paths, internal model paths, or raw jobs

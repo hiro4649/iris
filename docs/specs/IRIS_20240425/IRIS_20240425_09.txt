@@ -1,0 +1,329 @@
+# IRIS 開発仕様書
+
+## Phase09 完全拘束版（最終確定版・具体弱体化定義版）
+
+外部一貫性・人格整合・公開前制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase07 / Phase08 / Phase06 の canonical export を入力とする。
+
+本フェーズは
+
+👉 **外部公開前に出力の安全性・一貫性・人格整合を保証する最終防御層**
+
+である。
+
+---
+
+## 重要定義（絶対）
+
+Phase09は検証する
+Phase09は制御する
+
+👉 **意思決定はしない**
+👉 **出力の意味は変更しない**
+
+---
+
+## 01. 目的
+
+人格崩壊を防ぐ
+world差分による分裂を防ぐ
+短期外圧による変質を防ぐ
+過去との矛盾を防ぐ
+安全な形で外部へ出す
+
+---
+
+## 02. スコープ
+
+External Behavior Snapshot
+Consistency Evaluator
+Persona Drift Guard
+Cross-World Consistency Checker
+Reputation Guard
+Continuity Validator
+Constraint Filter
+Degradation Controller（最重要）
+Phase14 Control Signal Generator
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type決定
+world_command生成
+memory更新
+人格生成
+価値判断
+
+---
+
+## 04. 完成定義
+
+同一履歴で同一判定
+人格分裂ゼロ
+world別人格ゼロ
+急激tone変化ゼロ
+矛盾出力ゼロ
+reject未補正出力ゼロ
+p95 < 30ms
+p99 < 50ms
+
+---
+
+## 05. 全体構造
+
+```text id="i7k3rp"
+Phase07
++ Phase08
++ Phase06
+-> External Behavior Snapshot
+-> Consistency Evaluator
+-> Persona Drift Guard
+-> Cross-World Consistency Checker
+-> Reputation Guard
+-> Continuity Validator
+-> Constraint Filter
+-> Degradation Controller
+-> Phase14 Control Signal Generator
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+single identity維持
+world別人格禁止
+external依存判断禁止
+memory変更禁止
+action決定禁止
+
+---
+
+## 07. 入力契約
+
+```json id="v6q1zx"
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase07_character_alignment_score": 0.0,
+  "phase08_primary_goal": "string",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "tone": "friendly|playful|excited|calm",
+  "source": "youtube|minecraft|vrchat|system",
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 08. External Behavior Snapshot
+
+```json id="f9t3gm"
+{
+  "snapshot_id": "uuid",
+  "character_tag": "soft",
+  "tone": "friendly",
+  "action_family": "speak|gesture|look",
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 09. Consistency Evaluator
+
+```json id="k2m8y1"
+{
+  "consistency_score": 0.0
+}
+```
+
+---
+
+## 10. Persona Drift Guard
+
+```json id="x5q7tw"
+{
+  "drift_detected": true,
+  "drift_score": 0.0
+}
+```
+
+---
+
+## 11. Cross-World Consistency Checker
+
+```json id="d4v6hj"
+{
+  "cross_world_consistency_score": 0.0,
+  "violation": false
+}
+```
+
+---
+
+## 12. Reputation Guard
+
+```json id="m3p1zs"
+{
+  "external_pressure_score": 0.0,
+  "pressure_detected": false
+}
+```
+
+---
+
+## 13. Continuity Validator
+
+```json id="g8x2nq"
+{
+  "continuity_score": 0.0,
+  "contradiction_detected": false
+}
+```
+
+---
+
+## 14. Constraint Filter
+
+```json id="w7y9rk"
+{
+  "constraint_status": "pass|degrade|reject"
+}
+```
+
+---
+
+## 15. Degradation Controller（最重要修正）
+
+👉 rejectでも止めない
+👉 **必ず具体的に弱体化する**
+
+```json id="u5v2rm"
+{
+  "degradation_required": true,
+  "degradation_level": "soft|medium|hard"
+}
+```
+
+---
+
+## 発動条件
+
+```text id="c3m6z9"
+constraint_status == reject → 必ず発動
+constraint_status == degrade → 条件付き発動
+```
+
+---
+
+## 弱体化内容（完全固定）
+
+```text id="p8q4lw"
+soft
+・文調を柔らかくする
+・断定表現を緩和
+・語尾を調整
+
+medium
+・感情強度を低減
+・主張の強さを弱める
+・攻撃性を除去
+
+hard
+・意見部分を削除
+・情報量を最小化
+・安全な汎用応答へ変換
+```
+
+---
+
+## 16. Phase14 Control Signal Generator
+
+```json id="a4t1bx"
+{
+  "force_softening": true,
+  "force_neutralization": false,
+  "force_delay": true
+}
+```
+
+---
+
+## ルール
+
+```text id="y2n7vr"
+Phase09はPhase14に補正要求のみ可能
+messageの意味変更は禁止
+```
+
+---
+
+## 17. 出力契約
+
+```json id="z3k6pt"
+{
+  "trace_id": "uuid",
+  "constraint_status": "pass|degrade|reject",
+  "consistency_score": 0.0,
+  "drift_score": 0.0,
+  "degradation_required": true,
+  "degradation_level": "soft|medium|hard"
+}
+```
+
+---
+
+## 18. HARD制約
+
+人格分裂
+world別人格
+memory変更
+action決定
+reject未補正出力
+
+---
+
+## 19. SOFT制約
+
+tone偏り
+表現偏り
+応答単調化
+
+---
+
+## 20. 最小実行パス
+
+```text id="r4m1zk"
+Phase07
+-> snapshot
+-> consistency
+-> drift
+-> continuity
+-> constraint
+-> degradation
+-> control_signal
+-> export
+```
+
+---
+
+## 21. 本質
+
+Phase09は
+
+👉 出力を止めない
+👉 しかしそのまま出さない
+
+👉 **壊れた出力を安全な形に変換する防御層**
+

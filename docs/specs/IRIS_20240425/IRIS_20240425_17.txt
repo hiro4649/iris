@@ -1,0 +1,188 @@
+# IRIS 開発仕様書
+
+## Phase17 完全整合版（会話リズム・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase16 が producer する body continuity export を参照しながら、IRIS の会話に人間らしい間、テンポ、言い直し、相槌、余韻を与えるための最小実装仕様を定義する。
+
+本フェーズの目的は応答を遅くすることではない。
+即時性と自然な間を両立することだ。
+
+## 00.1 Canonical 非改変ルール
+
+response_mode、backchannel、repair、laughter_recovery は Phase17 内部制御ラベルである。
+Phase00 の canonical conversation_state / action_type / tone / emotion / character_tag を追加・変更してはならない。
+
+## 01. 目的
+
+- AI 的な即答連発を避ける
+- コメント密度に応じて会話比率を調整する
+- 深い相談、ボケ、ツッコミ、大爆笑、ゲーム実況で適切な間を作る
+- Phase18 の感情持続と矛盾しない会話テンポを固定する
+
+## 02. スコープ
+
+- Rhythm State
+- Response Timing Controller
+- Backchannel Generator
+- Hesitation / Repair Controller
+- Topic Turn Controller
+- Laughter Recovery Pause
+- Rhythm Validator
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase16 export
+- Phase16 continuity_envelope.final_text
+- conversation_state
+- intent
+- emotion
+- safety_status
+
+conversation_state、intent、emotion は Phase00 canonical 値のみを受ける。
+`thoughtful_reply` や `playful_reply` は response_mode であり canonical state ではない。
+
+side input:
+
+- comment_density
+- queue_length
+- recent_speech_history
+- audio_duration
+- emotion_intensity
+
+## 04. Rhythm State
+
+必須フィールド:
+
+- rhythm_state_id
+- response_mode
+- delay_ms
+- backchannel_allowed
+- repair_allowed
+- topic_turn_probability
+- silence_recovery_level
+
+response_mode:
+
+- instant_reaction
+- normal_reply
+- thoughtful_reply
+- playful_reply
+- serious_reply
+- recovery_reply
+
+## 05. Timing Rule
+
+基本:
+
+- 即リアクション: 0〜300ms
+- 通常返答: 300〜900ms
+- 深い相談: 800〜1800ms
+- ツッコミ: 200〜700ms
+- 大爆笑復帰: 1200〜3500ms
+
+遅延は自然性のために使う。
+LLM timeout を自然な間として偽装してはならない。
+
+## 06. Backchannel
+
+相槌は短く、主発話を邪魔しない。
+
+例:
+
+- うんうん
+- え、待って
+- なるほどね
+- それは分かる
+
+連発禁止。
+同じ相槌を連続使用してはならない。
+
+## 07. Hesitation / Repair
+
+言い直しは IRIS の人間らしさを補助するが、無能演出にしてはならない。
+
+許可:
+
+- 軽い言い直し
+- 笑いながら修正
+- 予想外の反応への短い迷い
+
+禁止:
+
+- 長い混乱
+- 自己否定
+- 責任逃れ
+- 仕様やシステム都合の露出
+
+## 08. Topic Turn
+
+コメント主役型を維持する。
+
+標準比率:
+
+- reaction: 70%
+- expansion: 20%
+- self_talk: 10%
+
+低コメント時のみ self_talk は最大 30%。
+高コメント時は self_talk を抑制する。
+
+## 09. Laughter Recovery Pause
+
+burst_laugh 後は即座に通常返答へ戻してはならない。
+
+復帰手順:
+
+1. 笑い崩れ
+2. 短い吸気
+3. 余韻発話
+4. 話題復帰
+
+例:
+
+- はー、今のはだめ
+- ちょっと待って、まだ残ってる
+- ごめん、戻るね
+
+## 10. 出力契約
+
+Phase17 export:
+
+- rhythm_state_id
+- response_timing_plan
+- backchannel_plan
+- repair_plan
+- topic_turn_plan
+- laughter_recovery_plan
+- rhythm_naturalness_score
+
+## 11. HARD 制約
+
+- 応答上限と低遅延要件を破壊してはならない
+- safety_status reject に対して playful rhythm を出してはならない
+- 深刻な相談に軽すぎる間を使ってはならない
+- 大爆笑後の復帰なしで会話を切ってはならない
+
+## 12. STOP 条件
+
+- response_timing_plan が不正
+- queue overload で自然性制御が維持不能
+- safety と rhythm が衝突
+- 同一相槌が連続する
+
+## 13. テスト仕様
+
+- コメント高密度時に自発トークが減る
+- 深い相談で一拍置く
+- ツッコミが攻撃的にならない
+- 大爆笑後に recovery pause が入る
+- LLM timeout を人格表現として偽装しない
+
+## 14. 開発者向け最終指示
+
+Phase17 の目的は、IRIS を遅くすることではない。
+IRIS が「聞いて、考えて、反応している」ように感じさせることだ。

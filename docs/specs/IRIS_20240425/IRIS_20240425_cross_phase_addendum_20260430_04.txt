@@ -1,0 +1,348 @@
+# IRIS 開発仕様書
+
+## Cross Phase Addendum 2026-04-30-04
+## 多言語発話・自然話速・早口言葉・字幕表示 追加仕様
+
+## 00. 文書の役割
+
+本追補は IRIS_20240425_00〜27 の整合性を維持したまま、IRIS の発話速度、発音、言語対応、字幕表示を追加定義する。
+
+本追補に登場する language_profile、speech_rate_profile、tongue_twister_mode、subtitle_cue は Phase16 以降の内部 profile / adapter cue であり、Phase00 canonical enum ではない。
+
+Phase00 の intent / conversation_state / action_type / tone / emotion / character_tag / task_type を追加・変更してはならない。
+
+## 01. 対象フェーズ
+
+主に以下へ適用する。
+
+- Phase14: 表層発話の自然性評価
+- Phase15: 最終発話の安全整合
+- Phase16: 身体・口・呼吸の連続性
+- Phase17: 会話リズム・間・話速
+- Phase18: 感情・声・呼吸の連動
+- Phase19: 個性・口癖・発話癖
+- Phase27: 人間らしさ評価
+- Adapter Packets: TTS / Live2D / Overlay / Subtitle
+
+## 02. 追加目的
+
+IRIS は以下を満たすこと。
+
+- 発言速度を速くしたり遅くしたりできる
+- 会話中で話速を自然に強弱させる
+- 不自然にゆっくりした発音・発言にならない
+- 短い早口言葉を、演出として言える
+- 多言語の発話・字幕・言語判定に対応する
+- 発言内容の字幕を表示できる
+
+## 03. Speech Rate Profile
+
+各発話には `speech_rate_profile` を生成できる。
+
+必須フィールド:
+
+- schema: `iris_speech_rate_profile_v1`
+- internal_profile: true
+- base_rate
+- rate_variation_plan
+- min_rate
+- max_rate
+- slow_speech_guard
+- intelligibility_guard
+- emotion_rate_link
+- adapter_validation_required: true
+
+`base_rate` は以下の内部値を取る。
+
+- very_slow
+- slow
+- natural
+- lively
+- fast
+- tongue_twister_fast
+
+これらは Phase17 内部ラベルであり、canonical conversation_state / action_type / tone ではない。
+
+## 04. 自然な話速変化
+
+IRIS は発話全体を単調な速度にしない。
+
+許可される変化:
+
+- 驚き: 冒頭だけ少し速くする
+- 照れ: 一部を少し遅くし、直後に自然速度へ戻る
+- 大爆笑後: 息継ぎを挟みながら短く崩れるが、長時間遅くしない
+- ゲーム危機: やや速くなるが、聞き取れない速度にしない
+- 真剣説明: 少し遅くするが、眠い・壊れたような発音にしない
+- 多言語発話: 言語の自然なリズムを優先し、母語以外でも極端に遅くしない
+
+禁止:
+
+- すべての発話が常に slow / very_slow になる
+- 音節ごとに不自然な長い間を置く
+- 感情が高いのに機械的な一定速度になる
+- 早すぎて字幕・口パク・意味理解が破綻する
+- TTS 都合の極端な伸ばしを人格表現として扱う
+
+## 05. Slow Speech Guard
+
+`slow_speech_guard` は以下を検査する。
+
+- 発話全体の平均速度が最低値を下回らない
+- 句読点以外の長い無音が連続しない
+- 語尾伸ばしが連続しない
+- 低遅延補完用の間が、処理遅延の言い訳として長く続かない
+- 多言語発話時に「外国語だから極端に遅い」状態にならない
+
+Guard 失敗時:
+
+- base_rate を natural へ戻す
+- pause を短縮する
+- subtitle timing を再計算する
+- TTS adapter へ `rate_repair_required=true` を渡す
+
+## 06. 早口言葉
+
+IRIS は短い早口言葉を言える。
+
+用途:
+
+- 視聴者のリクエスト
+- 罰ゲーム風の軽い演出
+- ご機嫌なときの遊び
+- ゲーム待機中の小ネタ
+
+必須条件:
+
+- `tongue_twister_mode` は短時間のみ
+- 失敗・噛み・言い直しを人格表現として扱える
+- 意図的な失敗は嘘の能力主張にしない
+- TTS / 字幕 / 口パクが破綻する速度にしない
+- 既存作品の長文台詞、歌詞、字幕、著作権ある文章を早口素材にしない
+
+推奨:
+
+- 各言語ごとに短く安全なオリジナル例文を生成する
+- 失敗時は軽く笑って再挑戦または通常会話へ戻る
+
+禁止:
+
+- 長時間の高速発話
+- 差別的・性的・暴力的な早口言葉
+- ユーザー名や個人情報を早口言葉にする
+- ゲーム操作中の重要判断を早口言葉で隠す
+
+## 07. 対応言語
+
+IRIS は以下の言語を language_profile として扱えること。
+
+- 日本語
+- 英語
+- ドイツ語
+- 中国語
+- ロシア語
+- スペイン語
+- フランス語
+- ポルトガル語
+- アラビア語
+- ベンガル語
+- ウルドゥー語
+- イタリア語
+- 韓国語
+- ベトナム語
+- タイ語
+- ヒンディー語
+- タミル語
+- トルコ語
+- インドネシア語
+- ジャワ語
+- ポーランド語
+
+必須フィールド:
+
+- schema: `iris_language_profile_v1`
+- detected_language
+- requested_language
+- response_language
+- mixed_language_allowed
+- pronunciation_profile
+- script_profile
+- subtitle_language
+- translation_policy
+- adapter_validation_required: true
+
+## 08. 多言語発話ルール
+
+IRIS はユーザー入力または明示リクエストに応じて発話言語を選ぶ。
+
+原則:
+
+- 入力言語に合わせる
+- ユーザーが言語を指定した場合は、その言語を優先する
+- 日本語配信中でも短い外国語リアクションは許可する
+- 長い説明は、視聴者が理解しやすい主言語へ戻せる
+- 不明な言語は無理に断定しない
+
+禁止:
+
+- language_profile を canonical enum として扱う
+- 言語変更で人格・関係値・記憶を上書きする
+- 翻訳結果を検証済み事実として扱う
+- 宗教・政治・医療・法律など高リスク内容を未検証翻訳で断定する
+- 非ラテン文字の言語を理由に極端に遅く話す
+
+## 09. 発音・TTS Adapter 要件
+
+TTS adapter packet には以下を含められる。
+
+- speech_rate_profile
+- language_profile
+- pronunciation_hint
+- phoneme_timing_hint
+- tongue_twister_mode
+
+これらは adapter guidance であり、world command / memory commit / relationship update / game input を持ってはならない。
+
+発音が不自然な場合:
+
+- TTS adapter は `pronunciation_repair_required=true` を返せる
+- Runtime は次発話で rate / pause / pronunciation_hint を補正する
+- ただし adapter response から canonical action や memory commit を受け取ってはならない
+
+## 10. 字幕表示
+
+IRIS は発言内容の字幕を表示できること。
+
+字幕は Overlay / OBS Browser Source 用の read-only 表示である。
+
+必須フィールド:
+
+- schema: `iris_subtitle_cue_v1`
+- trace_id
+- event_id
+- subtitle_text
+- subtitle_language
+- display_start_ms
+- display_end_ms
+- line_break_plan
+- max_line_count
+- safe_area_policy
+- sync_source
+- adapter_validation_required: true
+
+## 11. 字幕表示ルール
+
+字幕は以下を満たす。
+
+- Phase15 final_text から生成する
+- TTS の speech_cue / performance_plan と同期する
+- 長文は自然な単位で分割する
+- OBS overlay / ゲーム画面 / 重要UIを隠さない
+- カメラ接近演出時も字幕の可読性を保つ
+- 多言語では script に合う改行を行う
+- RTL 言語、特にアラビア語では表示方向を考慮する
+
+禁止:
+
+- raw memory、selected_memory_ids、relationship score、candidate を字幕に出す
+- 外部動画の長文台詞、字幕、歌詞を再現する
+- 早口言葉で字幕が追従不能になる
+- 字幕表示を OBS scene command として扱う
+
+## 12. Overlay / Subtitle Adapter 境界
+
+字幕 adapter は表示専用である。
+
+字幕 adapter packet に含めてよいもの:
+
+- subtitle_cue
+- speech_rate_profile
+- language_profile
+- display_style_hint
+- safe_area_hint
+
+含めてはならないもの:
+
+- world_command
+- OBS command
+- input_action_candidate
+- approved_game_input_action
+- memory write / commit
+- relationship update
+- canonical action_type / intent / conversation_state の再定義
+
+## 13. Phase27 評価追加
+
+Human-likeness evaluation は以下を追加評価する。
+
+- speech_rate_naturalness
+- slow_speech_guard_pass
+- multilingual_pronunciation_stability
+- subtitle_sync_quality
+- subtitle_readability
+- tongue_twister_boundedness
+
+失敗例:
+
+- いつも不自然に遅い
+- 早口言葉が長すぎる
+- 多言語で常に途切れ途切れになる
+- 字幕が発話と大きくずれる
+- 字幕がゲーム画面やUIを隠す
+- 字幕が raw candidate / memory id を露出する
+
+## 14. 公開状態
+
+Public `/state` に出してよいもの:
+
+- selected language
+- subtitle enabled status
+- subtitle visible status
+- speech rate label
+- speech rate repair status
+- subtitle sync status
+
+Public `/state` に出してはならないもの:
+
+- raw translation prompt
+- raw memory ids
+- raw candidate
+- hidden relation score
+- TTS vendor internal token
+- phoneme raw debug log
+
+## 15. 受け入れ条件
+
+- 日本語で自然な話速変化ができる
+- 英語など対応言語で短い挨拶・リアクションができる
+- 早口言葉モードが短時間で終了する
+- slow_speech_guard が極端な遅さを補正する
+- subtitle_cue が Phase15 final_text と同期して生成される
+- 字幕が overlay に表示できる
+- 多言語字幕が script / direction を考慮する
+- 字幕・話速・言語 profile が canonical enum を汚染しない
+- adapter packet に candidate / commit / world_command が混入しない
+
+## 16. 実装優先順位
+
+MVP:
+
+1. speech_rate_profile
+2. slow_speech_guard
+3. subtitle_cue
+4. 日本語・英語の language_profile
+5. overlay subtitle 表示
+
+次段:
+
+1. 対応21言語の language_profile
+2. tongue_twister_mode
+3. TTS pronunciation repair
+4. RTL 字幕対応
+5. Phase27 speech/subtitle 評価
+
+## 17. 結論
+
+IRIS は「生きているように話す」ために、発話内容だけでなく、速度、間、発音、言語、字幕の同期まで一体で扱う。
+
+ただし、これらはすべて表現・表示・adapter guidance であり、Phase00 canonical、記憶採用、関係値更新、ゲーム操作、OBS command を直接発生させてはならない。

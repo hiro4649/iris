@@ -1,0 +1,20 @@
+{
+  "schema": "iris_relationship_store_v1",
+  "profiles": {
+    "viewer:persistence-tester": {
+      "linked_identity_id": "viewer:persistence-tester",
+      "display_name": "Persistence Tester",
+      "affinity_score": 0.42,
+      "familiarity_score": 0.7,
+      "interaction_count": 14,
+      "last_interaction_at_ms": 1777541883742,
+      "recent_summaries": [
+        "IRIS responded warmly to Persistence Tester.",
+        "IRIS responded warmly to Persistence Tester.",
+        "IRIS responded warmly to Persistence Tester.",
+        "IRIS responded warmly to Persistence Tester.",
+        "IRIS responded warmly to Persistence Tester."
+      ]
+    }
+  }
+}

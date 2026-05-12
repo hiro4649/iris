@@ -1,0 +1,1711 @@
+﻿
+
+---
+
+# IRIS 開発仕様書
+
+## Phase00 完全拘束版（最終整合版・単体完結版）
+
+基盤固定・境界拘束・全フェーズ共通契約確定フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は IRIS 開発全体の最上位拘束文書である。
+Phase01 以降の仕様、設計、実装、テスト、ログ、運用判断は、本仕様書に従わなければならない。
+
+本書の役割は、IRIS を賢くすることではない。
+IRIS が後続フェーズで壊れないようにすることだ。
+
+ここで固定するのは以下である。
+
+Core / Adapter 境界
+Event / Action / Task / Review Queue 契約
+Phase 間 I/O 契約
+命名規則
+ID 規則
+Memory segmentation
+Source of Truth
+Global fail / stop
+Producer / Consumer の責務
+Task → Action → World Command の経路制約
+review path の正式接続先
+side input の許可条件
+CI による境界検証条件
+
+本書に未定義の挙動は実装禁止とする。
+「後で決める」「実装者判断で補完する」は禁止する。
+未定義は未実装である。
+
+---
+
+## 01. 最終目的
+
+Phase00 の最終目的は以下の状態を固定することにある。
+
+IRIS Core が platform-agnostic であること。
+IRIS が複数世界に複数 Presence を持っても、人格主体は 1 つであること。
+Core と Adapter の責務境界が壊れないこと。
+全フェーズの入出力が機械的に接続できること。
+全フェーズの命名、score、ID、fail 条件が衝突しないこと。
+world-specific 情報が core continuity を汚染しないこと。
+task_type から world_command へ直接飛ばないこと。
+外部観測が source of truth にならないこと。
+Phase01〜07 が本書を上位拘束として共有すること。
+review path と通常 path が衝突しないこと。
+side input が暗黙入力ではなく契約入力として固定されること。
+action_type の決定責務が 1 箇所に固定されること。
+
+---
+
+## 02. Phase00 の範囲
+
+Phase00 で必ず固定する対象は以下とする。
+
+Core skeleton
+Adapter skeleton
+EventBus
+Schema 群
+Presence 最小構造
+Identity 最小構造
+Memory segmentation 定義
+Global naming rule
+Global fail / stop rule
+Phase 間 I/O 契約
+canonical enum / glossary
+最小実行パス
+review path 契約
+side input 契約
+CI 検証ルール
+
+Phase00 で扱わないものは以下とする。
+
+LLM による自由生成
+長期記憶活用ロジックの詳細実装
+報酬最適化ロジックの重み調整
+人格進化
+world ごとの個性分岐
+高度な会話戦略
+学習による重み更新
+モデル選定
+運用インフラの個別実装
+
+---
+
+## 03. 完成定義
+
+Phase00 は以下をすべて満たした場合のみ完了とみなす。
+
+Core が Adapter を削除しても単体でビルド可能であること。
+Core に world SDK import が存在しないこと。
+Adapter に intent / relation / memory / goal ロジックが存在しないこと。
+Event Schema と Action Schema と Review Queue Schema が validation 可能であること。
+必須 ID が全処理で引き回されること。
+最小実行パスが 1 パターン以上動作すること。
+Phase 間 I/O 契約が producer / consumer 単位で定義済みであること。
+task_type → action_type → world_command の経路制約が固定されていること。
+全フェーズ共通の score 命名規則が定義済みであること。
+Global fail / stop 条件が定義済みであること。
+review path の producer / consumer が両側で閉じていること。
+side input の required / optional / side input 区分が定義済みであること。
+CI で境界違反を検出できること。
+I/O 契約表、本文責務、score 名、review path が相互に矛盾しないこと。
+
+---
+
+## 04. IRIS の最上位原則
+
+IRIS はゲーム NPC ではない。
+IRIS は YouTube、Minecraft、VRChat など複数世界を横断して継続する単一 AI character である。
+複数 Presence は許可するが、複数人格は許可しない。
+Core は schema と phase contract を理解し、world-specific 実行は Adapter が担当する。
+Adapter は変換だけを行い、判断してはならない。
+外部観測は reference であり truth ではない。
+Phase00 はこの原則に反するすべての実装を fail とみなす。
+
+---
+
+## 05. 全体アーキテクチャ
+
+唯一許可される通信構造は以下である。
+
+```text
+Adapter -> EventBus -> Core -> EventBus -> Adapter
+```
+
+これ以外の通信は禁止する。
+Core から Adapter を直接呼んではならない。
+Core が world_command を生成してはならない。
+Adapter が intent や memory を生成してはならない。
+EventBus は publish / subscribe 以外のロジックを持ってはならない。
+
+review path を使う場合も、Core 内の許可済み consumer を経由しなければならない。
+review path を理由に Core / Adapter 境界を破ってはならない。
+
+---
+
+## 06. Core 定義
+
+Core は以下のみを持つ。
+
+Event を受ける。
+Schema を検証する。
+Phase ごとの canonical export を返す。
+Phase ごとの内部処理を行う。
+review path を受ける正式 consumer を持つ。
+source of truth と route 制約を守る。
+
+Core が持ってはならないものは以下である。
+
+world SDK import
+world 名分岐ロジック
+Adapter 直接呼び出し
+world_command 生成
+memory 永続更新
+goal 生成
+trait 生成
+外部観測の truth 化
+暗黙 side input
+契約外 field 補完
+
+Core は schema-driven でなければならない。
+
+---
+
+## 07. Adapter 定義
+
+Adapter の責務は以下のみである。
+
+raw event の normalize
+canonical Event への変換
+Action 契約の serialize
+world_command への変換
+transport / timeout / world-specific parameter の処理
+
+Adapter が持ってはならないものは以下である。
+
+intent 生成
+memory 更新
+relation 解釈
+goal 生成
+character 判定
+safe redirect 判定
+task 評価
+人格変更
+state 永続保持
+action_type の変更
+review queue の解釈
+
+Adapter は変換器であり、意思決定器ではない。
+
+---
+
+## 08. EventBus 定義
+
+EventBus は唯一の通信経路である。
+役割は publish / subscribe のみとする。
+
+以下は禁止する。
+
+ロジック
+状態保持
+retry policy
+priority 再解釈
+schema 以外の暗黙変換
+phase 跨ぎの field 補完
+truth 判定
+
+---
+
+## 09. Event Schema
+
+Event の canonical 形式は以下に固定する。
+
+```json
+{
+  "event_id": "uuid",
+  "trace_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "timestamp_ms": 0,
+  "payload": {}
+}
+```
+
+必須条件は以下とする。
+
+`event_id` 欠落は reject
+`trace_id` 欠落は reject
+`source` 不正値は reject
+`timestamp_ms` 型不一致は reject
+`payload` 非 object は reject
+
+Phase01 で以下の補助値を Adapter が normalize して追加してよい。
+
+```json
+{
+  "target_presence_id": "uuid|null",
+  "mention_flag": false,
+  "priority": 0
+}
+```
+
+ただし Adapter は intent を決めてはならない。
+
+---
+
+## 10. Action Schema
+
+Action の canonical 形式は以下に固定する。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP",
+  "skill_id": "string",
+  "target_presence_id": "uuid",
+  "tone": "friendly|playful|excited|calm",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "parameters": {}
+}
+```
+
+必須条件は以下とする。
+
+`trace_id` 欠落は reject
+`event_id` 欠落は reject
+`action_type` 不正値は reject
+`skill_id` 欠落は reject
+`target_presence_id` 欠落は reject
+`parameters` 非 object は reject
+
+Action は world_command ではない。
+Action は Core 側の共通行動粒度である。
+Adapter は Action を world_command に変換してよいが、`action_type` を変更してはならない。
+
+---
+
+## 11. Presence Schema
+
+Presence の最小 canonical 形式は以下に固定する。
+
+```json
+{
+  "presence_root_id": "uuid",
+  "presence_id": "uuid",
+  "world": "youtube|minecraft|vrchat",
+  "status": "active|idle|blocked"
+}
+```
+
+制約は以下とする。
+
+`presence_root_id` は全 instance 共通
+`presence_id` は一意
+`blocked` Presence は action 出力先になれない
+同時に speaker_token を持てる Presence は 1 つまで
+
+---
+
+## 12. Identity 最小定義
+
+identity は world 跨ぎの人物候補または確定対象である。
+同名で自動 link してはならない。
+confidence threshold なしの auto-confirm を禁止する。
+
+最小 state は以下とする。
+
+```text
+UNLINKED
+CANDIDATE
+LINKED
+UNSAFE
+BLOCKED
+```
+
+初期フェーズでは `UNLINKED|CANDIDATE` のみ使用してよい。
+ただし threshold なし auto-link 禁止は全フェーズ共通 hard rule とする。
+
+---
+
+## 13. ID ルール
+
+全フェーズで必須の ID は以下である。
+
+`trace_id`
+単一の end-to-end 処理単位を追跡する ID
+
+`event_id`
+単一入力イベントを識別する ID
+
+`presence_root_id`
+単一人格に紐づく Presence 群を束ねる ID
+
+`presence_id`
+各 world instance の一意 ID
+
+`task_id`
+Phase07 の task 単位 ID
+
+`queue_id`
+review queue 単位 ID
+
+ルールは以下とする。
+
+trace_id は phase を跨いで変えてはならない。
+event_id は review path でも原イベント単位を保持する。
+phase-local ID を global ID の代わりに使ってはならない。
+ログ、export、error の全相関は trace_id を基準とする。
+
+---
+
+## 14. Memory segmentation
+
+Memory segmentation は以下に固定する。
+
+```text
+core_identity
+relational
+episodic
+semantic
+working
+world_specific
+safety_memory
+```
+
+各領域の意味は以下とする。
+
+`core_identity`
+IRIS の人格核。Phase05 以前で更新禁止。Phase06 でも直接上書き禁止。
+
+`relational`
+対象との関係性の低速更新領域。
+
+`episodic`
+イベント単位の履歴。
+
+`semantic`
+圧縮された意味情報。
+
+`working`
+runtime 一時記憶。永続対象ではない。
+
+`world_specific`
+世界固有の一時情報。core continuity を上書きしてはならない。
+
+`safety_memory`
+安全系拘束。Phase05 で直接更新禁止。
+
+---
+
+## 15. Canonical intent
+
+Phase01 で使用可能な canonical intent は以下に固定する。
+
+```text
+greet
+respond
+observe
+ignore
+```
+
+新規 intent の追加は Phase00 改訂を必須とする。
+
+---
+
+## 16. Canonical conversation_state
+
+Phase03 で使用可能な conversation_state は以下に固定する。
+
+```text
+opening
+active
+closing
+idle
+```
+
+細分化は禁止する。
+局所的 convenience のために state を増やしてはならない。
+
+---
+
+## 17. Canonical action_type
+
+全フェーズで使用可能な action_type は以下に固定する。
+
+```text
+SPEAK
+GESTURE
+LOOK
+WAIT
+NOOP
+```
+
+新規 action_type の追加は Phase00 改訂を必須とする。
+
+意味は以下に固定する。
+
+`SPEAK`
+発話または発話相当の明示応答
+
+`GESTURE`
+非発話の意図表現
+
+`LOOK`
+注視、視線、軽い反応
+
+`WAIT`
+保留、間、受け流し
+
+`NOOP`
+意図的な無操作
+
+---
+
+## 18. Canonical tone / emotion / character_tag
+
+全フェーズで使用可能な canonical 値を固定する。
+
+tone
+
+```text
+friendly
+playful
+excited
+calm
+```
+
+emotion
+
+```text
+neutral
+happy
+surprise
+awkward
+```
+
+character_tag
+
+```text
+soft
+playful
+tease
+hype
+calm
+```
+
+新しい tone / emotion / character_tag の追加は禁止する。
+
+---
+
+## 19. Canonical task_type
+
+Phase07 で使用可能な task_type は以下に固定する。
+
+```text
+CREATE_CONTENT
+MODIFY_WORLD
+INTERACT_USER
+EXECUTE_WORKFLOW
+CALL_EXTERNAL
+```
+
+新規 task_type の追加は Phase00 改訂を必須とする。
+
+---
+
+## 20. Canonical updated_store
+
+Phase05 から Phase06 へ渡せる updated_store は以下に固定する。
+
+```text
+relationship_memory
+memory_store
+meaning_store
+experience_log
+```
+
+これ以外の store 名を export に出してはならない。
+
+---
+
+## 21. Source of Truth の上位原則
+
+優先順位は以下に固定する。
+
+```text
+Character
+> Runtime State
+> Persistent Memory
+> External Observation
+```
+
+全フェーズ共通 hard rule は以下とする。
+
+External Observation を truth として採用してはならない。
+Character 制約に反する更新を commit してはならない。
+Persistent Memory が Character を上書きしてはならない。
+Runtime State が Character 制約と衝突する場合、commit してはならない。
+Character は上書き対象ではなく検証制約である。
+
+---
+
+## 22. 経路制約
+
+全フェーズ共通 hard rule として、必ず以下を守ること。
+
+```text
+task_type -> action_type -> world_command
+```
+
+以下は禁止する。
+
+task_type -> world_command
+intent -> world_command
+reaction -> world_command
+task_type -> skill を飛ばした直接 SDK call
+Phase07 からの直接 world 実行
+Adapter による action_type の変更
+
+補足拘束を以下に固定する。
+
+action_type の canonical 決定権は Phase04 にのみ存在する。
+Phase02 は reaction-level 信号を producer するが、action_type を確定してはならない。
+Phase07 は task_type を生成できるが、task_type から world_command へ直接到達してはならない。
+review path は memory / persistence 系の再評価を目的とし、実行系 shortcut に使ってはならない。
+
+---
+
+## 23. Phase 間 I/O 契約の原則
+
+Phase 間接続は自由結線してはならない。
+各フェーズの producer / consumer は、本章の I/O 契約表に従って固定する。
+
+Phase00 は基礎 schema と global rule を producer する。
+Phase01 は intent / presence / working context を producer する。
+Phase02 は reaction / variation / micro expression を producer する。
+Phase03 は compact context signal を producer する。
+Phase04 は world 非依存 action 契約を producer する。
+Phase05 は persistence 評価済み update を producer する。
+Phase06 は sync 済み状態を producer する。
+Phase07 は task 実行評価と memory update review queue を producer する。
+
+各 phase は、Phase00 の I/O 契約表で許可された producer の canonical 出力のみを consumer してよい。
+直前 phase のみを consumer しなければならない、という意味ではない。
+許可されていない phase の出力を暗黙参照してはならない。
+raw payload 全文を勝手に再参照してはならない。
+不足フィールドを暗黙補完してはならない。
+side input を使う場合は、本章に `Required` `Optional` `Side Input` を明示しなければならない。
+
+---
+
+## 24. Phase 間 I/O 契約表
+
+以下を全フェーズ共通の拘束表とする。
+本文よりも強い拘束とみなす。
+
+```text
+Producer: Phase00
+Consumer: Phase01
+Required:
+trace_id, event_id, source, timestamp_ms, payload
+Optional:
+target_presence_id, mention_flag, priority
+Fail:
+schema violation, missing trace_id, invalid source
+```
+
+```text
+Producer: Phase01
+Consumer: Phase02
+Required:
+trace_id, event_id, source, intent, target_presence_id, timestamp_ms
+Optional:
+speaker_token, mention_flag, priority
+Fail:
+missing intent, invalid intent, missing trace_id
+```
+
+```text
+Producer: Phase02
+Consumer: Phase03, Phase04
+Required:
+trace_id, event_id, reaction_id, variation_id, intent, tone, emotion, character_tag, target_presence_id
+Optional:
+micro_expression, speaker_token, mention_flag
+Fail:
+canonical enum violation, missing reaction_id, missing trace_id
+```
+
+```text
+Producer: Phase03
+Consumer: Phase04
+Required:
+trace_id, event_id, conversation_state, phase03_continuity_score, relationship_hint, context_tags, phase03_context_valid_score, target_presence_id
+Optional:
+topic_key
+Fail:
+score out of range, invalid context tag, missing trace_id
+```
+
+```text
+Producer: Phase04
+Consumer: Phase05, Adapter
+Required:
+trace_id, event_id, action_type, skill_id, target_presence_id, tone, character_tag, redirected, phase04_validator_score, phase04_presence_score
+Optional:
+redirect_reason, source, intent, emotion, relationship_hint, timestamp_ms, linked_identity_id, topic_key, phase03_continuity_score
+Fail:
+world_command included, blocked presence target, missing trace_id
+```
+
+```text
+Producer: Phase05
+Consumer: Phase06
+Required:
+trace_id, event_id, phase05_importance, phase05_character_relevance, phase05_character_persistence_score, phase05_drift_score, updated_store, commit_status
+Optional:
+linked_identity_id, relationship_hint, topic_key
+Side Input:
+runtime_state, external_summary, intent, target_presence_id, timestamp_ms
+Fail:
+unrecognized updated_store, missing commit_status, missing trace_id
+```
+
+```text
+Producer: Phase06
+Consumer: Phase07
+Required:
+trace_id, event_id, sync_status, phase06_state_validity_score, phase06_intent_consistency_score, phase06_memory_sync_score, phase06_external_trust_score, phase06_character_sync_score, phase06_relationship_sync_score, phase06_conflict_resolution_score
+Optional:
+active_intent, target_presence_id, linked_identity_id, external_summary, source, timestamp_ms, relationship_hint, topic_key
+Fail:
+sync_status missing, score out of range, missing trace_id
+```
+
+```text
+Producer: Phase07
+Consumer: Phase05 Review Intake
+Required:
+trace_id, event_id, task_type, phase07_value_score, phase07_risk_score, phase07_cost_score, phase07_character_alignment_score, phase07_reward_score, phase07_reputation_score, review_reason
+Optional:
+linked_identity_id, target_presence_id, topic_key, character_feedback
+Fail:
+task_type not in canonical set, score out of range, missing trace_id
+```
+
+---
+
+## 25. review path 定義
+
+review path は通常 path と分離された正式経路である。
+用途は以下に限定する。
+
+Phase07 実行評価の結果を Phase05 の review intake に戻すこと
+memory / persistence 候補の再評価を要求すること
+character_feedback を persistence 評価へ補助入力として渡すこと
+
+review path で以下を行ってはならない。
+
+world_command 実行
+Phase04 への action shortcut
+Phase06 への同期 shortcut
+direct memory write
+通常 path の required key を省略した再投入
+
+Phase05 は通常入力 source として Phase04 export を受ける。
+さらに review path consumer として Phase07 queue を受ける。
+この 2 経路を同一入口で曖昧 merge してはならない。
+review intake は明示的に別 consumer として持たなければならない。
+
+---
+
+## 26. score 命名規則
+
+全フェーズ共通で phase prefix を必須とする。
+score は `phaseNN_*_score` に統一する。
+
+Phase07 で canonical score として使用してよいのは以下のみとする。
+
+```text
+phase07_value_score
+phase07_risk_score
+phase07_cost_score
+phase07_character_alignment_score
+phase07_reward_score
+phase07_reputation_score
+```
+
+`character_fit` `value_reward` `character_reward` は canonical score 名として使用してはならない。
+必要であれば phase 内部一時変数または queue 生成前の補助計算値としてのみ保持し、export field 名には使ってはならない。
+
+---
+
+## 27. Global STOP_REASON
+
+全フェーズ共通の global stop reason を以下に固定する。
+
+```text
+SCHEMA_VALIDATION_FAILURE
+ROUTE_VIOLATION
+CORE_BOUNDARY_VIOLATION
+ADAPTER_VIOLATION
+SOURCE_OF_TRUTH_VIOLATION
+SYNC_LOOP
+CHARACTER_INCONSISTENCY
+ROLLBACK_FAILURE
+MEMORY_DIRECT_WRITE_VIOLATION
+TRACE_MISSING
+EXPORT_CONTRACT_VIOLATION
+SIDE_INPUT_VIOLATION
+REVIEW_PATH_VIOLATION
+```
+
+phase-local stop reason は `PHASE{NN}_*` 接頭辞を必須とする。
+
+優先順位は以下とする。
+
+trace / schema 系
+
+> boundary / route 系
+> source of truth / character 系
+> rollback / sync 系
+> export / review path 系
+
+複数同時発火時は上位を primary reason として記録し、下位を secondary reason として evidence に残すこと。
+
+---
+
+## 28. Global fail / reject 原則
+
+以下は全フェーズ共通の reject / fail 原則とする。
+
+必須 key 欠落は reject
+canonical enum 外値は reject
+trace_id 欠落は reject
+契約外 field の truth 化は fail
+route 逸脱は fail
+world_command 早期生成は fail
+blocked presence への action は fail
+複数 Presence 同時 SPEAK は fail
+snapshot なし commit は fail
+validation なし reward 確定は fail
+review path の direct write は fail
+side input の暗黙追加は fail
+
+---
+
+## 29. 最小実行パス
+
+Phase00 は最小実行パスを 1 本以上保証しなければならない。
+canonical な最小実行パスを以下に固定する。
+
+```text
+Adapter normalize event
+-> Phase01 intent export
+-> Phase02 reaction export
+-> Phase03 context export
+-> Phase04 action export
+-> Adapter handoff
+```
+
+この最小実行パスは以下を目的とする。
+
+Core / Adapter / EventBus 境界の成立確認
+trace_id の end-to-end 維持確認
+action_type 決定主体が Phase04 であることの確認
+world_command が Adapter 側に限定されることの確認
+
+Phase05〜07 はこの最小実行パス成立後に追加する。
+最小実行パス成立前に後続フェーズ固有ロジックを入れてはならない。
+
+---
+
+## 30. 例外仕様
+
+fallback は許可する。
+ただし以下を満たす場合に限る。
+
+fallback は route を壊してはならない。
+fallback は action_type の canonical 決定権を奪ってはならない。
+fallback は world_command を生成してはならない。
+fallback は trace_id を保持しなければならない。
+fallback でも required export key を欠落させてはならない。
+
+review path は例外経路ではあるが、契約経路であって bypass ではない。
+review path を口実に phase を飛ばしてはならない。
+
+---
+
+## 31. CI 検証項目
+
+CI は最低限、以下を自動検出しなければならない。
+
+Core 内 world SDK import
+Adapter 内 forbidden logic
+Schema violation
+Route violation
+ID 欠落
+Phase prefix naming violation
+world_command 早期生成
+External truth 化
+automatic merge
+unlimited retry
+direct memory write 違反
+trace_id 欠落
+blocked presence への action
+複数同時 SPEAK
+snapshot なし commit
+validation なし reward 確定
+Phase02 export に action_type 混入
+Phase04 が action_type を決定せず受け流している実装
+Phase04→Phase05 契約と Phase05 input 契約の不一致
+Phase05→Phase06 契約と Phase06 input 契約の不一致
+review path consumer 欠落
+canonical score naming と export field naming の不一致
+暗黙 side input
+raw payload 全文の後続 export 混入
+
+---
+
+## 32. Logging の最小拘束
+
+全フェーズのログは最低限以下を含まなければならない。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phaseNN",
+  "step": "string",
+  "result": "success|skip|reject|fail",
+  "latency_ms": 0
+}
+```
+
+必須 correlation key を欠落させてはならない。
+`trace_id` と `event_id` がないログは禁止する。
+review path は `route=review` を明示し、通常 path と混同してはならない。
+
+---
+
+## 33. Repository 骨格
+
+最低限、以下の構造を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+  adapters/
+  bus/
+  schemas/
+  presence/
+  identity/
+  memory/
+  sync/
+  task/
+  runtime/logs/
+  tests/unit/
+  tests/integration/
+  tests/ci/
+```
+
+構造が先。
+中身の賢さは後。
+構造が甘いと、後で必ず境界が破られる。
+
+---
+
+## 34. 実装順序
+
+Phase00 の実装順は以下に固定する。
+
+Schema 群
+EventBus
+Core skeleton
+Adapter skeleton
+ID / Presence 最小定義
+Memory segmentation 定義
+Global naming / fail / stop rule
+canonical glossary
+Phase 間 I/O 契約
+review path 契約
+side input 契約
+最小実行パス
+CI ルール
+
+逆順は禁止する。
+先に賢さを入れるな。
+先に後続フェーズ固有ロジックを入れるな。
+先に便利な shortcut を入れるな。
+
+---
+
+## 35. 開発者向け最終指示
+
+本仕様書は Addendum を必要としない。
+ここに書かれた契約、命名、経路、truth、fail、producer / consumer、review path、side input を source of truth とすること。
+
+後続フェーズの仕様が本書と衝突する場合、本書を優先すること。
+未定義は未実装であり、開発者判断で補完してはならない。
+本書の役割は、IRIS を面白くすることではない。
+**IRIS を壊れない構造に閉じ込めること**である。
+
+---
+
+
+
+===============================================================================
+Phase00 Addendum for Phase08-15
+Integrated into IRIS_20240425_00.txt
+===============================================================================
+
+# IRIS Phase00 Addendum for Phase08-15
+
+作成日: 2026-04-24
+対象: Phase08-15
+位置付け: Phase00 の正式追補
+
+---
+
+## 01. Addendum の目的
+
+本 Addendum は、Phase08-15 を Phase00 の正式な pipeline 契約に追加するための拘束仕様である。
+
+Phase00 original は引き続き最上位拘束である。
+本 Addendum は Phase00 の代替ではなく、Phase08-15 追加により不足した I/O / status / boundary 契約を補う。
+
+Phase08-15 の仕様が Phase00 original または本 Addendum と衝突する場合、優先順位は以下とする。
+
+```text
+Phase00 original
+-> Phase00 Addendum for Phase08-15
+-> Phase08-15 individual specs
+```
+
+---
+
+## 02. Canonical enum 非追加原則
+
+Phase08-15 は canonical enum を追加してはならない。
+
+追加禁止対象:
+
+- `intent`
+- `conversation_state`
+- `action_type`
+- `tone`
+- `emotion`
+- `character_tag`
+- `task_type`
+- `updated_store`
+
+Phase08-15 に登場する goal / strategy / status / decision / canon / naturalness の label は、すべて phase-local label である。
+これらを canonical enum として扱ってはならない。
+
+---
+
+## 03. Phase-local label 定義
+
+### Phase08 goal label
+
+以下は `phase08_goal_label` であり、canonical `intent` / `task_type` / `action_type` ではない。
+
+```text
+STRENGTHEN_RELATION
+CONTINUE_TOPIC
+EXPLORE_NEW
+STABILIZE_STATE
+```
+
+禁止:
+
+- goal label を action_type に変換すること
+- goal label から world_command を生成すること
+- goal label を memory store に直接 commit すること
+- goal label を Adapter に直接渡すこと
+
+### Phase10 strategy label
+
+Phase10 に登場する strategy / fallback / mode 名は `phase10_strategy_label` である。
+これらは canonical action ではない。
+
+禁止:
+
+- strategy label による action_type 再決定
+- strategy label からの world_command 生成
+- strategy label の memory 直接 commit
+
+### Phase13 canon label
+
+Phase13 の canon / continuity / drift label は canon candidate の評価 label である。
+raw memory / raw event / evidence を削除する命令ではない。
+
+### Phase14 naturalness label
+
+Phase14 の variation / naturalness / semantic status は表現検査 label である。
+意味変更や新情報追加の許可ではない。
+
+### Phase15 final_decision
+
+Phase15 の `final_decision` は final output policy である。
+canonical action decision ではない。
+
+---
+
+## 04. Status normalization
+
+Phase08-15 で用いる status は、phase 内では既存表記を維持してよい。
+ただし phase 間・Phase16 以降・ログ集計では normalized status を併記または変換する。
+
+```text
+pass    -> safe
+allow   -> safe
+
+degrade -> degrade
+
+reject  -> reject
+block   -> reject
+fail    -> reject
+```
+
+`pending` を使う場合は commit 可能状態として扱ってはならない。
+`pending` は `review_required` に正規化し、最終出力・記憶更新・world execution の許可として扱わない。
+
+Phase15 の写像:
+
+```text
+final_decision == allow   -> normalized_status == safe
+final_decision == degrade -> normalized_status == degrade
+final_decision == block   -> normalized_status == reject
+```
+
+---
+
+## 05. Phase08-15 I/O contract
+
+全 Phase に共通して `trace_id` と `event_id` を保持する。
+Phase-local ID を global ID の代替として使ってはならない。
+
+### Phase08
+
+Producer:
+
+- Phase07
+
+Consumer:
+
+- Phase09
+- Phase10
+- Phase13
+- Phase15
+
+Required input:
+
+- `trace_id`
+- `event_id`
+- `phase07_value_score`
+- `phase07_character_alignment_score`
+- `character_tag`
+- `timestamp_ms`
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `phase08_primary_goal`
+- `phase08_priority`
+- `phase08_goal_age`
+- `phase08_rotation_triggered`
+
+Compatibility alias:
+
+- 既存仕様の `primary_goal` は `phase08_primary_goal` として扱う。
+- 既存仕様の `priority` は `phase08_priority` として扱う。
+- 既存仕様の `goal_age` は `phase08_goal_age` として扱う。
+- 既存仕様の `rotation_triggered` は `phase08_rotation_triggered` として扱う。
+
+Fail:
+
+- goal label を canonical enum として export
+- action_type を生成
+- world_command を生成
+- memory を更新
+
+### Phase09
+
+Producer:
+
+- Phase06
+- Phase07
+- Phase08
+
+Consumer:
+
+- Phase10
+- Phase13
+- Phase14
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `phase09_constraint_status`
+- `phase09_normalized_status`
+
+Optional output:
+
+- `phase09_public_coherence_score`
+- `phase09_identity_consistency_score`
+- `phase09_degradation_reason`
+- `phase14_control_signal`
+
+Fail:
+
+- 意思決定を変更
+- action_type を変更
+- canonical_message の意味を変更
+- memory を更新
+
+### Phase10
+
+Producer:
+
+- Phase06
+- Phase07
+- Phase08
+- Phase09
+
+Consumer:
+
+- Phase12
+- Phase13
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `phase10_strategy_label`
+- `phase10_strategy_status`
+- `phase10_normalized_status`
+
+Optional output:
+
+- `phase10_fallback_active`
+- `phase10_selected_goal`
+- `phase10_stability_score`
+- `phase10_instability_score`
+
+Fail:
+
+- strategy label を action_type として扱う
+- world_command を生成
+- memory を直接更新
+- Phase04 の action_type 決定を上書き
+
+### Phase11
+
+Producer:
+
+- Phase07
+- Phase09
+- Phase10
+
+Consumer:
+
+- Phase12
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `phase11_evaluation_summary`
+- `phase11_isolation_status`
+
+Required invariant:
+
+```text
+phase11_isolation_status == read_only_non_propagating
+```
+
+Fail:
+
+- Phase11 output が upstream phase に伝播
+- reward / economy 評価が memory / relationship / personality を直接更新
+- value score が Phase07 canonical score を上書き
+
+### Phase12
+
+Producer:
+
+- Phase07
+- Phase09
+- Phase10
+- Phase11
+
+Consumer:
+
+- Phase13
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `phase12_safety_status`
+- `phase12_normalized_status`
+
+Optional output:
+
+- `phase12_identity_match_score`
+- `phase12_regression_detected`
+- `phase12_improvement_candidate`
+
+Required invariant:
+
+```text
+Phase12 output is staging only.
+```
+
+Fail:
+
+- runtime behavior を即時変更
+- personality / policy / memory を即時更新
+- self-improvement candidate を確定済み改善として扱う
+
+### Phase13
+
+Producer:
+
+- Phase06
+- Phase07
+- Phase08
+- Phase09
+- Phase10
+- Phase11
+- Phase12
+
+Consumer:
+
+- Phase14
+- Phase15
+- Phase16+
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `phase13_continuity_score`
+- `phase13_drift_score`
+- `phase13_canon_status`
+
+Optional output:
+
+- `phase13_canon_candidate_id`
+- `phase13_eviction_candidate_id`
+- `phase13_archive_candidate_id`
+
+Required invariant:
+
+```text
+Canon deletion means eviction or archive from active canon candidates.
+Raw evidence must remain intact.
+```
+
+Fail:
+
+- raw log を削除
+- source event を削除
+- evidence store を削除
+- canon status から memory commit を直接実行
+
+### Phase14
+
+Producer:
+
+- Phase02
+- Phase03
+- Phase04
+- Phase06
+- Phase09
+- Phase13
+
+Consumer:
+
+- Phase15
+
+Required input:
+
+- `trace_id`
+- `event_id`
+- `action_type`
+- `canonical_message`
+- `tone`
+- `emotion`
+- `character_tag`
+- `phase09_constraint_status`
+- `phase13_continuity_score`
+- `phase13_drift_score`
+- `timestamp_ms`
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `action_type`
+- `canonical_message`
+- `surface_text`
+- `semantic_status`
+- `semantic_normalized_status`
+- `identity_preserved`
+- `naturalness_status`
+- `naturalness_normalized_status`
+
+Required invariant:
+
+```text
+action_type must be identical to Phase04 action_type.
+surface_text must be semantically equivalent to canonical_message.
+```
+
+Fail:
+
+- action_type を変更
+- canonical_message の意味を変更
+- new information を生成
+- memory を更新
+- world_command を生成
+
+### Phase15
+
+Producer:
+
+- Phase04
+- Phase07
+- Phase13
+- Phase14
+
+Consumer:
+
+- Adapter handoff for final text rendering
+- Phase16+
+
+Required input:
+
+- `trace_id`
+- `event_id`
+- `action_type`
+- `surface_text`
+- `canonical_message`
+- `character_tag`
+- `tone`
+- `emotion`
+- `phase13_continuity_score`
+- `phase13_drift_score`
+- `timestamp_ms`
+
+Required output:
+
+- `trace_id`
+- `event_id`
+- `final_text`
+- `identity_score`
+- `final_decision`
+- `final_normalized_status`
+- `fallback_triggered`
+- `continuity_maintained`
+
+Compatibility:
+
+- `final_decision` uses `allow|degrade|block`.
+- `final_normalized_status` uses `safe|degrade|reject`.
+
+Required invariant:
+
+```text
+Phase15 validates final output.
+Phase15 does not create a new action, emotion, personality, or memory.
+```
+
+Fail:
+
+- action_type を生成または変更
+- emotion を新規生成
+- personality を新規生成
+- memory を更新
+- strategy を変更
+- world_command を生成
+
+---
+
+## 06. Phase15 continuity envelope
+
+Phase15 は最終出力だけでなく、Phase16 以降が身体・会話・関係・ゲーム表現を継続するための検証済み envelope を保持してよい。
+
+`phase15_continuity_envelope` は以下を含んでよい。
+
+- `trace_id`
+- `event_id`
+- `action_type`
+- `target_presence_id`
+- `tone`
+- `emotion`
+- `character_tag`
+- `phase13_continuity_score`
+- `phase13_drift_score`
+- `final_normalized_status`
+- `continuity_maintained`
+
+制約:
+
+- envelope は Phase15 で検証済みの値だけを含む。
+- envelope は Phase04 / Phase13 / Phase14 を bypass する裏口ではない。
+- envelope は memory commit 命令ではない。
+- envelope は world_command 命令ではない。
+
+---
+
+## 07. Extended route contract
+
+Phase08-15 を含む拡張 pipeline の抽象経路は以下とする。
+
+```text
+Adapter normalize event
+-> Phase01 intent export
+-> Phase02 reaction export
+-> Phase03 context export
+-> Phase04 action export
+-> Phase05 persistence evaluation
+-> Phase06 state sync
+-> Phase07 value/task/review
+-> Phase08 goal layer
+-> Phase09 constraint layer
+-> Phase10 strategy layer
+-> Phase11 isolated economy/value evaluation
+-> Phase12 staged self-improvement check
+-> Phase13 canon/continuity layer
+-> Phase14 expression naturalization
+-> Phase15 final self-consistency/output guard
+-> Adapter handoff
+```
+
+この経路は論理依存を示す。
+実装上は必要に応じて一部 phase を skip してよいが、skip は明示ログを残し、required output の代替値を Phase00 の契約に従って生成する。
+
+skip しても破ってはならない制約:
+
+- Phase04 以外が action_type を決めない。
+- Adapter 前に world_command を作らない。
+- external observation を truth にしない。
+- memory write は Phase05 / Phase06 / 正式 persistence pipeline を通す。
+- Phase15 final decision を action decision として扱わない。
+
+---
+
+## 08. Global fail additions
+
+Phase00 original の Global fail に以下を追加する。
+
+- Phase08-15 の phase-local label を canonical enum として扱った。
+- Phase09 / Phase14 / Phase15 status を正規化せず downstream に渡した。
+- Phase11 output が upstream / memory / relationship / personality に伝播した。
+- Phase12 staging candidate が即時 runtime behavior に反映された。
+- Phase13 が raw evidence を削除した。
+- Phase14 が semantic equivalence guard なしに surface_text を採用した。
+- Phase15 が action_type / emotion / personality / memory を新規生成した。
+- Phase15 continuity envelope が Phase04 / Phase13 / Phase14 の bypass として使われた。
+
+---
+
+## 09. Test requirements
+
+実装は最低限以下のテストを持つ。
+
+### Enum boundary test
+
+Phase08 goal label / Phase10 strategy label / Phase15 final_decision が canonical enum に混入しないこと。
+
+### Status normalization test
+
+`pass|allow|degrade|reject|block|fail|pending` が定義通りに正規化されること。
+
+### Action ownership test
+
+Phase14 / Phase15 が Phase04 action_type を変更できないこと。
+
+### World command boundary test
+
+Phase08-15 の出力に world_command が含まれないこと。
+
+### Memory boundary test
+
+Phase08-15 が direct memory write を行わないこと。
+
+### Phase13 evidence preservation test
+
+canon eviction / archive が raw log / source event / evidence store を削除しないこと。
+
+### Phase14 semantic equivalence test
+
+surface_text が canonical_message と意味等価でない場合、canonical_message に戻ること。
+
+### Phase15 envelope test
+
+Phase15 continuity envelope が検証済み値のみを含み、bypass / commit / world execution 命令を含まないこと。
+
+---
+
+## 10. Completion criteria
+
+本 Addendum は以下を満たした場合に Phase00 追補として採用可能である。
+
+- Phase08-15 の producer / consumer が明示されている。
+- canonical enum 非追加原則が明示されている。
+- phase-local label が定義されている。
+- status normalization が定義されている。
+- Phase11 / Phase12 / Phase13 / Phase14 / Phase15 の危険境界が明示されている。
+- Phase16-27 が参照可能な Phase15 continuity envelope が定義されている。
+- Global fail additions と test requirements が定義されている。
+
+## 11. Implementation Enforcement Boundary Addendum
+
+以下の3点は「運用注意」ではなく、実装上の強制境界として扱う。
+
+### 11.1 Candidate / Execution 分離
+
+`candidate` を含む export は実行命令ではない。
+
+対象:
+
+- `input_action_candidate`
+- `memory_candidate`
+- `memory_candidates`
+- `relationship_update_candidate`
+- `community_memory_candidates`
+- `memory_carryover_candidates`
+- `selected_memory_ids`
+- `recall_candidate`
+
+禁止:
+
+- candidate を Adapter / OS / Game SDK / persistence writer に直接渡すこと
+- candidate に execute / commit / write / apply 相当の method を持たせること
+- candidate schema と execution schema を同一型にすること
+
+必須:
+
+- candidate は `candidate_kind` と `requires_validation=true` を持つ
+- 実行・永続化に進む場合は、正式 validator が `approved_*` schema へ変換する
+- `approved_*` schema 以外は Adapter / persistence writer が reject する
+
+### 11.2 Canonical Enum Firewall
+
+Phase16 以降の内部 label / profile / mode / state は canonical enum ではない。
+
+禁止:
+
+- `body_state`
+- `laughter_state`
+- `response_mode`
+- `habit`
+- `commentary_mode`
+- `game_goal`
+- `game_strategy`
+- `game_embodied_state`
+- `session_phase`
+
+上記を `intent` / `conversation_state` / `action_type` / `tone` / `emotion` / `character_tag` / `task_type` / `updated_store` に代入してはならない。
+
+必須:
+
+- canonical enum validator は Phase00 定義値以外を reject する
+- internal label は `internal_*` namespace または phase prefix を持つ
+- export schema で canonical field と internal field を同名にしてはならない
+
+### 11.3 Direct Commit / Direct Execution Stop
+
+以下は global fail とする。
+
+- Phase24 `input_action_candidate` が Game Adapter validation 前に実行された
+- Phase20 / Phase21 / Phase26 の memory candidate が Phase05 / Phase06 / Phase13 / persistence validator 前に commit された
+- Phase16 以降の internal profile が canonical enum field に入った
+- candidate schema が execution schema / commit schema と同一だった
+- `requires_validation=true` の candidate が validator を通らず消費された
+
+### 11.4 CI 必須検査
+
+実装は以下の CI を必須とする。
+
+- candidate object に execute / commit / write / apply method が存在しないこと
+- Adapter が `input_action_candidate` を直接受け取ったら reject すること
+- persistence writer が `memory_candidate` / `selected_memory_ids` を直接受け取ったら reject すること
+- canonical enum field に Phase16 以降の internal label が入ったら reject すること
+- approved schema 以外が execution / commit endpoint に到達したら fail すること
+
+## 12. Cross-Phase Addendum 2026-04-30
+
+以下は `IRIS_20240425_cross_phase_addendum_20260430.txt` を正式な追補仕様として採用する。
+
+対象:
+
+- 女の子らしい悲鳴・絶叫・表情・リアクション
+- 個別ユーザー記憶と関係値の上下
+- AIキャラクターごとの個性的な性格設定
+- コメント反応と発話
+- 個性ごとの表情・リアクション
+- ゲームプレイ長期記憶
+- ライブ配信長期記憶
+- 流行ニュース・時事ネタ取得
+- 関係値を理解したゲーム内コミュニケーション
+- 反応速度不足時の表情・動き・間埋め
+- よそ見、自発的な小動作
+- 機嫌が良い時の鼻歌
+
+拘束:
+
+- 上記は Phase16 以降の internal profile / candidate / external observation として扱う
+- Phase00 canonical enum は追加しない
+- game input / memory commit / relationship update は approved schema なしに実行しない
+- external topic は truth ではなく会話候補として扱う
+
+## 13. Cross-Phase Addendum 2026-04-30-02
+
+以下は `IRIS_20240425_cross_phase_addendum_20260430_02.txt` を正式な追補仕様として採用する。
+
+対象:
+
+- キャラクターごとの個性的な口癖
+- 投げ銭、投銭、スパチャ、donation をしてくれたユーザーへの自然な感謝、関係値候補、長期記憶候補
+- 投げ銭時のバリエーション豊富で柔軟な発話・表情・モーション
+- ゲーム以外の動画、他YouTube、アニメ、他者配信動画を見ながらのコメント・表情・リアクション
+- 過去の自分のゲームプレイ内容をライブ配信で自然に発言すること
+- 機嫌が良い時の短い踊り
+- 機嫌が良い時の短い大声歌唱
+
+拘束:
+
+- 上記は internal profile / candidate / read-only observation として扱う
+- Phase00 canonical enum は追加しない
+- 投げ銭額だけで関係値・記憶・反応を決定しない
+- donation / media / game recall は approved schema なしに永続化しない
+- 動画・歌唱関連では著作権のある歌詞、字幕、長文台詞、既存曲メロディを再現しない
+
+## 14. Cross-Phase Addendum 2026-04-30-03
+
+以下は `IRIS_20240425_cross_phase_addendum_20260430_03.txt` を正式な追補仕様として採用する。
+
+対象:
+
+- カメラ、つまり視聴者に近づいてくる
+- カメラ、つまり視聴者にかなりアップまで近づいてくる
+- カメラ、つまり視聴者に顔を近づけてくる
+- カメラ、つまり視聴者にかなりアップまで顔を近づけてくる
+
+拘束:
+
+- 上記は Live2D / avatar / scene composition の internal profile として扱う
+- Phase00 canonical enum は追加しない
+- closeup は duration / cooldown / visibility / recovery_plan を必須とする
+- relation_score や投げ銭額だけで過度な接近を選ばない
+- unsafe / moderation / serious focus / viewer comfort mode では接近演出を抑制する

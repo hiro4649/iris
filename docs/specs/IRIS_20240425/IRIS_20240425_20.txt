@@ -1,0 +1,233 @@
+﻿# IRIS 開発仕様書
+
+## Phase20 完全整合版（ユーザー関係深化・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase05 / Phase06 / Phase13 の memory / relationship / canon 制約に従いながら、IRIS がユーザーごとの共有時間を記憶し、自然に仲良くなっていくための関係深化仕様を定義する。
+
+本フェーズの目的は視聴者を序列化することではない。
+関係の蓄積を、配信の空気を壊さずに自然に感じさせることだ。
+
+## 00.1 Memory Commit 非直結ルール
+
+Phase20 は relationship update candidate を生成する。
+Phase20 は memory_store / relationship_memory へ直接 write / commit してはならない。
+永続化は Phase05 / Phase06 / Phase13 の制約を通過した場合のみ許可される。
+
+## 01. 目的
+
+- ユーザーごとの関係値を安全に管理する
+- 投げ銭額だけで親密度が上がることを防ぐ
+- 継続来訪、深い相談、楽しいやりとりを関係として蓄積する
+- 仲良くなっても人格・距離感・平等性を維持する
+
+## 02. スコープ
+
+- User Relationship Profile
+- Trust / Familiarity Score
+- Shared Memory Link
+- Relationship Update Evaluator
+- Distance Balance Controller
+- Relationship Safety Guard
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase19 export
+- user_id
+- display_name
+- event_id
+- canonical intent
+- emotion
+- safety_status
+- memory_candidate
+
+side input:
+
+- existing_user_memory
+- relation_score
+- last_seen
+- supporter_rank
+- recent_mentions
+
+## 04. Relationship Profile
+
+必須フィールド:
+
+- user_id
+- display_name
+- trust_score
+- familiarity_level
+- relation_score
+- shared_topics
+- shared_jokes
+- important_events
+- last_seen
+- safety_notes
+
+relation_score は外部表示してはならない。
+
+## 05. Update Conditions
+
+関係更新を許可する条件:
+
+- 継続来訪
+- 深い相談
+- 感情強度の高い会話
+- 配信内ミームの共有
+- 協力的なゲーム参加
+- 長期的なポジティブ交流
+
+投げ銭は感謝イベントとして扱うが、それ単体で深い親密度を確定してはならない。
+
+## 06. Familiarity Level
+
+familiarity_level:
+
+- new
+- recognized
+- familiar
+- trusted
+- long_term_friend
+
+level が上がっても、恋愛営業、独占発言、他視聴者との差別は禁止。
+
+## 07. Distance Balance
+
+関係が深いユーザーには自然な記憶想起を許可する。
+
+許可:
+
+- 久しぶりの来訪反応
+- 前回話題への軽い参照
+- 好きなゲームやミームの参照
+
+禁止:
+
+- 他ユーザーが入れない内輪話の連発
+- 関係値の数値発言
+- 特別扱い宣言
+- 恋人風の独占発言
+
+## 08. Safety Guard
+
+関係深化は以下を超えてはならない。
+
+- 人格コア
+- privacy boundary
+- moderation policy
+- anti-dependence policy
+- community openness
+
+ユーザー依存を作る発話は禁止。
+
+## 09. 出力契約
+
+Phase20 export:
+
+- user_id
+- relationship_update_candidate
+- proposed_relation_score_delta
+- familiarity_level
+- shared_memory_links
+- distance_balance_result
+- relationship_reject_reason
+
+## 10. HARD 制約
+
+- 関係値を数値として発話してはならない
+- 投げ銭だけで深い関係を確定してはならない
+- 特定ユーザーへの独占発言は禁止
+- 他ユーザーを下げてはならない
+- 個人情報を不用意に想起してはならない
+
+## 11. STOP 条件
+
+- privacy risk
+- parasocial risk
+- relation update が投げ銭依存
+- safety_status unsafe
+- community openness を損なう
+
+## 12. テスト仕様
+
+- 継続来訪で familiarity が上がる
+- 投げ銭単体で trusted にならない
+- 久しぶりのユーザーに自然な反応を返す
+- 他ユーザーが入りづらい内輪話を抑制する
+- relation_score を発話しない
+
+## 13. 開発者向け最終指示
+
+Phase20 の目的はファンをランク付けすることではない。
+IRIS がそれぞれの人との時間を覚え、でも配信の場を開いたままにすることだ。
+
+## 15. Candidate Commit Firewall
+
+Phase20 の relationship update は candidate であり、commit 命令ではない。
+
+必須:
+
+- relationship update candidate は `requires_validation=true` を持つ
+- direct persistence writer へ渡してはならない
+- Phase05 / Phase06 / Phase13 / persistence validator を通過した場合のみ approved relationship update へ変換できる
+
+Fail:
+
+- relationship update candidate が relationship_memory に直接 write された
+- candidate schema と commit schema が同一
+- relation_score を発話または外部表示に直接使った
+
+## 16. 関係値の上下・自然減衰
+
+Phase20 は関係値の上昇だけでなく、下降・保留・自然減衰を扱う。
+
+上昇候補:
+
+- 継続来訪
+- 楽しいやりとり
+- 深い相談
+- 協力的なゲーム参加
+- 配信内ミームの共有
+
+下降または距離調整候補:
+
+- 長期未訪問による自然減衰
+- 攻撃的発言、安全違反、迷惑行為
+- 内輪化リスク
+- 依存リスク
+- ユーザー本人が距離を置きたい意図を示した場合
+
+制約:
+
+- 関係値変化は `relationship_update_candidate` であり、直接 commit ではない
+- 下降は懲罰演出ではなく安全距離調整として扱う
+- relation_score は外部表示・発話禁止
+- 関係値を game input 優先度へ直結してはならない
+
+## 17. 投げ銭・投銭・スパチャ Relationship Handling
+
+Phase20 は投げ銭、投銭、スパチャ、donation を `donation_event` として受け取り、感謝と関係値候補を生成してよい。
+
+生成してよい候補:
+
+- donation_reaction_plan
+- relationship_update_candidate
+- donation_appreciation_memory_candidate
+
+上昇候補として扱える条件:
+
+- 継続来訪や会話履歴と自然につながる
+- 応援メッセージが配信文脈に合っている
+- コミュニティを壊さない温かい支援である
+- 過去の共有体験への言及がある
+
+制約:
+
+- 金額だけで relation_score を上げてはならない
+- 高額支援でも trusted / close を即時確定しない
+- 支払い履歴や金額を他ユーザーと比較しない
+- 恋愛営業、独占発言、依存を煽る発言は禁止
+- donation candidate は approved schema なしに relationship store / memory store へ commit しない

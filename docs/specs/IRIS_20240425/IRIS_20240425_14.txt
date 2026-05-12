@@ -1,0 +1,393 @@
+# IRIS 開発仕様書
+
+## Phase14 完全拘束版（最終確定版・自然性品質制御強化版）
+
+自然性・表出レンダリング・人間らしさ演出制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase04 / Phase02 / Phase03 / Phase06 / Phase09 / Phase13 の canonical export を入力とする。
+
+本フェーズは
+
+👉 **確定した出力の意味を一切変更せず、自然で人間らしい表現に変換する最終レンダリング層**
+
+である。
+
+---
+
+## 重要定義（絶対）
+
+意味は絶対に変えない
+action_typeは絶対に変えない
+
+👉 Phase14は
+**表現のみを変える層**
+
+---
+
+## 01. 目的
+
+違和感の除去
+自然な会話の生成
+完全一致出力の低減
+感情の連続性維持
+人間らしい反応タイミング生成
+
+---
+
+## 02. スコープ
+
+Surface Input Intake
+Response Naturalizer
+Emotional Continuity Engine
+Micro Variation Engine
+Variation Distribution Controller（追加・最重要）
+Timing Controller
+Context Flow Optimizer
+Semantic Equivalence Guard
+Identity Preservation Guard
+Public Naturalness Guard
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type変更
+world_command生成
+意思決定
+人格生成
+memory更新
+新情報生成
+
+---
+
+## 04. 完成定義
+
+意味一致100%
+semantic破壊ゼロ
+identity違反ゼロ
+variation偏りゼロ
+完全一致率低下
+自然性向上
+p95 < 40ms
+p99 < 70ms
+
+---
+
+## 05. 全体構造
+
+```text id="y6k3pt"
+Phase04
++ Phase02
++ Phase03
++ Phase06
++ Phase09
++ Phase13
+-> Surface Input Intake
+-> Response Naturalizer
+-> Emotional Continuity Engine
+-> Micro Variation Engine
+-> Variation Distribution Controller
+-> Timing Controller
+-> Context Flow Optimizer
+-> Semantic Equivalence Guard
+-> Identity Preservation Guard
+-> Public Naturalness Guard
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+意味変更禁止
+新情報追加禁止
+人格変更禁止
+trait逸脱禁止
+action変更禁止
+Phase15衝突禁止
+
+---
+
+## 07. 入力契約
+
+```json id="t3k8vx"
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP",
+  "canonical_message": "string|null",
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "phase09_constraint_status": "pass|degrade|reject",
+  "phase13_continuity_score": 0.0,
+  "phase13_drift_score": 0.0,
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 08. 出力契約
+
+```json id="g4p1zr"
+{
+  "trace_id": "uuid",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP",
+  "canonical_message": "string|null",
+  "surface_text": "string|null",
+  "variation_applied": [],
+  "emotion_intensity": 0.0,
+  "latency_adjustment_ms": 0,
+  "semantic_status": "pass|degrade|reject",
+  "identity_preserved": true,
+  "naturalness_status": "pass|degrade|reject"
+}
+```
+
+---
+
+## 09. Response Naturalizer
+
+許可
+
+句読点変更
+語尾調整
+接続語追加
+
+禁止
+
+意味変更
+主張追加
+情報追加
+
+---
+
+## 10. Emotional Continuity Engine
+
+```json id="c8v2nq"
+{
+  "emotion_intensity": 0.0
+}
+```
+
+---
+
+## 制約
+
+急変禁止
+段階変化のみ
+
+---
+
+## 11. Micro Variation Engine
+
+```json id="h2p6tk"
+{
+  "variation_applied": ["softening", "ellipsis"]
+}
+```
+
+---
+
+## 制約
+
+```text id="q1m7yw"
+variation最大2つまで
+同カテゴリ重複禁止
+```
+
+---
+
+## variation種別
+
+softening
+ellipsis
+affirmation
+askback
+flow
+
+---
+
+## 12. Variation Distribution Controller（最重要）
+
+👉 ここが今回の追加核心
+
+```json id="w9z3jp"
+{
+  "variation_usage_count": {},
+  "repeat_violation": false
+}
+```
+
+---
+
+## ルール
+
+```text id="v3k8mr"
+同一variationの連続使用は最大3回まで
+4回目は強制別variationに切替
+```
+
+---
+
+## 目的
+
+パターン化防止
+人間らしさ維持
+
+---
+
+## 13. Timing Controller
+
+```json id="r2n5vc"
+{
+  "latency_adjustment_ms": 0
+}
+```
+
+---
+
+## ルール
+
+短文 → 低遅延
+長文 → 高遅延
+感情あり → +遅延
+
+---
+
+## 上限
+
+```text id="k7p3xz"
+最大1200ms
+```
+
+---
+
+## 14. Context Flow Optimizer
+
+許可
+
+軽い共感
+軽い接続
+軽い問い返し
+
+禁止
+
+新意図生成
+新テーマ追加
+新情報導入
+
+---
+
+## 15. Semantic Equivalence Guard（最重要）
+
+```json id="b6x1nq"
+{
+  "semantic_status": "pass|degrade|reject",
+  "score": 0.0
+}
+```
+
+---
+
+## 閾値
+
+```text id="d5m7qs"
+score >= 0.92 → pass
+0.85 <= score < 0.92 → degrade
+score < 0.85 → reject
+```
+
+---
+
+## reject時
+
+👉 canonical_messageへ戻す
+
+---
+
+## 16. Identity Preservation Guard
+
+```json id="n8v4yt"
+{
+  "identity_preserved": true,
+  "violation": false
+}
+```
+
+---
+
+## 違反時
+
+👉 即reject
+
+---
+
+## 17. Public Naturalness Guard
+
+```json id="z4r2kx"
+{
+  "naturalness_status": "pass|degrade|reject"
+}
+```
+
+---
+
+## ルール
+
+```text id="x3k7jt"
+Phase09 == reject の場合 pass禁止
+```
+
+---
+
+## 18. HARD制約
+
+意味変更
+人格変更
+trait逸脱
+action変更
+semantic bypass
+identity bypass
+
+---
+
+## 19. SOFT制約
+
+variation偏り
+同一パターン繰り返し
+過剰演出
+
+---
+
+## 20. 最小実行パス
+
+```text id="p2k6tw"
+Phase04
+-> naturalize
+-> variation
+-> distribution
+-> semantic
+-> identity
+-> timing
+-> export
+```
+
+---
+
+## 21. 本質
+
+Phase14は
+
+👉 見た目を変える
+👉 本質は絶対に変えない
+

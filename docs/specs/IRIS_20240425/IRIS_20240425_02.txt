@@ -1,0 +1,822 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase02 完全整合版（最終整合版・単体完結版）
+
+低遅延リアルタイム反応フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**とし、さらに **Phase01 完全整合版（最終整合版）** が producer する canonical export を唯一の入力 source として、IRIS が **低遅延で自然な反応候補を返すための最小実装仕様** を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書は Addendum を前提にしない。
+本書は旧版 Phase02 より優先される。
+本書に未定義の挙動は実装禁止とする。
+
+このフェーズで作るものは以下だけである。
+
+Event / Intent に対する反応候補の選択
+反応の微小変化
+最小表情・最小挙動の付与
+同じ反応の連打抑制
+高負荷時の劣化運転
+deterministic な fallback
+Phase03 / Phase04 に渡す canonical reaction export
+
+このフェーズでは LLM を使わない。
+このフェーズでは長文生成をしない。
+このフェーズでは長期記憶更新をしない。
+このフェーズでは relationship を更新しない。
+このフェーズでは action_type を決定しない。
+このフェーズでは world_command を生成しない。
+このフェーズの役割は、**IRIS を賢くすることではなく、速く壊れずに生きて見せること**である。
+
+---
+
+## 01. 目的
+
+Phase02 の目的は以下である。
+
+Phase01 の intent export を 150ms 未満で反応候補へ変換すること
+反応を deterministic に選べること
+同じ意味の中で表現差分を持てること
+反応の単調化を抑えること
+高負荷時もキャラクター基調を維持すること
+Phase03 / Phase04 に渡す canonical reaction export を固定すること
+reaction-level で止め、action 決定を Phase04 に委譲すること
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Reaction Classifier
+Reaction Bank
+Reaction Selector
+Variation Selector
+Micro Expression
+Consistency Guard
+Cooldown / Repetition Guard
+Fallback Resolver
+Phase02 Export Builder
+Phase02 Logging
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+自然言語の自由生成
+長期記憶更新
+relationship 更新
+reward 最適化
+埋め込み検索
+学習による重み変更
+world ごとの人格変更
+runtime 中の Reaction Bank 書き換え
+複雑な会話戦略
+高度な感情推論
+action_type 決定
+skill_id 決定
+world_command 生成
+review path 処理
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、Phase02 完了とみなす。
+
+p95 応答時間が 150ms 未満であること
+p99 応答時間が 180ms 未満であること
+1000 イベント連続処理で停止が 0 件であること
+LLM 呼び出し回数が 0 件であること
+同一入力に対して同一 reaction_id が再現されること
+同一 reaction_id の連続出力が禁止条件どおりに抑制されること
+同一 variation_group の 3 連続出力が 0 件であること
+fallback が常に測定可能であること
+high load 時も tone と character_tag 欠落が 0 件であること
+Consistency Guard fail 時にも無反応が 0 件であること
+Phase02 Export が Phase00 の Phase02→Phase03 / Phase04 I/O 契約を満たすこと
+Phase02 停止時も Phase01 Export 経路が壊れないこと
+Phase02 Export に action_type が含まれないこと
+Phase02 Export に raw payload 全文が混入しないこと
+
+---
+
+## 04. 全体構造
+
+Phase02 の固定パイプラインは以下とする。
+
+```text
+Phase01 Export
+-> Reaction Classifier
+-> Reaction Selector
+-> Variation Selector
+-> Micro Expression
+-> Consistency Guard
+-> Repetition Guard
+-> Fallback Resolver
+-> Phase02 Export Builder
+-> Output
+```
+
+この順序以外は禁止する。
+ステップ統合は禁止する。
+Selector が Variation を兼務してはならない。
+Consistency Guard は最終候補決定の直前に必ず通す。
+world_command 変換は禁止する。
+Adapter へ判断を逃がすことは禁止する。
+Phase02 は Planner ではない。
+Phase02 は Action 決定層ではない。
+ここで決めるのは **reaction / tone / emotion / character_tag / variation** までである。
+
+---
+
+## 05. Phase00 / Phase01 準拠ルール
+
+本フェーズは最新 Phase00 および最新 Phase01 に従い、以下を hard rule とする。
+
+Phase01 Export を唯一の入力 source とする
+Phase02→Phase03 / Phase04 の required 出力は Phase00 I/O 契約に一致しなければならない
+raw payload 全文を保持または後続へ渡してはならない
+Core は world SDK を import してはならない
+Adapter は判断してはならない
+Phase02 は action_type を決定してはならない
+Phase02 は skill_id を決定してはならない
+Phase02 は world_command を生成してはならない
+trace_id は end-to-end で必須である
+Phase02 は review queue を受け取ってはならない
+Phase02 は Phase01 intent を上書きしてはならない
+
+---
+
+## 06. 入力契約
+
+Phase02 は **Phase01 Export 契約** に一致する入力だけを受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "target_presence_id": "uuid",
+  "timestamp_ms": 0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "speaker_token": true,
+  "mention_flag": false,
+  "priority": 0
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+intent は canonical set 内でなければならない
+target_presence_id は null であってはならない
+Phase01 由来でない暗黙入力を受け取ってはならない
+raw payload 全文を参照してはならない
+linked_identity_id を暗黙参照してはならない
+review path 由来 field を受け取ってはならない
+
+---
+
+## 07. Canonical enum
+
+Phase02 で使用可能な enum は Phase00 の canonical glossary に固定する。
+
+tone
+
+```text
+friendly
+playful
+excited
+calm
+```
+
+emotion
+
+```text
+neutral
+happy
+surprise
+awkward
+```
+
+character_tag
+
+```text
+soft
+playful
+tease
+hype
+calm
+```
+
+intent
+
+```text
+greet
+respond
+observe
+ignore
+```
+
+新しい tone / emotion / character_tag の導入は禁止する。
+
+tone と character_tag の推奨対応は以下に固定する。
+
+```text
+friendly -> soft
+playful -> playful
+excited -> hype
+calm -> calm
+```
+
+`tease` は character_tag としてのみ使用し、tone に追加してはならない。
+
+---
+
+## 08. Reaction Bank
+
+Phase02 は固定 Reaction Bank を持つ。
+runtime 中の書き換えは禁止する。
+Reaction Bank は rule-based selection 用の静的データである。
+
+最小構造は以下とする。
+
+```json
+{
+  "reaction_id": "string",
+  "intent": "greet|respond|observe|ignore",
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "variation_group": "string",
+  "micro_expression_set": ["string"],
+  "cooldown_ms": 0,
+  "priority": 0,
+  "enabled": true
+}
+```
+
+最低限、intent ごとに 2 件以上の reaction を持つこと。
+ただし意味を変えない範囲で差分を作ること。
+Reaction Bank に world 固有 API 名を入れてはならない。
+Reaction Bank に action_type を持たせてはならない。
+Reaction Bank に skill_id を持たせてはならない。
+Reaction Bank に raw text 長文を保持してはならない。
+
+---
+
+## 09. Reaction Classifier
+
+Reaction Classifier は Phase01 の intent を受けて、Reaction Bank から候補集合を絞る。
+この時点では最終選択をしない。
+
+責務は以下とする。
+
+intent に対応する候補群の抽出
+disabled reaction の除外
+target_presence_id 欠損候補の除外
+cooldown 対象候補の除外
+speaker_token と mention_flag を補助信号として候補優先度へ反映
+
+禁止事項は以下とする。
+
+Variation 選択
+tone 変更
+emotion 創出
+character_tag 創出
+memory 更新
+world 依存補正
+action_type 決定
+
+Classifier は候補集合を狭めるだけである。
+意味を変えてはならない。
+
+---
+
+## 10. Reaction Selector
+
+Reaction Selector は候補群から 1 件を deterministic に選ぶ。
+ランダムは禁止する。
+
+選択に使用してよい要素は以下とする。
+
+intent
+source
+mention_flag
+priority
+speaker_token
+reaction priority
+cooldown 状態
+直近 reaction_id 履歴
+
+選択規則は以下を推奨する。
+
+高 priority
+
+> mention_flag=true
+> speaker_token=true
+> cooldown 未該当
+> reaction priority 高
+> 直近重複の少ない候補
+> reaction_id の辞書順固定
+
+同一入力に対して異なる reaction_id を返してはならない。
+selector が variation を兼務してはならない。
+selector が fallback を兼務してはならない。
+
+---
+
+## 11. Variation Selector
+
+Variation Selector は、選ばれた reaction_id に対して意味を変えない微小差分を選ぶ層である。
+ここで別の反応意味へ飛んではならない。
+
+最小構造は以下とする。
+
+```json
+{
+  "variation_id": "string",
+  "reaction_id": "string",
+  "variation_group": "string",
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "micro_expression_hint": "string|null",
+  "enabled": true
+}
+```
+
+Variation Selector の責務は以下のみ。
+
+同一 reaction_id 内で variation を 1 件選ぶ
+variation_group の連打を抑える
+tone / emotion / character_tag を canonical set 内で保持する
+
+禁止事項は以下とする。
+
+intent 変更
+reaction_id 意味変更
+action_type 決定
+world_command 生成
+random selection
+
+Variation は表現差分であって、行動決定ではない。
+
+---
+
+## 12. Micro Expression
+
+Micro Expression は最小表情・最小挙動ヒントの付与だけを行う。
+行動を決めてはならない。
+world ごとの実行詳細を決めてはならない。
+
+最小出力は以下とする。
+
+```json
+{
+  "micro_expression": "smile_small|blink_once|tilt_head|pause_short|none"
+}
+```
+
+新しい micro_expression を増やす場合は固定辞書に追加し、自由生成してはならない。
+high load 時は `none` を許可する。
+tone と character_tag が落ちているのに micro_expression だけ残すような逆転は禁止する。
+
+---
+
+## 13. Consistency Guard
+
+Consistency Guard は、選択された reaction / variation / tone / emotion / character_tag の組み合わせが、Phase02 の canonical 制約に一致しているかを検証する。
+人格判断をする層ではない。
+長期記憶を見る層でもない。
+
+最低限の検証項目は以下とする。
+
+intent と reaction_id の整合
+reaction_id と variation_id の整合
+tone と character_tag の対応整合
+canonical enum 外値の排除
+blocked / invalid target の排除
+trace_id / event_id の維持
+
+Guard fail 時は以下を許可する。
+
+variation の差し替え
+reaction の差し替え
+fallback への送出
+
+Guard fail 時に無反応で落としてはならない。
+Guard が action_type を補うことは禁止する。
+
+---
+
+## 14. Repetition Guard
+
+Repetition Guard は単調化抑制専用である。
+人格判断をしてはならない。
+意味変更をしてはならない。
+
+最低限のルールは以下とする。
+
+同一 reaction_id の連続出力禁止
+同一 variation_group の 3 連続出力禁止
+同一 tone の過度な連打を警告
+直近 5 件中の重複率を測定
+
+この Guard は reject よりも置換を優先する。
+置換不能時のみ fallback に送る。
+置換によって intent を変えてはならない。
+置換によって character_tag を canonical 外へ飛ばしてはならない。
+
+---
+
+## 15. Fallback Resolver
+
+Fallback Resolver は以下の場合に発火する。
+
+candidate 不在
+Guard fail
+cooldown 衝突
+variation 不在
+high load
+unknown internal error
+
+fallback は無反応にしてはならない。
+最低限以下を返すこと。
+
+intent が `greet|respond` の場合は安全反応候補 `safe_speak_like`
+intent が `observe` の場合は `observe_minimal`
+intent が `ignore` の場合は `wait_minimal`
+
+ただし fallback でも **action_type は決めてはならない。**
+fallback で返すのはあくまで reaction-level 候補である。
+
+fallback でも tone と character_tag を欠落させてはならない。
+空出力は禁止する。
+world_command を返してはならない。
+skill_id を返してはならない。
+
+---
+
+## 16. High Load 時の劣化運転
+
+Phase02 は high load 時に劣化運転できなければならない。
+ただしキャラクター基調は落としてはならない。
+
+high load 時の処理は以下とする。
+
+Variation Selector を簡略化
+Micro Expression を `none` または最小集合へ制限
+Repetition Guard の履歴窓を縮小
+Fallback を優先
+Reaction Bank の検索範囲を intent 単位の最小候補集合へ絞る
+
+禁止事項は以下とする。
+
+tone を削る
+character_tag を削る
+blocked presence へ出力する
+ignore へ強制落下させ続ける
+action 決定を前倒しする
+Reaction Bank を runtime 更新する
+
+---
+
+## 17. Phase02 Export 契約
+
+**これが Phase03 / Phase04 に渡す正規出力である。**
+Phase00 の Phase02→Phase03 / Phase04 I/O 契約に完全一致させる。
+
+required
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "reaction_id": "string",
+  "variation_id": "string",
+  "intent": "greet|respond|observe|ignore",
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "target_presence_id": "uuid"
+}
+```
+
+optional
+
+```json
+{
+  "micro_expression": "string|null",
+  "speaker_token": true,
+  "mention_flag": false
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+canonical enum 外の値を含めてはならない
+world_command を含めてはならない
+raw payload 全文を含めてはならない
+trace_id なしで export してはならない
+action_type を含めてはならない
+skill_id を含めてはならない
+Phase03 / Phase04 由来 field を先回りして含めてはならない
+
+---
+
+## 18. Logging
+
+Phase02 の全ログは以下を最低限含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "presence_root_id": "uuid|null",
+  "presence_id": "uuid",
+  "phase": "phase02",
+  "step": "classifier|selector|variation|micro_expression|consistency_guard|repetition_guard|fallback|export_builder",
+  "result": "success|replace|fallback|reject",
+  "reaction_id": "string|null",
+  "variation_id": "string|null",
+  "intent": "greet|respond|observe|ignore",
+  "tone": "friendly|playful|excited|calm|null",
+  "character_tag": "soft|playful|tease|hype|calm|null",
+  "latency_ms": 0
+}
+```
+
+必須 correlation key を欠落させてはならない。
+`trace_id` `event_id` `phase` `step` なしのログは禁止する。
+raw payload 全文をログへ保存してはならない。
+fallback でも `reaction_id` または fallback reaction 識別子を残すこと。
+action_type をログに含めてはならない。
+
+---
+
+## 19. Canonical score naming
+
+Phase02 の score 名は以下のみ使用可能とする。
+
+```text
+phase02_selector_score
+phase02_variation_score
+phase02_consistency_score
+```
+
+旧表記の `phase2_*` は禁止する。
+phase 接頭辞なしの score 名も禁止する。
+score は 0.0〜1.0 に正規化すること。
+score を export の required key にしてはならない。
+
+---
+
+## 20. HARD 制約
+
+以下は違反時 CI fail とする。
+
+Phase02 内に LLM import がある
+Phase02 内に world SDK import がある
+Reaction Bank を runtime 中に更新する
+Variation が intent を変更する
+Variation が reaction の意味を変更する
+Phase02 が action_type を生成する
+Phase02 が skill_id を生成する
+world_command を生成する
+random selection を使う
+fallback が空出力を返す
+blocked presence に出力する
+canonical enum 外の tone / emotion / character_tag を使う
+trace_id なしで export する
+Phase02 Export が Phase00 I/O 契約と不一致である
+raw payload 全文を保持または export に混入させる
+Phase02 が review queue を読む
+Phase02 が Phase01 intent を上書きする
+
+---
+
+## 21. SOFT 制約
+
+以下は警告ログのみとする。
+
+fallback 発火率上昇
+repetition 置換率上昇
+high load 時の簡略化頻度上昇
+LOOK / WAIT 系相当の反応候補偏重
+greet 系の variation 不足
+source ごとの reaction 分布偏り
+特定 tone への偏り
+同一 character_tag の過集中
+
+SOFT 制約は fail しない。
+ただし次フェーズでの改善対象としてログ化する。
+
+---
+
+## 22. STOP 条件
+
+以下は Phase02 の停止条件とする。
+
+```text
+PHASE02_REACTION_BANK_VIOLATION
+PHASE02_CONSISTENCY_GUARD_FAILURE
+PHASE02_REPETITION_GUARD_FAILURE
+PHASE02_BOUNDARY_VIOLATION
+PHASE02_TRACE_MISSING
+PHASE02_EXPORT_CONTRACT_VIOLATION
+PHASE02_ACTIONTYPE_EARLY_DECISION_VIOLATION
+PHASE02_RAW_PAYLOAD_EXPORT_VIOLATION
+```
+
+新規 STOP_REASON を増やす場合は `PHASE02_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 23. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase02_reaction_classifier.py
+    phase02_reaction_selector.py
+    phase02_variation_selector.py
+    phase02_micro_expression.py
+    phase02_consistency_guard.py
+    phase02_repetition_guard.py
+    phase02_fallback_resolver.py
+    phase02_export_builder.py
+    phase02_validators.py
+  runtime/
+    phase02_reaction_bank.json
+  runtime/logs/
+    phase02_runtime.log
+    phase02_error.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+Reaction Bank はコード埋め込みでもよいが、runtime 中に変更されない構造で保持すること。
+
+---
+
+## 24. テスト仕様
+
+unit test で最低限確認すること。
+
+Reaction Classifier が intent ごとに候補を絞る
+Reaction Selector が同一入力で同一 reaction_id を返す
+Variation Selector が同一 reaction 内で canonical variation を返す
+Micro Expression が固定辞書内の値のみ返す
+Consistency Guard が enum 外値を reject する
+Repetition Guard が同一 reaction_id の連続出力を抑制する
+Fallback Resolver が空出力を返さない
+Export Builder が Phase00 I/O 契約どおりの required / optional key を返す
+Export に action_type が混入しない
+raw payload が export に混入しない
+
+integration test で最低限確認すること。
+
+`greet` 入力で greet 系 reaction が返る
+`respond` 入力で respond 系 reaction が返る
+`observe` 入力で observe 系 reaction が返る
+`ignore` 入力で minimal reaction が返る
+direct mention 時に mention_flag が export まで維持される
+speaker_token が export まで維持される
+high load 時に variation 簡略化が起きても tone / character_tag が欠落しない
+Guard fail 時でも fallback で無反応にならない
+trace_id が最終 export まで維持される
+Phase03 / Phase04 consumer が required key を欠かずに受け取れる
+
+ci test で最低限確認すること。
+
+Phase02 内 world SDK import 検出
+LLM import 検出
+Reaction Bank runtime update 検出
+random selection 検出
+intent 上書き検出
+action_type 生成検出
+world_command 生成検出
+score naming lint
+canonical enum lint
+Phase00 I/O 契約不一致検出
+raw payload export 混入検出
+
+---
+
+## 25. CI fail 条件
+
+以下は CI fail とする。
+
+`phase02_*` モジュール内に world SDK import がある
+`phase02_*` モジュール内に LLM import がある
+Reaction Bank を mutable に更新する処理がある
+Variation が intent / reaction 意味を書き換える
+output に `action_type` `skill_id` `world_command` を持つ
+fallback が空 object または null を返す
+trace_id なしで reaction export する
+Phase02 Export が Phase00 required key を欠いている
+canonical 外の tone / emotion / character_tag を export する
+raw payload 全文を buffer / export / log に保存する
+review queue consumer を持つ
+Phase01 input 契約外の field に依存している
+
+---
+
+## 26. 実装順序
+
+Phase02 は以下の順で実装すること。
+
+Reaction Bank を固定する
+Reaction Classifier を作る
+Reaction Selector を作る
+Variation Selector を作る
+Micro Expression を作る
+Consistency Guard を作る
+Repetition Guard を作る
+Fallback Resolver を作る
+Phase02 Export Builder を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に賢い会話戦略を入れるな。
+先に world ごとの反応差分を入れるな。
+先に action 決定を入れるな。
+まず固定ルールで軽く通ることを優先すること。
+
+---
+
+## 27. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+長文生成
+長期記憶更新
+relationship 更新
+action_type 決定
+skill 決定
+world 別反応ロジックの分岐増殖
+Reaction Bank の runtime 書き換え
+random variation
+raw payload 全保持
+review path 処理
+Phase03 / Phase04 向け export に action_type を渡すこと
+world_command を先回りして作ること
+
+---
+
+## 28. 開発者向け最終指示
+
+Phase02 の目的は、IRIS を賢く見せることではない。
+**IRIS を即座に反応している存在に見せること**だ。
+
+ここでやるべきことは少ない。
+だが、その少ないことを厳密にやらないと、後続全部が壊れる。
+
+ここで action を決め始めるな。
+それは Phase04 の仕事だ。
+ここで world に最適化するな。
+それは Adapter の仕事だ。
+ここで memory を触るな。
+それは後段の仕事だ。
+ここで raw payload を持ち続けるな。
+それは deterministic 性を壊す。
+ここで random に逃げるな。
+再現性が死ぬ。
+
+Phase02 は高速で、固定的で、軽く、壊れず、同じ入力に同じ反応候補を返すことだけを優先して実装すること。
+**速さと境界を守れ。賢さはまだいらない。**
+
+---
+

@@ -1,0 +1,80 @@
+{
+  "schema": "iris_local_tts_viseme_artifact_v1",
+  "job_id": "job-tts-bdd44e9f-433a-4811-8380-40b00cb9ddc3-1777537434739",
+  "event_id": "bdd44e9f-433a-4811-8380-40b00cb9ddc3",
+  "mouth_timing": [
+    {
+      "at_ms": 80,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 170,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 260,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 350,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 440,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 530,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 620,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 632,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 712,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 934,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 1156,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 1378,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 1600,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 1822,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 2044,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 2266,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 2488,
+      "shape": "mouth_shape"
+    },
+    {
+      "at_ms": 2489,
+      "shape": "mouth_shape"
+    }
+  ],
+  "adapter_validation_required": true
+}

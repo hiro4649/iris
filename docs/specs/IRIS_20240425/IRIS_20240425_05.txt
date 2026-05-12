@@ -1,0 +1,945 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase05 完全整合版（最終整合版・単体完結版）
+
+記憶選別・関係性蓄積・人格微変化制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**とし、さらに **Phase04 完全整合版（最終整合版）** が producer する canonical export を通常入力 source として、加えて **Phase07 が producer する review queue** を review input source として、IRIS が **何を記憶として残し、何を捨て、どの変化を許し、どの変化を拒否するかを制御するための最小実装仕様** を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書は Addendum を前提にしない。
+本書は旧版 Phase05 より優先される。
+本書に未定義の挙動は実装禁止とする。
+
+このフェーズで作るものは以下だけである。
+
+Memory Candidate Queue
+Persistence Evaluator
+Relationship Memory Updater
+Meaning Compressor
+Retention / Forget Policy
+Drift Detector
+Snapshot Writer
+Commit / Reject Controller
+Rollback Controller
+Phase06 Export Queue
+Phase05 Review Intake
+Phase05 Logging
+
+このフェーズでは LLM を使わない。
+このフェーズでは埋め込み検索をしない。
+このフェーズでは自由な人格成長を許さない。
+このフェーズでは source of truth を握らない。
+このフェーズでは同期確定をしない。
+このフェーズの役割は、**IRIS を育てることではなく、IRIS を壊さずに残す価値のある変化だけを通すこと** である。
+
+---
+
+## 01. 目的
+
+Phase05 の目的は以下である。
+
+行動・反応・関係変化候補から、保存価値のあるものだけを残すこと
+不要な履歴を機械的に捨てること
+relationship 情報を最小限で蓄積すること
+人格ドリフトを検知し、閾値超過を reject すること
+snapshot と rollback により可逆な更新構造を持つこと
+Phase06 に渡す canonical export を固定すること
+同期確定ではなく、同期候補の選別に徹すること
+Phase07 からの review queue を通常 path と衝突させずに受けること
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Memory Candidate Queue
+Persistence Evaluator
+Relationship Memory Updater
+Meaning Compressor
+Retention / Forget Policy
+Drift Detector
+Snapshot Writer
+Commit / Reject Controller
+Rollback Controller
+Phase06 Export Queue
+Phase05 Review Intake
+Phase05 Logging
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+埋め込み検索
+自由文要約
+reward 最適化
+world ごとの人格分岐
+trait の自由成長
+動的な新しい価値観生成
+外部 state を source of truth にすること
+Phase06 相当の同期確定
+world_command 判断
+review queue の直接永続化
+direct memory write
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、Phase05 完了とみなす。
+
+memory_store 件数が常に上限以内であること
+meaning_store 件数が常に上限以内であること
+experience_log 件数が常に上限以内であること
+relationship_memory 件数が常に上限以内であること
+不要候補が保存される率が 5% 未満であること
+drift 検知漏れが 0 件であること
+rollback 失敗が 0 件であること
+同一 subject の relationship 値が単発イベントで急変しないこと
+phase05_character_persistence_score が閾値未満の更新が commit されないこと
+1000 memory update シミュレーションで人格崩壊が 0 件であること
+global drift budget 超過更新が commit されないこと
+Phase05 Export が Phase00 の Phase05→Phase06 I/O 契約を満たすこと
+Phase05 停止時も Phase01〜04 の runtime 処理が停止しないこと
+review input が通常 input と混線しないこと
+snapshot なし commit が 0 件であること
+direct memory write が 0 件であること
+
+---
+
+## 04. 全体構造
+
+Phase05 の通常パイプラインは以下に固定する。
+
+```text
+Phase04 Action Export
+-> Memory Candidate Queue
+-> Persistence Evaluator
+-> Relationship Memory Updater
+-> Meaning Compressor
+-> Retention / Forget Policy
+-> Drift Detector
+-> Snapshot Writer
+-> Commit or Reject Controller
+-> Rollback Controller
+-> Phase06 Export Queue
+-> Output
+```
+
+Phase05 の review パイプラインは以下に固定する。
+
+```text
+Phase07 Review Queue
+-> Phase05 Review Intake
+-> Memory Candidate Queue
+-> Persistence Evaluator
+-> Drift Detector
+-> Snapshot Writer
+-> Commit or Reject Controller
+-> Rollback Controller
+-> Phase06 Export Queue
+-> Output
+```
+
+この順序以外は禁止する。
+Persistence Evaluator が Drift Detector を兼ねてはならない。
+Meaning Compressor が Relationship Update を兼ねてはならない。
+Phase05 は同期確定層ではない。
+**保存候補を選び、危険な更新を止め、Phase06 に渡す層** に徹すること。
+review path を通常 path と同一入口で曖昧 merge してはならない。
+
+---
+
+## 05. Phase00〜04 準拠ルール
+
+本フェーズは最新 Phase00、Phase01、Phase02、Phase03、Phase04 に従い、以下を hard rule とする。
+
+Phase04 の canonical export を通常入力の唯一の source とする
+Phase07 の review queue を review 入力の唯一の source とする
+Phase05→Phase06 の required 出力は Phase00 I/O 契約に一致しなければならない
+raw payload 全文を保持または後続へ渡してはならない
+Phase05 は source of truth を握ってはならない
+Phase05 は external state を truth 化してはならない
+Phase05 は core_identity を直接更新してはならない
+Phase05 は safety_memory を直接更新してはならない
+Phase05 は snapshot なしで commit してはならない
+trace_id は end-to-end で必須である
+review path を使って direct memory write してはならない
+review path を使って world_command 系 shortcut をしてはならない
+
+---
+
+## 06. 通常入力契約
+
+Phase05 は通常 path において、Phase04 の canonical export と compact な event summary のみを受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP",
+  "skill_id": "string",
+  "target_presence_id": "uuid",
+  "tone": "friendly|playful|excited|calm",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "redirected": false,
+  "phase04_validator_score": 0.0,
+  "phase04_presence_score": 0.0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "redirect_reason": "string|null",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "emotion": "neutral|happy|surprise|awkward",
+  "relationship_hint": "new|familiar|uncertain",
+  "timestamp_ms": 0,
+  "linked_identity_id": "string|null",
+  "topic_key": "string|null",
+  "phase03_continuity_score": 0.0
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+Phase04 由来でない暗黙入力を受け取ってはならない
+raw payload 全文を参照してはならない
+自由文履歴の丸ごと保存は禁止する
+Phase03 / Phase04 の補助信号を truth として扱ってはならない
+world_command を入力として受け取ってはならない
+task_type を通常入力として受け取ってはならない
+
+---
+
+## 07. review 入力契約
+
+Phase05 は review path において、Phase07 の review queue を別 consumer として受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "task_type": "CREATE_CONTENT|MODIFY_WORLD|INTERACT_USER|EXECUTE_WORKFLOW|CALL_EXTERNAL",
+  "phase07_value_score": 0.0,
+  "phase07_risk_score": 0.0,
+  "phase07_cost_score": 0.0,
+  "phase07_character_alignment_score": 0.0,
+  "phase07_reward_score": 0.0,
+  "phase07_reputation_score": 0.0,
+  "review_reason": "string"
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "linked_identity_id": "string|null",
+  "target_presence_id": "uuid|null",
+  "topic_key": "string|null",
+  "character_feedback": "string|null"
+}
+```
+
+制約は以下とする。
+
+review input を通常 input と同一 schema として扱ってはならない
+review input から world_command を再構築してはならない
+review input を direct memory write に使ってはならない
+review input の score は 0.0〜1.0 に正規化されていなければならない
+`character_fit` `value_reward` `character_reward` のような非 canonical score 名を受け取ってはならない
+review input は persistence 候補の再評価材料としてのみ扱うこと
+
+---
+
+## 08. Memory segmentation
+
+Phase05 は Phase00 で定義された memory segmentation を前提とする。
+使用可能な系統は以下のみとする。
+
+```text
+core_identity
+relational
+episodic
+semantic
+working
+world_specific
+safety_memory
+```
+
+このフェーズで実際に更新対象として扱うのは以下とする。
+
+relational
+episodic
+semantic
+world_specific
+
+このフェーズで原則として更新禁止とするものは以下とする。
+
+core_identity
+safety_memory
+working
+
+`core_identity` は別人格化を招きやすいため、Phase05 では更新してはならない。
+`safety_memory` は安全系拘束であり、Phase05 では直接更新してはならない。
+`working` は runtime 一時記憶であり、Phase05 の永続対象ではない。
+
+---
+
+## 09. Memory Candidate Queue
+
+Phase05 はまず memory candidate を queue に積む。
+この時点では commit しない。
+candidate は保存候補であって真実ではない。
+
+通常 path の最小 candidate 構造は以下とする。
+
+```json
+{
+  "candidate_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "memory_type": "relationship|episode|pattern|world_fact",
+  "source": "youtube|minecraft|vrchat|system",
+  "subject_id": "string|null",
+  "content_key": "string",
+  "content_value": "string",
+  "timestamp_ms": 0,
+  "origin_route": "normal"
+}
+```
+
+review path の最小 candidate 構造は以下とする。
+
+```json
+{
+  "candidate_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "memory_type": "relationship|episode|pattern|world_fact",
+  "source": "system",
+  "subject_id": "string|null",
+  "content_key": "string",
+  "content_value": "string",
+  "timestamp_ms": 0,
+  "origin_route": "review",
+  "review_reason": "string"
+}
+```
+
+制約は以下とする。
+
+同一 event_id から無制限に候補を増やしてはならない
+raw payload 全文を `content_value` に入れてはならない
+candidate は queue 内で一時保持し、永続確定前に評価する
+candidate 生成時点で relationship 値や人格値を直接更新してはならない
+通常 path と review path の candidate を混線させてはならない
+
+1 event あたりの candidate 上限は 3 件以内を推奨する。
+
+---
+
+## 10. Persistence Evaluator
+
+Persistence Evaluator は candidate を評価し、保存価値があるかを判定する。
+ここで使用可能な canonical score は以下に固定する。
+
+```text
+phase05_importance
+phase05_character_relevance
+phase05_character_persistence_score
+phase05_drift_score
+```
+
+最小評価観点は以下とする。
+
+保存頻度に値するか
+単発ノイズではないか
+人格継続性に資するか
+関係性の継続に寄与するか
+世界固有の一時情報にすぎないか
+review path の場合、review_reason と character_feedback が再評価理由として妥当か
+
+禁止事項は以下とする。
+
+外部 truth 化
+報酬最適化
+長文自由要約
+LLM による重要度判定
+task 成功だけを根拠に保存確定
+review score だけを見て保存確定
+
+Persistence Evaluator は「残す価値」を見る層であり、「真実」を決める層ではない。
+
+---
+
+## 11. Relationship Memory Updater
+
+Relationship Memory Updater は relational 系候補だけを扱う。
+ここで人格本体を変えてはならない。
+単発イベントで関係値を急変させてはならない。
+
+最小構造は以下とする。
+
+```json
+{
+  "subject_id": "string",
+  "relationship_hint": "new|familiar|uncertain",
+  "interaction_delta": -1|0|1,
+  "confidence": 0.0
+}
+```
+
+制約は以下とする。
+
+単発イベントで大幅更新してはならない
+`friend` `fan` `enemy` など独自ラベルを勝手に増やしてはならない
+identity の LINKED 確定を前提にしてはならない
+review path を使って関係値を直接強化してはならない
+review path は再評価トリガーであって関係上書き理由ではない
+
+Relationship 更新は低速でよい。
+雑な高速更新は禁止する。
+
+---
+
+## 12. Meaning Compressor
+
+Meaning Compressor は保存候補を短い canonical 形式へ圧縮する。
+ここで自由文要約をしてはならない。
+ここで narrative を作ってはならない。
+
+最小出力は以下とする。
+
+```json
+{
+  "content_key": "string",
+  "content_value": "string",
+  "compressed": true
+}
+```
+
+制約は以下とする。
+
+元の意味を増幅しない
+人格解釈を足さない
+外部事実として断定しない
+raw payload 全文を残さない
+review input の長文理由を丸ごと保持しない
+
+Meaning Compressor は圧縮器であり、創作者ではない。
+
+---
+
+## 13. Retention / Forget Policy
+
+Retention / Forget Policy は memory store の上限を守るための機械的削減ルールである。
+感情で残すな。
+ルールで残せ。
+
+最低限の保存対象優先順は以下を推奨する。
+
+character persistence に寄与
+
+> relational 継続性に寄与
+> episodic の再参照価値が高い
+> semantic 化価値がある
+> world_specific だが短期継続価値がある
+
+最低限の削除対象優先順は以下を推奨する。
+
+単発ノイズ
+
+> 重複候補
+> world_specific の期限切れ
+> importance 低
+> drift 寄与が高い候補
+
+Retention / Forget Policy は source of truth を変更してはならない。
+削除は保持上限のためであって、事実消去の宣言ではない。
+
+---
+
+## 14. Drift Detector
+
+Drift Detector は人格ドリフトを監視し、閾値超過更新を reject する。
+このフェーズの最重要拘束のひとつである。
+
+最低限の検査対象は以下とする。
+
+character_tag 連続性
+tone の急変傾向
+relationship の急変傾向
+semantic 記憶の偏り
+review path 由来の補正が人格を上書きしていないか
+global drift budget 超過の有無
+
+最小 score は以下に固定する。
+
+```text
+phase05_drift_score
+phase05_character_persistence_score
+```
+
+ルールは以下とする。
+
+threshold 超過更新は reject
+review path でも threshold 緩和をしてはならない
+task 高評価でも drift 超過なら reject
+一時的成功より人格継続を優先
+external 観測だけで人格急変を commit してはならない
+
+Drift Detector を弱めるな。
+ここを甘くすると IRIS はすぐ壊れる。
+
+---
+
+## 15. Snapshot Writer
+
+Phase05 は commit 前に必ず snapshot を取る。
+snapshot なし commit は fail とする。
+
+最小 snapshot 構造は以下に固定する。
+
+```json
+{
+  "snapshot_id": "uuid",
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "updated_store": "relationship_memory|memory_store|meaning_store|experience_log",
+  "before_hash": "string",
+  "after_hash": "string",
+  "timestamp_ms": 0
+}
+```
+
+Snapshot Writer は以下を満たすこと。
+
+commit 前に生成されること
+rollback 可能な差分を持つこと
+review path でも同様に必須であること
+direct write を防ぐ監査点として機能すること
+
+---
+
+## 16. Commit / Reject Controller
+
+Commit / Reject Controller は最終的に「この候補を Phase06 に渡すか、ここで止めるか」を決める。
+ここで同期確定はしない。
+ここでは **Phase06 へ送れる状態にするだけ** である。
+
+commit 条件は以下とする。
+
+required score が揃っている
+drift 閾値内
+snapshot 取得済み
+updated_store が canonical set 内
+review path の場合、review_reason が妥当
+direct write ではない
+
+reject 条件は以下とする。
+
+score 欠落
+drift 超過
+snapshot 欠落
+updated_store 不正
+review path 乱用
+人格急変
+同一候補重複
+store 上限違反を引き起こす危険が高い
+
+Reject は silent drop してはならない。
+必ず reason をログへ残すこと。
+
+---
+
+## 17. Rollback Controller
+
+Rollback Controller は commit 後異常時に直前 snapshot へ戻す層である。
+Phase05 の commit は rollback 可能でなければならない。
+
+最低限の rollback トリガーは以下とする。
+
+commit 後の整合性検証失敗
+store hash 不一致
+drift 再検証失敗
+review path 由来の不正更新検出
+phase05 export build 失敗
+
+Rollback Controller は以下を満たすこと。
+
+snapshot に基づき差分復元できる
+rollback failure を明示ログ化する
+rollback 後も Phase01〜04 の runtime を止めない
+rollback 成功後に Phase06 へ不正 export を送らない
+
+---
+
+## 18. Phase06 Export 契約
+
+**これが Phase06 に渡す正規出力である。**
+Phase00 の Phase05→Phase06 I/O 契約に完全一致させる。
+
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase05_importance": 0.0,
+  "phase05_character_relevance": 0.0,
+  "phase05_character_persistence_score": 0.0,
+  "phase05_drift_score": 0.0,
+  "updated_store": "relationship_memory|memory_store|meaning_store|experience_log",
+  "commit_status": "committed|rejected|rolled_back"
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "linked_identity_id": "string|null",
+  "relationship_hint": "new|familiar|uncertain|null",
+  "topic_key": "string|null"
+}
+```
+
+Phase06 への side input は以下とする。
+
+```json
+{
+  "runtime_state": {},
+  "external_summary": {},
+  "intent": "greet|respond|observe|ignore|null",
+  "target_presence_id": "uuid|null",
+  "timestamp_ms": 0
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+score は 0.0〜1.0 に正規化する
+world_command を含めてはならない
+raw payload 全文を含めてはならない
+review queue field を含めてはならない
+Phase06 side input を export required に混ぜてはならない
+direct memory write 済み状態を committed として出してはならない
+
+---
+
+## 19. score naming
+
+Phase05 で canonical として使用してよい score は以下のみとする。
+
+```text
+phase05_importance
+phase05_character_relevance
+phase05_character_persistence_score
+phase05_drift_score
+```
+
+必要なら内部補助値として以下を持ってよい。
+
+```text
+phase05_relationship_confidence_score
+phase05_retention_score
+phase05_review_relevance_score
+```
+
+ただし export required にしてよいのは前者 4 つのみとする。
+旧表記の `phase5_*` は禁止する。
+phase 接頭辞なし score も禁止する。
+
+---
+
+## 20. Logging
+
+Phase05 の全ログは以下を最低限含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase05",
+  "route": "normal|review",
+  "step": "review_intake|candidate_queue|persistence_evaluator|relationship_updater|meaning_compressor|retention_policy|drift_detector|snapshot_writer|commit_controller|rollback_controller|export_queue",
+  "result": "success|reject|rollback|skip|fail",
+  "updated_store": "relationship_memory|memory_store|meaning_store|experience_log|null",
+  "commit_status": "committed|rejected|rolled_back|null",
+  "latency_ms": 0
+}
+```
+
+追加で以下を記録してよい。
+
+```json
+{
+  "phase05_importance": 0.0,
+  "phase05_character_persistence_score": 0.0,
+  "phase05_drift_score": 0.0,
+  "review_reason": "string|null"
+}
+```
+
+必須 correlation key を欠落させてはならない。
+raw payload 全文をログへ保存してはならない。
+review path は必ず `route=review` を明示すること。
+Reject と Rollback を同一 result にしてはならない。
+
+---
+
+## 21. HARD 制約
+
+以下は違反時 CI fail とする。
+
+Phase05 内に LLM import がある
+Phase05 内に world SDK import がある
+Phase05 が source of truth を握る
+Phase05 が direct memory write を行う
+Phase05 が core_identity を更新する
+Phase05 が safety_memory を更新する
+Phase05 が snapshot なしで commit する
+Phase05 が world_command を生成する
+Phase05 が review queue を通常 path と曖昧 merge する
+Phase05 Export が Phase00 I/O 契約と不一致である
+review input に非 canonical score 名を受け入れる
+raw payload 全文を queue / export / log に保存する
+Phase05 が Phase06 相当の同期確定を行う
+trace_id なしで export する
+drift 超過更新を commit する
+rollback failure を握り潰す
+
+---
+
+## 22. SOFT 制約
+
+以下は警告ログのみとする。
+
+review path 発火率上昇
+relationship 候補偏重
+world_specific 候補偏重
+meaning compression 不足
+rejected 候補率上昇
+retention 削除率上昇
+rollback 発火率上昇
+topic_key 欠落率上昇
+`uncertain` relationship_hint 偏重
+
+SOFT 制約は fail しない。
+ただし保存品質の劣化指標として残す。
+
+---
+
+## 23. STOP 条件
+
+以下は Phase05 の停止条件とする。
+
+```text
+PHASE05_CANDIDATE_QUEUE_VIOLATION
+PHASE05_PERSISTENCE_EVALUATION_FAILURE
+PHASE05_RELATIONSHIP_UPDATE_VIOLATION
+PHASE05_DRIFT_DETECTOR_FAILURE
+PHASE05_SNAPSHOT_MISSING
+PHASE05_ROLLBACK_FAILURE
+PHASE05_BOUNDARY_VIOLATION
+PHASE05_TRACE_MISSING
+PHASE05_EXPORT_CONTRACT_VIOLATION
+PHASE05_DIRECT_MEMORY_WRITE_VIOLATION
+PHASE05_REVIEW_PATH_VIOLATION
+```
+
+新規 STOP_REASON を増やす場合は `PHASE05_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 24. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase05_review_intake.py
+    phase05_memory_candidate_queue.py
+    phase05_persistence_evaluator.py
+    phase05_relationship_memory_updater.py
+    phase05_meaning_compressor.py
+    phase05_retention_forget_policy.py
+    phase05_drift_detector.py
+    phase05_snapshot_writer.py
+    phase05_commit_reject_controller.py
+    phase05_rollback_controller.py
+    phase05_export_queue.py
+    phase05_validators.py
+  runtime/logs/
+    phase05_runtime.log
+    phase05_error.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+review intake と通常 queue を一体化してはならない。
+snapshot と rollback を同一責務に押し込んではならない。
+
+---
+
+## 25. テスト仕様
+
+unit test で最低限確認すること。
+
+Memory Candidate Queue が event ごとに candidate 上限を守る
+Persistence Evaluator が canonical score を返す
+Relationship Memory Updater が単発急変を reject する
+Meaning Compressor が自由文長文を保持しない
+Retention / Forget Policy が store 上限を守る
+Drift Detector が threshold 超過更新を reject する
+Snapshot Writer が commit 前 snapshot を生成する
+Commit / Reject Controller が snapshot 欠落を reject する
+Rollback Controller が snapshot から復元できる
+Review Intake が通常 input と別 schema で受ける
+Export Queue が Phase00 I/O 契約どおりの required / optional / side input を守る
+
+integration test で最低限確認すること。
+
+Phase04 export から normal route candidate が生成される
+Phase07 review queue から review route candidate が生成される
+review route でも direct memory write されない
+drift 超過候補が commit されない
+snapshot なし commit が失敗する
+rollback 後に不正 export が送られない
+trace_id が最終 export まで維持される
+Phase06 consumer が required key を欠かずに受け取れる
+normal route と review route のログが混線しない
+
+ci test で最低限確認すること。
+
+Phase05 内 world SDK import 検出
+LLM import 検出
+direct memory write 検出
+snapshot なし commit 検出
+review path merge 汚染検出
+非 canonical score 名受理検出
+Phase00 I/O 契約不一致検出
+raw payload export 混入検出
+trace_id 欠落検出
+core_identity / safety_memory 更新検出
+
+---
+
+## 26. CI fail 条件
+
+以下は CI fail とする。
+
+`phase05_*` モジュール内に world SDK import がある
+`phase05_*` モジュール内に LLM import がある
+output に `world_command` を持つ
+Phase05 Export が Phase00 required key を欠いている
+review input に非 canonical score 名を受け入れる
+raw payload 全文を queue / export / log に保存する
+review queue を通常 path と曖昧 merge する
+snapshot なしで commit する
+trace_id なしで export する
+drift 超過更新を commit する
+rollback failure を握り潰す
+core_identity または safety_memory を更新する
+Phase06 相当の sync commit を行う
+
+---
+
+## 27. 実装順序
+
+Phase05 は以下の順で実装すること。
+
+Memory segmentation 制約を固定する
+通常 path の Memory Candidate Queue を作る
+review path の Review Intake を作る
+Persistence Evaluator を作る
+Relationship Memory Updater を作る
+Meaning Compressor を作る
+Retention / Forget Policy を作る
+Drift Detector を作る
+Snapshot Writer を作る
+Commit / Reject Controller を作る
+Rollback Controller を作る
+Phase06 Export Queue を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に賢い memory を作るな。
+先に review path を実行 shortcut に使うな。
+先に sync 確定を入れるな。
+まず **保存候補の選別と人格保護を deterministic に閉じること** を優先すること。
+
+---
+
+## 28. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+埋め込み検索
+自由文長文要約
+報酬最適化
+source of truth の掌握
+同期確定
+world_command 生成
+direct memory write
+review path を使った直接保存
+core_identity 更新
+safety_memory 更新
+raw payload 全保持
+Phase06 以降の責務先食い
+review path を使った world 実行 shortcut
+
+---
+
+## 29. 開発者向け最終指示
+
+Phase05 の目的は、IRIS を成長させることではない。
+**IRIS を壊さずに、残す価値のある変化だけを通すこと** だ。
+
+ここで何でも保存するな。
+それは memory ではなくノイズ蓄積だ。
+ここで task の成功を見て人格を曲げるな。
+それは character collapse の始まりだ。
+ここで review path を便利な近道にするな。
+それは境界破壊だ。
+ここで snapshot を省くな。
+rollback できなくなる。
+ここで drift detector を甘くするな。
+IRIS が IRIS でなくなる。
+
+Phase05 は地味でいい。
+遅くてもいい。
+だが、**人格継続を守る最後の選別層として絶対に雑にするな。**
+保存するより、止める方を優先しろ。
+それがこのフェーズの本質だ。
+
+---

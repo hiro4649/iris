@@ -1,0 +1,767 @@
+# IRIS_20240425 Cross Phase Addendum: Operator Admin Panel
+
+## 00. Scope
+
+This addendum defines the long-running operator Admin Panel for IRIS.
+It applies across Phase00-27 as an operator-facing control and review surface.
+
+The Admin Panel is not a shortcut around IRIS safety boundaries. It must expose
+safe summaries, readiness states, review queues, and explicit operator actions.
+It must not expose secrets, endpoint values, raw YouTube text, support messages,
+memory candidates, relationship candidates, input action candidates, commands,
+raw frames, raw voice samples, dataset paths, internal model paths, or raw
+runtime jobs through public JSON, replay logs, overlay state, or ordinary
+diagnostics.
+
+This addendum is subordinate to Phase00. It does not add Phase00 canonical
+emotion, action, intent, relationship, conversation-state, or profile enums.
+Phase16+ internal profiles remain internal runtime guidance and must not become
+canonical Admin Panel enum values.
+
+## 01. Purpose
+
+IRIS is intended to be operated for a long time by a non-technical operator.
+Therefore the system must provide an Admin Panel that allows safe daily
+operation without direct editing of environment files, source code, JSON stores,
+logs, replay files, or bridge payloads.
+
+The Admin Panel must make the following distinctions clear:
+
+- implemented
+- not implemented
+- configured
+- not configured
+- operator attention required
+- real-device waiting
+- real-credential waiting
+- disabled by safety policy
+- degraded but still safe
+- blocked
+
+The Admin Panel must use plain operator language in addition to technical
+status labels.
+
+## 02. Access And Roles
+
+The Admin Panel must support role-separated access.
+
+Required roles:
+
+- owner: can configure production settings, approve risky policies, and export
+  safe backups
+- operator: can run streams, review queues, pause features, and edit safe
+  character settings
+- moderator: can review viewer safety, moderation, and relationship summaries
+- developer: can view diagnostics and test readiness without seeing secrets
+- read_only: can inspect safe readiness and status summaries
+
+Any destructive action, live credential use, real OBS/Live2D/TTS operation,
+real YouTube OAuth action, real game input, or OS input must require explicit
+operator confirmation outside ordinary read-only views.
+
+## 03. Global Dashboard
+
+The Admin Panel must include a global dashboard for long-term operation.
+
+Required widgets:
+
+- current stream mode
+- runtime state
+- current character identity
+- current voice profile configured status
+- TTS readiness
+- Live2D readiness
+- OBS readiness
+- YouTube comment readiness
+- support/donation ingest readiness
+- memory store readiness
+- relationship store readiness
+- vector memory readiness
+- fan growth readiness
+- community health readiness
+- AI transparency policy readiness
+- business model readiness
+- monetization safety readiness
+- companion safety readiness
+- cost/budget status
+- game observation readiness
+- game action validation readiness
+- media watch readiness
+- external topic/news readiness
+- overlay readiness
+- replay log readiness
+- scenario rehearsal readiness
+- privacy guard status
+- safety boundary status
+- last safe heartbeat
+- last operator action summary
+- current degraded components
+- next recommended setup step
+
+The dashboard must show counts and fixed labels only. It must not show live
+comment text, support message text, raw frame content, raw candidates, commands,
+secret values, endpoint values, token values, or raw bridge payloads.
+
+## 04. Setup Wizard
+
+The Admin Panel must provide setup wizards for non-technical operation.
+
+Required setup wizards:
+
+- local development readiness wizard
+- production readiness wizard
+- TTS engine setup wizard
+- original/custom voice setup wizard
+- Live2D renderer setup wizard
+- OBS browser source setup wizard
+- YouTube OAuth setup wizard
+- YouTube live chat ingest setup wizard
+- support/donation ingest setup wizard
+- memory and relationship persistence setup wizard
+- vector memory search setup wizard
+- game observation bridge setup wizard
+- safe game action approval setup wizard
+- overlay setup wizard
+- backup and restore setup wizard
+- emergency stop rehearsal wizard
+- fan growth and community culture setup wizard
+- AI transparency and viewer trust setup wizard
+- business model and monetization safety setup wizard
+- companion safety and attachment-boundary setup wizard
+- cost governance setup wizard
+- public analytics and KPI setup wizard
+
+Wizards may display env/config names and configured/missing booleans. They must
+not display env values, tokens, endpoint values, raw voice assets, dataset
+paths, model paths, YouTube text, support text, raw candidates, commands, raw
+frames, or raw jobs.
+
+## 05. Character And Persona Settings
+
+The Admin Panel must provide safe character settings.
+
+Editable settings:
+
+- character display name
+- active character preset
+- personality notes
+- speaking style notes
+- catchphrase guidance
+- humor strength
+- teasing strength
+- shyness strength
+- excitement strength
+- panic/scream strength
+- laughter strength
+- big-laugh recovery behavior
+- idle behavior strength
+- humming behavior enablement
+- short original singing-like vocalise enablement
+- dance gesture enablement
+- camera proximity behavior strength
+- game commentator style
+- game player style
+- media watch reaction style
+- news/topic conversation style
+- multilingual language preference
+- subtitle display preference
+
+The Admin Panel must treat these as operator guidance, not canonical runtime
+enums. Any Phase16+ personality, affect, motion, voice, or profile setting
+shown in the Admin Panel must be stored and displayed as internal guidance and
+must not alter Phase00 canonical enums.
+
+## 06. Voice And Audio Settings
+
+The Admin Panel must provide voice operation settings.
+
+Required controls:
+
+- TTS engine selection status
+- original/custom character voice profile configured status
+- voice style profile configured status
+- licensed voice source status
+- locale/model hint status
+- speech rate baseline
+- speech rate variation range
+- fast speech limit
+- slow speech limit
+- tongue twister mode
+- emotional prosody enablement
+- laughter breathiness strength
+- scream safety limit
+- humming enablement
+- singing-like vocalise enablement
+- subtitle synchronization status
+- mouth cue synchronization status
+- fallback voice policy
+
+The Admin Panel may show `licensed`, `placeholder`, `not_configured`, or
+`operator_attention_required` as fixed source-status labels. It must not show
+raw voice samples, dataset paths, internal model paths, voice profile values,
+license document contents, secret values, endpoint values, raw TTS payloads, or
+raw audio job contents.
+
+## 07. Live2D, Motion, And Camera Settings
+
+The Admin Panel must provide motion and camera settings.
+
+Required controls:
+
+- active Live2D model configured status
+- renderer readiness
+- expression mapping status
+- idle breathing strength
+- blink and gaze behavior
+- body sway behavior
+- laughter motion strength
+- scream motion strength
+- surprise reaction strength
+- sadness reaction strength
+- dance gesture strength
+- close-up behavior enablement
+- face close-up maximum level
+- camera approach cooldown
+- viewer comfort limits
+- motion recovery timing
+- unsupported cue schema status
+
+The Admin Panel must never expose renderer endpoint values, raw renderer
+payloads, internal model paths, raw frame data, raw motion commands, or direct
+OBS operations.
+
+## 08. OBS And Overlay Settings
+
+The Admin Panel must provide OBS and overlay operation settings.
+
+Required controls:
+
+- OBS bridge readiness
+- browser source setup status
+- overlay URL configured status without revealing endpoint values
+- overlay event bus status
+- subtitle overlay status
+- character overlay status
+- game context overlay status
+- stream status overlay status
+- safe heartbeat status
+- OBS pickup manifest status
+- stale artifact guard status
+- artifact sync guard status
+- overlay preview using synthetic fixture data
+
+The Admin Panel must not expose endpoint values, OBS credentials, raw overlay
+events, raw runtime payloads, raw artifact paths, raw frames, raw jobs, or
+commands. Real OBS setup and real OBS mutation must require explicit operator
+confirmation.
+
+## 09. YouTube And Support Ingest Settings
+
+The Admin Panel must provide YouTube and support/donation operation settings.
+
+Required controls:
+
+- YouTube API source configured status
+- OAuth configured status
+- token refresh readiness
+- live chat id discovery readiness
+- polling interval status
+- dedupe window status
+- relay source configured status
+- moderation filter configured status
+- support/donation normalizer status
+- support reaction policy
+- donation relationship impact policy
+- ingest backoff status
+- latest safe event counts
+- source failure summary
+
+The Admin Panel must not show raw YouTube comment text, support message text,
+author private identifiers, tokens, refresh tokens, endpoint values, response
+bodies, moderation terms, or raw API payloads in ordinary views. Operator
+review views may show only bounded, redacted, purpose-limited public summaries
+when required by moderation policy.
+
+## 10. Memory And Relationship Management
+
+The Admin Panel must provide memory and relationship management for safe
+long-term operation.
+
+Required views:
+
+- approved memory summary list
+- approved relationship summary list
+- user relationship profile summary
+- relationship trend summary
+- PostgreSQL production persistence status
+- 1,000,000+ viewer capacity readiness checklist
+- public relationship level distribution
+- owner/operator-only internal relationship stage distribution
+- memory recall status
+- vector memory index status
+- persistence store health
+- retention policy status
+- dedupe status
+- backup status
+- restore rehearsal status
+- candidate review queue
+- rejected candidate summary
+- pending candidate counts
+- commit audit summary
+
+Required actions:
+
+- approve memory candidate through validator
+- reject memory candidate
+- approve relationship candidate through validator
+- reject relationship candidate
+- hide approved memory from public recall
+- archive approved memory
+- delete approved memory after confirmation
+- delete relationship record after confirmation
+- export safe backup
+- import safe backup after validation
+
+The Admin Panel must never directly commit memory candidates or relationship
+candidates. All commits must pass through the approved validator and persistence
+writer. The Admin Panel must not expose raw candidate payloads, private
+summaries, hidden relationship scores, store paths, raw backup paths, raw errors,
+or unredacted viewer identity metadata in ordinary views.
+
+## 11. Safety And Moderation Center
+
+The Admin Panel must provide a safety center.
+
+Required controls:
+
+- emergency stop
+- pause TTS
+- pause Live2D output
+- pause OBS handoff
+- pause YouTube ingest
+- pause support ingest
+- pause memory commits
+- pause relationship commits
+- pause game observation
+- pause game action approval
+- pause external topic/news ingest
+- viewer moderation policy
+- banned topic policy
+- privacy policy
+- personal information redaction policy
+- unsafe output rejection policy
+- copyright/media watch policy
+- voice rights policy
+- audit boundary status
+- viewer blocklist management
+- temporary mute management
+- limited interaction management
+- moderation state search
+- unblock workflow with confirmation
+- moderation audit summary
+
+Required moderation states:
+
+- allowed
+- watch
+- limited
+- muted
+- blocked
+- appeal_pending
+- archived
+
+Emergency stop must be visible from all main Admin Panel views. It must move
+the runtime into a safe stopped or paused state without exposing raw payloads.
+Actions that affect real devices or external services must be explicit and
+auditable.
+
+## 12. Game Operation Settings
+
+The Admin Panel must provide game observation and safe play settings.
+
+Required controls:
+
+- game observation source status
+- capture region configured status
+- observation interval status
+- perception confidence thresholds
+- commentary-only mode
+- player mode
+- action candidate generation enablement
+- action validation gate status
+- approved action cooldown
+- stale observation guard
+- future observation guard
+- direct OS/game input disabled status
+- simulated adapter status
+- real adapter status
+- manual approval policy
+- game-specific safe key mapping status
+- game memory carryover policy
+
+The Admin Panel must never pass `input_action_candidate` directly to game
+control, OS input, or any real adapter. All game input must pass through the
+game action validator and approved-action adapter boundary. Real game or OS
+input must require explicit operator confirmation.
+
+## 13. Stream Mode Control
+
+The Admin Panel must provide stream mode controls.
+
+Required modes:
+
+- idle
+- test stream
+- chatting
+- game commentary
+- game play with manual approval
+- game play with approved safe adapter
+- media watch commentary
+- news/topic conversation
+- maintenance
+- emergency pause
+
+Mode changes must show readiness requirements and blocked components before
+activation. If a mode requires real credentials, real engines, real OBS, real
+Live2D, real TTS, real YouTube, or real game input, the Admin Panel must show
+that requirement clearly and request explicit confirmation before live use.
+
+## 14. Scenario, Test, And Rehearsal Center
+
+The Admin Panel must provide a non-live rehearsal center.
+
+Required features:
+
+- run local scenario suite
+- run safe fixture YouTube relay rehearsal
+- run memory vector roundtrip rehearsal
+- run persistence startup checklist
+- run OBS overlay fixture preview
+- run TTS fixture packet preview
+- run Live2D fixture cue preview
+- run game action validation fixture
+- run emergency stop rehearsal
+- view test pass/fail summaries
+- view last safe test run summary
+
+Rehearsals must use synthetic fixtures unless the operator explicitly confirms
+real external services or real devices. Test views must not expose raw payloads,
+raw comments, raw support messages, secrets, endpoint values, commands, raw
+frames, or raw jobs.
+
+## 15. Diagnostics And Runbooks
+
+The Admin Panel must provide diagnostics for non-technical recovery.
+
+Required views:
+
+- production readiness report
+- production next-task guidance
+- Foundation readiness report
+- integration status
+- bridge contract status
+- engine health status
+- OBS health status
+- YouTube ingest health status
+- persistence health status
+- degraded component explanation
+- safe error summary
+- recommended next action
+- operator runbook links
+- recent safe operator actions
+
+Diagnostics must be safe by construction. They may show fixed status labels,
+counts, booleans, script names, env names, and safe checklist names. They must
+not show endpoint values, secret values, tokens, raw response bodies, raw
+payloads, raw job contents, raw file paths, raw voice data, raw frames, or
+commands.
+
+## 16. Backup, Export, And Restore
+
+The Admin Panel must support safe long-term data management.
+
+Required features:
+
+- export approved memory backup
+- export approved relationship backup
+- export safe character configuration backup
+- export safe operator policy backup
+- export safe scenario configuration backup
+- restore backup after schema validation
+- restore dry-run
+- backup integrity check
+- backup retention policy
+- redacted troubleshooting bundle
+
+Backups must separate safe public summaries from private or sensitive data.
+Exports must not include secrets, endpoint values, OAuth tokens, raw candidates,
+raw YouTube text, support message text, raw voice samples, internal model paths,
+dataset paths, raw frames, raw jobs, or raw bridge payloads unless a separate
+explicit owner-only secure export policy is implemented.
+
+## 17. Analytics And Long-Term Health
+
+The Admin Panel should provide safe analytics.
+
+Allowed analytics:
+
+- stream uptime summary
+- event count summary
+- response latency summary
+- TTS queue health
+- Live2D cue health
+- OBS overlay health
+- memory growth summary
+- relationship growth summary
+- candidate approval rate
+- safety rejection counts
+- moderation count summary
+- game observation confidence trend
+- action approval trend
+- viewer engagement summary using anonymized or redacted labels
+- system degradation trend
+
+Analytics must use counts, buckets, and safe labels. They must not expose raw
+viewer messages, raw support messages, private viewer identifiers, hidden
+relationship scores, raw candidates, endpoint values, secrets, raw frames, or
+commands.
+
+## 18. Multi-Character Operation
+
+The Admin Panel should support future multiple AI characters.
+
+Required future-safe concepts:
+
+- character registry
+- active character selection
+- per-character voice profile configured status
+- per-character personality guidance
+- per-character expression guidance
+- per-character memory namespace
+- per-character relationship policy
+- per-character stream mode preference
+- per-character safety limits
+
+Character profiles are operator guidance and namespaces. They must not become
+Phase00 canonical enums, and Phase16+ internal profiles must not be exposed as
+canonical enum values.
+
+## 19. Notifications
+
+The Admin Panel should provide operator notifications.
+
+Required notification types:
+
+- setup incomplete
+- real credential waiting
+- real device waiting
+- engine unhealthy
+- OBS unhealthy
+- YouTube ingest unhealthy
+- memory store attention
+- relationship store attention
+- candidate review pending
+- unsafe output blocked
+- game action blocked
+- emergency stop active
+- backup overdue
+- license/source attention for original voice
+- high latency
+- degraded stream mode
+- fan growth review pending
+- community ritual review pending
+- monetization safety attention
+- companion safety attention
+- budget attention
+- public analytics export attention
+
+Notifications must use safe labels and counts only. They must not include
+secrets, endpoint values, raw viewer text, support text, raw candidates,
+commands, raw frames, raw voice samples, or raw jobs.
+
+## 20. Fan Growth, Trust, Business, And Analytics Management
+
+The Admin Panel must manage the growth and business addendum defined in
+`IRIS_20240425_cross_phase_addendum_20260504_growth_business_operations.txt`.
+It must also manage the anime IP and character linkage addendum defined in
+`IRIS_20240425_cross_phase_addendum_20260504_anime_ip_character_linkage.txt`
+when IRIS is operated as a main character from an original animated feature.
+
+Required Admin Panel areas:
+
+- Fan Growth
+- Community Culture
+- AI Transparency
+- Content Strategy
+- Business Model
+- Operator Comfort
+- Cost Governance
+- Companion Safety
+- Public Analytics
+- Anime IP / Character Linkage
+- Character Communication Experience
+- Anime Performance Matching
+
+Required controls:
+
+- viewer lifecycle summary and fan growth trend labels
+- first-time and returning viewer behavior policy
+- community ritual and meme candidate review queue
+- newcomer friendliness and inner-circle risk status
+- AI disclosure and viewer trust text approval
+- post-stream review and clip candidate summary
+- next stream topic and recurring segment candidate summary
+- monetization category enablement table
+- sponsorship, affiliate, merchandise, voice-product, and membership policy
+  readiness
+- pay-to-rank risk status
+- revenue pressure risk status
+- model/API usage and budget status
+- cost, latency, retry, storage, and quota health summaries
+- dependency pressure and companion-safety signal summaries
+- public analytics dashboards for audience growth, retention, community
+  health, monetization health, safety health, operational health, and cost
+  health
+- safe export of summary-only analytics
+- anime character bible readiness status
+- anime performance reference readiness status
+- anime canon versus stream persona separation policy
+- spoiler unlock calendar by date, region, platform, and topic
+- anime release mode selection and scheduled transition preview
+- voice actor and original voice license readiness by use category
+- original voice fallback or disable status
+- catchphrase, speech-style, taboo phrase, and character image guard status
+- fan contribution, public credit, community lore, and official meme review
+  queues
+- anime campaign, merchandise, digital goods, and voice product readiness
+  checklists
+- sponsor fit and brand safety review for the anime character image
+- anime viewing funnel, membership, and product conversion summary
+- spoiler incident, canon conflict, and character image drift summaries
+- in-character communication mode status
+- generic-assistant wording risk status
+- fourth-wall and operational disclosure frequency summary
+- fallback out-of-character occurrence summary
+- Live2D, TTS, subtitle, and response-text performance alignment status
+- character-specific reaction, pause, habit, and callback usage summary
+- facial expression and emotion transition match status
+- gaze, blink, mouth-shape, lip-sync, posture, and small-gesture match status
+- idle motion, breathing rhythm, pose silhouette, and recovery motion match
+  status
+- voice quality, timbre, pitch range, intonation, accent, breathiness,
+  laughter, sigh, and filler match status
+- speech speed, pause length, response rhythm, and subtitle pacing match status
+- catchphrase wording, frequency, variation, and scene-fit review status
+- anime reference version, approval owner, and live promotion status
+- performance drift review queue for expression, motion, voice, speech style,
+  and timing issues
+
+Anime Performance Matching must provide a lightweight operator path before any
+full settings view. The Admin Panel must expose a compact summary CLI and API
+route for anime performance configuration counts, configured/missing status,
+and the next safe script name. This route must be discoverable from the local
+Debug page and global dashboard so long-running development and routine
+operations can verify readiness without loading full character, voice, anime
+reference, or production-material settings.
+
+All controls must use safe summaries, fixed labels, booleans, counts, or
+operator-approved settings. Write actions must require role authorization,
+explicit confirmation when they affect live operation, and audit logging.
+
+The Admin Panel must not expose raw comments, support messages, private viewer
+IDs, hidden relationship scores, raw memories, raw candidate payloads, commands,
+raw frames, raw voice samples, endpoint values, secrets, raw SQL, database
+values, internal model paths, dataset paths, raw story bible text, unreleased
+plot details, raw animation cuts, unreleased footage, raw model sheets, raw
+expression sheets, raw motion sheets, raw pose guides, raw script excerpts,
+private dialogue notes, private production notes, raw voice direction notes,
+voice actor contract text, sponsor negotiation notes, revenue contracts, or raw
+jobs through these growth, trust, business, anime IP, safety, cost, or analytics
+surfaces.
+
+## 21. Audit Trail
+
+The Admin Panel must keep a safe audit trail for operator actions.
+
+Required audit entries:
+
+- actor role
+- action type
+- safe target label
+- before/after safe status labels when applicable
+- confirmation required flag
+- result status
+- timestamp
+- safe error code if failed
+
+The audit trail must not include secrets, endpoint values, token values, raw
+payloads, raw comments, raw support messages, raw candidates, raw commands, raw
+frames, raw voice samples, internal model paths, dataset paths, or raw jobs.
+
+## 22. Implementation Priority
+
+Admin Panel implementation should proceed in this order:
+
+1. read-only global dashboard
+2. integration readiness checklist
+3. emergency stop and pause controls
+4. safe character and voice settings
+5. memory and relationship review queue
+6. YouTube/support ingest status
+7. OBS/Live2D/TTS setup wizards
+8. game observation and action approval status
+9. scenario rehearsal center
+10. backup/export/restore
+11. analytics and long-term health
+12. fan growth and community culture management
+13. AI transparency and viewer trust management
+14. business model and monetization safety management
+15. companion safety and attachment-boundary management
+16. cost governance management
+17. anime IP, canon, spoiler, voice license, and character image management
+18. character communication experience management
+19. anime performance matching management
+20. multi-character management
+
+The first MVP Admin Panel may be read-only except for emergency stop and safe
+local settings. Write operations must be added only after validation,
+authorization, and audit logging are in place.
+
+## 23. Acceptance Criteria
+
+The Admin Panel is acceptable when:
+
+- a non-technical operator can see whether IRIS is ready for streaming
+- setup gaps are shown as safe next actions
+- emergency stop is always available
+- memory and relationship candidates cannot bypass validators
+- input action candidates cannot bypass game action validation
+- original/custom voice source licensing status is visible without exposing
+  sensitive values
+- OBS, Live2D, TTS, YouTube, memory, relationship, game, overlay, and replay
+  readiness can be inspected without reading env files or logs
+- fan growth, community culture, AI transparency, content strategy, business
+  model, companion safety, public analytics, and cost governance can be
+  inspected and managed as safe summaries, settings, queues, or confirmed
+  operator actions
+- anime character bible, canon separation, spoiler calendar, release mode,
+  voice actor license readiness, fan contribution review, community lore,
+  anime-linked products, sponsor fit, and character image risk can be inspected
+  and managed as safe summaries, settings, queues, or confirmed operator
+  actions
+- in-character communication quality, generic-assistant wording risk,
+  operational disclosure impact, fallback out-of-character frequency, and
+  Live2D/TTS/subtitle/response alignment can be inspected as safe summaries
+- facial expression, fine gesture, motion, voice quality, catchphrase,
+  speaking style, speech speed, pause, and subtitle pacing match status can be
+  inspected and approved against anime references without exposing raw
+  production or voice materials
+- public Admin Panel JSON remains safe under boundary audit
+- test fixtures prove no secrets, endpoint values, raw YouTube text, support
+  messages, candidates, commands, raw frames, raw voice samples, dataset paths,
+  internal model paths, raw story bible text, unreleased plot details, raw
+  animation cuts, unreleased footage, raw model sheets, raw expression sheets,
+  raw motion sheets, raw pose guides, raw script excerpts, private dialogue
+  notes, private production notes, raw voice direction notes, voice actor
+  contract text, sponsor negotiation notes, revenue contracts, or raw jobs leak
+  through Admin Panel summaries

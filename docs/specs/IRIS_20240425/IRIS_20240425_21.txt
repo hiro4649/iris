@@ -1,0 +1,238 @@
+﻿# IRIS 開発仕様書
+
+## Phase21 完全整合版（記憶の自然想起・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase20 の関係深化 export と Phase05 / Phase13 の memory / canon 制約に従い、IRIS が記憶を自然に思い出し、発話へ安全に混ぜるための最小実装仕様を定義する。
+
+本フェーズの目的は記憶量を増やすことではない。
+思い出し方を人間らしく、しつこくなく、安全にすることだ。
+
+## 00.1 Memory Source 非改変ルール
+
+Phase21 は既存 memory / canon を読むだけであり、記憶を採用・更新・削除しない。
+記憶の採用判断は Phase05 / Phase13 の責務である。
+Phase21 の selected_memory_ids は発話時参照候補であり、commit 指示ではない。
+
+## 01. 目的
+
+- 記憶想起のタイミングを制御する
+- 個人記憶とコミュニティ記憶を使い分ける
+- 関係値に応じた自然な参照を可能にする
+- privacy / safety / community openness を守る
+
+## 02. スコープ
+
+- Recall Candidate Selector
+- Recall Timing Controller
+- Memory Privacy Filter
+- Recall Phrase Builder
+- Community Memory Mixer
+- Recall Validator
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase20 export
+- current_event
+- conversation_state
+- user_id
+- memory_index_results
+- safety_status
+
+side input:
+
+- stream_context
+- community_memory
+- recent_recall_history
+- topic_similarity_score
+
+## 04. Recall Candidate
+
+必須フィールド:
+
+- memory_id
+- memory_type
+- owner_scope
+- relevance_score
+- sensitivity_level
+- freshness
+- recall_allowed
+
+memory_type:
+
+- short_term
+- episodic
+- semantic
+- relationship
+- community
+- game_experience
+
+## 05. Recall Timing
+
+想起を許可する条件:
+
+- 現在話題と高関連
+- ユーザーが前回話題を再開
+- 久しぶりの来訪
+- 配信内ミームが再発
+- ゲーム状況が過去経験と一致
+
+禁止:
+
+- 毎回の挨拶で過去話を出す
+- 話題に関係ない記憶を出す
+- 深刻な個人情報を公開する
+
+## 06. Privacy Filter
+
+sensitivity_level:
+
+- public
+- low
+- private
+- sensitive
+
+private 以上は本人が話題にした場合のみ慎重に扱う。
+sensitive は原則発話禁止。
+
+## 07. Recall Phrase
+
+自然想起は短く行う。
+
+例:
+
+- それ前にも言ってたよね
+- 前の配信のあれ、まだ覚えてる
+- そのゲーム好きって言ってたやつだ
+- それ、うちの配信でミームになりかけてる
+
+数値や内部IDを発話してはならない。
+
+## 08. Community Memory
+
+コミュニティ記憶は場の文化形成に使う。
+
+許可:
+
+- 配信内ミーム
+- 共有イベント
+- 定番の流れ
+
+禁止:
+
+- 新規視聴者を排除する内輪化
+- 特定ユーザーの過剰露出
+- 過去の荒れ話題の掘り返し
+
+## 09. 出力契約
+
+Phase21 export:
+
+- recall_decision
+- selected_memory_ids
+- recall_phrase_hint
+- privacy_filter_result
+- community_memory_mix
+- recall_reject_reason
+
+## 10. HARD 制約
+
+- sensitive memory を発話してはならない
+- 記憶想起でユーザーを追い詰めてはならない
+- relation_score を発話してはならない
+- Phase05 / Phase13 の記憶採用制約に違反してはならない
+
+## 11. STOP 条件
+
+- privacy risk
+- memory relevance 低
+- recent_recall 過多
+- safety_status unsafe
+- user mismatch
+
+## 12. テスト仕様
+
+- 関連話題で自然想起する
+- 関係ない記憶を出さない
+- private memory を不用意に出さない
+- コミュニティ記憶が内輪化しない
+- 同じ記憶を連発しない
+
+## 13. 開発者向け最終指示
+
+Phase21 の目的は IRIS に記憶を見せびらかせることではない。
+IRIS が必要な時に、少しだけ自然に思い出すことだ。
+
+## 14. Recall Commit Firewall
+
+Phase21 の selected_memory_ids / recall candidate は参照候補であり、記憶採用・更新・削除の命令ではない。
+
+必須:
+
+- selected_memory_ids は read-only reference とする
+- persistence writer は selected_memory_ids を commit input として受け取ってはならない
+- 発話に混ぜる場合も privacy / relevance / canon guard を通す
+
+Fail:
+
+- selected_memory_ids が memory_store 更新に直接使われた
+- recall candidate が memory commit として扱われた
+- private memory が guard なしに surface_text へ混入した
+
+## 15. ゲーム・配信の長期記憶想起
+
+Phase21 は `game_experience` と `stream_experience` を recall 対象として扱う。
+
+`game_experience` の例:
+
+- 過去に遊んだゲーム
+- 印象的な成功・失敗
+- 視聴者と共有したゲーム内ミーム
+- 次回へ続くゲーム目標
+
+`stream_experience` の例:
+
+- 配信ごとの代表的出来事
+- 共有ミーム
+- 印象的コメント
+- 未解決の話題
+- 次回 seed
+
+制約:
+
+- ゲーム画面や配信ログをそのまま記憶として発話しない
+- selected_memory_ids は read-only reference のまま扱う
+- private / sensitive memory は本人文脈でも慎重に扱う
+- 新規視聴者が入れない内輪化を避ける
+
+## 16. 過去ゲームプレイのライブ配信内発話
+
+Phase21 は `game_experience` を、ライブ配信中の自然な回想発話に使ってよい。
+
+許可:
+
+- 前回プレイの成功・失敗を短く参照する
+- 視聴者と共有したゲーム内ミームを軽く拾う
+- 現在の状況と過去の自分の判断を比較する
+- 次回目標、リベンジ、反省を短く発話する
+
+制約:
+
+- raw log / raw screen content をそのまま発話しない
+- private / sensitive memory を混ぜない
+- selected_memory_ids は read-only reference として扱う
+- Phase24 input_action_candidate を記憶として採用しない
+
+## 17. 動画視聴体験の想起制約
+
+ゲーム以外の動画視聴体験は `media_watch_experience` 候補として扱える。
+
+制約:
+
+- 他YouTube、アニメ、他者配信動画の長文台詞、字幕、歌詞、既存曲メロディを記憶・発話として再現しない
+- 作品や配信者への攻撃的記憶を増幅しない
+- memory store へ入れる場合は、短い感想・反応・配信上の共有体験に限定する
+- rights_risk_note が高いものは long-term memory candidate から外す

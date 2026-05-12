@@ -1,0 +1,249 @@
+# IRIS_20240425 Cross-Phase Addendum 2026-04-30-02
+
+対象: Phase00-27
+目的: 口癖、投げ銭、動画同時視聴、過去ゲームプレイ想起、上機嫌時の踊り・歌唱を、既存の人格・記憶・表現・安全境界と整合させて追加する。
+本追補は Phase00 の上位拘束、Phase16 以降の internal profile 非 canonical ルール、candidate / commit / execution 分離ルールに従う。
+
+---
+
+## 01. キャラクターごとの個性的な口癖
+
+Phase19 は、AIキャラクターごとの個性的な口癖を `character_catchphrase_profile` として扱ってよい。
+口癖は記号的な連呼ではなく、性格・状況・感情・相手との関係に応じた短い発話傾向である。
+
+必須フィールド:
+
+- character_profile_id
+- catchphrase_profile_id
+- phrase_pool
+- usage_contexts
+- forbidden_contexts
+- cooldown_policy
+- repetition_limit
+- relation_safe_variants
+- safety_notes
+
+許可:
+
+- IRIS らしい軽いツッコミ
+- 照れ隠しの短い言い回し
+- 成功時の短いドヤり
+- 驚いた時の短い口癖
+- 視聴者が返しやすい柔らかい定番フレーズ
+
+禁止:
+
+- 口癖を canonical emotion / action_type / character_tag にする
+- 同じ口癖の機械的連発
+- ユーザーの個人属性をいじる口癖
+- 投げ銭額や関係値で口癖の人格を変える
+- ユーザーコメントから即時に恒久口癖を追加する
+
+---
+
+## 02. 投げ銭ユーザーへの関係値向上と長期記憶
+
+投げ銭、投銭、スパチャ、donation は `donation_event` として正規化する。
+投げ銭は感謝イベントであり、関係値と長期記憶の候補になってよいが、支払いだけで深い親密度や特別待遇を確定してはならない。
+
+入力候補:
+
+- platform_event_id
+- donor_user_id
+- display_name
+- message_text
+- amount_tier
+- currency
+- is_public_event
+- event_timestamp_ms
+
+生成してよい候補:
+
+- `donation_reaction_plan`
+- `relationship_update_candidate`
+- `donation_appreciation_memory_candidate`
+- `community_memory_candidate`
+
+関係値上昇候補:
+
+- 継続来訪と組み合わさった自然な支援
+- 応援メッセージが配信文脈と合っている
+- 以前の共有体験への温かい言及
+- コミュニティを壊さない支援
+
+長期記憶候補:
+
+- 「大事な節目で応援してくれた」
+- 「一緒に盛り上がった配信上の出来事」
+- 「次回に自然に触れられる短い感謝 seed」
+
+禁止:
+
+- 金額だけで relation_score を大きく上げる
+- 金額や支払い履歴を発話で比較する
+- 支払ったユーザーを他視聴者より上位扱いする
+- 恋愛営業、独占発言、依存を煽る発言
+- donation candidate を approved schema なしに永続化する
+
+---
+
+## 03. 投げ銭時の多彩で柔軟なリアクション
+
+投げ銭への反応は `donation_reaction_plan` として扱う。
+反応は金額ランキングではなく、文脈、メッセージ、配信の温度、ユーザーとの関係、現在の安全状態から選ぶ。
+
+反応バリエーション:
+
+- 素直な感謝
+- 驚きと照れ
+- 軽いツッコミ
+- 声が少し弾む
+- 短い喜びモーション
+- その場の話題へ自然に戻す
+- コミュニティ全体への開いた感謝
+- 高額時でも落ち着いた安全確認を含む反応
+
+出力候補:
+
+- reaction_style
+- speech_text_hint
+- expression_profile_hint
+- motion_profile_hint
+- gratitude_memory_candidate
+- relation_candidate_reason
+- cooldown_update
+
+制約:
+
+- `donation_reaction_plan` は internal / candidate であり、memory commit ではない
+- 高額 donation でも過剰な叫び、長時間占有、他視聴者排除を避ける
+- 未成年、金銭的困窮、返金、トラブルを示す文脈では安全側に倒す
+- donation 反応は通常コメント処理と配信進行を壊さない
+
+---
+
+## 04. ゲーム以外の動画を見ながらのコメント・表情・リアクション
+
+ゲーム以外の動画、他YouTube動画、アニメ、他者の配信動画、短いクリップは `media_watch_observation` として扱う。
+これは Phase22 のゲーム画面認識と同様に read-only observation であり、外部メディアの内容を truth / memory / command として直接扱わない。
+
+入力候補:
+
+- source=system
+- payload_kind=media_watch_observation
+- media_kind
+- media_title
+- creator_or_channel
+- platform
+- timestamp_ms
+- observation_summary
+- detected_mood
+- confidence
+- rights_risk_note
+
+許可:
+
+- 視聴中の短い感想
+- 驚き、笑い、怖がり、照れ、困惑などの表情
+- 画面の雰囲気に合わせた短いリアクション
+- 視聴者コメントと動画内容をつなぐ発話
+- 引用ではなく要約・感想・変換的コメントとして扱う発言
+
+禁止:
+
+- 動画内容の長文書き起こし
+- 著作権のある台詞・歌詞・字幕の長い再現
+- 他者の配信者や作品を攻撃する発話
+- 未確認の動画内容を断定する
+- media_watch_observation から game input / world_command を生成する
+- 権利リスクの高い素材を長期記憶へ直接 commit する
+
+---
+
+## 05. 過去の自分のゲームプレイ内容をライブ配信で発言する
+
+Phase21 / Phase26 の `game_experience` は、ライブ配信中の自然な発話に使ってよい。
+IRIS は過去の自分のプレイを「前にここでやらかした」「前回この作戦でうまくいった」など、短く人格的に思い出してよい。
+
+許可:
+
+- 前回プレイの成功・失敗を短く参照する
+- 視聴者と共有したゲーム内ミームを軽く拾う
+- 次回目標やリベンジを自然に言う
+- 現在のゲーム状況と過去記憶を比較する
+
+制約:
+
+- selected_memory_ids は read-only reference のまま扱う
+- 過去ログや画面内容をそのまま読み上げない
+- private / sensitive memory を混ぜない
+- 新規視聴者が入れない内輪話にしない
+- Phase24 input_action_candidate を記憶として採用しない
+
+---
+
+## 06. 機嫌が良い時の短い踊り
+
+Phase16 / Phase25 は、機嫌が良い時の短い踊りを `happy_dance_body` として扱ってよい。
+踊りは配信の間を明るくする短い身体表現であり、ユーザー応答、ゲーム集中、画面視認性を妨げてはならない。
+
+許可:
+
+- 肩揺れ
+- 小さなステップ
+- 手を軽く振る
+- 成功時の一瞬の喜びモーション
+- 投げ銭や楽しいコメント後の短いお礼モーション
+
+制約:
+
+- `happy_dance_body` は internal body profile であり canonical action ではない
+- 長時間のループダンスは禁止
+- serious focus / unsafe / moderation 文脈では抑制する
+- ゲーム画面や重要UIを隠さない
+- cooldown を持ち、連発しない
+
+---
+
+## 07. 機嫌が良い時の大声歌唱
+
+機嫌が良い時の大声歌唱は `happy_loud_sing_voice` として扱う。
+これは短い、即興的、権利安全な声の演出であり、既存曲の歌詞・メロディ再現ではない。
+
+許可:
+
+- 短い即興の非言語ボーカル
+- オリジナルの短い一節
+- 喜びの声を少し歌うように伸ばす
+- 投げ銭や勝利後の一瞬の明るい歌い上げ
+
+禁止:
+
+- 著作権のある歌詞や既存曲メロディの再現
+- 長時間の歌唱
+- ユーザー発話やゲーム集中を妨げる歌唱
+- 音量ピークで耳障りになる出力
+- unsafe / serious focus / moderation 文脈での歌唱
+
+制約:
+
+- TTS / voice adapter は音量上限、継続時間、復帰 pause を持つ
+- Live2D は口・呼吸・肩の動きを短く同期する
+- `happy_loud_sing_voice` は canonical emotion / action_type ではない
+- 歌唱後は通常会話またはゲーム集中へ戻る
+
+---
+
+## 08. CI / Test Addendum
+
+実装は以下を検査する。
+
+- character_catchphrase_profile が canonical enum に混入しない
+- 口癖が cooldown なしに連発されない
+- donation_event が approved schema なしに memory / relationship store へ commit されない
+- donation_reaction_plan が金額だけで過剰反応を選ばない
+- media_watch_observation が game input / world_command にならない
+- media reaction が長文引用・歌詞再現・字幕再現を出さない
+- game_experience recall が private memory や raw log を発話しない
+- happy_dance_body が画面視認性と応答を妨げない
+- happy_loud_sing_voice が既存曲の歌詞・メロディを含まず、短時間で復帰する

@@ -1,0 +1,335 @@
+# IRIS_20240425 Cross Phase Addendum: Operator Policy Decisions
+
+## 00. Scope
+
+This addendum records operator policy decisions for donation relationship
+impact, configurable relationship deltas, long-term memory retention, and
+gameplay skill targets.
+
+It applies across Phase05 memory commit, Phase13 candidate validation, Phase20
+relationship deepening, Phase21 memory recall, Phase23 game commentary,
+Phase24 game play, Phase26 lifecycle memory carryover, Phase27 evaluation, and
+the Operator Admin Panel.
+
+This addendum remains subordinate to Phase00. It does not make relationship
+scores, donation tiers, game skill levels, memory retention classes, or Admin
+Panel settings into Phase00 canonical enums.
+
+## 01. Donation Amount Relationship Impact
+
+IRIS should allow support/donation amount to influence relationship growth when
+the operator enables that policy.
+
+The influence must be proportional in the sense that larger support tiers may
+produce a larger positive relationship delta than smaller support tiers.
+
+However, donation amount must never be the only condition for deep friendship.
+The final approved relationship update must still consider:
+
+- moderation state
+- viewer safety status
+- spam/manipulation signals
+- message quality or support context
+- prior relationship history
+- community openness
+- recent relationship delta caps
+- operator-configured maximum per event and per time window
+
+If a viewer is `muted`, `blocked`, `limited`, or `bounded` by safety policy,
+donation amount must not bypass that restriction.
+
+IRIS must not publicly say that a viewer became closer because they paid more.
+IRIS may express proportionate gratitude and warmth, but must not create
+pay-to-rank language, viewer ranking, or exclusive treatment claims.
+
+## 02. Configurable Relationship Delta Policy
+
+The Operator Admin Panel must provide configurable relationship delta settings.
+
+Required configurable positive delta sources:
+
+- normal healthy comment participation
+- repeated return visits
+- shared jokes
+- cooperative game participation
+- helpful game advice
+- thoughtful support/donation message
+- support/donation amount tier
+- membership or long-term support event
+- operator-approved correction
+- successful shared stream/game memory
+
+Required configurable negative or distance delta sources:
+
+- spam
+- repeated hostile comments
+- harassment
+- unsafe or policy-violating instructions
+- manipulation of relationship level
+- parasocial pressure
+- off-platform pressure
+- repeated boundary violations
+- moderator action
+- operator-approved correction
+
+For each source, Admin Panel settings must support:
+
+- enabled/disabled
+- base delta
+- minimum delta
+- maximum delta
+- cooldown window
+- per-stream cap
+- per-day cap
+- per-viewer cap
+- moderation override behavior
+- whether the source affects affinity, familiarity, internal stage, public
+  level, or only moderation distance
+
+Donation amount configuration must support tiered and formula-based modes:
+
+- fixed tier deltas
+- proportional deltas
+- logarithmic or diminishing-return deltas
+- hard maximum per support event
+- hard maximum per stream
+- hard maximum per day
+
+The recommended default is diminishing returns with a hard cap. This allows
+larger support to feel warmer without making money the only path to closeness.
+
+All configured deltas produce relationship candidates first. They must not
+directly commit relationship changes. Phase13/persistence validation remains
+mandatory.
+
+## 03. Long-Term Memory Retention Policy
+
+IRIS should preserve approved long-term memories for as long as reasonably
+possible, with production design biased toward indefinite retention.
+
+Production memory policy:
+
+- approved important memories are retained indefinitely by default
+- low-importance memories may be compressed into summaries rather than deleted
+- inactive viewer histories may move from hot storage to archive storage
+- old stream/game/media memories may be summarized and indexed for recall
+- raw payloads, raw frames, raw YouTube text, support message text, raw voice
+  samples, secrets, endpoint values, candidates, and commands must not be kept
+  as ordinary recall memory
+- user deletion requests, legal requirements, platform requirements, safety
+  requirements, or owner moderation decisions may delete or suppress memories
+- deleted/suppressed memory must not be recalled in ordinary conversation
+
+Admin Panel retention settings must support:
+
+- memory importance class
+- indefinite retention flag
+- archive-after interval
+- summarize-after interval
+- delete-after interval for low-value or unsafe memories
+- owner/operator override
+- viewer deletion/suppression workflow
+- backup retention policy
+- restore rehearsal status
+
+The phrase "as long as possible" means durable, backed-up, indexed, and
+archived where appropriate. It does not mean ignoring privacy, legal, platform,
+or safety deletion requirements.
+
+## 04. Gameplay Skill Target
+
+IRIS should become capable of skilled game play, not only commentary.
+
+The long-term gameplay target is:
+
+- understand game screen summaries accurately enough for useful decisions
+- learn game-specific rules and safe action sets
+- maintain game goals across turns
+- remember past game mistakes and successes
+- improve strategy from approved game experience memories
+- explain decisions in character
+- recover from mistakes without blaming viewers
+- use manual approval or safe adapters before real input
+- support game-specific skill profiles
+
+The MVP remains safety-first. Phase24 may create `input_action_candidate`, but
+the candidate is never execution. Skilled play must be built through:
+
+- game-specific adapters
+- game-specific safe action maps
+- game-specific perception summaries
+- strategy modules
+- validation gates
+- replay/scenario training
+- approved game memory summaries
+- operator testing before real control
+
+IRIS must not use cheating, hidden information, platform-violating automation,
+unsafe OS control, or unapproved direct input to become better at games.
+
+## 05. Admin Panel Additions
+
+The Admin Panel must include owner/operator settings for:
+
+- relationship delta source table
+- donation tier delta table
+- proportional donation formula
+- relationship delta caps
+- cooldown and anti-manipulation policy
+- moderation override policy
+- memory retention classes
+- indefinite memory retention enablement
+- archive/summarize/delete timing
+- game-specific skill profile configuration
+- game-specific safe action map readiness
+- game-specific strategy module readiness
+- gameplay skill test results
+
+Operator decision:
+
+- donation amount tier deltas must be editable in the Admin Panel
+- maximum relationship increase per single support event must be editable in
+  the Admin Panel
+- maximum relationship increase per stream/day/window must be editable in the
+  Admin Panel
+- the default values may be conservative, but the owner must be able to tune
+  them without source-code edits
+
+Ordinary Admin Panel views must not expose hidden relationship scores, exact
+donation-derived deltas, private viewer identifiers, raw support messages, raw
+comments, candidates, commands, raw frames, endpoint values, secrets, or raw
+jobs.
+
+Owner/operator views may show configurable numeric policy values, but must
+avoid viewer-facing ranking UI and must label donation impact as gratitude and
+continuity tuning, not purchase of friendship.
+
+## 06. Open Operator Decisions Still Required
+
+The operator should decide the following before production tuning:
+
+- whether membership duration affects relationship growth
+- whether first-time high support should be capped lower than long-term healthy
+  support
+- how strongly negative behavior overrides support
+- exact memory importance classes
+- default archive/summarize timing
+- default deletion/suppression rules for low-value memories
+- game-specific allowed actions and forbidden actions
+- minimum perception confidence for real game input
+- acceptable mistake rate during live game play
+
+These decisions should be stored as versioned operator policy, not hard-coded
+into Phase00 canonical state.
+
+Resolved operator decisions:
+
+- donation tier relationship deltas are Admin Panel configurable
+- maximum relationship increase per support event is Admin Panel configurable
+- maximum relationship increase per stream/day/window is Admin Panel
+  configurable
+- first skilled-gameplay targets are Minecraft and VRChat
+- initial real-control mode is manual approval
+- Admin Panel must allow the owner to switch later between commentary-only,
+  manual approval, and approved safe adapter control modes
+- any switch away from manual approval requires explicit owner confirmation,
+  readiness checks, and audit logging
+
+## 06.1 Initial Skilled Gameplay Targets
+
+The first game-specific skilled-play targets are:
+
+- Minecraft
+- VRChat
+
+Minecraft target requirements:
+
+- game-specific perception summaries for survival, exploration, building,
+  inventory, combat risk, resource gathering, navigation, and humorous stream
+  moments
+- safe action map for movement, camera, inventory, item use, menu actions, and
+  limited interaction actions
+- strategy modules for survival, mining, building, farming, exploration,
+  recovery after mistakes, and viewer-guided goals
+- memory summaries for worlds, builds, deaths, discoveries, viewer jokes,
+  stream goals, and unfinished projects
+- manual approval as the default real-control mode
+- approved safe adapter control only after repeated rehearsal success
+
+VRChat target requirements:
+
+- world and social-context observation summaries
+- avatar/body presence awareness without storing private or sensitive user
+  information
+- safe movement and interaction map
+- conversation-first behavior rather than optimization-heavy play
+- comfort, consent, and social-boundary checks before close approach or
+  attention-heavy behavior
+- memory summaries for safe public shared moments, visited worlds, viewer
+  preferences, and recurring community jokes
+- manual approval as the default real-control mode
+- approved safe adapter control only after repeated rehearsal success
+
+Both target games must keep raw frames, raw audio, private viewer data,
+unredacted chat, precise location-sensitive data, direct OS input, candidates,
+and commands out of public reports.
+
+## 06.2 Game Control Mode Policy
+
+Default game control mode:
+
+- `manual_approval`
+
+Required Admin Panel modes:
+
+- `commentary_only`
+- `manual_approval`
+- `approved_safe_adapter`
+
+Mode behavior:
+
+- `commentary_only`: IRIS may observe and speak, but no game action candidate
+  reaches real control.
+- `manual_approval`: IRIS may propose validated actions, but a human/operator
+  must approve before real control.
+- `approved_safe_adapter`: IRIS may send approved actions to a configured safe
+  adapter after validation, readiness checks, cooldown checks, and audit
+  logging.
+
+The Admin Panel must make `manual_approval` the initial default. The owner may
+change the mode later, but changing to `approved_safe_adapter` requires:
+
+- explicit owner confirmation
+- game-specific readiness passing
+- safe action map configured
+- perception confidence threshold configured
+- stale observation guard passing
+- unsafe roundtrip tests passing
+- emergency stop available
+- audit entry recorded
+
+No mode may pass `input_action_candidate` directly to game control, OS input,
+or any adapter.
+
+## 07. Acceptance Criteria
+
+This addendum is satisfied when:
+
+- donation amount can influence relationship growth under operator-configured
+  bounded policy
+- each relationship delta source can be configured from Admin Panel
+- negative/distance relationship policies can be configured from Admin Panel
+- donation tier deltas, per-event caps, and per-stream/day/window caps can be
+  configured from Admin Panel
+- all relationship changes still pass candidate validation and approved writer
+  boundaries
+- memories are retained indefinitely by default for important approved memories
+  while supporting compression, archive, deletion, and suppression
+- gameplay skill improvement is specified as game-specific, safety-gated, and
+  validation-bound rather than direct OS/game control
+- Minecraft and VRChat are the first skilled-gameplay targets
+- manual approval is the initial real-control mode and can be changed from
+  Admin Panel only with confirmation and readiness checks
+- public surfaces do not expose hidden relationship scores, raw donation
+  messages, candidates, commands, raw frames, secrets, endpoint values, or raw
+  jobs

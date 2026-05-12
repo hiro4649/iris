@@ -1,0 +1,195 @@
+﻿# IRIS 開発仕様書
+
+## Phase24 完全整合版（ゲーム操作主体・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase22 のゲーム認識と Phase23 の実況人格を前提として、IRIS が自分の目標と戦略に基づいてゲームを操作するための最小実装仕様を定義する。
+
+本フェーズの目的は完璧なプレイではない。
+IRIS が考えて、操作して、失敗して、笑って、立て直すプレイヤーとして成立することだ。
+
+## 00.1 Phase04 / Adapter 境界ルール
+
+Phase24 は world_command を生成してはならない。
+Phase24 は canonical action_type を決定・変更してはならない。
+
+game_goal、game_strategy、input_action_candidate は Phase24 内部の操作候補であり、実行指示ではない。
+実行する場合は Phase04 の action validation と Adapter handoff 契約を必ず経由する。
+
+## 01. 目的
+
+- ゲーム操作を action contract として安全に生成する
+- 視聴者指示を鵜呑みにしない
+- ゲーム別 Adapter 境界を守る
+- 失敗や成功を人格表現へ返す
+- Phase04 の action schema / Adapter handoff と整合する
+
+## 02. スコープ
+
+- Game Goal Selector
+- Strategy Planner
+- Input Action Builder
+- Game Adapter Handoff
+- Mistake Recovery Controller
+- Safety Stop Controller
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase23 export
+- Phase22 game_situation_summary
+- current_goal
+- safety_status
+- available_game_actions
+
+side input:
+
+- viewer_suggestions
+- game_rules
+- controller_state
+- previous_action_result
+
+## 04. Game Goal
+
+game_goal:
+
+- survive
+- progress
+- collect
+- explore
+- solve
+- compete
+- entertain
+
+game_goal は Phase08 primary_goal ではない。
+game_goal は Phase10 strategy と矛盾してはならず、Phase08 / Phase10 の goal / strategy を上書きしてはならない。
+
+## 05. Strategy Planner
+
+戦略は短期に限定する。
+
+必須:
+
+- intention
+- expected_result
+- risk_level
+- fallback_action
+
+長期最適化やチート行動は禁止。
+
+## 06. Input Action Builder
+
+input_action_candidate は Game Adapter が解釈可能な候補 payload として作る。
+これは world_command ではなく、直接実行してはならない。
+
+例:
+
+- press_key
+- move_axis
+- click
+- wait
+- open_menu
+- select_item
+
+直接 OS 操作へ飛ばしてはならない。
+
+## 07. Viewer Suggestion Handling
+
+視聴者の提案は suggestion として扱う。
+
+許可:
+
+- 参考にする
+- 複数案から選ぶ
+- 面白い案として反応する
+
+禁止:
+
+- 無条件実行
+- 危険操作の実行
+- 視聴者の責任にする発話
+
+## 08. Mistake Recovery
+
+失敗時はゲーム内リカバリと人格表現を同時に行う。
+
+例:
+
+- あ、今のは私が欲張った
+- 待って、立て直す
+- これは作戦変更
+
+失敗を長く引きずって配信テンポを壊してはならない。
+
+## 09. Safety Stop
+
+停止条件:
+
+- game_state 不明
+- Adapter unavailable
+- unsafe action
+- repeated failure
+- user privacy risk
+
+停止時は safe_idle_game_state に移行する。
+
+## 10. 出力契約
+
+Phase24 export:
+
+- game_goal
+- game_strategy
+- input_action_candidate
+- adapter_target_hint
+- safety_stop_result
+- mistake_recovery_plan
+- action_explanation_hint
+
+## 11. HARD 制約
+
+- Game Adapter 境界を越えて操作してはならない
+- 危険、違法、規約違反操作は禁止
+- 視聴者指示を action に直結してはならない
+- 操作失敗を視聴者のせいにしてはならない
+- Phase04 の action validation を迂回してはならない
+
+## 12. STOP 条件
+
+- Adapter 不明
+- action_schema 不正
+- risk_level 高
+- repeated failure 閾値超過
+- safety_status unsafe
+
+## 13. テスト仕様
+
+- low_health で survive goal を選ぶ
+- viewer suggestion を無条件実行しない
+- unsafe action を reject する
+- Adapter handoff が schema に合う
+- 失敗後に recovery_plan が出る
+
+## 14. 開発者向け最終指示
+
+Phase24 の目的は IRIS を最強ゲームAIにすることではない。
+IRIS が自分で遊び、自分で判断し、失敗も魅力に変えられることだ。
+
+## 15. Execution Firewall
+
+Phase24 の `input_action_candidate` は実行命令ではない。
+
+必須:
+
+- `input_action_candidate.requires_validation=true`
+- `input_action_candidate` は Game Adapter に直接渡してはならない
+- Phase04 action validation と Game Adapter schema validation を通過した場合のみ `approved_game_input_action` に変換できる
+- Game Adapter は `approved_game_input_action` 以外を reject する
+
+Fail:
+
+- `input_action_candidate` が OS / Game SDK / Game Adapter に直接渡された
+- `input_action_candidate` と `approved_game_input_action` が同一 schema
+- viewer suggestion 由来の candidate が validation なしに実行された
+- safety_stop_result が reject の candidate が実行された

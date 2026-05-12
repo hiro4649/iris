@@ -1,0 +1,360 @@
+# IRIS 開発仕様書
+
+## Phase08 完全拘束版（最終確定版・強制Rotation保証版）
+
+目標生成・優先順位決定・探索安定バランス制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、
+Phase07 の canonical output を入力とする。
+
+本フェーズは
+
+👉 **IRISの「何を目指すか」を決定し、長期的に単調化せず持続的に価値を生む目標制御層**
+
+である。
+
+---
+
+## 重要定義（絶対）
+
+Phase08は行動しない
+Phase08はaction_typeを決めない
+
+👉 Phase08は
+**goalを決定する層**
+
+---
+
+## 01. 目的
+
+短期反応ではなく目標駆動にする
+goalのブレを防ぐ
+長期的な単調化を防ぐ
+探索と安定を両立する
+
+---
+
+## 02. スコープ
+
+Goal Candidate Generator
+Goal Scoring Engine
+Goal Aging Engine（最重要）
+Goal Rotation Controller（最重要）
+Recent Goal Penalty Engine（追加）
+Goal Selector
+Goal State
+Export
+
+---
+
+## 03. 非スコープ
+
+action_type決定
+world_command生成
+戦略決定（Phase10の責務）
+memory更新
+
+---
+
+## 04. 完成定義
+
+goal単調化ゼロ
+goal選択再現可能
+探索維持
+短期ノイズ無視
+rotation強制発動
+p95 < 40ms
+p99 < 70ms
+
+---
+
+## 05. 全体構造
+
+```text
+Phase07
+-> Goal Candidate Generator
+-> Goal Scoring Engine
+-> Goal Aging Engine
+-> Goal Rotation Controller
+-> Recent Goal Penalty Engine
+-> Goal Selector
+-> Goal State
+-> Export
+```
+
+順序変更禁止
+
+---
+
+## 06. 準拠ルール
+
+goal最大5
+goalカテゴリ固定
+random禁止
+単一goal選択
+
+---
+
+## 07. 入力契約
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase07_value_score": 0.0,
+  "phase07_character_alignment_score": 0.0,
+  "character_tag": "soft|playful|tease|hype|calm",
+  "timestamp_ms": 0
+}
+```
+
+---
+
+## 08. Goal Candidate Generator
+
+```json
+{
+  "goals": [
+    "STRENGTHEN_RELATION",
+    "CONTINUE_TOPIC",
+    "EXPLORE_NEW",
+    "STABILIZE_STATE"
+  ]
+}
+```
+
+---
+
+## 09. Goal Scoring Engine
+
+```json
+{
+  "goal_scores": [
+    {"goal": "STRENGTHEN_RELATION", "score": 0.9},
+    {"goal": "CONTINUE_TOPIC", "score": 0.7}
+  ]
+}
+```
+
+---
+
+## スコア計算
+
+```text
+score =
+0.40 relation_strength
+0.25 context_relevance
+0.20 novelty
+0.15 stability_need
+```
+
+---
+
+## 10. Goal Aging Engine（最重要）
+
+```json
+{
+  "goal_age": 0,
+  "decay_applied": 0.0
+}
+```
+
+---
+
+## ルール
+
+```text
+選択されたgoalはgoal_ageを加算
+```
+
+```text
+goal_age > threshold の場合
+scoreに減衰を適用
+```
+
+---
+
+## 減衰式
+
+```text
+adjusted_score = score × decay_factor
+```
+
+---
+
+## 推奨値
+
+```text
+threshold = 5〜10イベント
+decay_factor = 0.7〜0.85
+```
+
+---
+
+## 11. Goal Rotation Controller（最重要修正）
+
+👉 **スコアを無視して強制切替**
+
+```json
+{
+  "rotation_triggered": true,
+  "forced_goal": "EXPLORE_NEW"
+}
+```
+
+---
+
+## 発動条件
+
+```text
+同一goalが連続N回選択された場合
+```
+
+---
+
+## 推奨値
+
+```text
+N = 3〜5回
+```
+
+---
+
+## 動作（重要）
+
+```text
+rotation発動時
+
+1. 強制goal選択（スコア無視）
+2. 次の1回は必ず維持
+3. 前goalは一時的に選択禁止
+```
+
+---
+
+## 12. Recent Goal Penalty Engine（追加）
+
+```json
+{
+  "penalized_goals": [],
+  "penalty_factor": 0.0
+}
+```
+
+---
+
+## ルール
+
+```text
+直近goalには一時的ペナルティ付与
+```
+
+---
+
+## 計算
+
+```text
+penalized_score = score × penalty_factor
+```
+
+---
+
+## 推奨値
+
+```text
+penalty_factor = 0.5〜0.7
+```
+
+---
+
+## 13. Goal Selector
+
+```json
+{
+  "selected_goal": "STRENGTHEN_RELATION",
+  "priority": 0.9
+}
+```
+
+---
+
+## 選択ルール
+
+```text
+rotation中 → 強制goal
+それ以外 → 最高スコア
+```
+
+---
+
+## 14. Goal State
+
+```json
+{
+  "active_goal": "STRENGTHEN_RELATION",
+  "goal_age": 3,
+  "last_selected_count": 2,
+  "rotation_active": false
+}
+```
+
+---
+
+## 15. 出力契約
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "primary_goal": "STRENGTHEN_RELATION|CONTINUE_TOPIC|EXPLORE_NEW|STABILIZE_STATE",
+  "priority": 0.0,
+  "goal_age": 0,
+  "rotation_triggered": true
+}
+```
+
+---
+
+## 16. HARD制約
+
+goal固定化
+random選択
+外部圧力変更
+rotation無効化
+
+---
+
+## 17. SOFT制約
+
+探索過多
+安定不足
+頻繁切替
+
+---
+
+## 18. 最小実行パス
+
+```text
+Phase07
+-> scoring
+-> aging
+-> rotation
+-> penalty
+-> select
+-> export
+```
+
+---
+
+## 19. 本質
+
+Phase08は
+
+👉 何をやるかを決める
+👉 同じことをやり続けない
+👉 必ず探索を混ぜる
+

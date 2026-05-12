@@ -1,0 +1,855 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase03 完全整合版（最終整合版・単体完結版）
+
+軽量文脈圧縮・会話流れ補助フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**とし、さらに **Phase01 完全整合版（最終整合版）** と **Phase02 完全整合版（最終整合版）** が producer する canonical export を唯一の入力 source として、IRIS が **会話の流れを壊さずに、最低限の文脈補助を行うための最小実装仕様** を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書は Addendum を前提にしない。
+本書は旧版 Phase03 より優先される。
+本書に未定義の挙動は実装禁止とする。
+
+このフェーズで作るものは以下だけである。
+
+直近会話の軽量圧縮
+conversation_state の判定
+topic continuity の判定
+relationship hint の最小付与
+context tag の生成
+Phase04 に渡す補助信号 export
+high load 時の即時無効化
+deterministic な context validator
+
+このフェーズでは LLM を使わない。
+このフェーズでは自由文を生成しない。
+このフェーズでは長期記憶を更新しない。
+このフェーズでは intent を変更しない。
+このフェーズでは reaction を変更しない。
+このフェーズでは action_type を決定しない。
+このフェーズでは world_command を生成しない。
+このフェーズの役割は、**速さを殺さずに会話の流れを最小コストで足すこと** である。
+
+---
+
+## 01. 目的
+
+Phase03 の目的は以下である。
+
+Phase02 の低遅延を壊さずに会話流れ補助を行うこと
+直近会話を compact な状態へ圧縮すること
+同一話題継続を検知できること
+最小限の relationship hint を供給できること
+Phase04 に渡す canonical context export を固定すること
+Phase03 層が停止しても全体が止まらないこと
+raw payload を後続へ持ち込まずに流れだけを残すこと
+context を補うが、判断責務は奪わないこと
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Short Context Buffer
+Topic Extractor
+Conversation State Classifier
+Continuity Detector
+Relationship Hint Classifier
+Context Tag Generator
+Context Validator
+Load Shedding
+Phase03 Export Builder
+Phase03 Logging
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+埋め込み検索
+長期記憶保存
+relationship 本更新
+自由文生成
+会話戦略生成
+reward 最適化
+world ごとの人格変更
+memory retrieval の高度化
+Phase02 selector の置換
+intent 上書き
+reaction 上書き
+action 決定
+skill_id 決定
+world_command 生成
+review path 処理
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、Phase03 完了とみなす。
+
+p95 処理時間が 10ms 未満であること
+p99 処理時間が 15ms 未満であること
+Phase02 の p95 を 10ms 以上悪化させないこと
+LLM 呼び出し回数が 0 件であること
+同一入力列に対して同一 conversation_state を再現できること
+同一入力列に対して同一 continuity 判定を再現できること
+relationship hint 判定が固定ルールと一致すること
+Phase03 停止時も Phase02 単体で処理継続できること
+high load 時に Phase03 を無効化しても system stop が 0 件であること
+compact context が上限サイズ内に維持されること
+raw payload 全文を buffer に保持しないこと
+Phase03 Export が Phase00 の Phase03→Phase04 I/O 契約を満たすこと
+Phase03 Export に intent / reaction / action_type が上書き混入しないこと
+Phase03 Export に world_command が混入しないこと
+
+---
+
+## 04. 全体構造
+
+Phase03 の固定パイプラインは以下に固定する。
+
+```text
+Phase01 Export
++ Phase02 Export
+-> Short Context Buffer
+-> Topic Extractor
+-> Conversation State Classifier
+-> Continuity Detector
+-> Relationship Hint Classifier
+-> Context Tag Generator
+-> Context Validator
+-> Phase03 Export Builder
+-> Output
+```
+
+この順序以外は禁止する。
+Phase03 は Selector でも Planner でもない。
+決定はしない。補助信号だけを作る。
+Phase02 の reaction 決定を上書きしてはならない。
+Phase04 の action 決定を先回りしてはならない。
+Phase03 は **conversation flow helper** であって **decision layer** ではない。
+
+---
+
+## 05. Phase00 / Phase01 / Phase02 準拠ルール
+
+本フェーズは最新 Phase00、Phase01、Phase02 に従い、以下を hard rule とする。
+
+Phase01 / Phase02 の canonical export を唯一の入力 source とする
+Phase03→Phase04 の required 出力は Phase00 I/O 契約に一致しなければならない
+raw payload 全文を保持または後続へ渡してはならない
+Phase03 は intent を上書きしてはならない
+Phase03 は reaction を上書きしてはならない
+Phase03 は action を決めてはならない
+Phase03 は skill_id を決めてはならない
+Phase03 は world_command を生成してはならない
+trace_id は end-to-end で必須である
+Phase03 は review queue を受け取ってはならない
+Phase03 は長期 memory を直接参照してはならない
+Phase03 は source of truth を握ってはならない
+
+---
+
+## 06. 入力契約
+
+Phase03 は Phase01 / Phase02 の compact signal のみを受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "reaction_id": "string",
+  "variation_id": "string",
+  "target_presence_id": "uuid",
+  "timestamp_ms": 0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "speaker_token": true,
+  "mention_flag": false,
+  "priority": 0,
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "micro_expression": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+Phase01 / Phase02 由来でない暗黙入力を受け取ってはならない
+raw text 全文を参照してはならない
+payload の自由文解析を重く実装してはならない
+linked_identity_id を暗黙参照してはならない
+review path 由来 field を受け取ってはならない
+action_type を入力前提にしてはならない
+
+---
+
+## 07. Canonical conversation_state
+
+Phase03 で使用可能な conversation_state は以下のみとする。
+
+```text
+opening
+active
+closing
+idle
+```
+
+定義は以下に固定する。
+
+`opening`
+新規会話開始、再開直後、参加直後の立ち上がり
+
+`active`
+会話継続中、直近数イベントが同一流れに属する状態
+
+`closing`
+応答密度低下、終了系イベント、離脱系イベントが優勢な状態
+
+`idle`
+有意な会話流れが存在しない状態
+
+新しい state を追加してはならない。
+細分化は禁止する。
+便利だからといって `debate` `focus` `interrupt` のような局所 state を増やしてはならない。
+細かくすると壊れる。
+
+---
+
+## 08. Topic Extractor
+
+Topic Extractor は重い意味理解をしない。
+最小の topic key 抽出だけを行う。
+
+許可する入力要素は以下とする。
+
+normalized source
+intent
+mention_flag
+target_presence_id
+fixed keyword label
+reaction_id
+variation_id
+
+出力は以下のような short key だけでよい。
+
+```json
+{
+  "topic_key": "greeting_flow",
+  "topic_group": "social_opening"
+}
+```
+
+禁止事項は以下とする。
+
+自由文の意味解析
+埋め込み生成
+長文 payload の保持
+world ごとの別抽出器
+LLM 補助
+reaction の意味改変
+action 予測
+
+topic_key は固定ルールまたは固定辞書で作る。
+曖昧推論は禁止する。
+topic_key は短く、比較可能で、辞書一致しやすい形で保持すること。
+
+---
+
+## 09. Short Context Buffer
+
+Phase03 は短い buffer だけを持つ。
+用途は以下のみ。
+
+直近イベント列の保持
+topic_key の短期履歴保持
+conversation_state 判定
+continuity 判定
+relationship hint の補助
+
+最小構造は以下に固定する。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "reaction_id": "string",
+  "variation_id": "string",
+  "topic_key": "string|null",
+  "target_presence_id": "uuid",
+  "timestamp_ms": 0
+}
+```
+
+Short Context Buffer の hard rule は以下とする。
+
+raw payload 全文を保持してはならない
+自由文全文を保持してはならない
+action_type を保持してはならない
+world_command を保持してはならない
+linked identity 確定値を保持してはならない
+長期保存してはならない
+固定長 queue とし、実装可能版では 16 件以内を推奨する
+上限超過時は FIFO で削除する
+
+Buffer は会話補助専用であり、知識ベースではない。
+
+---
+
+## 10. Conversation State Classifier
+
+Conversation State Classifier は Short Context Buffer を基に conversation_state を返す。
+ここで action を決めてはならない。
+ここで intent を変えてはならない。
+
+最低限の判定ルールは以下に固定する。
+
+直近イベント列に `greet` が多い場合 `opening` 優先
+直近イベント列に `respond` が継続している場合 `active` 優先
+直近イベント列が疎になり `observe|ignore` が優勢なら `closing` または `idle`
+有意な継続流れが存在しない場合 `idle`
+
+同一入力列に対して同一 state を返さなければならない。
+random は禁止する。
+Phase02 の tone / emotion を conversation_state 決定の主要因にしてはならない。
+これは flow 判定であって mood 判定ではない。
+
+---
+
+## 11. Continuity Detector
+
+Continuity Detector は「今の入力が直近の流れの継続か」を判定する層である。
+ここで topic を作り直してはならない。
+ここで会話戦略を立ててはならない。
+
+最小出力は以下に固定する。
+
+```json
+{
+  "phase03_continuity_score": 0.0,
+  "continuity_label": "continued|shifted|unknown"
+}
+```
+
+score は 0.0〜1.0 に正規化する。
+判定材料として使ってよいのは以下に限定する。
+
+直近 topic_key 一致
+target_presence_id 一致
+intent 継続性
+イベント間時間差
+reaction family の近接性
+
+禁止事項は以下とする。
+
+長期記憶参照
+semantic embedding
+自由文比較
+identity 確定依存
+action 予測
+world ごとの別 continuity ロジック
+
+continuity は補助信号である。
+truth ではない。
+高 score でも行動決定をしてはならない。
+
+---
+
+## 12. Relationship Hint Classifier
+
+Relationship Hint Classifier は relationship を更新しない。
+あくまで最小 hint を付与するだけである。
+
+使用可能な hint は以下に固定する。
+
+```text
+new
+familiar
+uncertain
+```
+
+定義は以下とする。
+
+`new`
+直近 buffer 内に継続接点が乏しく、新規接触として扱うのが安全
+
+`familiar`
+同一 target_presence_id または同一 flow が直近で安定継続している
+
+`uncertain`
+どちらとも断定できない
+
+禁止事項は以下とする。
+
+relationship 値の本更新
+friend / fan / enemy など独自ラベル追加
+長期 memory 参照
+identity 確定
+行動方針決定
+
+Phase03 で関係性を盛るな。
+ここで雑に盛ると後段全部が汚染される。
+
+---
+
+## 13. Context Tag Generator
+
+Context Tag Generator は Phase04 の保守判断に使うための軽量タグを付与するだけである。
+タグは canonical set に固定する。
+
+使用可能な context_tags は以下に固定する。
+
+```text
+direct_mention
+repeat_flow
+fresh_opening
+low_confidence_context
+closing_signal
+passive_observation
+```
+
+新しい tag を勝手に増やしてはならない。
+追加する場合は Phase03 改訂を必須とする。
+
+各 tag の最小意味は以下とする。
+
+`direct_mention`
+mention_flag=true または Phase01 で direct target と解釈された入力
+
+`repeat_flow`
+直近 topic と継続性が高い
+
+`fresh_opening`
+会話の立ち上がり直後
+
+`low_confidence_context`
+continuity / topic のどちらかが保守的評価に落ちた状態
+
+`closing_signal`
+会話終端寄りの状態
+
+`passive_observation`
+observe 系主体で積極応答前提ではない状態
+
+タグは重複してよい。
+ただし意味衝突するタグを同時に出してはならない。
+例として `fresh_opening` と `closing_signal` の同時出力は禁止する。
+
+---
+
+## 14. Context Validator
+
+Context Validator は Phase03 の最終安全弁である。
+補助信号同士の整合だけを検証する。
+action を決めてはならない。
+
+最低限の検証項目は以下とする。
+
+conversation_state が canonical set 内
+phase03_continuity_score が 0.0〜1.0
+relationship_hint が canonical set 内
+context_tags が canonical set 内
+topic_key が空文字でないか null
+trace_id / event_id 維持
+target_presence_id 維持
+intent / reaction_id / variation_id を改変していない
+
+Validator fail 時は以下を許可する。
+
+context_tags の縮退
+relationship_hint を `uncertain` に落とす
+phase03_continuity_score を保守値へ落とす
+conversation_state を `idle` に落とす
+Phase03 自体を skip する
+
+Validator fail 時に system stop してはならない。
+Phase02 の出力を巻き戻してはならない。
+Validator が補完のついでに action_type を出すのは禁止する。
+
+---
+
+## 15. Load Shedding
+
+Phase03 は高負荷時に **即時無効化できる補助層** でなければならない。
+ここは旧版の強みをそのまま残す。
+
+Load Shedding の条件例は以下とする。
+
+p95 が閾値超過
+内部 queue の滞留
+連続 validator fail
+event burst
+runtime degrade flag
+
+Load Shedding 時の挙動は以下に固定する。
+
+Short Context Buffer 更新のみ最小維持して export を簡略化
+Topic Extractor を縮退
+Relationship Hint を `uncertain` に固定可能
+conversation_state を `idle` または最小保守値へ固定可能
+context_tags を空配列または最小安全タグに縮退
+Phase03 を skip しても Phase04 が進行可能であること
+
+Load Shedding を理由に intent や reaction を消してはならない。
+Phase03 は止まってよいが、全体を止めてはならない。
+
+---
+
+## 16. Phase03 Export 契約
+
+**これが Phase04 に渡す正規出力である。**
+Phase00 の Phase03→Phase04 I/O 契約に完全一致させる。
+
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "conversation_state": "opening|active|closing|idle",
+  "phase03_continuity_score": 0.0,
+  "relationship_hint": "new|familiar|uncertain",
+  "context_tags": ["direct_mention"],
+  "phase03_context_valid_score": 0.0,
+  "target_presence_id": "uuid"
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "topic_key": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+score は 0.0〜1.0 に正規化する
+canonical enum 外の値を含めてはならない
+intent を export し直してはならない
+reaction_id / variation_id を export required に昇格してはならない
+action_type を含めてはならない
+skill_id を含めてはならない
+world_command を含めてはならない
+raw payload 全文を含めてはならない
+Phase04 の責務に属する field を先回りして含めてはならない
+
+---
+
+## 17. Logging
+
+Phase03 の全ログは以下を最低限含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase03",
+  "step": "buffer|topic_extractor|state_classifier|continuity|relationship_hint|tag_generator|validator|load_shedding|export_builder",
+  "result": "success|replace|skip|fallback|reject",
+  "conversation_state": "opening|active|closing|idle|null",
+  "phase03_continuity_score": 0.0,
+  "relationship_hint": "new|familiar|uncertain|null",
+  "latency_ms": 0
+}
+```
+
+追加で以下を記録してよい。
+
+```json
+{
+  "topic_key": "string|null",
+  "context_tags": ["direct_mention"],
+  "target_presence_id": "uuid"
+}
+```
+
+必須 correlation key を欠落させてはならない。
+raw payload 全文をログに保存してはならない。
+reaction の意味説明長文を残してはならない。
+Phase03 skip 時も `result=skip` と理由を残すこと。
+
+---
+
+## 18. Canonical score naming
+
+Phase03 の score 名は以下のみ使用可能とする。
+
+```text
+phase03_continuity_score
+phase03_context_valid_score
+```
+
+必要なら内部補助値として以下を持ってよい。
+
+```text
+phase03_topic_match_score
+phase03_relationship_hint_score
+```
+
+ただし export required にしてよいのは `phase03_continuity_score` と `phase03_context_valid_score` のみとする。
+旧表記の `phase3_*` は禁止する。
+phase 接頭辞なし score も禁止する。
+
+---
+
+## 19. HARD 制約
+
+以下は違反時 CI fail とする。
+
+Phase03 内に LLM import がある
+Phase03 内に world SDK import がある
+Phase03 が intent を変更する
+Phase03 が reaction_id / variation_id を変更する
+Phase03 が action_type を生成する
+Phase03 が skill_id を生成する
+Phase03 が world_command を生成する
+raw payload 全文を buffer / export / log に保存する
+Phase03 Export が Phase00 I/O 契約と不一致である
+review queue consumer を持つ
+long-term memory write を行う
+relationship 本更新を行う
+context_tags に canonical 外値を出す
+conversation_state に canonical 外値を出す
+trace_id なしで export する
+Phase03 が source of truth を握る
+Load Shedding で全体停止を引き起こす
+
+---
+
+## 20. SOFT 制約
+
+以下は警告ログのみとする。
+
+`idle` 偏重
+`uncertain` 偏重
+topic_key 欠落率上昇
+context_tags 空配列率上昇
+Load Shedding 発火率上昇
+opening から active への遷移不足
+continuity score の極端な二極化
+familiar hint の出現率異常
+同一 target_presence_id で topic shift 過多
+
+SOFT 制約は fail しない。
+ただし会話流れ補助の劣化指標として残す。
+
+---
+
+## 21. STOP 条件
+
+以下は Phase03 の停止条件とする。
+
+```text
+PHASE03_BUFFER_VIOLATION
+PHASE03_TOPIC_EXTRACTION_VIOLATION
+PHASE03_CONTEXT_VALIDATOR_FAILURE
+PHASE03_BOUNDARY_VIOLATION
+PHASE03_TRACE_MISSING
+PHASE03_EXPORT_CONTRACT_VIOLATION
+PHASE03_RAW_PAYLOAD_EXPORT_VIOLATION
+PHASE03_ACTION_EARLY_DECISION_VIOLATION
+```
+
+新規 STOP_REASON を増やす場合は `PHASE03_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 22. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase03_short_context_buffer.py
+    phase03_topic_extractor.py
+    phase03_conversation_state_classifier.py
+    phase03_continuity_detector.py
+    phase03_relationship_hint_classifier.py
+    phase03_context_tag_generator.py
+    phase03_context_validator.py
+    phase03_load_shedding.py
+    phase03_export_builder.py
+    phase03_validators.py
+  runtime/logs/
+    phase03_runtime.log
+    phase03_error.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+Buffer と Validator と Export Builder を一体化してはならない。
+
+---
+
+## 23. テスト仕様
+
+unit test で最低限確認すること。
+
+Topic Extractor が固定辞書から topic_key を返す
+Short Context Buffer が固定長で FIFO 削除する
+Conversation State Classifier が同一入力列で同一 state を返す
+Continuity Detector が score を 0.0〜1.0 で返す
+Relationship Hint Classifier が canonical hint のみ返す
+Context Tag Generator が canonical tag のみ返す
+Context Validator が enum 外値を reject する
+Load Shedding が skip しても export を壊さない
+Export Builder が Phase00 I/O 契約どおりの required / optional key を返す
+Export に action_type が混入しない
+raw payload が export に混入しない
+
+integration test で最低限確認すること。
+
+greet 系連続入力で `opening -> active` に遷移する
+observe 系主体入力で `idle` または `closing` を返す
+同一 topic 継続時に continuity score が上がる
+topic shift 時に continuity score が下がる
+direct mention 時に `direct_mention` tag が出る
+low confidence 時に `low_confidence_context` tag が出る
+high load 時に Phase03 skip でも Phase04 が継続する
+trace_id が最終 export まで維持される
+Phase04 consumer が required key を欠かずに受け取れる
+
+ci test で最低限確認すること。
+
+Phase03 内 world SDK import 検出
+LLM import 検出
+intent 上書き検出
+reaction 上書き検出
+action_type 生成検出
+world_command 生成検出
+score naming lint
+canonical enum lint
+Phase00 I/O 契約不一致検出
+raw payload export 混入検出
+review queue consumer 検出
+
+---
+
+## 24. CI fail 条件
+
+以下は CI fail とする。
+
+`phase03_*` モジュール内に world SDK import がある
+`phase03_*` モジュール内に LLM import がある
+output に `action_type` `skill_id` `world_command` を持つ
+Phase03 Export が Phase00 required key を欠いている
+canonical 外の conversation_state / relationship_hint / context_tags を export する
+raw payload 全文を buffer / export / log に保存する
+Phase03 が Phase01 intent または Phase02 reaction を書き換える
+review queue consumer を持つ
+長期 memory write を持つ
+relationship 本更新を持つ
+trace_id なしで export する
+Load Shedding が全体停止を引き起こす
+
+---
+
+## 25. 実装順序
+
+Phase03 は以下の順で実装すること。
+
+Short Context Buffer を作る
+Topic Extractor を作る
+Conversation State Classifier を作る
+Continuity Detector を作る
+Relationship Hint Classifier を作る
+Context Tag Generator を作る
+Context Validator を作る
+Load Shedding を作る
+Phase03 Export Builder を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に高度な会話理解を入れるな。
+先に記憶検索を入れるな。
+先に action 補完を入れるな。
+まず軽く、固定的に、補助信号だけを正しく出せるようにすること。
+
+---
+
+## 26. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+埋め込み検索
+長文要約
+長期記憶保存
+relationship 本更新
+intent 上書き
+reaction 上書き
+action 決定
+skill 決定
+world 別 flow ロジック乱立
+raw payload 全保持
+review path 処理
+Phase04 向け export に action_type を渡すこと
+source of truth を握ること
+
+---
+
+## 27. 開発者向け最終指示
+
+Phase03 の目的は、IRIS を賢く見せることではない。
+**IRIS の会話が途切れて見えないようにすること** だ。
+
+ここでやるべきことは補助だけだ。
+判断ではない。
+意図変更ではない。
+行動決定ではない。
+世界実行ではない。
+
+ここで intent をいじるな。
+それは Phase01 を壊す。
+ここで reaction をいじるな。
+それは Phase02 を壊す。
+ここで action を決めるな。
+それは Phase04 を壊す。
+ここで長期 memory に触るな。
+Phase05 / Phase06 が壊れる。
+ここで raw payload を持ち続けるな。
+全体の deterministic 性が死ぬ。
+
+Phase03 は軽くてよい。
+弱くてよい。
+止まってもよい。
+ただし **会話流れ補助として deterministic に働き、止まっても全体を止めない構造** でなければならない。
+それだけを守って実装すること。
+
+---
+

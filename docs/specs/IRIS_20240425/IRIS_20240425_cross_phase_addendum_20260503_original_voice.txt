@@ -1,0 +1,142 @@
+# IRIS_20240425 Cross Phase Addendum: Original Voice / Custom TTS Voice
+
+## 00. Scope
+
+This addendum makes original character voice support explicit for IRIS.
+It applies across Phase16 autonomous expression, Phase18 emotion/voice/breath,
+Phase19 personality habits, Phase25 game embodiment, Phase27 evaluation, and
+the TTS adapter packet boundary.
+
+This addendum is subordinate to Phase00. It does not add Phase00 canonical
+emotion, action, intent, relationship, or conversation-state enums.
+
+## 01. Requirement
+
+IRIS may use an original character voice as a first-class TTS configuration.
+Supported sources include:
+
+- an original recording made for IRIS with permission for streaming and synthesis
+- a commissioned voice actor recording with written usage rights
+- a licensed TTS voice or voice model that permits the intended live-stream use
+- a self-owned or operator-owned voice model with explicit consent
+- a local synthetic placeholder voice for development and tests
+
+The selected voice is part of character presentation and adapter guidance. It
+must not become a canonical character enum.
+
+## 02. Configuration
+
+The implementation may use these env/config names:
+
+- `IRIS_LOCAL_TTS_ENGINE_VOICE_ID`
+- `IRIS_LOCAL_TTS_ENGINE_MODEL`
+- `IRIS_LOCAL_TTS_ENGINE_LOCALE`
+- `IRIS_CHARACTER_VOICE_PROFILE_ID`
+- `IRIS_CHARACTER_VOICE_STYLE_PROFILE_ID`
+- `IRIS_LICENSED_VOICE_SOURCE_STATUS`
+
+Public diagnostics may expose these names as configured/missing env names, but
+must not expose their values.
+
+## 03. Voice Behavior
+
+Original voice selection must support:
+
+- stable per-character voice identity
+- emotional prosody for laughter, surprise, panic, sadness, teasing, recovery,
+  and calm focus
+- bounded screams and short reaction sounds
+- happy humming and short original singing-like vocalise
+- speech-rate variation without unnatural slow speech
+- multilingual locale/model hints
+- subtitle and mouth-cue synchronization
+- game-context voice affect from Phase25
+
+All behavior remains adapter guidance. It must not create commands, direct game
+input, memory commits, relationship commits, OBS operations, or canonical enum
+changes.
+
+## 04. Rights And Consent Policy
+
+Allowed:
+
+- original IRIS voice assets with clear permission
+- contracted or licensed voice material with streaming and synthesis rights
+- operator-owned voice models with explicit consent
+- local placeholder or synthetic voices for development
+
+Forbidden:
+
+- unlicensed cloning or imitation of a real person
+- using a voice actor's recording outside the granted license
+- extracting voices from YouTube, anime, streams, games, films, or other media
+  without rights
+- publishing raw training audio through public IRIS reports
+- storing raw voice samples in replay logs, readiness reports, overlay state, or
+  production diagnostics
+
+If voice-source permission cannot be verified, the system must report
+operator attention and continue with a safe placeholder or disabled real-voice
+handoff.
+
+## 05. Adapter Contract
+
+TTS adapters may receive voice/model/locale/profile hints only as validated
+adapter guidance.
+
+TTS adapters may reject unsupported voice/model/locale combinations with a
+summary-only error.
+
+TTS adapters must reject or sanitize any voice field that contains:
+
+- `world_command`
+- `input_action_candidate`
+- `approved_game_input_action`
+- memory or relationship commit fields
+- endpoint values
+- API keys or tokens
+- raw audio bodies
+- internal model paths
+- dataset paths
+- raw phoneme debug logs
+
+Local engine health and probe reports must summarize compatibility using only
+env names, booleans, counts, and fixed statuses.
+
+## 06. Public Surface Boundary
+
+The following must not appear in public JSON, logs, readiness reports, replay
+logs, overlay state, or production diagnostics:
+
+- endpoint values
+- API keys, OAuth tokens, or vendor tokens
+- raw voice samples
+- raw training datasets
+- internal model paths
+- generated audio bodies
+- raw phoneme debug logs
+- raw TTS vendor diagnostics
+- candidates, commands, or commit payloads
+
+The following may appear:
+
+- configured/missing env names
+- fixed readiness states
+- booleans
+- counts
+- safe script names
+- safe voice-source status labels such as `licensed`, `placeholder`, or
+  `operator_attention_required`
+
+## 07. Acceptance Criteria
+
+- IRIS can select an original character voice by env/config without changing
+  Phase00 canonical fields.
+- Adapter packets carry only safe voice guidance.
+- Public reports reveal only env names, fixed statuses, booleans, counts, and
+  safe script names.
+- Unsafe or unverified voice-source configuration is reported as operator
+  attention.
+- Tests confirm that candidates, commands, secrets, endpoint values, raw audio,
+  dataset paths, and internal model paths do not leak through voice-related
+  reports.

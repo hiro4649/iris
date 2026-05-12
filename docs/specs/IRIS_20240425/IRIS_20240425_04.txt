@@ -1,0 +1,822 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase04 完全整合版（最終整合版・単体完結版）
+
+行動制御・安全転換・継続出力フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**とし、さらに **Phase01 完全整合版（最終整合版）**、**Phase02 完全整合版（最終整合版）**、**Phase03 完全整合版（最終整合版）** が producer する canonical export を唯一の入力 source として、IRIS が **危険な行動を止めつつ、自然な代替行動へ変換し、world 非依存 action 契約を Adapter へ渡すための最小実装仕様** を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書は Addendum を前提にしない。
+本書は旧版 Phase04 より優先される。
+本書に未定義の挙動は実装禁止とする。
+
+このフェーズで作るものは以下だけである。
+
+intent / reaction / context から action_type への固定変換
+Skill Router
+Validator
+Character Safe Redirect
+Presence Controller
+Dispatch Contract Builder
+Adapter Handoff Contract
+Failure Continuation
+Phase04 Logging
+
+このフェーズでは LLM を使わない。
+このフェーズでは長期記憶を更新しない。
+このフェーズでは reward 最適化をしない。
+このフェーズでは world_command を生成しない。
+このフェーズの役割は、**危険な行動を止めつつ、配信や会話が不自然に途切れないように制御すること** である。
+
+---
+
+## 01. 目的
+
+Phase04 の目的は以下である。
+
+Phase01〜03 の出力を deterministic に action_type へ落とすこと
+危険または不適切な action を機械的に止めること
+止めた action を自然な代替行動へ変換すること
+複数 Presence の競合を制御すること
+Adapter へ渡す canonical action export を固定すること
+silent fail を禁止し、失敗時も継続出力を維持すること
+world_command を生成せず、Adapter 境界を守ること
+action_type の canonical 決定主体を 1 箇所に固定すること
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Planner
+Skill Router
+Validator
+Character Safe Redirect
+Presence Controller
+Dispatch Contract Builder
+Adapter Handoff Contract
+Failure Continuation
+Phase04 Logging
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+長期記憶更新
+relationship 更新
+reward 最適化
+world_command 直接生成
+Adapter 内判断
+自由な計画立案
+高度な safety 推論
+persona 進化
+学習による閾値更新
+task 最適化
+review path 処理
+memory 永続化
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、Phase04 完了とみなす。
+
+不正 action 実行件数が 0 件であること
+未検証 action が Adapter へ渡る件数が 0 件であること
+1000 action 連続処理で停止が 0 件であること
+reject された action のうち 95% 以上が safe redirect に変換されること
+silent fail が 0 件であること
+validator 例外で system stop が 0 件であること
+同一入力に対して同一 action_type が再現されること
+同一競合条件で同一 presence 解決結果が再現されること
+blocked presence に action が出ないこと
+adapter timeout 時も無反応が 0 件であること
+p95 action 制御レイテンシが 180ms 未満であること
+p99 action 制御レイテンシが 250ms 未満であること
+Phase04 Export が Phase00 の Phase04→Phase05 / Adapter I/O 契約を満たすこと
+Phase04 停止時も Phase01〜03 の経路が壊れないこと
+Phase04 以外で action_type が決定されていないこと
+Phase04 Export に world_command が混入しないこと
+
+---
+
+## 04. 全体構造
+
+Phase04 の固定パイプラインは以下に固定する。
+
+```text
+Phase01 Export
++ Phase02 Export
++ Phase03 Export
+-> Planner
+-> Skill Router
+-> Validator
+-> Character Safe Redirect
+-> Presence Controller
+-> Dispatch Contract Builder
+-> Adapter Handoff Contract
+-> Output
+```
+
+この順序以外は禁止する。
+Planner が Validator を兼ねてはならない。
+Validator が Presence Controller を兼ねてはならない。
+Adapter へ判断を逃がすことは禁止する。
+world_command 変換は依然として Adapter 側責務である。
+ただし Adapter は変換だけを行い、判断をしてはならない。
+Phase04 は **唯一の action 決定層** であり、他フェーズがその役割を代行してはならない。
+
+---
+
+## 05. Phase00〜03 準拠ルール
+
+本フェーズは最新 Phase00、Phase01、Phase02、Phase03 に従い、以下を hard rule とする。
+
+Phase01〜03 の canonical export を唯一の入力 source とする
+Phase04→Phase05 / Adapter の required 出力は Phase00 I/O 契約に一致しなければならない
+raw payload 全文を参照してはならない
+Phase04 は memory を参照して人格判断を拡張してはならない
+Phase04 は world_command を生成してはならない
+Adapter は action_type を変更してはならない
+Adapter は redirect を決定してはならない
+Phase04 は review queue を受け取ってはならない
+Phase04 は task_type を入力前提にしてはならない
+trace_id は end-to-end で必須である
+
+---
+
+## 06. 入力契約
+
+Phase04 は Phase01〜03 の canonical export のみを受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "intent": "greet|respond|observe|ignore",
+  "reaction_id": "string",
+  "variation_id": "string",
+  "tone": "friendly|playful|excited|calm",
+  "emotion": "neutral|happy|surprise|awkward",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "target_presence_id": "uuid",
+  "conversation_state": "opening|active|closing|idle",
+  "phase03_continuity_score": 0.0,
+  "relationship_hint": "new|familiar|uncertain",
+  "context_tags": ["direct_mention"],
+  "phase03_context_valid_score": 0.0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "speaker_token": true,
+  "priority": 0,
+  "mention_flag": false,
+  "topic_key": "string|null",
+  "micro_expression": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+Phase01〜03 由来でない暗黙入力を受け取ってはならない
+raw payload 全文を参照してはならない
+Phase03 の補助信号を truth として扱ってはならない
+action_type を入力として受け取ってはならない
+skill_id を入力として受け取ってはならない
+world_command を入力として受け取ってはならない
+
+---
+
+## 07. Canonical action_type
+
+Phase04 で使用可能な action_type は以下のみとする。
+
+```text
+SPEAK
+GESTURE
+LOOK
+WAIT
+NOOP
+```
+
+新しい action_type を勝手に追加してはならない。
+追加する場合は Phase00 改訂を必須とする。
+
+最小意味は以下に固定する。
+
+`SPEAK`
+発話または発話相当の明示応答
+
+`GESTURE`
+非発話の意図表現
+
+`LOOK`
+注視、視線、軽い反応
+
+`WAIT`
+保留、間、受け流し
+
+`NOOP`
+意図的な何もしない状態
+
+action_type の canonical 決定権は Phase04 のみに存在する。
+Phase02 / Phase03 / Adapter は action_type を決定してはならない。
+Phase04 以外が action_type を出力した場合は boundary violation とする。
+
+---
+
+## 08. Planner
+
+Planner は intent / reaction / context を受け取り、**1 件の候補 action_type** を返す。
+複数案を返してはならない。
+自由な計画立案はしない。
+
+最小マッピングは以下に固定する。
+
+`greet` -> `SPEAK`
+`respond` -> `SPEAK`
+`observe` -> `LOOK`
+`ignore` -> `WAIT` または `NOOP`
+
+補助ルールは以下とする。
+
+`closing` 状態では `SPEAK` より `WAIT` を優先してよい
+`low_confidence_context` を含む場合は保守的 action を優先してよい
+`passive_observation` を含む場合は `LOOK` を優先してよい
+blocked presence へは action を返してはならない
+
+Planner は safety 判定をしない。
+Planner は skill 実体を知らない。
+Planner は world_command を知らない。
+Planner は raw payload を知らない。
+Planner は task を生成しない。
+
+---
+
+## 09. Skill Router
+
+Skill Router は action_type を skill_id へ接続するだけの層である。
+ここで安全判定をしてはならない。
+ここで context を上書きしてはならない。
+
+最小 skill registry 例は以下に固定する。
+
+```json
+{
+  "SPEAK": ["speak_basic", "speak_short", "speak_redirect"],
+  "GESTURE": ["gesture_basic", "gesture_soft"],
+  "LOOK": ["look_basic", "look_ack"],
+  "WAIT": ["wait_short", "wait_redirect"],
+  "NOOP": ["noop_basic"]
+}
+```
+
+Skill Router の責務は以下のみ。
+
+action_type に紐づく skill 候補の取得
+context に応じた deterministic な 1 件選択
+disabled skill の除外
+blocked presence 非対応 skill の除外
+
+禁止事項は以下とする。
+
+action_type の変更
+intent の変更
+safety 判定
+redirect 決定
+world command 化
+random 選択
+
+同一 action_type と同一入力条件に対して同一 skill_id を返さなければならない。
+
+---
+
+## 10. Validator
+
+Validator は、Planner と Skill Router の出力が canonical 制約に一致しているかを検証する。
+ここは Phase04 の安全弁である。
+ただし高度な推論層ではない。
+
+最低限の検証項目は以下とする。
+
+action_type が canonical set 内
+skill_id が許可 registry 内
+target_presence_id が blocked でない
+intent と action_type の整合
+tone / character_tag が canonical set 内
+trace_id / event_id の維持
+required key の存在
+world_command 混入なし
+
+最低限の整合ルール例は以下とする。
+
+`ignore` に対して `SPEAK` は原則 reject
+`observe` に対して `SPEAK` は保守的に reject または redirect 対象
+`greet|respond` に対して `NOOP` は原則 reject
+blocked presence への全 action は reject
+
+Validator は以下をしてはならない。
+
+memory 参照
+long-term relation 参照
+外部 truth 判定
+world API 呼び出し
+review queue 解釈
+
+Validator fail 時は silent drop してはならない。
+必ず Safe Redirect または Failure Continuation に送ること。
+
+---
+
+## 11. Character Safe Redirect
+
+Character Safe Redirect は、reject された action を **人格を壊さずに安全な代替行動へ変換する層** である。
+止めるだけで終わるな。
+自然に逃がす。
+
+最小 redirect 規則は以下に固定する。
+
+`SPEAK` reject -> `WAIT` または `LOOK` へ変換
+`GESTURE` reject -> `LOOK` へ変換
+`LOOK` reject -> `WAIT` へ変換
+`WAIT` reject -> `NOOP` へ変換
+`NOOP` reject -> 維持または `WAIT` へ変換
+
+追加ルールは以下とする。
+
+tone / character_tag は可能な限り維持する
+人格急変を招く redirect を禁止する
+redirect しても blocked presence を対象にしてはならない
+redirect 結果も Validator 相当の最小再検証を通す
+
+最小出力例は以下とする。
+
+```json
+{
+  "redirected": true,
+  "redirect_reason": "validator_reject|blocked_presence|low_confidence_context|safety_fallback"
+}
+```
+
+Safe Redirect は action を消す層ではない。
+自然な代替を返す層である。
+
+---
+
+## 12. Presence Controller
+
+Presence Controller は、**どの Presence に action を出すかを最終確定する層** である。
+複数 Presence 同時 action を禁止する。
+Phase01 の speaker ownership を引き継ぎつつ、Phase04 の出力先として最終整形する。
+
+入力に使ってよい要素は以下に限定する。
+
+target_presence_id
+speaker_token
+priority
+presence status
+conversation_state
+context_tags
+
+ルールは以下とする。
+
+blocked Presence は常に除外
+speaker_token=true を優先
+direct_mention 時は target_presence_id 優先
+closing / idle 時は過剰な active switching を避ける
+複数候補がある場合は deterministic に 1 件へ解決
+
+Presence Controller がやってはならないことは以下とする。
+
+action_type 変更
+skill_id 変更
+memory 更新
+identity 確定
+world_command 化
+Adapter 依存判断
+
+最終的に `target_presence_id` は null にしてはならない。
+どうしても安全に出せない場合は Safe Redirect / Failure Continuation 経由で `WAIT` か `NOOP` に縮退させる。
+
+---
+
+## 13. Dispatch Contract Builder
+
+Dispatch Contract Builder は、Phase04 の内部判断結果を **Adapter に渡せる canonical Action 契約** に固定する層である。
+ここで world_command にしてはならない。
+ここで field を盛ってはならない。
+
+required 出力の元になる field は以下とする。
+
+trace_id
+event_id
+action_type
+skill_id
+target_presence_id
+tone
+character_tag
+redirected
+phase04_validator_score
+phase04_presence_score
+
+補助で保持してよいのは以下とする。
+
+redirect_reason
+source
+intent
+emotion
+relationship_hint
+timestamp_ms
+linked_identity_id
+topic_key
+phase03_continuity_score
+
+Builder は required / optional を守るだけである。
+判断してはならない。
+暗黙補完してはならない。
+
+---
+
+## 14. Adapter Handoff Contract
+
+**これが Adapter と Phase05 に渡す正規出力である。**
+Phase00 の Phase04→Phase05 / Adapter I/O 契約に完全一致させる。
+
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP",
+  "skill_id": "string",
+  "target_presence_id": "uuid",
+  "tone": "friendly|playful|excited|calm",
+  "character_tag": "soft|playful|tease|hype|calm",
+  "redirected": false,
+  "phase04_validator_score": 0.0,
+  "phase04_presence_score": 0.0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "redirect_reason": "string|null",
+  "source": "youtube|minecraft|vrchat|system",
+  "intent": "greet|respond|observe|ignore",
+  "emotion": "neutral|happy|surprise|awkward",
+  "relationship_hint": "new|familiar|uncertain",
+  "timestamp_ms": 0,
+  "linked_identity_id": "string|null",
+  "topic_key": "string|null",
+  "phase03_continuity_score": 0.0
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+score は 0.0〜1.0 に正規化する
+canonical enum 外値を含めてはならない
+world_command を含めてはならない
+raw payload 全文を含めてはならない
+review queue field を含めてはならない
+task_type を含めてはならない
+Adapter が action_type を変更できる余地を残してはならない
+
+---
+
+## 15. Failure Continuation
+
+Failure Continuation は、Validator / Presence / Redirect のどこかで問題が起きても、**配信や会話を不自然に止めないための最終継続層** である。
+無反応を禁止するための保険である。
+
+最低限の継続規則は以下に固定する。
+
+深刻でない失敗時は `WAIT` を返す
+blocked target や target 不整合時は `LOOK` または `WAIT` に縮退
+連続失敗時は `NOOP` を許可するが、trace と failure reason は必ず残す
+tone / character_tag は可能な限り維持する
+
+Failure Continuation は以下をしてはならない。
+
+world_command 生成
+random fallback
+Adapter に判断を投げる
+memory 更新
+review path 送出
+
+Failure Continuation でも canonical export 契約は守らなければならない。
+
+---
+
+## 16. Phase04 score naming
+
+Phase04 の score 名は以下のみ使用可能とする。
+
+```text
+phase04_validator_score
+phase04_presence_score
+phase04_redirect_score
+```
+
+required export にしてよいのは以下のみ。
+
+```text
+phase04_validator_score
+phase04_presence_score
+```
+
+`redirect_score` は内部補助値としてのみ保持してよい。
+旧表記の `phase4_*` は禁止する。
+phase 接頭辞なし score も禁止する。
+score はすべて 0.0〜1.0 に正規化すること。
+
+---
+
+## 17. Logging
+
+Phase04 の全ログは以下を最低限含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase04",
+  "step": "planner|skill_router|validator|safe_redirect|presence_controller|dispatch_builder|adapter_handoff|failure_continuation",
+  "result": "success|redirect|fallback|reject|fail",
+  "action_type": "SPEAK|GESTURE|LOOK|WAIT|NOOP|null",
+  "skill_id": "string|null",
+  "target_presence_id": "uuid|null",
+  "phase04_validator_score": 0.0,
+  "phase04_presence_score": 0.0,
+  "latency_ms": 0
+}
+```
+
+追加で以下を記録してよい。
+
+```json
+{
+  "redirected": false,
+  "redirect_reason": "string|null",
+  "intent": "greet|respond|observe|ignore",
+  "conversation_state": "opening|active|closing|idle"
+}
+```
+
+必須 correlation key を欠落させてはならない。
+raw payload 全文をログに保存してはならない。
+world_command をログしてはならない。
+Failure Continuation 発火時は必ず reason を残すこと。
+
+---
+
+## 18. HARD 制約
+
+以下は違反時 CI fail とする。
+
+Phase04 内に LLM import がある
+Phase04 内に world SDK import がある
+Phase04 が world_command を生成する
+Adapter に action 決定を逃がす
+Phase02 / Phase03 出力の action_type を受け入れる
+random に action_type を選ぶ
+blocked presence へ dispatch する
+required export key を欠落させる
+canonical enum 外の action_type / tone / character_tag を出す
+raw payload 全文を保持または export / log に混入させる
+review queue consumer を持つ
+task_type を受け取る
+memory を更新する
+Phase04 Export が Phase00 I/O 契約と不一致である
+safe redirect なしに reject drop する
+silent fail する
+
+---
+
+## 19. SOFT 制約
+
+以下は警告ログのみとする。
+
+`WAIT` 偏重
+`NOOP` 偏重
+redirect 発火率上昇
+`SPEAK` 一辺倒
+特定 skill_id への偏り
+validator reject 率上昇
+presence 切替頻度上昇
+idle / closing での speak 過多
+low_confidence_context 時の積極 action 過多
+
+SOFT 制約は fail しない。
+ただし行動制御の品質劣化指標として残す。
+
+---
+
+## 20. STOP 条件
+
+以下は Phase04 の停止条件とする。
+
+```text
+PHASE04_PLANNER_VIOLATION
+PHASE04_SKILL_ROUTER_VIOLATION
+PHASE04_VALIDATOR_FAILURE
+PHASE04_REDIRECT_FAILURE
+PHASE04_PRESENCE_CONFLICT
+PHASE04_BOUNDARY_VIOLATION
+PHASE04_TRACE_MISSING
+PHASE04_EXPORT_CONTRACT_VIOLATION
+PHASE04_WORLDCOMMAND_EARLY_GENERATION
+PHASE04_SILENT_FAIL_VIOLATION
+```
+
+新規 STOP_REASON を増やす場合は `PHASE04_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 21. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase04_planner.py
+    phase04_skill_router.py
+    phase04_validator.py
+    phase04_character_safe_redirect.py
+    phase04_presence_controller.py
+    phase04_dispatch_builder.py
+    phase04_adapter_handoff.py
+    phase04_failure_continuation.py
+    phase04_validators.py
+  runtime/
+    phase04_skill_registry.json
+  runtime/logs/
+    phase04_runtime.log
+    phase04_error.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+Planner と Validator と Redirect を一体化してはならない。
+
+---
+
+## 22. テスト仕様
+
+unit test で最低限確認すること。
+
+Planner が intent / context から canonical action_type を返す
+Skill Router が action_type から deterministic に skill_id を返す
+Validator が invalid action を reject する
+Safe Redirect が reject action を代替 action に変換する
+Presence Controller が単一 target_presence_id を返す
+Dispatch Builder が Phase00 I/O 契約どおりの required / optional key を返す
+Failure Continuation が空出力を返さない
+Export に world_command が混入しない
+Export に raw payload が混入しない
+Phase04 だけが action_type を決める
+
+integration test で最低限確認すること。
+
+`greet + opening` で `SPEAK` 系 action が返る
+`respond + active` で `SPEAK` 系 action が返る
+`observe + passive_observation` で `LOOK` 系 action が返る
+`ignore + low_confidence_context` で `WAIT|NOOP` 系 action が返る
+blocked presence で redirect または fallback される
+validator reject 時も無反応にならない
+trace_id が最終 export まで維持される
+Adapter / Phase05 consumer が required key を欠かずに受け取れる
+Phase02 が action_type を持たなくても Phase04 が action を決定できる
+
+ci test で最低限確認すること。
+
+Phase04 内 world SDK import 検出
+LLM import 検出
+world_command 生成検出
+Adapter 決定委譲検出
+action_type 早期入力検出
+score naming lint
+canonical enum lint
+Phase00 I/O 契約不一致検出
+raw payload export 混入検出
+review queue consumer 検出
+silent fail 検出
+
+---
+
+## 23. CI fail 条件
+
+以下は CI fail とする。
+
+`phase04_*` モジュール内に world SDK import がある
+`phase04_*` モジュール内に LLM import がある
+output に `world_command` を持つ
+Phase04 Export が Phase00 required key を欠いている
+canonical 外の action_type / tone / character_tag を export する
+raw payload 全文を export / log に保存する
+Adapter へ action 決定を委譲する
+Phase04 が task_type を読んでいる
+review queue consumer を持つ
+memory write を持つ
+trace_id なしで export する
+validator reject を silent drop する
+blocked presence に最終 dispatch する
+
+---
+
+## 24. 実装順序
+
+Phase04 は以下の順で実装すること。
+
+Planner を作る
+Skill Router を作る
+Validator を作る
+Character Safe Redirect を作る
+Presence Controller を作る
+Dispatch Contract Builder を作る
+Adapter Handoff Contract を作る
+Failure Continuation を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に world 実行へ寄せるな。
+先に memory を見に行くな。
+先に reward を混ぜるな。
+先に review loop を混ぜるな。
+まず action 決定を deterministic に閉じることを優先すること。
+
+---
+
+## 25. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+長期記憶更新
+relationship 更新
+reward 最適化
+task 最適化
+world_command 生成
+Adapter 判断
+raw payload 全保持
+review path 処理
+task_type 利用
+memory 書き込み
+Phase05 以降の責務先食い
+Phase02 へ action 決定を戻すこと
+Phase03 補助信号を truth 化すること
+
+---
+
+## 26. 開発者向け最終指示
+
+Phase04 の目的は、IRIS を賢くすることではない。
+**IRIS が世界へ出す行動を 1 箇所で確定し、危険なら自然に逃がすこと** だ。
+
+ここで action を決める。
+だからこそ、ここを曖昧にするな。
+Phase02 に action を持ち込むな。
+Adapter に判断を押しつけるな。
+memory を持ち込むな。
+review path を混ぜるな。
+world 実行を先走るな。
+
+ここで大事なのは、正しさより先に **境界** だ。
+境界が壊れたら、後続全部が壊れる。
+Planner が選び、Router が結び、Validator が止め、Redirect が逃がし、Presence が絞り、Dispatch が固定する。
+この順序を崩すな。
+**Phase04 を唯一の action 決定層として閉じ切ること。**
+それだけを最優先で実装すること。
+
+---
+

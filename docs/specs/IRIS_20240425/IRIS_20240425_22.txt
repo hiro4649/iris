@@ -1,0 +1,158 @@
+# IRIS 開発仕様書
+
+## Phase22 完全整合版（ゲーム認識・単体完結版）
+
+## 00. 文書の役割
+
+本仕様書は Phase00 を唯一の上位拘束とし、Phase21 までの人格・記憶・会話・身体制御を前提として、IRIS がゲーム画面やゲーム状態を認識し、実況・解説・操作判断の材料へ変換するための最小実装仕様を定義する。
+
+本フェーズの目的はゲームに勝つことではない。
+IRIS が「今ゲームで何が起きているか」を自分の文脈として理解することだ。
+
+## 00.1 Observation Truth ルール
+
+game_state / screen_capture は External Observation であり、Phase00 の Source of Truth 優先順位では Character / Runtime State / Persistent Memory より下位である。
+Phase22 は外部観測を truth として採用してはならない。
+Phase22 の出力は実況・操作判断の候補であり、記憶や action を直接確定しない。
+
+## 01. 目的
+
+- screen_capture / game_state を安全に Event 化する
+- ゲーム状況を要約する
+- 危険、成功、失敗、珍事件を検出する
+- Phase23 / Phase24 へ commentary / control の入力を渡す
+
+## 02. スコープ
+
+- Game Observation Intake
+- Screen / State Parser
+- Situation Summarizer
+- Danger / Opportunity Detector
+- Funny Event Detector
+- Game Perception Validator
+
+## 03. 入力契約
+
+通常入力:
+
+- Phase21 export
+- event_id
+- timestamp
+- current_goal
+- safety_status
+
+side input:
+
+- screen_capture
+- game_state
+- audio_game_event
+- chat_context
+- controller_state
+
+## 04. Game Observation
+
+必須フィールド:
+
+- game_id
+- scene_id
+- observation_time
+- screen_summary
+- game_state_summary
+- detected_entities
+- ui_values
+- confidence_score
+
+confidence_score が低い場合、断定実況は禁止。
+
+## 05. Situation Summary
+
+出力は短く構造化する。
+
+例:
+
+- player_status
+- enemy_status
+- objective_status
+- risk_level
+- opportunity
+- recent_change
+
+## 06. Event Detection
+
+検出対象:
+
+- damage_taken
+- low_health
+- item_found
+- enemy_appeared
+- objective_completed
+- mistake
+- rare_event
+- funny_event
+
+funny_event は Phase18 の大爆笑入力になり得るが、安全判定を必須とする。
+
+## 07. Commentary Trigger
+
+commentary_trigger:
+
+- explain
+- react
+- warn
+- celebrate
+- recover
+- joke
+- focus
+
+trigger は Phase23 に渡す。
+
+## 08. Safety / Privacy
+
+ゲーム画面認識で外部個人情報や機密情報を読んだ場合、発話禁止。
+
+禁止:
+
+- 配信外の個人情報読み上げ
+- 認識不確実な内容の断定
+- ゲーム規約違反を誘導する解説
+
+## 09. 出力契約
+
+Phase22 export:
+
+- game_observation_id
+- game_situation_summary
+- danger_level
+- opportunity_score
+- funny_event_score
+- commentary_trigger
+- control_hint
+- perception_confidence
+
+## 10. HARD 制約
+
+- confidence 低の情報を断定してはならない
+- safety_status unsafe では commentary_trigger joke を出してはならない
+- game_state を人格記憶へ直接書き込んではならない
+- ゲーム別 Adapter 境界を越えて操作してはならない
+
+## 11. STOP 条件
+
+- screen_capture 不正
+- game_state parser failure
+- confidence 低すぎ
+- privacy risk
+- unsafe content
+
+## 12. テスト仕様
+
+- low_health を danger として検出する
+- objective_completed を celebration trigger にする
+- funny_event を検出しても unsafe では笑わない
+- confidence 低で断定しない
+- game observation を memory に直書きしない
+
+## 13. 開発者向け最終指示
+
+Phase22 の目的は IRIS を万能ゲーム認識AIにすることではない。
+IRIS が見えている範囲で、正直に、面白く、次の反応へつなげることだ。

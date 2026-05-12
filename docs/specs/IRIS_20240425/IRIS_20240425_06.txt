@@ -1,0 +1,957 @@
+
+
+---
+
+# IRIS 開発仕様書
+
+## Phase06 完全整合版（最終整合版・単体完結版）
+
+整合性・人格連続性・同期制御フェーズ
+
+---
+
+## 00. 文書の役割
+
+本仕様書は、**Phase00 完全拘束版（最終整合版）を唯一の上位拘束**とし、さらに **Phase05 完全整合版（最終整合版）** が producer する canonical export を唯一の通常入力 source として、加えて **runtime state / external summary / current intent / target presence / timestamp** を Phase00 で定義された side input として受け取り、IRIS が **複数の state 更新、memory 更新、relationship 更新、external observation を受けても、同じ存在として破綻せず同期確定できるための最小実装仕様** を定義する。
+
+本書は Phase00 と衝突してはならない。
+本書は Addendum を前提にしない。
+本書は旧版 Phase06 より優先される。
+本書に未定義の挙動は実装禁止とする。
+
+このフェーズで作るものは以下だけである。
+
+Sync Dispatcher
+State Sync
+Intent Sync
+Memory Sync
+External Sync
+Character Sync
+Relationship Sync
+Conflict Resolution
+Commit / Reject / Rollback
+Safe State Recovery
+Evidence Logging
+Phase07 Export
+
+このフェーズでは LLM を使わない。
+このフェーズでは reward 最適化をしない。
+このフェーズでは新しい人格や trait を作らない。
+このフェーズでは external を truth 化しない。
+このフェーズの役割は、**更新を速く混ぜることではなく、混ぜても壊れないことを保証すること** である。
+
+---
+
+## 01. 目的
+
+Phase06 の目的は以下である。
+
+runtime state、memory、relationship、external 観測を同期確定できること
+source of truth の優先順位を固定すること
+conflict を deterministic に解決すること
+character と relationship の整合を commit 前に検証すること
+safe state へ rollback / recovery できること
+Phase07 に渡す canonical sync export を固定すること
+Phase05 の選別結果を鵜呑みにせず、最終同期確定をここで行うこと
+side input を export 契約と混同しないこと
+
+---
+
+## 02. スコープ
+
+本フェーズの対象は以下とする。
+
+Sync Dispatcher
+State Sync
+Intent Sync
+Memory Sync
+External Sync
+Character Sync
+Relationship Sync
+Conflict Resolution
+Commit / Reject / Rollback
+Safe State Recovery
+Evidence Logging
+Phase07 Export
+CI による境界検証
+
+本フェーズの対象外は以下とする。
+
+LLM 呼び出し
+reward 最適化
+trait 生成
+人格変更
+外部観測の truth 化
+polling 全件同期
+無制限 retry
+自動 merge による曖昧な中間案生成
+world ごとの別人格化
+Phase07 task 実行
+review path 処理
+world_command 実行
+
+---
+
+## 03. 完成定義
+
+以下をすべて満たした場合のみ、Phase06 完了とみなす。
+
+state、intent、memory、external、character、relationship の各 sync が独立モジュールであること
+同一入力に対して同一 conflict resolution 結果が再現されること
+character inconsistency を含む commit が 0 件であること
+relationship inconsistency を含む commit が 0 件であること
+external 観測だけを根拠に人格急変が commit されないこと
+sync loop が 0 件であること
+safe state へ復帰できないケースが 0 件であること
+evidence log から同期判断を追跡可能であること
+p95 同期処理時間が 150ms 未満であること
+p99 同期処理時間が 220ms 未満であること
+1000 連続同期イベントで停止が 0 件であること
+Phase06 Export が Phase00 の Phase06→Phase07 I/O 契約を満たすこと
+Phase06 停止時も Phase01〜05 の runtime 処理が停止しないこと
+Phase05 export と Phase06 side input が混線しないこと
+safe state pointer が常に維持されること
+rollback 後に不正 export が送られないこと
+
+---
+
+## 04. 全体構造
+
+Phase06 の固定パイプラインは以下に固定する。
+
+```text
+Phase05 Export
++ Runtime State Snapshot
++ External Observation Summary
++ Current Intent
++ Current Target Presence
++ Timestamp
+-> Sync Dispatcher
+-> State Sync
+-> Intent Sync
+-> Memory Sync
+-> External Sync
+-> Character Sync
+-> Relationship Sync
+-> Conflict Resolution
+-> Commit / Reject / Rollback
+-> Safe State Recovery
+-> Evidence Logging
+-> Phase07 Export
+-> Output
+```
+
+この順序以外は禁止する。
+各 Sync が複数責務を持ってはならない。
+Conflict Resolution を飛ばして commit してはならない。
+Character Sync と Relationship Sync を通さずに commit してはならない。
+Phase06 は唯一の同期確定層であり、他フェーズがその役割を代行してはならない。
+side input は Dispatcher で明示的に区分し、通常 export と暗黙 merge してはならない。
+
+---
+
+## 05. Phase00〜05 準拠ルール
+
+本フェーズは最新 Phase00、Phase01、Phase02、Phase03、Phase04、Phase05 に従い、以下を hard rule とする。
+
+Phase05 の canonical export を唯一の通常入力 source とする
+Phase06→Phase07 の required 出力は Phase00 I/O 契約に一致しなければならない
+runtime_state / external_summary / intent / target_presence_id / timestamp_ms は side input としてのみ扱う
+external summary は reference としてのみ扱う
+external を source of truth として採用してはならない
+Phase06 は core_identity を直接変更してはならない
+Phase06 は automatic merge をしてはならない
+Phase06 は polling 全件同期をしてはならない
+Phase06 は無制限 retry をしてはならない
+trace_id は end-to-end で必須である
+review queue を受け取ってはならない
+world_command を生成してはならない
+
+---
+
+## 06. Source of Truth
+
+Phase06 は source of truth の優先順位を固定しなければならない。
+この順序を破ってはならない。
+
+```text
+Character
+> Runtime State
+> Persistent Memory
+> External Observation
+```
+
+定義は以下とする。
+
+Character
+IRIS が IRIS であるための最上位一貫性制約
+
+Runtime State
+現在の実行状態として最も新しい内部状態
+
+Persistent Memory
+Phase05 を通過した保存済みの履歴と関係情報
+
+External Observation
+外界から来た観測結果。参考値であり truth ではない
+
+規則は以下とする。
+
+external 観測が runtime state と衝突した場合、external を正としてはならない
+persistent memory が character 制約と衝突した場合、memory を採用してはならない
+runtime state が character 制約と衝突した場合、commit してはならない
+character は上書き対象ではなく検証制約である
+side input は source of truth 順位を飛び越える根拠になってはならない
+
+---
+
+## 07. 通常入力契約
+
+Phase06 は Phase05 の canonical export を通常入力として受け取る。
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase05_importance": 0.0,
+  "phase05_character_relevance": 0.0,
+  "phase05_character_persistence_score": 0.0,
+  "phase05_drift_score": 0.0,
+  "updated_store": "relationship_memory|memory_store|meaning_store|experience_log",
+  "commit_status": "committed|rejected|rolled_back"
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "linked_identity_id": "string|null",
+  "relationship_hint": "new|familiar|uncertain|null",
+  "topic_key": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+Phase05 由来でない暗黙入力を受け取ってはならない
+raw payload 全文を参照してはならない
+external の生データを通常入力へ混ぜてはならない
+`commit_status != committed` をそのまま同期確定扱いしてはならない
+world_command を通常入力として受け取ってはならない
+
+---
+
+## 08. side input 契約
+
+Phase06 は以下を side input として別枠で受け取ってよい。
+
+```json
+{
+  "runtime_state": {},
+  "external_summary": {},
+  "intent": "greet|respond|observe|ignore|null",
+  "target_presence_id": "uuid|null",
+  "timestamp_ms": 0
+}
+```
+
+side input の役割は以下に限定する。
+
+runtime state の現況反映
+external summary の参照
+intent 整合確認
+target presence 整合確認
+時系列順序の補助
+
+制約は以下とする。
+
+side input を export required に昇格してはならない
+side input を source of truth の主因にしてはならない
+side input をそのまま commit してはならない
+side input は Dispatcher で route 区分し、通常入力とフィールド merge してはならない
+external_summary は compact summary に限り、raw payload 全文を含んではならない
+
+---
+
+## 09. Sync Dispatcher
+
+Sync Dispatcher は入力更新を各 Sync モジュールへ配分するだけの層である。
+ここで統合判断をしてはならない。
+
+責務は以下とする。
+
+Phase05 更新を State / Memory / Relationship sync の候補へ送る
+runtime_state を State Sync へ送る
+intent を Intent Sync へ送る
+external_summary を External Sync へ送る
+character / relationship 検証対象を後段へ送る
+通常入力と side input を route 分離したまま保持する
+
+Dispatcher は deterministic であること。
+同一入力に対して同一 routing を返すこと。
+priority の再解釈は禁止する。
+Dispatcher が conflict を解決してはならない。
+Dispatcher が commit を決めてはならない。
+
+---
+
+## 10. State Sync
+
+State Sync は runtime state の整合維持のみを行う。
+人格変更をしてはならない。
+
+対象例
+
+current active presence
+speaker ownership
+active conversation state
+last valid action
+last safe state pointer
+
+最低限のルールは以下とする。
+
+invalid transition を reject
+missing required field を reject
+stale state update を reject または skip
+safe state pointer を維持
+blocked state を unsafe active state に昇格してはならない
+
+State Sync は external 観測を根拠に runtime state を直接上書きしてはならない。
+
+score 名は以下に固定する。
+
+```text
+phase06_state_validity_score
+```
+
+---
+
+## 11. Intent Sync
+
+Intent Sync は現在アクティブな intent 群の整合を取る。
+複数 intent を増殖させてはならない。
+Phase01 の intent を否定するための層ではなく、同期時点での整合確認層である。
+
+最低限のルールは以下とする。
+
+canonical intent set 外を reject
+stale intent を reject または skip
+runtime state と明確に衝突する intent を reject
+external summary だけを根拠に intent を変更しない
+active_intent は 1 件または null に正規化する
+
+score 名は以下に固定する。
+
+```text
+phase06_intent_consistency_score
+```
+
+---
+
+## 12. Memory Sync
+
+Memory Sync は Phase05 が通した更新候補を同期可能な形に整える層である。
+ここで新しい memory を自由生成してはならない。
+ここで source of truth を握ってはならない。
+
+対象は以下とする。
+
+memory_store
+meaning_store
+experience_log
+
+最低限のルールは以下とする。
+
+updated_store が canonical set 内であること
+Phase05 の commit_status を確認すること
+rollback 済み候補を commit 扱いしてはならない
+drift 超過履歴を再採用してはならない
+review route 由来の補正を無条件採用してはならない
+
+score 名は以下に固定する。
+
+```text
+phase06_memory_sync_score
+```
+
+---
+
+## 13. External Sync
+
+External Sync は external_summary を参照値として整形するだけの層である。
+ここで truth 化してはならない。
+ここで state や memory を強制上書きしてはならない。
+
+最低限のルールは以下とする。
+
+external_summary を compact reference として保持する
+raw external data を保存しない
+runtime state と衝突する場合は衝突情報として保持するだけに留める
+character 制約に反する external observation を採用しない
+外部観測由来の人格急変候補を reject する
+
+score 名は以下に固定する。
+
+```text
+phase06_external_trust_score
+```
+
+この score は「外部を信じた度合い」ではなく、「参照値として扱える整形品質」を示す。
+高 score でも truth ではない。
+
+---
+
+## 14. Character Sync
+
+Character Sync は、更新候補が IRIS の人格継続性と整合しているかを検証する層である。
+ここで新しい人格や trait を作ってはならない。
+ここで core_identity を書き換えてはならない。
+
+最低限のルールは以下とする。
+
+character 制約と衝突する更新を reject
+external 由来急変を reject
+review 由来でも人格急変を reject
+短期成功のための character 崩壊を reject
+safe redirect / persistence 方針と矛盾する更新を reject
+
+score 名は以下に固定する。
+
+```text
+phase06_character_sync_score
+```
+
+Character Sync は最上位拘束の検証層である。
+ここを甘くするな。
+
+---
+
+## 15. Relationship Sync
+
+Relationship Sync は relational 更新候補の同期整合だけを行う。
+ここで関係値を勝手に増幅してはならない。
+単発イベントで急変させてはならない。
+
+最低限のルールは以下とする。
+
+`new|familiar|uncertain` の canonical 範囲で扱う
+single event 由来の大幅上昇 / 下降を reject
+identity 未確定時は保守的に扱う
+external summary を関係更新の主根拠にしない
+review 由来でも関係値の直接上書きをしない
+
+score 名は以下に固定する。
+
+```text
+phase06_relationship_sync_score
+```
+
+---
+
+## 16. Conflict Resolution
+
+Conflict Resolution は、各 Sync の結果が衝突した場合に deterministic に 1 つの結論へ落とす層である。
+自動曖昧 merge をしてはならない。
+中途半端な折衷案を作ってはならない。
+
+優先順位は以下に固定する。
+
+```text
+Character
+> Runtime State
+> Persistent Memory
+> External Observation
+```
+
+解決規則は以下とする。
+
+最上位制約に反する候補を落とす
+同順位候補が衝突する場合は stale を落とす
+時系列が同等なら safe state に近い方を残す
+判定不能なら commit せず reject または rollback する
+external を勝者にしてはならない
+
+score 名は以下に固定する。
+
+```text
+phase06_conflict_resolution_score
+```
+
+Conflict Resolution は deterministic でなければならない。
+同一入力で別結論が出る設計は禁止する。
+
+---
+
+## 17. Commit / Reject / Rollback
+
+Phase06 はここで初めて同期確定を行う。
+ただし、雑に commit してはならない。
+Reject と Rollback を明確に分ける。
+
+commit 条件は以下とする。
+
+各 sync score が required 範囲内
+character inconsistency がない
+relationship inconsistency がない
+conflict が deterministic に解決済み
+safe state pointer が存在する
+通常入力と side input の混線がない
+
+reject 条件は以下とする。
+
+invalid state
+invalid intent
+memory inconsistency
+character inconsistency
+relationship inconsistency
+external overreach
+side input violation
+insufficient evidence
+
+rollback 条件は以下とする。
+
+commit 後整合性再検証失敗
+safe state pointer あり
+export build 前 failure
+conflict replay mismatch
+hash / snapshot mismatch
+
+commit_status は以下のみ許可する。
+
+```text
+committed
+rejected
+rolled_back
+recovered
+```
+
+`recovered` は rollback 後 safe state に復帰し、継続可能な場合のみ使用してよい。
+
+---
+
+## 18. Safe State Recovery
+
+Safe State Recovery は Phase06 の生命線である。
+ここがないと同期確定層は事故る。
+
+Safe State Recovery の責務は以下とする。
+
+last safe state pointer の維持
+rollback 後の最小整合 state 復元
+recovered 状態の明示
+Phase07 へ unsafe export を送らない
+上流 runtime を止めない
+
+最低限のルールは以下とする。
+
+safe state がない場合は commit してはならない
+recovery failure は明示的 stop とする
+recovery 後も character 制約を再検証する
+recovery を理由に external を truth 採用してはならない
+
+---
+
+## 19. Evidence Logging
+
+Phase06 の evidence log は、同期判断の追跡可能性を保証する。
+ここは運用上かなり重要だ。
+
+最低限記録すべき内容は以下とする。
+
+input summary
+side input summary
+各 sync の判定結果
+conflict resolution の根拠
+commit / reject / rollback / recovered の理由
+safe state pointer
+latency
+trace_id / event_id
+
+最小構造例は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase06",
+  "state_sync": "success|reject|skip",
+  "intent_sync": "success|reject|skip",
+  "memory_sync": "success|reject|skip",
+  "external_sync": "success|reject|skip",
+  "character_sync": "success|reject|skip",
+  "relationship_sync": "success|reject|skip",
+  "conflict_result": "committed|rejected|rolled_back|recovered",
+  "safe_state_pointer": "string|null",
+  "latency_ms": 0
+}
+```
+
+raw payload 全文を evidence に入れてはならない。
+external raw data を全文保存してはならない。
+
+---
+
+## 20. Phase07 Export 契約
+
+**これが Phase07 に渡す正規出力である。**
+Phase00 の Phase06→Phase07 I/O 契約に完全一致させる。
+
+required は以下とする。
+
+```json
+{
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "sync_status": "committed|rejected|rolled_back|recovered",
+  "phase06_state_validity_score": 0.0,
+  "phase06_intent_consistency_score": 0.0,
+  "phase06_memory_sync_score": 0.0,
+  "phase06_external_trust_score": 0.0,
+  "phase06_character_sync_score": 0.0,
+  "phase06_relationship_sync_score": 0.0,
+  "phase06_conflict_resolution_score": 0.0
+}
+```
+
+optional は以下とする。
+
+```json
+{
+  "active_intent": "greet|respond|observe|ignore|null",
+  "target_presence_id": "uuid|null",
+  "linked_identity_id": "string|null",
+  "external_summary": {},
+  "source": "youtube|minecraft|vrchat|system",
+  "timestamp_ms": 0,
+  "relationship_hint": "new|familiar|uncertain|null",
+  "topic_key": "string|null"
+}
+```
+
+制約は以下とする。
+
+required key を欠落させてはならない
+score は 0.0〜1.0 に正規化する
+raw payload 全文を含めてはならない
+world_command を含めてはならない
+review queue field を含めてはならない
+side input 全体を丸ごと optional export に混ぜてはならない
+unsafe state を `committed` として出してはならない
+
+---
+
+## 21. score naming
+
+Phase06 で canonical として使用してよい score は以下のみとする。
+
+```text
+phase06_state_validity_score
+phase06_intent_consistency_score
+phase06_memory_sync_score
+phase06_external_trust_score
+phase06_character_sync_score
+phase06_relationship_sync_score
+phase06_conflict_resolution_score
+```
+
+必要なら内部補助値として以下を持ってよい。
+
+```text
+phase06_safe_state_confidence_score
+phase06_recovery_stability_score
+```
+
+ただし export required にしてよいのは前者 7 つのみとする。
+旧表記の `phase6_*` は禁止する。
+phase 接頭辞なし score も禁止する。
+
+---
+
+## 22. Logging
+
+Phase06 の全ログは以下を最低限含むこと。
+
+```json
+{
+  "timestamp_ms": 0,
+  "trace_id": "uuid",
+  "event_id": "uuid",
+  "phase": "phase06",
+  "step": "dispatcher|state_sync|intent_sync|memory_sync|external_sync|character_sync|relationship_sync|conflict_resolution|commit|rollback|recovery|evidence_log|export_builder",
+  "result": "success|reject|rollback|recover|skip|fail",
+  "sync_status": "committed|rejected|rolled_back|recovered|null",
+  "latency_ms": 0
+}
+```
+
+追加で以下を記録してよい。
+
+```json
+{
+  "phase06_state_validity_score": 0.0,
+  "phase06_character_sync_score": 0.0,
+  "phase06_conflict_resolution_score": 0.0,
+  "safe_state_pointer": "string|null"
+}
+```
+
+必須 correlation key を欠落させてはならない。
+raw payload 全文をログへ保存してはならない。
+external raw data を全文保存してはならない。
+rollback と recovered を同一 result にしてはならない。
+
+---
+
+## 23. HARD 制約
+
+以下は違反時 CI fail とする。
+
+Phase06 内に LLM import がある
+Phase06 内に world SDK import がある
+Phase06 が reward 最適化を行う
+Phase06 が trait / persona を生成する
+Phase06 が external を truth 化する
+Phase06 が automatic merge を行う
+Phase06 が polling 全件同期を行う
+Phase06 が無制限 retry を行う
+Phase06 が review queue を受け取る
+Phase06 が world_command を生成する
+Phase06 Export が Phase00 I/O 契約と不一致である
+通常入力と side input を曖昧 merge する
+raw payload 全文を export / log / evidence に保存する
+trace_id なしで export する
+safe state なしで commit する
+character inconsistency を commit する
+relationship inconsistency を commit する
+rollback failure を握り潰す
+
+---
+
+## 24. SOFT 制約
+
+以下は警告ログのみとする。
+
+rejected 偏重
+rolled_back 偏重
+recovered 偏重
+external_summary 欠落率上昇
+relationship_hint 欠落率上昇
+safe state recovery 発火率上昇
+sync latency 悪化
+conflict score 二極化
+idle / null active_intent 偏重
+
+SOFT 制約は fail しない。
+ただし同期品質の劣化指標として残す。
+
+---
+
+## 25. STOP 条件
+
+以下は Phase06 の停止条件とする。
+
+```text
+PHASE06_DISPATCHER_VIOLATION
+PHASE06_STATE_SYNC_FAILURE
+PHASE06_INTENT_SYNC_FAILURE
+PHASE06_MEMORY_SYNC_FAILURE
+PHASE06_EXTERNAL_SYNC_VIOLATION
+PHASE06_CHARACTER_SYNC_FAILURE
+PHASE06_RELATIONSHIP_SYNC_FAILURE
+PHASE06_CONFLICT_RESOLUTION_FAILURE
+PHASE06_SAFE_STATE_MISSING
+PHASE06_RECOVERY_FAILURE
+PHASE06_BOUNDARY_VIOLATION
+PHASE06_TRACE_MISSING
+PHASE06_EXPORT_CONTRACT_VIOLATION
+PHASE06_SIDE_INPUT_VIOLATION
+```
+
+新規 STOP_REASON を増やす場合は `PHASE06_*` 接頭辞を必須とする。
+Phase00 の global stop reason と衝突してはならない。
+
+---
+
+## 26. Repository 構造
+
+最低限以下を持つこと。
+
+```text
+.funky/profiles/iris/
+  core/
+    phase06_sync_dispatcher.py
+    phase06_state_sync.py
+    phase06_intent_sync.py
+    phase06_memory_sync.py
+    phase06_external_sync.py
+    phase06_character_sync.py
+    phase06_relationship_sync.py
+    phase06_conflict_resolution.py
+    phase06_commit_reject_rollback.py
+    phase06_safe_state_recovery.py
+    phase06_evidence_logging.py
+    phase06_export_builder.py
+    phase06_validators.py
+  runtime/logs/
+    phase06_runtime.log
+    phase06_error.log
+    phase06_evidence.log
+  tests/
+    unit/
+    integration/
+    ci/
+```
+
+ファイル名は参考であり、責務分割は維持すればよい。
+ただし 1 ファイルに全部詰め込むのは禁止する。
+State / Character / Conflict / Recovery を一体化してはならない。
+Dispatcher と Conflict Resolution を同一責務にしてはならない。
+
+---
+
+## 27. テスト仕様
+
+unit test で最低限確認すること。
+
+Sync Dispatcher が通常入力と side input を分離 route する
+State Sync が invalid transition を reject する
+Intent Sync が canonical 外 intent を reject する
+Memory Sync が invalid updated_store を reject する
+External Sync が external を truth 採用しない
+Character Sync が人格急変候補を reject する
+Relationship Sync が単発急変を reject する
+Conflict Resolution が同一入力で同一結果を返す
+Commit / Reject / Rollback が safe state 条件を守る
+Safe State Recovery が safe state へ復帰できる
+Export Builder が Phase00 I/O 契約どおりの required / optional を返す
+
+integration test で最低限確認すること。
+
+Phase05 export + runtime state から committed sync export が生成される
+external_summary があっても character 制約違反は commit されない
+relationship inconsistency があると commit されない
+rollback 後に recovered が出力される
+safe state 不在時に commit されない
+trace_id が最終 export まで維持される
+Phase07 consumer が required key を欠かずに受け取れる
+通常入力と side input のログが混線しない
+
+ci test で最低限確認すること。
+
+Phase06 内 world SDK import 検出
+LLM import 検出
+reward 最適化検出
+external truth 化検出
+automatic merge 検出
+unlimited retry 検出
+review queue consumer 検出
+Phase00 I/O 契約不一致検出
+side input merge 汚染検出
+raw payload export 混入検出
+safe state なし commit 検出
+
+---
+
+## 28. CI fail 条件
+
+以下は CI fail とする。
+
+`phase06_*` モジュール内に world SDK import がある
+`phase06_*` モジュール内に LLM import がある
+output に `world_command` を持つ
+Phase06 Export が Phase00 required key を欠いている
+通常入力と side input を曖昧 merge する
+external を truth として state / memory / character を上書きする
+raw payload 全文を export / log / evidence に保存する
+trace_id なしで export する
+safe state なしで commit する
+character inconsistency を commit する
+relationship inconsistency を commit する
+review queue consumer を持つ
+rollback failure を握り潰す
+automatic merge を実装する
+
+---
+
+## 29. 実装順序
+
+Phase06 は以下の順で実装すること。
+
+Source of Truth 優先順位を固定する
+Sync Dispatcher を作る
+State Sync を作る
+Intent Sync を作る
+Memory Sync を作る
+External Sync を作る
+Character Sync を作る
+Relationship Sync を作る
+Conflict Resolution を作る
+Commit / Reject / Rollback を作る
+Safe State Recovery を作る
+Evidence Logging を作る
+Phase07 Export Builder を作る
+ログを入れる
+unit test を入れる
+integration test を入れる
+CI fail ルールを入れる
+
+この順序を崩すな。
+特に先に external を濃く使うな。
+先に reward を混ぜるな。
+先に task 実行へ寄せるな。
+まず **同期確定層として人格継続を壊さずに閉じること** を優先すること。
+
+---
+
+## 30. 禁止事項
+
+このフェーズで以下をやってはならない。
+
+LLM 統合
+reward 最適化
+trait / persona 生成
+external truth 化
+automatic merge
+polling 全件同期
+unlimited retry
+review path 処理
+world_command 生成
+raw payload 全保持
+Phase07 の責務先食い
+safe state なし commit
+side input の通常入力化
+
+---
+
+## 31. 開発者向け最終指示
+
+Phase06 の目的は、IRIS を賢くすることではない。
+**IRIS が同じ存在として矛盾なく継続できる状態だけを確定すること** だ。
+
+ここでやるべきは整合だ。
+最適化ではない。
+報酬最大化ではない。
+外界迎合ではない。
+
+ここで external を truth にするな。
+それで character が壊れる。
+ここで auto merge に逃げるな。
+それで何が正だったか分からなくなる。
+ここで safe state を省くな。
+rollback できなくなる。
+ここで reward を混ぜるな。
+Phase07 の責務を壊す。
+ここで commit を急ぐな。
+reject / rollback の方が正しい場面は多い。
+
+Phase06 は **唯一の同期確定層** だ。
+だからこそ、曖昧さを残すな。
+Character > Runtime State > Persistent Memory > External Observation
+この順を絶対に守れ。
+それが守れない同期は、同期ではなく破壊だ。
+
+---
+
