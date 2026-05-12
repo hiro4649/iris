@@ -139,6 +139,29 @@ const SUPPORT_EVENT_TYPE_ALIASES = new Set([
   "support_event",
   "donation",
 ]);
+const YOUTUBE_INGEST_EVENT_SUMMARY_CONTRACT_MANIFEST_FIELDS = new Set([
+  "schema",
+  "contract_kind",
+  "event_summary_schema",
+  "accepted_sources",
+  "allowed_summary_fields",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const YOUTUBE_INGEST_EVENT_SUMMARY_FIELDS = new Set([
+  "schema",
+  "source",
+  "event_id_present",
+  "trace_id_present",
+  "timestamp_present",
+  "payload_kind",
+  "author_present",
+  "message_text_present",
+  "support_event_present",
+  "contract_manifest",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 
 export function normalizeYouTubeComment(raw) {
   assertCommentInputSafe(raw);
@@ -161,8 +184,163 @@ export function normalizeYouTubeComment(raw) {
         raw.text ?? raw.message_text ?? raw.messageText ?? raw.textOriginal ?? raw.textDisplay ?? "",
         500
       ),
+      moderation_status: "unconfirmed",
     },
   };
+}
+
+export function createYouTubeIngestEventSummary(event) {
+  assertCommentInputSafe(event, "YouTube ingest event summary input");
+  const summary = {
+    schema: "iris_youtube_ingest_event_summary_v1",
+    source: summarizeEventSource(event?.source),
+    event_id_present: cleanText(event?.event_id, 180) !== "",
+    trace_id_present: cleanText(event?.trace_id, 180) !== "",
+    timestamp_present: Number.isFinite(Number(event?.timestamp_ms)),
+    payload_kind: summarizePayloadKind(event),
+    author_present:
+      cleanText(event?.payload?.author_channel_id, 160) !== "" ||
+      cleanText(event?.payload?.display_name, 120) !== "",
+    message_text_present: cleanText(event?.payload?.text, 500) !== "",
+    support_event_present: summarizePayloadKind(event) === "support_event",
+    contract_manifest: createYouTubeIngestEventSummaryContractManifest(),
+    boundary_policy: {
+      counts_types_and_booleans_only: true,
+      no_raw_comment_text: true,
+      no_api_response_body: true,
+      no_private_author_ids: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertYouTubeIngestEventSummarySafe(summary);
+  return summary;
+}
+
+export function createYouTubeIngestEventSummaryContractManifest() {
+  const manifest = {
+    schema: "iris_youtube_ingest_event_summary_contract_manifest_v1",
+    contract_kind: "youtube_ingest_event_summary",
+    event_summary_schema: "iris_youtube_ingest_event_summary_v1",
+    accepted_sources: ["youtube_live_chat", "youtube_donation"],
+    allowed_summary_fields: [
+      "schema",
+      "source",
+      "event_id_present",
+      "trace_id_present",
+      "timestamp_present",
+      "payload_kind",
+      "author_present",
+      "message_text_present",
+      "support_event_present",
+      "boundary_policy",
+      "adapter_validation_required",
+    ],
+    boundary_policy: {
+      counts_types_and_booleans_only: true,
+      no_raw_comment_text: true,
+      no_api_response_body: true,
+      no_private_author_ids: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertYouTubeIngestEventSummaryContractManifestSafe(manifest);
+  return manifest;
+}
+
+export function assertYouTubeIngestEventSummarySafe(
+  summary,
+  context = "YouTube ingest event summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!YOUTUBE_INGEST_EVENT_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_youtube_ingest_event_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`, { schema: summary.schema });
+  }
+  if (!["youtube_live_chat", "youtube_donation", "unknown"].includes(summary.source)) {
+    throw new ContractError(`${context}: invalid source`, { source: summary.source });
+  }
+  if (!["comment", "support_event", "unknown"].includes(summary.payload_kind)) {
+    throw new ContractError(`${context}: invalid payload kind`, {
+      payload_kind: summary.payload_kind,
+    });
+  }
+  for (const field of [
+    "event_id_present",
+    "trace_id_present",
+    "timestamp_present",
+    "author_present",
+    "message_text_present",
+    "support_event_present",
+  ]) {
+    if (typeof summary[field] !== "boolean") {
+      throw new ContractError(`${context}: boolean field required`, { field });
+    }
+  }
+  assertYouTubeIngestEventSummaryContractManifestSafe(
+    summary.contract_manifest,
+    `${context} contract manifest`
+  );
+  assertSummaryBoundaryPolicySafe(summary.boundary_policy, context);
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation is required`);
+  }
+  assertNoUnsafeSummaryMaterial(summary, context);
+}
+
+export function assertYouTubeIngestEventSummaryContractManifestSafe(
+  manifest,
+  context = "YouTube ingest event summary contract manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest must be an object`);
+  }
+  for (const field of Object.keys(manifest)) {
+    if (!YOUTUBE_INGEST_EVENT_SUMMARY_CONTRACT_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field`, { field });
+    }
+  }
+  if (manifest.schema !== "iris_youtube_ingest_event_summary_contract_manifest_v1") {
+    throw new ContractError(`${context}: invalid schema`, { schema: manifest.schema });
+  }
+  if (
+    manifest.contract_kind !== "youtube_ingest_event_summary" ||
+    manifest.event_summary_schema !== "iris_youtube_ingest_event_summary_v1"
+  ) {
+    throw new ContractError(`${context}: invalid summary contract`);
+  }
+  if (
+    !Array.isArray(manifest.accepted_sources) ||
+    !manifest.accepted_sources.includes("youtube_live_chat") ||
+    !manifest.accepted_sources.includes("youtube_donation")
+  ) {
+    throw new ContractError(`${context}: accepted sources are required`);
+  }
+  if (
+    !Array.isArray(manifest.allowed_summary_fields) ||
+    !manifest.allowed_summary_fields.includes("payload_kind") ||
+    !manifest.allowed_summary_fields.includes("message_text_present")
+  ) {
+    throw new ContractError(`${context}: allowed summary fields are incomplete`);
+  }
+  assertSummaryBoundaryPolicySafe(manifest.boundary_policy, context);
+  if (manifest.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation is required`);
+  }
+  assertNoUnsafeSummaryMaterial(manifest, context);
 }
 
 function assertCommentInputSafe(value, path = "root") {
@@ -211,6 +389,61 @@ function isSupportEventType(value) {
     .replace(/_+/g, "_")
     .replace(/^_|_$/g, "");
   return SUPPORT_EVENT_TYPE_ALIASES.has(key);
+}
+
+function summarizeEventSource(source) {
+  const text = cleanText(source, 80);
+  if (text === "youtube_live_chat" || text === "youtube_donation") return text;
+  return "unknown";
+}
+
+function summarizePayloadKind(event) {
+  if (event?.source === "youtube_donation" || event?.payload?.support_event_type) {
+    return "support_event";
+  }
+  if (event?.source === "youtube_live_chat") return "comment";
+  return "unknown";
+}
+
+function assertSummaryBoundaryPolicySafe(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of [
+    "counts_types_and_booleans_only",
+    "no_raw_comment_text",
+    "no_api_response_body",
+    "no_private_author_ids",
+    "no_endpoint_values",
+    "no_secret_values",
+    "no_candidates",
+    "no_commands",
+  ]) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary policy missing`, { field });
+    }
+  }
+}
+
+function assertNoUnsafeSummaryMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(world_command|input_action_candidate|approved_game_input_action|execute|commit|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|token|secret|password|endpoint|url|response_body|api_response_body)\b|https?:\/\//iu.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe summary material`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoUnsafeSummaryMaterial(item, context, `${path}[${index}]`));
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoUnsafeSummaryMaterial(child, context, `${path}.${field}`);
+  }
 }
 
 function normalizeMarker(value) {

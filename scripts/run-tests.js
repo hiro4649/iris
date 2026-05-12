@@ -155,6 +155,7 @@ import {
 } from "../src/services/game/gamePlayer.js";
 import {
   assertApprovedGameInputActionSafe,
+  assertApprovedGameInputActionContractManifestSafe,
   assertGameActionValidationFixtureSummarySafe,
   assertGameActionValidationSafe,
   createGameActionValidationFixtureSummary,
@@ -18943,6 +18944,26 @@ const tests = [
         true
       );
       assert.equal(capturedApprovedAction.schema, "approved_game_input_action");
+      assert.equal(
+        capturedApprovedAction.contract_manifest.schema,
+        "iris_approved_game_input_action_contract_manifest_v1"
+      );
+      assert.equal(
+        capturedApprovedAction.contract_manifest.request_schema,
+        "approved_game_input_action"
+      );
+      assert.equal(
+        capturedApprovedAction.contract_manifest.candidate_schema,
+        "iris_input_action_candidate_v1"
+      );
+      assert.equal(capturedApprovedAction.contract_manifest.candidate_schema_separate, true);
+      assert.equal(
+        capturedApprovedAction.contract_manifest.adapter_accepts_candidate_schema,
+        false
+      );
+      assertApprovedGameInputActionContractManifestSafe(
+        capturedApprovedAction.contract_manifest
+      );
       assert.equal(capturedApprovedAction.action_expiry_policy.adapter_must_reject_after_expiry, true);
       assert.equal(capturedApprovedAction.expires_at_ms > capturedApprovedAction.approved_at_ms, true);
       assert.equal(

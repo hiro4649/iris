@@ -64,7 +64,8 @@ export async function runCommentPipeline(event, runtime = {}) {
   const phase03 = phase03Context(phase02, eventRuntime);
   const phase04 = phase04Action(phase02, phase03);
   const phase05 = phase05Persistence(phase04, eventRuntime);
-  const phase06 = phase06Sync(phase05, {
+  const phase05CoreExport = createPhase05CoreExport(phase05);
+  const phase06 = phase06Sync(phase05CoreExport, {
     intent: phase02.intent,
     target_presence_id: phase04.target_presence_id,
     source: phase01.source,
@@ -152,6 +153,35 @@ export async function runCommentPipeline(event, runtime = {}) {
     phase15,
     persistence,
     relationship,
+  };
+}
+
+function createPhase05CoreExport(phase05) {
+  const {
+    trace_id,
+    event_id,
+    phase05_importance,
+    phase05_character_relevance,
+    phase05_character_persistence_score,
+    phase05_drift_score,
+    updated_store,
+    commit_status,
+    linked_identity_id,
+    relationship_hint,
+    topic_key,
+  } = phase05;
+  return {
+    trace_id,
+    event_id,
+    phase05_importance,
+    phase05_character_relevance,
+    phase05_character_persistence_score,
+    phase05_drift_score,
+    updated_store,
+    commit_status,
+    linked_identity_id,
+    relationship_hint,
+    topic_key,
   };
 }
 

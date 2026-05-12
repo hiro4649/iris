@@ -290,6 +290,18 @@ const ANIME_PERFORMANCE_READINESS_SUMMARY_FIELDS = new Set([
   "raw_material_exposed",
   "boundary_policy",
 ]);
+const VOICE_SUBTITLE_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "page_status",
+  "voice_configured",
+  "subtitle_configured",
+  "voice_status",
+  "subtitle_status",
+  "repair_status",
+  "configured_count",
+  "attention_count",
+  "boundary_policy",
+]);
 const GAZE_BLINK_MOUTH_SYNC_STATUS_FIELDS = new Set([
   "schema",
   "gaze_blink_status",
@@ -1132,6 +1144,43 @@ export function createAnimePerformanceReadinessSummary({
   };
   assertAnimePerformanceReadinessSummarySafe(readiness);
   return readiness;
+}
+
+export function createVoiceSubtitlePreflightAdminPageSummary({
+  voiceConfigured = false,
+  subtitleConfigured = false,
+  voiceStatus = "attention",
+  subtitleStatus = "attention",
+  repairStatus = "operator_attention_required",
+} = {}) {
+  const configuredCount =
+    (voiceConfigured === true ? 1 : 0) + (subtitleConfigured === true ? 1 : 0);
+  const attentionCount =
+    (voiceStatus === "ready" ? 0 : 1) + (subtitleStatus === "ready" ? 0 : 1);
+  const summary = {
+    schema: "iris_voice_subtitle_preflight_admin_page_summary_v1",
+    page_status: attentionCount === 0 ? "ready" : "attention",
+    voice_configured: voiceConfigured === true,
+    subtitle_configured: subtitleConfigured === true,
+    voice_status: safePreflightStatus(voiceStatus),
+    subtitle_status: safePreflightStatus(subtitleStatus),
+    repair_status: safeRepairStatus(repairStatus),
+    configured_count: configuredCount,
+    attention_count: attentionCount,
+    boundary_policy: {
+      configured_status_repair_counts_only: true,
+      no_raw_audio: true,
+      no_subtitle_cues: true,
+      no_vendor_diagnostics: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_candidates: true,
+      no_commands: true,
+      read_only_preflight: true,
+    },
+  };
+  assertVoiceSubtitlePreflightAdminPageSummarySafe(summary);
+  return summary;
 }
 
 export function createGazeBlinkMouthSyncStatus({ env = process.env } = {}) {
@@ -2111,6 +2160,74 @@ export function assertAnimePerformanceReadinessSummarySafe(
   assertNoAnimePerformanceRawMaterial(summary, context);
 }
 
+export function assertVoiceSubtitlePreflightAdminPageSummarySafe(
+  summary,
+  context = "voice subtitle preflight admin page summary"
+) {
+  assertSafeObject(summary, context);
+  if (summary.schema !== "iris_voice_subtitle_preflight_admin_page_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!VOICE_SUBTITLE_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!["ready", "attention"].includes(summary.page_status)) {
+    throw new ContractError(`${context}: invalid page status`);
+  }
+  for (const field of ["voice_configured", "subtitle_configured"]) {
+    if (typeof summary[field] !== "boolean") {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  for (const field of ["voice_status", "subtitle_status"]) {
+    if (!["ready", "attention"].includes(summary[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    ![
+      "not_required",
+      "operator_attention_required",
+      "repair_available",
+    ].includes(summary.repair_status)
+  ) {
+    throw new ContractError(`${context}: invalid repair status`);
+  }
+  for (const field of ["configured_count", "attention_count"]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    summary.configured_count !==
+      (summary.voice_configured ? 1 : 0) + (summary.subtitle_configured ? 1 : 0) ||
+    summary.attention_count !==
+      (summary.voice_status === "ready" ? 0 : 1) +
+        (summary.subtitle_status === "ready" ? 0 : 1) ||
+    summary.page_status !== (summary.attention_count === 0 ? "ready" : "attention")
+  ) {
+    throw new ContractError(`${context}: count/status mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    {
+      configured_status_repair_counts_only: true,
+      no_raw_audio: true,
+      no_subtitle_cues: true,
+      no_vendor_diagnostics: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_candidates: true,
+      no_commands: true,
+      read_only_preflight: true,
+    },
+    context
+  );
+  assertNoVoiceSubtitlePreflightRawMaterial(summary, context);
+}
+
 export function assertGazeBlinkMouthSyncStatusSafe(
   status,
   context = "gaze blink mouth sync status"
@@ -2766,6 +2883,15 @@ function safeFallbackVoicePolicyLabel(value, sourceStatus) {
   return status === "placeholder" ? "safe_placeholder" : "operator_review_required";
 }
 
+function safePreflightStatus(value) {
+  return value === "ready" ? "ready" : "attention";
+}
+
+function safeRepairStatus(value) {
+  if (["not_required", "repair_available"].includes(value)) return value;
+  return "operator_attention_required";
+}
+
 function safeSpoilerModeStatus(value) {
   const normalized = String(value ?? "").trim();
   return SPOILER_MODE_SAFE_STATUSES.has(normalized)
@@ -3032,6 +3158,43 @@ function assertNoVoiceQualityRawMaterial(value, context, path = "root") {
   }
   for (const [field, child] of Object.entries(value)) {
     assertNoVoiceQualityRawMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoVoiceSubtitlePreflightRawMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /raw[_ -]?audio|raw[_ -]?voice|subtitle[_ -]?cue|speech[_ -]?cue|vendor[_ -]?diagnostic|vendor[_ -]?error|voice[_ -]?sample/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: raw voice subtitle material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoVoiceSubtitlePreflightRawMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path.endsWith(".boundary_policy")) {
+      continue;
+    }
+    if (
+      /raw[_-]?audio|raw[_-]?voice|subtitle[_-]?cue|speech[_-]?cue|vendor[_-]?diagnostic/i.test(
+        field
+      )
+    ) {
+      throw new ContractError(`${context}: raw voice subtitle field leaked`, {
+        path: `${path}.${field}`,
+      });
+    }
+    assertNoVoiceSubtitlePreflightRawMaterial(child, context, `${path}.${field}`);
   }
 }
 

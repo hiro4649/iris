@@ -44,6 +44,12 @@ const FORBIDDEN_PRODUCTION_LIVE_READINESS_FIELDS = new Set([
   "last_text",
   "text",
   "subtitle_text",
+  "raw_error",
+  "rawError",
+  "raw_job",
+  "rawJob",
+  "raw_payload",
+  "rawPayload",
   "raw_packet",
   "job_payload",
   "endpoint",
@@ -146,6 +152,31 @@ const PRODUCTION_READINESS_SAFE_NEXT_ACTION_FIELDS = new Set([
   "operator_action_label",
   "boundary_policy",
 ]);
+const PRODUCTION_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "page_status",
+  "component_count",
+  "ready_component_count",
+  "attention_component_count",
+  "component_statuses",
+  "next_safe_action",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRODUCTION_PREFLIGHT_ADMIN_PAGE_COMPONENT_STATUS_FIELDS = new Set([
+  "schema",
+  "component_id",
+  "status",
+  "readiness_state",
+]);
+const PRODUCTION_READINESS_BLOCKER_ACTION_MAP_FIELDS = new Set([
+  "schema",
+  "blocker_label",
+  "action_kind",
+  "next_safe_script",
+  "operator_action_label",
+  "boundary_policy",
+]);
 const PRODUCTION_READINESS_FIXTURE_MODE_LABEL_FIELDS = new Set([
   "schema",
   "fixture_status",
@@ -159,6 +190,71 @@ const PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_FIELDS = new Set([
   "ready_count",
   "attention_count",
   "blocked_count",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_ROUTE_CONTRACT_MANIFEST_FIELDS = new Set([
+  "schema",
+  "contract_status",
+  "route_count",
+  "routes",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_ROUTE_CONTRACT_FIELDS = new Set([
+  "schema",
+  "route_id",
+  "input_fields",
+  "output_fields",
+  "required_output_fields",
+  "safe_summary_required",
+]);
+const PRODUCTION_READINESS_BLOCKER_REASON_SUMMARY_FIELDS = new Set([
+  "schema",
+  "reason_count",
+  "reason_labels",
+  "boundary_policy",
+]);
+const PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_FIELDS = new Set([
+  "schema",
+  "page_status",
+  "blocker_group_count",
+  "total_blocker_count",
+  "blocker_groups",
+  "boundary_policy",
+]);
+const PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_GROUP_FIELDS = new Set([
+  "schema",
+  "blocker_group_label",
+  "status",
+  "blocker_count",
+  "next_safe_action",
+]);
+const PRODUCTION_READINESS_MISSING_COMPONENT_CLASSIFIER_FIELDS = new Set([
+  "schema",
+  "missing_component_count",
+  "missing_components",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_MISSING_COMPONENT_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "status",
+]);
+const PRODUCTION_READINESS_HEARTBEAT_CLASSIFIER_FIELDS = new Set([
+  "schema",
+  "heartbeat_status",
+  "readiness_state",
+  "ready_allowed",
+  "age_bucket",
+  "boundary_policy",
+]);
+const PRODUCTION_READINESS_BATCH_FIXTURE_FIELDS = new Set([
+  "schema",
+  "classification",
+  "ready_allowed",
+  "fixture_status",
+  "real_readiness_status",
+  "component_summary",
+  "blocker_reason_summary",
   "boundary_policy",
 ]);
 const PRODUCTION_READINESS_COMPONENT_DEPENDENCY_FIELDS = new Set([
@@ -294,6 +390,25 @@ const PRODUCTION_READINESS_SAFE_NEXT_ACTION_BOUNDARY_FIELDS = new Set([
   "no_candidates",
   "no_commands",
 ]);
+const PRODUCTION_PREFLIGHT_ADMIN_PAGE_BOUNDARY_FIELDS = new Set([
+  "component_status_count_and_next_action_only",
+  "no_raw_diagnostics",
+  "no_raw_logs",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_paths",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_BLOCKER_ACTION_BOUNDARY_FIELDS = new Set([
+  "safe_script_or_operator_label_only",
+  "blocker_label_only",
+  "no_shell_command_body",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_payloads",
+]);
 const PRODUCTION_READINESS_FIXTURE_MODE_LABEL_BOUNDARY_FIELDS = new Set([
   "fixture_and_real_readiness_separated",
   "fixture_success_not_real_ready",
@@ -312,6 +427,90 @@ const PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_BOUNDARY_FIELDS = new Set([
   "redacted_auth_values",
   "redacted_review_items",
   "no_control_directives",
+]);
+const PRODUCTION_READINESS_ROUTE_CONTRACT_MANIFEST_BOUNDARY_FIELDS = new Set([
+  "manifest_only",
+  "safe_route_ids_only",
+  "field_names_only",
+  "safe_summary_required",
+  "real_process_not_required",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_ROUTE_REQUIRED_OUTPUT_FIELDS = [
+  "schema",
+  "readiness_status",
+  "ready_count",
+  "attention_count",
+  "blocked_count",
+  "boundary_policy",
+];
+const PRODUCTION_READINESS_BLOCKER_REASON_LABELS = new Set([
+  "worker_missing",
+  "engine_attention",
+  "obs_missing",
+  "db_missing",
+  "adapter_attention",
+  "stale_heartbeat",
+  "fixture_only",
+  "operator_review_required",
+]);
+const PRODUCTION_READINESS_BLOCKER_REASON_BOUNDARY_FIELDS = new Set([
+  "fixed_labels_only",
+  "no_raw_error_values",
+  "no_path_values",
+  "no_endpoint_values",
+  "no_token_values",
+]);
+const PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_BOUNDARY_FIELDS = new Set([
+  "safe_grouped_blocker_list_only",
+  "fixed_labels_only",
+  "status_counts_only",
+  "safe_next_action_only",
+  "no_raw_error_values",
+  "no_raw_job_values",
+  "no_raw_payload_values",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_paths",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_READINESS_MISSING_COMPONENT_LABELS = new Set([
+  "worker",
+  "engine",
+  "obs",
+  "db",
+  "adapter",
+]);
+const PRODUCTION_READINESS_MISSING_COMPONENT_BOUNDARY_FIELDS = new Set([
+  "component_labels_only",
+  "status_only",
+  "no_config_values",
+  "no_secret_values",
+  "no_endpoint_values",
+]);
+const PRODUCTION_READINESS_HEARTBEAT_BOUNDARY_FIELDS = new Set([
+  "age_bucket_only",
+  "stale_is_runtime_waiting",
+  "fresh_required_for_ready",
+  "no_raw_payloads",
+  "no_endpoint_values",
+  "no_token_values",
+]);
+const PRODUCTION_READINESS_BATCH_FIXTURE_BOUNDARY_FIELDS = new Set([
+  "synthetic_fixture_only",
+  "blocked_priority_preserved",
+  "fixture_success_not_real_ready",
+  "safe_summary_only",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
 ]);
 const GAMEPLAY_STAGE_GATE_SCRIPTS = Object.freeze({
   configuration_gate: "npm run dev:gameplay:preflight",
@@ -1276,6 +1475,198 @@ export function assertProductionReadinessSafeNextActionSafe(
   );
 }
 
+export function createProductionPreflightAdminPageSummary({
+  componentSummary = null,
+  nextSafeAction = null,
+} = {}) {
+  const safeComponentSummary =
+    componentSummary ??
+    createProductionReadinessComponentDependencyMap();
+  assertProductionReadinessComponentDependencyMapSafe(
+    safeComponentSummary,
+    "production preflight admin page component summary"
+  );
+  const safeNextAction =
+    nextSafeAction ?? createProductionReadinessSafeNextAction();
+  assertProductionReadinessSafeNextActionSafe(
+    safeNextAction,
+    "production preflight admin page next safe action"
+  );
+  const componentStatuses = safeComponentSummary.components.map((component) => ({
+    schema: "iris_production_preflight_admin_page_component_status_v1",
+    component_id: component.component_id,
+    status: component.dependency_status,
+    readiness_state: component.readiness_state,
+  }));
+  const summary = {
+    schema: "iris_production_preflight_admin_page_summary_v1",
+    page_status:
+      safeComponentSummary.attention_component_count === 0 ? "ready" : "attention",
+    component_count: safeComponentSummary.component_count,
+    ready_component_count: safeComponentSummary.ready_component_count,
+    attention_component_count: safeComponentSummary.attention_component_count,
+    component_statuses: componentStatuses,
+    next_safe_action: safeNextAction,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_PREFLIGHT_ADMIN_PAGE_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertProductionPreflightAdminPageSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionPreflightAdminPageSummarySafe(
+  summary,
+  context = "production preflight admin page summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected page summary field`);
+    }
+  }
+  if (summary.schema !== "iris_production_preflight_admin_page_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["ready", "attention"].includes(summary.page_status)) {
+    throw new ContractError(`${context}: invalid page status`);
+  }
+  if (!Array.isArray(summary.component_statuses)) {
+    throw new ContractError(`${context}: component statuses are required`);
+  }
+  if (
+    summary.component_count !== summary.component_statuses.length ||
+    summary.ready_component_count !==
+      summary.component_statuses.filter((item) => item.readiness_state === "ready")
+        .length ||
+    summary.attention_component_count !==
+      summary.component_statuses.filter((item) => item.readiness_state !== "ready")
+        .length
+  ) {
+    throw new ContractError(`${context}: invalid component counts`);
+  }
+  const seen = new Set();
+  for (const component of summary.component_statuses) {
+    assertProductionPreflightAdminPageComponentStatusSafe(component, context);
+    if (seen.has(component.component_id)) {
+      throw new ContractError(`${context}: duplicate component status`);
+    }
+    seen.add(component.component_id);
+  }
+  assertProductionReadinessSafeNextActionSafe(
+    summary.next_safe_action,
+    `${context}: next safe action`
+  );
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_PREFLIGHT_ADMIN_PAGE_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation flag required`);
+  }
+}
+
+function assertProductionPreflightAdminPageComponentStatusSafe(
+  component,
+  context
+) {
+  if (!component || typeof component !== "object" || Array.isArray(component)) {
+    throw new ContractError(`${context}: component status is required`);
+  }
+  for (const field of Object.keys(component)) {
+    if (!PRODUCTION_PREFLIGHT_ADMIN_PAGE_COMPONENT_STATUS_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected component status field`);
+    }
+  }
+  if (
+    component.schema !==
+    "iris_production_preflight_admin_page_component_status_v1"
+  ) {
+    throw new ContractError(`${context}: invalid component status schema`);
+  }
+  if (!PRODUCTION_READINESS_COMPONENT_IDS.has(component.component_id)) {
+    throw new ContractError(`${context}: invalid component id`);
+  }
+  if (
+    typeof component.status !== "string" ||
+    !SAFE_STAGE_STATUS_PATTERN.test(component.status)
+  ) {
+    throw new ContractError(`${context}: invalid component status`);
+  }
+  assertSafeReadinessState(component.readiness_state, context);
+}
+
+export function createProductionReadinessBlockerActionMap({
+  blockerLabel = "operator_review_required",
+} = {}) {
+  const safeBlocker = PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(blockerLabel)
+    ? blockerLabel
+    : "operator_review_required";
+  const nextAction = safeNextActionForProductionBlocker(safeBlocker);
+  const summary = {
+    schema: "iris_production_readiness_blocker_action_map_v1",
+    blocker_label: safeBlocker,
+    action_kind: nextAction.next_safe_script ? "safe_script" : "operator_action_label",
+    next_safe_script: nextAction.next_safe_script,
+    operator_action_label: nextAction.operator_action_label,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_READINESS_BLOCKER_ACTION_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+  };
+  assertProductionReadinessBlockerActionMapSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessBlockerActionMapSafe(
+  summary,
+  context = "production readiness blocker action map"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_BLOCKER_ACTION_MAP_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected action map field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_blocker_action_map_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(summary.blocker_label)) {
+    throw new ContractError(`${context}: invalid blocker label`);
+  }
+  if (!["safe_script", "operator_action_label"].includes(summary.action_kind)) {
+    throw new ContractError(`${context}: invalid action kind`);
+  }
+  if (summary.action_kind === "safe_script") {
+    if (!isSafeScriptName(summary.next_safe_script) || summary.operator_action_label !== null) {
+      throw new ContractError(`${context}: invalid safe script action`);
+    }
+  } else if (
+    summary.next_safe_script !== null ||
+    !safeGateDetailLabel(summary.operator_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid operator action label`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_BLOCKER_ACTION_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
 export function createProductionReadinessFixtureModeLabel({
   fixturePassed = false,
   realRuntimeConfirmed = false,
@@ -1396,6 +1787,578 @@ export function assertProductionReadinessPublicSafeSummarySafe(
     PRODUCTION_READINESS_PUBLIC_SAFE_SUMMARY_BOUNDARY_FIELDS,
     `${context}: boundary policy`
   );
+}
+
+export function createProductionReadinessRouteContractManifest({
+  routes = null,
+} = {}) {
+  const routeContracts =
+    routes ??
+    [
+      productionReadinessRouteContract({
+        routeId: "production_live_readiness",
+        inputFields: ["generated_at_ms"],
+      }),
+      productionReadinessRouteContract({
+        routeId: "production_probe",
+        inputFields: ["generated_at_ms", "fixture_mode"],
+      }),
+      productionReadinessRouteContract({
+        routeId: "production_runtime_handoff_status",
+        inputFields: ["generated_at_ms"],
+      }),
+    ];
+  const manifest = {
+    schema: "iris_production_readiness_route_contract_manifest_v1",
+    contract_status: "manifest_ready",
+    route_count: routeContracts.length,
+    routes: routeContracts,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_READINESS_ROUTE_CONTRACT_MANIFEST_BOUNDARY_FIELDS].map(
+        (field) => [field, true]
+      )
+    ),
+  };
+  assertProductionReadinessRouteContractManifestSafe(manifest);
+  return manifest;
+}
+
+export function assertProductionReadinessRouteContractManifestSafe(
+  manifest,
+  context = "production readiness route contract manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(manifest, context);
+  for (const field of Object.keys(manifest)) {
+    if (!PRODUCTION_READINESS_ROUTE_CONTRACT_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected manifest field`);
+    }
+  }
+  if (manifest.schema !== "iris_production_readiness_route_contract_manifest_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (manifest.contract_status !== "manifest_ready") {
+    throw new ContractError(`${context}: invalid contract status`);
+  }
+  if (!Array.isArray(manifest.routes) || manifest.routes.length === 0) {
+    throw new ContractError(`${context}: routes required`);
+  }
+  if (manifest.route_count !== manifest.routes.length) {
+    throw new ContractError(`${context}: route count mismatch`);
+  }
+  const seen = new Set();
+  for (const route of manifest.routes) {
+    assertProductionReadinessRouteContractSafe(route, context);
+    if (seen.has(route.route_id)) {
+      throw new ContractError(`${context}: duplicate route contract`);
+    }
+    seen.add(route.route_id);
+  }
+  assertBoundaryPolicy(
+    manifest.boundary_policy,
+    PRODUCTION_READINESS_ROUTE_CONTRACT_MANIFEST_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessBlockerReasonSummary({
+  reasons = [],
+} = {}) {
+  const reasonLabels = [
+    ...new Set(
+      (Array.isArray(reasons) ? reasons : [])
+        .map((reason) => safeProductionReadinessBlockerReason(reason))
+        .filter(Boolean)
+    ),
+  ].sort();
+  const summary = {
+    schema: "iris_production_readiness_blocker_reason_summary_v1",
+    reason_count: reasonLabels.length,
+    reason_labels: reasonLabels,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_READINESS_BLOCKER_REASON_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+  };
+  assertProductionReadinessBlockerReasonSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessBlockerReasonSummarySafe(
+  summary,
+  context = "production readiness blocker reason summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_BLOCKER_REASON_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected reason summary field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_blocker_reason_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (
+    !Array.isArray(summary.reason_labels) ||
+    summary.reason_labels.some(
+      (reason) => !PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(reason)
+    )
+  ) {
+    throw new ContractError(`${context}: invalid reason labels`);
+  }
+  if (
+    !Number.isInteger(summary.reason_count) ||
+    summary.reason_count !== summary.reason_labels.length
+  ) {
+    throw new ContractError(`${context}: invalid reason count`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_BLOCKER_REASON_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionBlockerAggregationAdminPage({
+  blockers = [],
+} = {}) {
+  const grouped = new Map();
+  for (const blocker of Array.isArray(blockers) ? blockers : []) {
+    const label = safeProductionReadinessBlockerReason(
+      typeof blocker === "string" ? blocker : blocker?.blocker_label
+    );
+    if (!label) continue;
+    grouped.set(label, (grouped.get(label) ?? 0) + 1);
+  }
+  const blockerGroups = [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, count]) => ({
+      schema: "iris_production_blocker_aggregation_admin_page_group_v1",
+      blocker_group_label: label,
+      status: "blocked",
+      blocker_count: count,
+      next_safe_action: safeNextActionForProductionBlocker(label),
+    }));
+  const page = {
+    schema: "iris_production_blocker_aggregation_admin_page_v1",
+    page_status: blockerGroups.length > 0 ? "attention" : "ready",
+    blocker_group_count: blockerGroups.length,
+    total_blocker_count: blockerGroups.reduce(
+      (total, group) => total + group.blocker_count,
+      0
+    ),
+    blocker_groups: blockerGroups,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_BOUNDARY_FIELDS].map(
+        (field) => [field, true]
+      )
+    ),
+  };
+  assertProductionBlockerAggregationAdminPageSafe(page);
+  return page;
+}
+
+export function assertProductionBlockerAggregationAdminPageSafe(
+  page,
+  context = "production blocker aggregation admin page"
+) {
+  if (!page || typeof page !== "object" || Array.isArray(page)) {
+    throw new ContractError(`${context}: page is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(page, context);
+  for (const field of Object.keys(page)) {
+    if (!PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected page field`);
+    }
+  }
+  if (page.schema !== "iris_production_blocker_aggregation_admin_page_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["ready", "attention"].includes(page.page_status)) {
+    throw new ContractError(`${context}: invalid page status`);
+  }
+  if (!Array.isArray(page.blocker_groups)) {
+    throw new ContractError(`${context}: blocker groups required`);
+  }
+  const seen = new Set();
+  let total = 0;
+  for (const group of page.blocker_groups) {
+    assertProductionBlockerAggregationAdminPageGroupSafe(group, context);
+    if (seen.has(group.blocker_group_label)) {
+      throw new ContractError(`${context}: duplicate blocker group`);
+    }
+    seen.add(group.blocker_group_label);
+    total += group.blocker_count;
+  }
+  if (
+    page.blocker_group_count !== page.blocker_groups.length ||
+    page.total_blocker_count !== total ||
+    page.page_status !== (page.blocker_groups.length > 0 ? "attention" : "ready")
+  ) {
+    throw new ContractError(`${context}: blocker count mismatch`);
+  }
+  assertBoundaryPolicy(
+    page.boundary_policy,
+    PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+function assertProductionBlockerAggregationAdminPageGroupSafe(group, context) {
+  if (!group || typeof group !== "object" || Array.isArray(group)) {
+    throw new ContractError(`${context}: blocker group is required`);
+  }
+  for (const field of Object.keys(group)) {
+    if (!PRODUCTION_BLOCKER_AGGREGATION_ADMIN_PAGE_GROUP_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected blocker group field`);
+    }
+  }
+  if (
+    group.schema !== "iris_production_blocker_aggregation_admin_page_group_v1"
+  ) {
+    throw new ContractError(`${context}: invalid blocker group schema`);
+  }
+  if (!PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(group.blocker_group_label)) {
+    throw new ContractError(`${context}: invalid blocker group label`);
+  }
+  if (group.status !== "blocked") {
+    throw new ContractError(`${context}: invalid blocker group status`);
+  }
+  if (!Number.isInteger(group.blocker_count) || group.blocker_count <= 0) {
+    throw new ContractError(`${context}: invalid blocker group count`);
+  }
+  const expectedAction = safeNextActionForProductionBlocker(group.blocker_group_label);
+  if (JSON.stringify(group.next_safe_action) !== JSON.stringify(expectedAction)) {
+    throw new ContractError(`${context}: invalid blocker group action`);
+  }
+  if (
+    group.next_safe_action.next_safe_script !== null &&
+    !isSafeScriptName(group.next_safe_action.next_safe_script)
+  ) {
+    throw new ContractError(`${context}: unsafe blocker group script`);
+  }
+  if (
+    group.next_safe_action.operator_action_label !== null &&
+    !safeGateDetailLabel(group.next_safe_action.operator_action_label)
+  ) {
+    throw new ContractError(`${context}: unsafe blocker group label`);
+  }
+}
+
+export function createProductionReadinessMissingComponentClassifier({
+  missingComponents = [],
+} = {}) {
+  const components = [
+    ...new Set(
+      (Array.isArray(missingComponents) ? missingComponents : [])
+        .map((component) => safeProductionReadinessMissingComponent(component))
+        .filter(Boolean)
+    ),
+  ].sort();
+  const summary = {
+    schema: "iris_production_readiness_missing_component_classifier_v1",
+    missing_component_count: components.length,
+    missing_components: components.map((componentLabel) => ({
+      schema: "iris_production_readiness_missing_component_v1",
+      component_label: componentLabel,
+      status: "missing",
+    })),
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_READINESS_MISSING_COMPONENT_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+  };
+  assertProductionReadinessMissingComponentClassifierSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessMissingComponentClassifierSafe(
+  summary,
+  context = "production readiness missing component classifier"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_MISSING_COMPONENT_CLASSIFIER_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected classifier field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_missing_component_classifier_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!Array.isArray(summary.missing_components)) {
+    throw new ContractError(`${context}: missing components must be an array`);
+  }
+  if (
+    !Number.isInteger(summary.missing_component_count) ||
+    summary.missing_component_count !== summary.missing_components.length
+  ) {
+    throw new ContractError(`${context}: invalid component count`);
+  }
+  const seen = new Set();
+  for (const component of summary.missing_components) {
+    assertProductionReadinessMissingComponentSafe(component, context);
+    if (seen.has(component.component_label)) {
+      throw new ContractError(`${context}: duplicate component`);
+    }
+    seen.add(component.component_label);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_MISSING_COMPONENT_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessHeartbeatClassifier({
+  heartbeatAgeMs = null,
+  staleAfterMs = 30000,
+} = {}) {
+  const age =
+    heartbeatAgeMs !== null &&
+    heartbeatAgeMs !== undefined &&
+    Number.isFinite(Number(heartbeatAgeMs)) &&
+    Number(heartbeatAgeMs) >= 0
+      ? Number(heartbeatAgeMs)
+      : null;
+  const threshold =
+    Number.isFinite(Number(staleAfterMs)) && Number(staleAfterMs) > 0
+      ? Number(staleAfterMs)
+      : 30000;
+  const stale = age === null || age > threshold;
+  const summary = {
+    schema: "iris_production_readiness_heartbeat_classifier_v1",
+    heartbeat_status: stale ? "stale" : "fresh",
+    readiness_state: stale ? "runtime_waiting" : "ready",
+    ready_allowed: stale === false,
+    age_bucket: heartbeatAgeBucket(age, threshold),
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_READINESS_HEARTBEAT_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+  };
+  assertProductionReadinessHeartbeatClassifierSafe(summary);
+  return summary;
+}
+
+export function assertProductionReadinessHeartbeatClassifierSafe(
+  summary,
+  context = "production readiness heartbeat classifier"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_READINESS_HEARTBEAT_CLASSIFIER_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected heartbeat field`);
+    }
+  }
+  if (summary.schema !== "iris_production_readiness_heartbeat_classifier_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["fresh", "stale"].includes(summary.heartbeat_status)) {
+    throw new ContractError(`${context}: invalid heartbeat status`);
+  }
+  assertSafeReadinessState(summary.readiness_state, context);
+  if (!["recent", "stale", "missing"].includes(summary.age_bucket)) {
+    throw new ContractError(`${context}: invalid age bucket`);
+  }
+  if (summary.heartbeat_status === "stale") {
+    if (summary.readiness_state !== "runtime_waiting" || summary.ready_allowed !== false) {
+      throw new ContractError(`${context}: stale heartbeat cannot be ready`);
+    }
+  }
+  if (summary.heartbeat_status === "fresh" && summary.ready_allowed !== true) {
+    throw new ContractError(`${context}: fresh heartbeat ready flag mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRODUCTION_READINESS_HEARTBEAT_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionReadinessBatchFixture() {
+  const componentSummary = createProductionReadinessComponentDependencyMap({
+    localBridgeStatus: "runtime_waiting",
+    ttsStatus: "engine_attention",
+    live2dStatus: "ready",
+    subtitleStatus: "ready",
+    obsStatus: "configuration_waiting",
+    overlayPickupStatus: "ready",
+  });
+  const fixtureSummary = createProductionReadinessFixtureModeLabel({
+    fixturePassed: true,
+    realRuntimeConfirmed: false,
+  });
+  const blockerSummary = createProductionReadinessBlockerReasonSummary({
+    reasons: ["worker_missing", "engine_attention", "obs_missing", "fixture_only"],
+  });
+  const classifier = createProductionReadinessBlockerClassifier({
+    readinessState: "runtime_waiting",
+    status: "engine_attention",
+    realRuntimeConfirmed: false,
+  });
+  const fixture = {
+    schema: "iris_production_readiness_batch_fixture_v1",
+    classification: classifier.classification,
+    ready_allowed: classifier.ready_allowed,
+    fixture_status: fixtureSummary.fixture_status,
+    real_readiness_status: fixtureSummary.real_readiness_status,
+    component_summary: componentSummary,
+    blocker_reason_summary: blockerSummary,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_READINESS_BATCH_FIXTURE_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+  };
+  assertProductionReadinessBatchFixtureSafe(fixture);
+  return fixture;
+}
+
+export function assertProductionReadinessBatchFixtureSafe(
+  fixture,
+  context = "production readiness batch fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(fixture, context);
+  for (const field of Object.keys(fixture)) {
+    if (!PRODUCTION_READINESS_BATCH_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (fixture.schema !== "iris_production_readiness_batch_fixture_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (fixture.classification !== "BLOCKED" || fixture.ready_allowed !== false) {
+    throw new ContractError(`${context}: BLOCKED classification must be preserved`);
+  }
+  if (
+    fixture.fixture_status !== "fixture_pass" ||
+    fixture.real_readiness_status !== "real_blocked"
+  ) {
+    throw new ContractError(`${context}: fixture and real readiness must stay split`);
+  }
+  assertProductionReadinessComponentDependencyMapSafe(
+    fixture.component_summary,
+    `${context}: component summary`
+  );
+  assertProductionReadinessBlockerReasonSummarySafe(
+    fixture.blocker_reason_summary,
+    `${context}: blocker reason summary`
+  );
+  for (const reason of ["worker_missing", "engine_attention", "obs_missing", "fixture_only"]) {
+    if (!fixture.blocker_reason_summary.reason_labels.includes(reason)) {
+      throw new ContractError(`${context}: missing blocker reason`);
+    }
+  }
+  assertBoundaryPolicy(
+    fixture.boundary_policy,
+    PRODUCTION_READINESS_BATCH_FIXTURE_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+function productionReadinessRouteContract({ routeId, inputFields }) {
+  return {
+    schema: "iris_production_readiness_route_contract_v1",
+    route_id: routeId,
+    input_fields: inputFields,
+    output_fields: PRODUCTION_READINESS_ROUTE_REQUIRED_OUTPUT_FIELDS,
+    required_output_fields: PRODUCTION_READINESS_ROUTE_REQUIRED_OUTPUT_FIELDS,
+    safe_summary_required: true,
+  };
+}
+
+function assertProductionReadinessRouteContractSafe(route, context) {
+  if (!route || typeof route !== "object" || Array.isArray(route)) {
+    throw new ContractError(`${context}: route contract required`);
+  }
+  for (const field of Object.keys(route)) {
+    if (!PRODUCTION_READINESS_ROUTE_CONTRACT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected route contract field`);
+    }
+  }
+  if (route.schema !== "iris_production_readiness_route_contract_v1") {
+    throw new ContractError(`${context}: invalid route contract schema`);
+  }
+  if (!safeGateDetailLabel(route.route_id)) {
+    throw new ContractError(`${context}: invalid route id`);
+  }
+  assertSafeFieldNameList(route.input_fields, context);
+  assertSafeFieldNameList(route.output_fields, context);
+  assertSafeFieldNameList(route.required_output_fields, context);
+  for (const requiredField of PRODUCTION_READINESS_ROUTE_REQUIRED_OUTPUT_FIELDS) {
+    if (!route.required_output_fields.includes(requiredField)) {
+      throw new ContractError(`${context}: missing required output field`);
+    }
+  }
+  if (route.safe_summary_required !== true) {
+    throw new ContractError(`${context}: safe summary required`);
+  }
+}
+
+function safeProductionReadinessBlockerReason(reason) {
+  if (typeof reason !== "string") return "operator_review_required";
+  const label = safeGateDetailLabel(reason);
+  if (!label || !PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(label)) {
+    return "operator_review_required";
+  }
+  return label;
+}
+
+function safeProductionReadinessMissingComponent(component) {
+  const label =
+    typeof component === "string"
+      ? component
+      : component?.component_label ?? component?.component ?? component?.name;
+  const safeLabel = safeGateDetailLabel(label);
+  if (!safeLabel || !PRODUCTION_READINESS_MISSING_COMPONENT_LABELS.has(safeLabel)) {
+    return null;
+  }
+  return safeLabel;
+}
+
+function assertProductionReadinessMissingComponentSafe(component, context) {
+  if (!component || typeof component !== "object" || Array.isArray(component)) {
+    throw new ContractError(`${context}: component is required`);
+  }
+  for (const field of Object.keys(component)) {
+    if (!PRODUCTION_READINESS_MISSING_COMPONENT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected component field`);
+    }
+  }
+  if (component.schema !== "iris_production_readiness_missing_component_v1") {
+    throw new ContractError(`${context}: invalid component schema`);
+  }
+  if (!PRODUCTION_READINESS_MISSING_COMPONENT_LABELS.has(component.component_label)) {
+    throw new ContractError(`${context}: invalid component label`);
+  }
+  if (component.status !== "missing") {
+    throw new ContractError(`${context}: invalid component status`);
+  }
+}
+
+function heartbeatAgeBucket(age, threshold) {
+  if (age === null) return "missing";
+  return age > threshold ? "stale" : "recent";
 }
 
 function assertProductionHandoffSummarySafe(summary, report, context) {
@@ -1902,10 +2865,6 @@ function classifyProductionReadinessBlocker({
   status,
   realRuntimeConfirmed,
 }) {
-  if (status.includes("attention")) return "attention";
-  if (readinessState === "ready" && realRuntimeConfirmed === true) {
-    return status.includes("degraded") ? "degraded" : "ready";
-  }
   if (
     readinessState === "runtime_waiting" ||
     readinessState === "real_device_waiting" ||
@@ -1913,7 +2872,10 @@ function classifyProductionReadinessBlocker({
   ) {
     return "BLOCKED";
   }
+  if (status.includes("blocked")) return "BLOCKED";
+  if (status.includes("attention")) return "attention";
   if (status.includes("degraded")) return "degraded";
+  if (readinessState === "ready") return "ready";
   return "attention";
 }
 
@@ -2329,6 +3291,38 @@ function safeGateDetailLabel(value) {
     return null;
   }
   return value;
+}
+
+function safeNextActionForProductionBlocker(blockerLabel) {
+  const scriptByBlocker = {
+    worker_missing: "npm run dev:foundation:startup-checklist",
+    engine_attention: "npm run dev:foundation:runtime-status",
+    obs_missing: "npm run dev:foundation:live-readiness",
+    db_missing: "npm run dev:persistence:live-readiness",
+    adapter_attention: "npm run dev:production:probe",
+    stale_heartbeat: "npm run dev:production:runtime-handoff-status",
+    fixture_only: "npm run dev:production:live-readiness",
+  };
+  const nextSafeScript = scriptByBlocker[blockerLabel] ?? null;
+  return {
+    next_safe_script: nextSafeScript,
+    operator_action_label: nextSafeScript ? null : "operator_review_required",
+  };
+}
+
+function assertSafeFieldNameList(fields, context) {
+  if (!Array.isArray(fields) || fields.length === 0) {
+    throw new ContractError(`${context}: field list required`);
+  }
+  for (const field of fields) {
+    if (
+      typeof field !== "string" ||
+      !SAFE_STAGE_STATUS_PATTERN.test(field) ||
+      FORBIDDEN_PRODUCTION_LIVE_READINESS_FIELDS.has(field)
+    ) {
+      throw new ContractError(`${context}: unsafe field name`);
+    }
+  }
 }
 
 function assertVerificationScriptsSafe(scripts, context) {

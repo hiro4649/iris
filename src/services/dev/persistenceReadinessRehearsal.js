@@ -43,6 +43,12 @@ const FORBIDDEN_PERSISTENCE_REHEARSAL_FIELDS = new Set([
   "memory_carryover_candidates",
   "community_memory_candidates",
   "relationship_update_candidate",
+  "raw_memory",
+  "rawMemory",
+  "hidden_score",
+  "hiddenScore",
+  "hidden_relationship_score",
+  "hiddenRelationshipScore",
   "approved_memory_record",
   "approved_relationship_record",
   "memory_records",
@@ -454,6 +460,114 @@ export function createRelationshipMemoryDbPreflightFixture() {
   };
   assertRelationshipMemoryDbPreflightFixtureSafe(fixture);
   return fixture;
+}
+
+export function createMemoryRelationshipPreflightAdminPageSummary({
+  memoryStatus = "validation_required",
+  relationshipStatus = "validation_required",
+  approvedMemoryCount = 0,
+  candidateMemoryCount = 0,
+  approvedRelationshipCount = 0,
+  candidateRelationshipCount = 0,
+} = {}) {
+  const summary = {
+    schema: "iris_memory_relationship_preflight_admin_page_summary_v1",
+    page_status:
+      memoryStatus === "ready" && relationshipStatus === "ready"
+        ? "ready"
+        : "attention",
+    memory_status: memoryStatus,
+    relationship_status: relationshipStatus,
+    approved_memory_count: approvedMemoryCount,
+    candidate_memory_count: candidateMemoryCount,
+    approved_relationship_count: approvedRelationshipCount,
+    candidate_relationship_count: candidateRelationshipCount,
+    total_approved_count: approvedMemoryCount + approvedRelationshipCount,
+    total_candidate_count: candidateMemoryCount + candidateRelationshipCount,
+    boundary_policy: {
+      approved_candidate_counts_and_status_only: true,
+      no_raw_memory: true,
+      no_hidden_scores: true,
+      no_memory_records: true,
+      no_relationship_records: true,
+      no_candidate_payloads: true,
+      no_viewer_ids: true,
+      no_secret_values: true,
+    },
+  };
+  assertMemoryRelationshipPreflightAdminPageSummarySafe(summary);
+  return summary;
+}
+
+export function assertMemoryRelationshipPreflightAdminPageSummarySafe(
+  summary,
+  context = "memory relationship preflight admin page summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  const allowedFields = new Set([
+    "schema",
+    "page_status",
+    "memory_status",
+    "relationship_status",
+    "approved_memory_count",
+    "candidate_memory_count",
+    "approved_relationship_count",
+    "candidate_relationship_count",
+    "total_approved_count",
+    "total_candidate_count",
+    "boundary_policy",
+  ]);
+  for (const field of Object.keys(summary)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (
+    summary.schema !==
+    "iris_memory_relationship_preflight_admin_page_summary_v1"
+  ) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!new Set(["ready", "attention"]).has(summary.page_status)) {
+    throw new ContractError(`${context}: invalid page status`);
+  }
+  assertStatus(summary.memory_status, `${context}: invalid memory status`);
+  assertStatus(
+    summary.relationship_status,
+    `${context}: invalid relationship status`
+  );
+  for (const field of [
+    "approved_memory_count",
+    "candidate_memory_count",
+    "approved_relationship_count",
+    "candidate_relationship_count",
+    "total_approved_count",
+    "total_candidate_count",
+  ]) {
+    assertNonNegativeInteger(summary[field], `${context}: invalid ${field}`);
+  }
+  if (
+    summary.total_approved_count !==
+      summary.approved_memory_count + summary.approved_relationship_count ||
+    summary.total_candidate_count !==
+      summary.candidate_memory_count + summary.candidate_relationship_count
+  ) {
+    throw new ContractError(`${context}: invalid aggregate counts`);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "approved_candidate_counts_and_status_only",
+    "no_raw_memory",
+    "no_hidden_scores",
+    "no_memory_records",
+    "no_relationship_records",
+    "no_candidate_payloads",
+    "no_viewer_ids",
+    "no_secret_values",
+  ], `${context}: boundary policy`);
+  assertNoForbiddenFields(summary, context);
+  assertNoUrlStrings(summary, context);
 }
 
 export function assertRelationshipMemoryDbPreflightFixtureSafe(

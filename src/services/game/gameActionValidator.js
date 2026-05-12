@@ -70,6 +70,7 @@ const REJECT_REASONS = new Set([
   "future_observation",
   "invalid_schema",
   "action_rate_limited",
+  "safe_action_map_missing",
 ]);
 const GAME_ACTION_VALIDATION_BOUNDARY_POLICY = {
   raw_candidate_exposed: false,
@@ -96,6 +97,18 @@ const GAME_ACTION_VALIDATION_FIXTURE_SUMMARY_FIELDS = new Set([
   "validation_status",
   "approved_count",
   "rejected_count",
+  "boundary_policy",
+]);
+const APPROVED_GAME_INPUT_ACTION_CONTRACT_MANIFEST_FIELDS = new Set([
+  "schema",
+  "contract_kind",
+  "request_schema",
+  "candidate_schema",
+  "candidate_schema_separate",
+  "adapter_accepts_candidate_schema",
+  "adapter_validation_required",
+  "required_fields",
+  "forbidden_fields",
   "boundary_policy",
 ]);
 
@@ -329,6 +342,7 @@ export function validateGameActionCandidate({
       adapter_must_reject_after_expiry: true,
     },
     adapter_validation_required: true,
+    contract_manifest: createApprovedGameInputActionContractManifest(),
   };
   assertApprovedGameInputActionSafe(
     approved_game_input_action,
@@ -453,6 +467,10 @@ export function assertApprovedGameInputActionSafe(
   if (approvedAction.adapter_validation_required !== true) {
     throw new ContractError(`${context}: adapter_validation_required must be true`);
   }
+  assertApprovedGameInputActionContractManifestSafe(
+    approvedAction.contract_manifest,
+    `${context} contract manifest`
+  );
   assertApprovedActionExpirySafe(approvedAction, context);
   if (approvedAction.validation_route !== "game_action_validator_v1") {
     throw new ContractError(`${context}: invalid validation route`, {
@@ -480,6 +498,101 @@ export function assertApprovedGameInputActionSafe(
     throw new ContractError(`${context}: approved action must not carry source candidate payload`);
   }
   sanitizeActionParameters(approvedAction.action_kind, approvedAction.parameters);
+}
+
+export function createApprovedGameInputActionContractManifest() {
+  const manifest = {
+    schema: "iris_approved_game_input_action_contract_manifest_v1",
+    contract_kind: "game_adapter_handoff_request",
+    request_schema: "approved_game_input_action",
+    candidate_schema: "iris_input_action_candidate_v1",
+    candidate_schema_separate: true,
+    adapter_accepts_candidate_schema: false,
+    adapter_validation_required: true,
+    required_fields: [
+      "schema",
+      "approved",
+      "action_kind",
+      "parameters",
+      "validation_route",
+      "safety_policy",
+      "source_policy",
+      "observation_context",
+      "adapter_validation_required",
+    ],
+    forbidden_fields: [
+      "requires_validation",
+      "candidate_kind",
+      "input_action_candidate",
+      "world_command",
+      "os_command",
+      "raw_command",
+    ],
+    boundary_policy: {
+      approved_schema_only: true,
+      candidate_schema_rejected_by_adapter: true,
+      raw_candidate_payload_excluded: true,
+      direct_os_input_allowed: false,
+    },
+  };
+  assertApprovedGameInputActionContractManifestSafe(manifest);
+  return manifest;
+}
+
+export function assertApprovedGameInputActionContractManifestSafe(
+  manifest,
+  context = "approved game input action contract manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest is required`);
+  }
+  for (const field of Object.keys(manifest)) {
+    if (!APPROVED_GAME_INPUT_ACTION_CONTRACT_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field`, { field });
+    }
+  }
+  if (manifest.schema !== "iris_approved_game_input_action_contract_manifest_v1") {
+    throw new ContractError(`${context}: invalid schema`, { schema: manifest.schema });
+  }
+  if (manifest.contract_kind !== "game_adapter_handoff_request") {
+    throw new ContractError(`${context}: invalid contract kind`, {
+      contract_kind: manifest.contract_kind,
+    });
+  }
+  if (manifest.request_schema !== "approved_game_input_action") {
+    throw new ContractError(`${context}: invalid request schema`, {
+      request_schema: manifest.request_schema,
+    });
+  }
+  if (manifest.candidate_schema !== "iris_input_action_candidate_v1") {
+    throw new ContractError(`${context}: invalid candidate schema`, {
+      candidate_schema: manifest.candidate_schema,
+    });
+  }
+  if (
+    manifest.candidate_schema_separate !== true ||
+    manifest.adapter_accepts_candidate_schema !== false ||
+    manifest.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: candidate and approved schema boundary required`);
+  }
+  for (const field of ["required_fields", "forbidden_fields"]) {
+    if (!Array.isArray(manifest[field]) || manifest[field].some((item) => typeof item !== "string")) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  for (const field of [
+    "approved_schema_only",
+    "candidate_schema_rejected_by_adapter",
+    "raw_candidate_payload_excluded",
+  ]) {
+    if (manifest.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary policy`, { field });
+    }
+  }
+  if (manifest.boundary_policy?.direct_os_input_allowed !== false) {
+    throw new ContractError(`${context}: direct OS input must be disallowed`);
+  }
 }
 
 export function isApprovedGameInputActionExpired(approvedAction, { nowMs = () => Date.now() } = {}) {
@@ -630,6 +743,7 @@ function rejectReasonForCandidate({
   }
   if (candidate.risk_level === "high") return "high_risk";
   if (!ACTION_KINDS.has(candidate.action_kind)) return "unsupported_action";
+  if (!hasConfiguredSafeActionMap(availableGameActions)) return "safe_action_map_missing";
   const allowedActions = normalizeAllowedActions(availableGameActions);
   if (!allowedActions.has(candidate.action_kind)) return "action_unavailable";
   try {
@@ -1008,6 +1122,13 @@ function normalizeAllowedActions(availableGameActions) {
     : [];
   const safeConfigured = configured.filter((item) => ACTION_KINDS.has(item));
   return new Set(safeConfigured.length > 0 ? safeConfigured : ["wait"]);
+}
+
+function hasConfiguredSafeActionMap(availableGameActions) {
+  if (!Array.isArray(availableGameActions)) return false;
+  return availableGameActions
+    .map((item) => String(item).trim().toLowerCase())
+    .some((item) => ACTION_KINDS.has(item));
 }
 
 function rejectReasonForActionRateLimit({

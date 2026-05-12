@@ -18,6 +18,8 @@ const SUPPORT_DONATION_SUMMARY_ENTRY_SCHEMA =
   "iris_postgres_support_donation_summary_entry_v1";
 const CANDIDATE_REVIEW_AUDIT_ENTRY_SCHEMA =
   "iris_postgres_candidate_review_audit_entry_v1";
+const PERSISTENCE_WRITER_APPROVED_SCHEMA_REGISTRY_SCHEMA =
+  "iris_persistence_writer_approved_schema_registry_v1";
 
 const FORBIDDEN_PUBLIC_FIELDS = new Set([
   "world_command",
@@ -67,6 +69,24 @@ const FORBIDDEN_PUBLIC_FIELDS = new Set([
   "sql",
   "raw_sql",
   "command",
+]);
+const APPROVED_PERSISTENCE_WRITER_SCHEMAS = new Set([
+  "approved_memory_record",
+  "approved_relationship_record",
+  "approved_community_memory_record",
+]);
+const PERSISTENCE_WRITER_APPROVED_SCHEMA_REGISTRY_FIELDS = new Set([
+  "schema",
+  "registry_status",
+  "approved_schema_names",
+  "approved_schema_count",
+  "boundary_policy",
+]);
+const PERSISTENCE_WRITER_APPROVED_SCHEMA_BOUNDARY_FIELDS = new Set([
+  "approved_schemas_only",
+  "candidate_payloads_rejected",
+  "selected_memory_ids_rejected",
+  "direct_commit_rejected",
 ]);
 
 const UNSAFE_PUBLIC_TEXT_PATTERN =
@@ -379,6 +399,39 @@ export function createPostgresCandidateReviewAuditEntry({
   };
   assertPostgresCandidateReviewAuditEntrySafe(entry);
   return entry;
+}
+
+export function createPersistenceWriterApprovedSchemaRegistry({
+  approvedSchemas = null,
+} = {}) {
+  const schemaNames = [
+    ...new Set(
+      (approvedSchemas ?? [...APPROVED_PERSISTENCE_WRITER_SCHEMAS]).filter(
+        (schemaName) => APPROVED_PERSISTENCE_WRITER_SCHEMAS.has(schemaName)
+      )
+    ),
+  ].sort();
+  const registry = {
+    schema: PERSISTENCE_WRITER_APPROVED_SCHEMA_REGISTRY_SCHEMA,
+    registry_status: "approved_schema_registry_ready",
+    approved_schema_names: schemaNames,
+    approved_schema_count: schemaNames.length,
+    boundary_policy: {
+      approved_schemas_only: true,
+      candidate_payloads_rejected: true,
+      selected_memory_ids_rejected: true,
+      direct_commit_rejected: true,
+    },
+  };
+  assertPersistenceWriterApprovedSchemaRegistrySafe(registry);
+  return registry;
+}
+
+export function assertPersistenceWriterApprovedSchemaPayload(
+  payload,
+  context = "persistence writer approved schema payload"
+) {
+  assertApprovedInputBase(payload, context, payload?.schema);
 }
 
 export function createPostgresMemoryWritePlan(approvedRecord, { generatedAtMs = Date.now() } = {}) {
@@ -785,6 +838,47 @@ export function assertPostgresCandidateReviewAuditEntrySafe(
   }
 }
 
+export function assertPersistenceWriterApprovedSchemaRegistrySafe(
+  registry,
+  context = "persistence writer approved schema registry"
+) {
+  if (!registry || typeof registry !== "object" || Array.isArray(registry)) {
+    throw new ContractError(`${context}: registry required`);
+  }
+  if (registry.schema !== PERSISTENCE_WRITER_APPROVED_SCHEMA_REGISTRY_SCHEMA) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(registry)) {
+    if (!PERSISTENCE_WRITER_APPROVED_SCHEMA_REGISTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected registry field`);
+    }
+  }
+  if (registry.registry_status !== "approved_schema_registry_ready") {
+    throw new ContractError(`${context}: invalid registry status`);
+  }
+  if (!Array.isArray(registry.approved_schema_names)) {
+    throw new ContractError(`${context}: approved schemas required`);
+  }
+  if (registry.approved_schema_count !== registry.approved_schema_names.length) {
+    throw new ContractError(`${context}: approved schema count mismatch`);
+  }
+  const seen = new Set();
+  for (const schemaName of registry.approved_schema_names) {
+    if (!APPROVED_PERSISTENCE_WRITER_SCHEMAS.has(schemaName)) {
+      throw new ContractError(`${context}: unapproved schema exposed`);
+    }
+    if (seen.has(schemaName)) {
+      throw new ContractError(`${context}: duplicate schema`);
+    }
+    seen.add(schemaName);
+  }
+  assertPersistenceWriterApprovedSchemaBoundaryPolicy(
+    registry.boundary_policy,
+    context
+  );
+  assertNoForbiddenPublicFields(registry, context);
+}
+
 function assertWritePlanSafe(plan, { context, schema, expectedRecordKind, tableNames }) {
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
     throw new ContractError(`${context}: plan must be an object`);
@@ -926,6 +1020,36 @@ function assertApprovedInputBase(record, context, schema) {
   if (record.schema !== schema || record.approved !== true) {
     throw new ContractError(`${context}: only approved records can be planned`);
   }
+  if (!APPROVED_PERSISTENCE_WRITER_SCHEMAS.has(record.schema)) {
+    throw new ContractError(`${context}: unapproved schema rejected`);
+  }
+  for (const required of [
+    "event_id",
+    "trace_id",
+    "audit_status",
+    "commit_snapshot_id",
+    "rollback_pointer_id",
+    "moderation_precheck_status",
+  ]) {
+    if (typeof record[required] !== "string" || record[required].trim() === "") {
+      throw new ContractError(`${context}: ${required} is required`);
+    }
+  }
+  if (record.audit_status !== "approved") {
+    throw new ContractError(`${context}: approved audit status required`);
+  }
+  if (record.moderation_precheck_status !== "allowed") {
+    throw new ContractError(`${context}: allowed moderation precheck required`);
+  }
+  const personalizationKind =
+    record.personalization_write_kind ?? "ordinary_personalization";
+  const viewerSafetyState = record.viewer_safety_state ?? "allowed";
+  if (
+    personalizationKind === "ordinary_personalization" &&
+    ["bounded", "muted", "blocked"].includes(viewerSafetyState)
+  ) {
+    throw new ContractError(`${context}: bounded viewer personalization rejected`);
+  }
   for (const forbidden of [
     "world_command",
     "input_action",
@@ -937,13 +1061,39 @@ function assertApprovedInputBase(record, context, schema) {
     "memory_candidate",
     "raw_payload",
     "raw_memory_body",
+    "raw_viewer_text",
+    "raw_support",
+    "raw_support_text",
+    "raw_frame",
+    "raw_audio",
+    "private_viewer_id",
+    "viewer_id",
     "memory_candidate_payload",
     "relationship_update_candidate",
     "memory_carryover_candidate",
     "memory_carryover_candidates",
+    "community_memory_candidate",
+    "community_memory_candidates",
+    "selected_memory_ids",
   ]) {
     if (Object.hasOwn(record, forbidden)) {
       throw new ContractError(`${context}: direct candidate or command field rejected`);
+    }
+  }
+}
+
+function assertPersistenceWriterApprovedSchemaBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of Object.keys(policy)) {
+    if (!PERSISTENCE_WRITER_APPROVED_SCHEMA_BOUNDARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field`);
+    }
+  }
+  for (const field of PERSISTENCE_WRITER_APPROVED_SCHEMA_BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary required`);
     }
   }
 }

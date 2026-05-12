@@ -13,6 +13,12 @@ const FORBIDDEN_GAMEPLAY_PREFLIGHT_FIELDS = new Set([
   "input_action",
   "input_action_candidate",
   "approved_game_input_action",
+  "raw_input",
+  "rawInput",
+  "input_payload",
+  "inputPayload",
+  "raw_key_map",
+  "rawKeyMap",
   "execute",
   "commit",
   "write",
@@ -353,6 +359,73 @@ export function assertGameAdapterProductionPreflightFixtureSafe(
   }
   assertGameAdapterProductionPreflightBoundaryPolicySafe(fixture.boundary_policy, context);
   assertNoForbiddenGameplayPreflightFields(fixture, context);
+}
+
+export function createGameControlPreflightAdminPageSummary({
+  mode = "manual_approval",
+  readinessStatus = "operator_review_required",
+  safeMapStatus = "attention",
+  cooldownStatus = "attention",
+} = {}) {
+  const summary = {
+    schema: "iris_game_control_preflight_admin_page_summary_v1",
+    game_control_mode: safeGameControlPreflightMode(mode),
+    readiness_status: readinessStatus,
+    safe_map_status: safeMapStatus,
+    cooldown_status: cooldownStatus,
+    boundary_policy: {
+      mode_readiness_safe_map_cooldown_status_only: true,
+      no_raw_input_payloads: true,
+      no_action_candidates: true,
+      no_approved_actions: true,
+      no_raw_key_maps: true,
+      no_commands: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      read_only_preflight: true,
+    },
+  };
+  assertGameControlPreflightAdminPageSummarySafe(summary);
+  return summary;
+}
+
+export function assertGameControlPreflightAdminPageSummarySafe(
+  summary,
+  context = "game control preflight admin page summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  const allowedFields = new Set([
+    "schema",
+    "game_control_mode",
+    "readiness_status",
+    "safe_map_status",
+    "cooldown_status",
+    "boundary_policy",
+  ]);
+  for (const field of Object.keys(summary)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_game_control_preflight_admin_page_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["manual_approval", "approved_safe_adapter"].includes(summary.game_control_mode)) {
+    throw new ContractError(`${context}: invalid game control mode`);
+  }
+  assertSafeReadinessState(summary.readiness_status, context);
+  for (const field of ["safe_map_status", "cooldown_status"]) {
+    if (!CHECK_STATUSES.has(summary[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  assertGameControlPreflightAdminPageBoundaryPolicySafe(
+    summary.boundary_policy,
+    context
+  );
+  assertNoForbiddenGameplayPreflightFields(summary, context);
 }
 
 export function assertGameplayPreflightReportSafe(
@@ -855,6 +928,34 @@ function assertGameAdapterProductionPreflightBoundaryPolicySafe(policy, context)
   for (const field of requiredFields) {
     if (policy[field] !== true) {
       throw new ContractError(`${context}: invalid production preflight boundary`);
+    }
+  }
+}
+
+function assertGameControlPreflightAdminPageBoundaryPolicySafe(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const requiredFields = [
+    "mode_readiness_safe_map_cooldown_status_only",
+    "no_raw_input_payloads",
+    "no_action_candidates",
+    "no_approved_actions",
+    "no_raw_key_maps",
+    "no_commands",
+    "no_endpoint_values",
+    "no_secret_values",
+    "read_only_preflight",
+  ];
+  const allowedFields = new Set(requiredFields);
+  for (const field of Object.keys(policy)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary policy field ${field}`);
+    }
+  }
+  for (const field of requiredFields) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: invalid admin page boundary`);
     }
   }
 }

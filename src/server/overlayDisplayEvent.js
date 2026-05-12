@@ -45,8 +45,17 @@ const FORBIDDEN_OVERLAY_EVENT_FIELDS = new Set([
   "token",
   "raw_overlay_event",
   "raw_overlay_events",
+  "raw_payload",
+  "raw_payloads",
+  "raw_bridge_payload",
+  "raw_bridge_payloads",
+  "bridge_payload",
+  "bridge_payloads",
+  "payload",
   "command",
   "command_payload",
+  "obs_command",
+  "obs_command_payload",
 ]);
 const OVERLAY_PICKUP_PACKET_ALLOWED_FIELDS = new Set([
   "schema",
@@ -59,6 +68,17 @@ const OVERLAY_PICKUP_PACKET_ALLOWED_FIELDS = new Set([
   "class_hints",
   "bridge",
   "camera",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const OVERLAY_EVENT_STREAM_STATUS_ALLOWED_FIELDS = new Set([
+  "schema",
+  "generated_at_ms",
+  "stream_ready",
+  "event_bus_status",
+  "client_count",
+  "published_count",
+  "latest_event_age_ms",
   "boundary_policy",
   "adapter_validation_required",
 ]);
@@ -291,6 +311,7 @@ export function createOverlayEventBus() {
         latest_event_age_ms: latestEventAgeMs,
         boundary_policy: {
           no_raw_overlay_events: true,
+          no_raw_payloads: true,
           no_raw_text: true,
           no_candidates: true,
           no_commands: true,
@@ -321,6 +342,11 @@ export function assertOverlayEventStreamStatusSafe(
   if (status.stream_ready !== true) {
     throw new ContractError(`${context}: stream_ready must be true`);
   }
+  for (const field of Object.keys(status)) {
+    if (!OVERLAY_EVENT_STREAM_STATUS_ALLOWED_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unsupported status field`, { field });
+    }
+  }
   if (!["connected", "stale"].includes(status.event_bus_status)) {
     throw new ContractError(`${context}: invalid event bus status`, {
       event_bus_status: status.event_bus_status,
@@ -338,6 +364,7 @@ export function assertOverlayEventStreamStatusSafe(
   }
   assertBoundaryPolicy(status.boundary_policy, [
     "no_raw_overlay_events",
+    "no_raw_payloads",
     "no_raw_text",
     "no_candidates",
     "no_commands",

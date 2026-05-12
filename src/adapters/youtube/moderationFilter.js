@@ -42,12 +42,23 @@ export function applyYouTubeModeration(events, filter) {
       reasonCounts[reason] += 1;
       continue;
     }
-    accepted.push(event);
+    accepted.push(markModerationAllowed(event));
   }
   return {
     events: accepted,
     filtered_count: events.length - accepted.length,
     reason_counts: reasonCounts,
+  };
+}
+
+function markModerationAllowed(event) {
+  return {
+    ...event,
+    moderation_status: "allowed",
+    payload:
+      event?.payload && typeof event.payload === "object"
+        ? { ...event.payload, moderation_status: "allowed" }
+        : event?.payload,
   };
 }
 

@@ -47,6 +47,14 @@ const FORBIDDEN_YOUTUBE_SOURCE_STATUS_FIELDS = new Set([
   "authorization",
   "value",
   "payload",
+  "raw_comment",
+  "rawComment",
+  "comment_text",
+  "commentText",
+  "api_body",
+  "apiBody",
+  "raw_api_body",
+  "rawApiBody",
 ]);
 
 const YOUTUBE_INGEST_SOURCE_STATUS_REPORT_FIELDS = new Set([
@@ -105,6 +113,17 @@ const MODERATION_FILTER_SAFE_SUMMARY_FIELDS = new Set([
   "blocked_author_count",
   "blocked_text_rule_count",
   "filtered_count",
+  "boundary_policy",
+]);
+const YOUTUBE_INGEST_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "page_status",
+  "oauth_status",
+  "chat_status",
+  "dedupe_status",
+  "moderation_status",
+  "configured_count",
+  "attention_count",
   "boundary_policy",
 ]);
 const SUPPORT_DONATION_NORMALIZER_SAFE_OUTPUT_FIELDS = new Set([
@@ -622,6 +641,114 @@ export function assertModerationFilterSafeSummary(
     `${context}: boundary policy`
   );
   assertNoModerationFilterSummaryLeak(summary, context);
+}
+
+export function createYouTubeIngestPreflightAdminPageSummary({
+  oauthStatus = "missing",
+  chatStatus = "attention",
+  dedupeStatus = "disabled",
+  moderationStatus = "missing",
+} = {}) {
+  const normalizedOauthStatus = safeOAuthAdminStatus(oauthStatus);
+  const normalizedChatStatus = safeAdminReadyAttentionStatus(chatStatus);
+  const normalizedDedupeStatus = dedupeStatus === "enabled" ? "enabled" : "disabled";
+  const normalizedModerationStatus =
+    moderationStatus === "configured" ? "configured" : "missing";
+  const attentionCount =
+    (normalizedOauthStatus === "configured" ? 0 : 1) +
+    (normalizedChatStatus === "ready" ? 0 : 1) +
+    (normalizedDedupeStatus === "enabled" ? 0 : 1) +
+    (normalizedModerationStatus === "configured" ? 0 : 1);
+  const summary = {
+    schema: "iris_youtube_ingest_preflight_admin_page_summary_v1",
+    page_status: attentionCount === 0 ? "ready" : "attention",
+    oauth_status: normalizedOauthStatus,
+    chat_status: normalizedChatStatus,
+    dedupe_status: normalizedDedupeStatus,
+    moderation_status: normalizedModerationStatus,
+    configured_count: 4 - attentionCount,
+    attention_count: attentionCount,
+    boundary_policy: {
+      oauth_chat_dedupe_moderation_status_only: true,
+      no_oauth_token: true,
+      no_refresh_token: true,
+      no_api_key: true,
+      no_raw_comment_text: true,
+      no_api_body: true,
+      no_endpoint_values: true,
+      no_raw_payloads: true,
+      no_candidates: true,
+      no_commands: true,
+      read_only_preflight: true,
+    },
+  };
+  assertYouTubeIngestPreflightAdminPageSummarySafe(summary);
+  return summary;
+}
+
+export function assertYouTubeIngestPreflightAdminPageSummarySafe(
+  summary,
+  context = "youtube ingest preflight admin page summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!YOUTUBE_INGEST_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_youtube_ingest_preflight_admin_page_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["ready", "attention"].includes(summary.page_status)) {
+    throw new ContractError(`${context}: invalid page status`);
+  }
+  if (!["configured", "missing", "expired"].includes(summary.oauth_status)) {
+    throw new ContractError(`${context}: invalid oauth status`);
+  }
+  if (!["ready", "attention"].includes(summary.chat_status)) {
+    throw new ContractError(`${context}: invalid chat status`);
+  }
+  if (!["enabled", "disabled"].includes(summary.dedupe_status)) {
+    throw new ContractError(`${context}: invalid dedupe status`);
+  }
+  if (!["configured", "missing"].includes(summary.moderation_status)) {
+    throw new ContractError(`${context}: invalid moderation status`);
+  }
+  for (const field of ["configured_count", "attention_count"]) {
+    assertNonNegativeInteger(summary[field], `${context}: ${field}`);
+  }
+  const expectedAttentionCount =
+    (summary.oauth_status === "configured" ? 0 : 1) +
+    (summary.chat_status === "ready" ? 0 : 1) +
+    (summary.dedupe_status === "enabled" ? 0 : 1) +
+    (summary.moderation_status === "configured" ? 0 : 1);
+  if (
+    summary.attention_count !== expectedAttentionCount ||
+    summary.configured_count !== 4 - expectedAttentionCount ||
+    summary.page_status !== (expectedAttentionCount === 0 ? "ready" : "attention")
+  ) {
+    throw new ContractError(`${context}: status count mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "oauth_chat_dedupe_moderation_status_only",
+      "no_oauth_token",
+      "no_refresh_token",
+      "no_api_key",
+      "no_raw_comment_text",
+      "no_api_body",
+      "no_endpoint_values",
+      "no_raw_payloads",
+      "no_candidates",
+      "no_commands",
+      "read_only_preflight",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoYouTubeIngestPreflightAdminPageLeak(summary, context);
 }
 
 export function createSupportDonationNormalizerSafeOutput({
@@ -1510,6 +1637,14 @@ function safeDedupeWindowLabel(value) {
   return "extended";
 }
 
+function safeOAuthAdminStatus(value) {
+  return ["configured", "expired"].includes(value) ? value : "missing";
+}
+
+function safeAdminReadyAttentionStatus(value) {
+  return value === "ready" ? "ready" : "attention";
+}
+
 function hasConfiguredEnv(env, name) {
   return String(env?.[name] ?? "").trim().length > 0;
 }
@@ -1636,6 +1771,43 @@ function assertNoModerationFilterSummaryLeak(value, context, path = "root") {
   }
   for (const [field, child] of Object.entries(value)) {
     assertNoModerationFilterSummaryLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoYouTubeIngestPreflightAdminPageLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /https?:\/\/|oauth[_ -]?token|refresh[_ -]?token|access[_ -]?token|api[_ -]?key|bearer\s+|authorization|secret|raw[_ -]?comment|comment[_ -]?text|displayMessage|api[_ -]?body|response[_ -]?body|raw[_ -]?payload|endpoint/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe admin page material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoYouTubeIngestPreflightAdminPageLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path.endsWith(".boundary_policy")) {
+      continue;
+    }
+    if (
+      /oauth[_-]?token|refresh[_-]?token|access[_-]?token|api[_-]?key|raw[_-]?comment|comment[_-]?text|api[_-]?body|raw[_-]?payload|endpoint|url|payload/i.test(
+        field
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe admin page field leaked`, {
+        path: `${path}.${field}`,
+      });
+    }
+    assertNoYouTubeIngestPreflightAdminPageLeak(child, context, `${path}.${field}`);
   }
 }
 

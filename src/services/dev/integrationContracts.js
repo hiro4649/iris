@@ -140,6 +140,7 @@ export function createIntegrationContracts({ generatedAtMs = Date.now() } = {}) 
     ],
     obs_overlay: {
       schema: "iris_obs_overlay_contract_v1",
+      safe_contract_manifest_schema: "iris_obs_overlay_safe_contract_manifest_v1",
       browser_source_path: "/overlay",
       display_event_path: "/overlay/event",
       event_stream_path: "/overlay/events",
@@ -149,6 +150,16 @@ export function createIntegrationContracts({ generatedAtMs = Date.now() } = {}) 
       local_bridge_event_render_manifest_latest_path: "/event-render-manifests/latest",
       display_event_schema: "iris_overlay_display_event_v1",
       event_stream_name: "iris_overlay_display_event_v1",
+      overlay_status_schema: "iris_overlay_status_v1",
+      subtitle_cue_schema: "iris_subtitle_cue_v1",
+      browser_source_setup_status_schema: "iris_obs_browser_source_setup_status_v1",
+      browser_source_config_schema: "iris_obs_browser_source_config_v1",
+      safe_contract_components: {
+        overlay: "iris_overlay_display_event_v1",
+        subtitle: "iris_subtitle_cue_v1",
+        status: "iris_overlay_status_v1",
+        browser_source: "iris_obs_browser_source_setup_status_v1",
+      },
       heartbeat_comment: true,
       local_bridge_handoff: {
         health_path: "/health",
@@ -243,6 +254,20 @@ export function createIntegrationContracts({ generatedAtMs = Date.now() } = {}) 
         "bridge.live2d_bridge_status",
         "bridge.subtitle_bridge_status",
         "camera.proximity_level",
+      ],
+      status_fields: [
+        "overlay_ready",
+        "health",
+        "visibility_state",
+        "subtitle_visible",
+        "state_age_ms",
+        "boundary_policy",
+      ],
+      browser_source_status_fields: [
+        "browser_source_setup_status",
+        "configured",
+        "missing_count",
+        "boundary_policy",
       ],
       forbidden_payloads: sharedForbiddenPayloads(),
       boundary_policy: itemBoundaryPolicy(),
@@ -1131,6 +1156,24 @@ function assertOverlayContractSafe(contract, context) {
   if (
     contract.browser_source_path !== "/overlay" ||
     contract.event_stream_path !== "/overlay/events" ||
+    contract.safe_contract_manifest_schema !==
+      "iris_obs_overlay_safe_contract_manifest_v1" ||
+    contract.display_event_schema !== "iris_overlay_display_event_v1" ||
+    contract.overlay_status_schema !== "iris_overlay_status_v1" ||
+    contract.subtitle_cue_schema !== "iris_subtitle_cue_v1" ||
+    contract.browser_source_setup_status_schema !==
+      "iris_obs_browser_source_setup_status_v1" ||
+    contract.browser_source_config_schema !== "iris_obs_browser_source_config_v1" ||
+    contract.safe_contract_components?.overlay !==
+      "iris_overlay_display_event_v1" ||
+    contract.safe_contract_components?.subtitle !== "iris_subtitle_cue_v1" ||
+    contract.safe_contract_components?.status !== "iris_overlay_status_v1" ||
+    contract.safe_contract_components?.browser_source !==
+      "iris_obs_browser_source_setup_status_v1" ||
+    !Array.isArray(contract.status_fields) ||
+    !contract.status_fields.includes("boundary_policy") ||
+    !Array.isArray(contract.browser_source_status_fields) ||
+    !contract.browser_source_status_fields.includes("configured") ||
     contract.local_bridge_handoff?.health_path !== "/health" ||
     !Array.isArray(contract.local_bridge_handoff?.required_adapter_kinds) ||
     JSON.stringify(contract.local_bridge_handoff.required_adapter_kinds) !==

@@ -56,6 +56,17 @@ const OBS_ARTIFACT_SYNC_GUARD_STATUS_FIELDS = new Set([
   "check_count",
   "boundary_policy",
 ]);
+const OBS_OVERLAY_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "page_status",
+  "browser_source_status",
+  "pickup_status",
+  "heartbeat_status",
+  "artifact_status",
+  "configured_count",
+  "attention_count",
+  "boundary_policy",
+]);
 const OBS_COMMAND_PUBLIC_LEAK_GUARD_STATUS_FIELDS = new Set([
   "schema",
   "command_public_leak_guard_status",
@@ -342,6 +353,46 @@ export function createObsCommandPublicLeakGuardStatus({
   return guardStatus;
 }
 
+export function createObsOverlayPreflightAdminPageSummary({
+  browserSourceStatus = "missing",
+  pickupStatus = "attention",
+  heartbeatStatus = "attention",
+  artifactStatus = "missing",
+} = {}) {
+  const safeBrowserSourceStatus = safeObsConfiguredStatus(browserSourceStatus);
+  const safePickupStatus = safeObsReadyAttentionStatus(pickupStatus);
+  const safeHeartbeatStatus = safeObsReadyAttentionStatus(heartbeatStatus);
+  const safeArtifactStatus = safeObsArtifactStatus(artifactStatus);
+  const attentionCount =
+    (safeBrowserSourceStatus === "configured" ? 0 : 1) +
+    (safePickupStatus === "ready" ? 0 : 1) +
+    (safeHeartbeatStatus === "ready" ? 0 : 1) +
+    (safeArtifactStatus === "ready" || safeArtifactStatus === "configured" ? 0 : 1);
+  const summary = {
+    schema: "iris_obs_overlay_preflight_admin_page_summary_v1",
+    page_status: attentionCount === 0 ? "ready" : "attention",
+    browser_source_status: safeBrowserSourceStatus,
+    pickup_status: safePickupStatus,
+    heartbeat_status: safeHeartbeatStatus,
+    artifact_status: safeArtifactStatus,
+    configured_count: 4 - attentionCount,
+    attention_count: attentionCount,
+    boundary_policy: {
+      browser_source_pickup_heartbeat_artifact_status_only: true,
+      no_url_values: true,
+      no_endpoint_values: true,
+      no_obs_credentials: true,
+      no_raw_overlay_events: true,
+      no_raw_payloads: true,
+      no_artifact_paths: true,
+      no_commands: true,
+      read_only_preflight: true,
+    },
+  };
+  assertObsOverlayPreflightAdminPageSummarySafe(summary);
+  return summary;
+}
+
 export function assertObsOverlayUrlRedactionStatusSafe(
   status,
   context = "OBS overlay URL redaction status"
@@ -549,6 +600,72 @@ export function assertObsCommandPublicLeakGuardStatusSafe(
   assertNoObsCommandPublicLeak(status, context);
 }
 
+export function assertObsOverlayPreflightAdminPageSummarySafe(
+  summary,
+  context = "OBS overlay preflight admin page summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!OBS_OVERLAY_PREFLIGHT_ADMIN_PAGE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_obs_overlay_preflight_admin_page_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["ready", "attention"].includes(summary.page_status)) {
+    throw new ContractError(`${context}: invalid page status`);
+  }
+  if (!["configured", "missing"].includes(summary.browser_source_status)) {
+    throw new ContractError(`${context}: invalid browser source status`);
+  }
+  for (const field of ["pickup_status", "heartbeat_status"]) {
+    if (!["ready", "attention"].includes(summary[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (!["configured", "missing", "ready", "attention"].includes(summary.artifact_status)) {
+    throw new ContractError(`${context}: invalid artifact status`);
+  }
+  for (const field of ["configured_count", "attention_count"]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  const expectedAttentionCount =
+    (summary.browser_source_status === "configured" ? 0 : 1) +
+    (summary.pickup_status === "ready" ? 0 : 1) +
+    (summary.heartbeat_status === "ready" ? 0 : 1) +
+    (summary.artifact_status === "ready" || summary.artifact_status === "configured"
+      ? 0
+      : 1);
+  if (
+    summary.attention_count !== expectedAttentionCount ||
+    summary.configured_count !== 4 - expectedAttentionCount ||
+    summary.page_status !== (expectedAttentionCount === 0 ? "ready" : "attention")
+  ) {
+    throw new ContractError(`${context}: status count mismatch`);
+  }
+  assertSafeSummaryBoundaryPolicy(
+    summary.boundary_policy,
+    [
+      "browser_source_pickup_heartbeat_artifact_status_only",
+      "no_url_values",
+      "no_endpoint_values",
+      "no_obs_credentials",
+      "no_raw_overlay_events",
+      "no_raw_payloads",
+      "no_artifact_paths",
+      "no_commands",
+      "read_only_preflight",
+    ],
+    `${context}: boundary policy`
+  );
+  assertNoObsOverlayPreflightAdminPageLeak(summary, context);
+}
+
 export function assertObsOverlayConfigSafe(config, context = "OBS overlay config") {
   if (!config || typeof config !== "object") {
     throw new ContractError(`${context}: missing config`);
@@ -597,6 +714,18 @@ function safeText(value, maxLength = 160) {
 function optionalEnvValue(value) {
   const text = String(value ?? "").trim();
   return text ? value : undefined;
+}
+
+function safeObsConfiguredStatus(value) {
+  return value === "configured" ? "configured" : "missing";
+}
+
+function safeObsReadyAttentionStatus(value) {
+  return value === "ready" ? "ready" : "attention";
+}
+
+function safeObsArtifactStatus(value) {
+  return ["configured", "ready", "attention"].includes(value) ? value : "missing";
 }
 
 function clampInteger(value, min, max, fallback = min) {
@@ -718,6 +847,43 @@ function assertNoObsArtifactSyncGuardLeak(value, context, path = "root") {
   }
   for (const [field, child] of Object.entries(value)) {
     assertNoObsArtifactSyncGuardLeak(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoObsOverlayPreflightAdminPageLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /https?:\/\/|\/overlay(?:[/?#]|$)|endpoint|url[_ -]?value|obs[_ -]?credential|credential|authorization|bearer\s+|api[_ -]?key|token|secret|password|raw[_ -]?overlay[_ -]?event|raw[_ -]?event|raw[_ -]?payload|payload|artifact[_ -]?path|[A-Za-z]:\\|\/(?:tmp|var|home|users)\b|world[_ -]?command|obs[_ -]?command|bridge[_ -]?command/i.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe OBS overlay preflight material leaked`, {
+        path,
+      });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoObsOverlayPreflightAdminPageLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (path.endsWith(".boundary_policy")) {
+      continue;
+    }
+    if (
+      /endpoint|url|credential|token|secret|raw[_-]?overlay[_-]?event|raw[_-]?event|raw[_-]?payload|payload|artifact[_-]?path|command/i.test(
+        field
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe OBS overlay preflight field leaked`, {
+        path: `${path}.${field}`,
+      });
+    }
+    assertNoObsOverlayPreflightAdminPageLeak(child, context, `${path}.${field}`);
   }
 }
 
