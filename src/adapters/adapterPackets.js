@@ -1325,6 +1325,8 @@ function requiresLive2dRecoveryPlan(packet) {
 function hasLive2dRecoveryPlan(packet) {
   return (
     packet.camera_proximity?.recovery_plan?.required === true ||
+    packet.expression_profile?.recovery_profile?.required === true ||
+    Number(packet.autonomous_expression?.scream_reaction_plan?.recovery_pause_ms ?? 0) > 0 ||
     packet.affective_continuity?.breath_recovery_plan?.required === true ||
     packet.affective_continuity?.affective_state?.recovery_required === true ||
     packet.body_continuity?.body_motion_plan?.recovery_state === "recovering" ||

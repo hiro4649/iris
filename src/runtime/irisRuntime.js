@@ -714,7 +714,8 @@ async function processEvent(
     subtitleCue: subtitle_cue,
     tongueTwisterMode: tongue_twister_mode,
   });
-  const live2d_packet = createLive2dAdapterPacket(result.phase15.phase15_continuity_envelope, {
+  const live2d_action_envelope = createLive2dAdapterActionEnvelope(result.phase15);
+  const live2d_packet = createLive2dAdapterPacket(live2d_action_envelope, {
     motionCue: motion_cue,
     performancePlan: performance_plan,
     bodyContinuity: body_continuity,
@@ -982,6 +983,31 @@ function isAsyncAdapterHandoffAccepted(summary) {
     .toLowerCase()
     .replace(/[\s-]+/gu, "_");
   return ["accepted", "queued", "enqueued", "job_queued"].includes(status);
+}
+
+function createLive2dAdapterActionEnvelope(phase15) {
+  const source = phase15?.phase15_continuity_envelope ?? {};
+  const issuedAtMs = Date.now();
+  return {
+    schema: "iris_adapter_approved_action_envelope_v1",
+    trace_id: source.trace_id ?? phase15?.trace_id ?? null,
+    event_id: source.event_id ?? phase15?.event_id ?? null,
+    handoff_route: "adapter",
+    handoff_timestamp_status: "fresh",
+    handoff_issued_at_ms: issuedAtMs,
+    handoff_expires_at_ms: issuedAtMs + 10000,
+    handoff_max_age_ms: 10000,
+    action_type: source.action_type ?? phase15?.phase15_input_action_type ?? null,
+    target_presence_id: source.target_presence_id ?? null,
+    tone: source.tone ?? null,
+    emotion: source.emotion ?? null,
+    character_tag: source.character_tag ?? null,
+    final_normalized_status:
+      source.final_normalized_status ?? phase15?.final_normalized_status ?? null,
+    continuity_maintained:
+      source.continuity_maintained === true || phase15?.continuity_maintained === true,
+    performance_cue: source.performance_cue ?? phase15?.performance_cue ?? null,
+  };
 }
 
 function createPausedAdapterHandoffResult(adapterKind) {
