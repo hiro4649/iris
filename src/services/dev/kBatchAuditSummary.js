@@ -80,6 +80,15 @@ const SAFE_AUDIT_NG_COMPACT_REPORT_FIELDS = new Set([
   "residual_risk_label",
   "boundary_policy",
 ]);
+const SAFE_NG_REPAIR_INSTRUCTION_FIELDS = new Set([
+  "schema",
+  "instruction_status",
+  "problem_k",
+  "problem_label",
+  "nearby_repair_policy_label",
+  "residual_risk_label",
+  "boundary_policy",
+]);
 const SAFE_NO_AUTO_FIX_AUDIT_MODE_FIELDS = new Set([
   "schema",
   "audit_mode_status",
@@ -105,6 +114,83 @@ const SAFE_REVIEW_HOOK_FIELDS = new Set([
   "batch_label",
   "review_recommended",
   "next_step_label",
+  "boundary_policy",
+]);
+const SAFE_PRODUCTION_COMPLETION_REVIEW_HOOK_FIELDS = new Set([
+  "schema",
+  "status",
+  "batch_label",
+  "production_status",
+  "real_residency_confirmed",
+  "residual_risk_label",
+  "review_recommended",
+  "next_step_label",
+  "boundary_policy",
+]);
+const SAFE_PRODUCTION_BLOCKER_CARRYOVER_FIELDS = new Set([
+  "schema",
+  "carryover_status",
+  "source_range_label",
+  "next_range_label",
+  "blocked_count",
+  "blocker_labels",
+  "carryover_required",
+  "readiness_exploration_performed",
+  "boundary_policy",
+]);
+const SAFE_REAL_MODE_BLOCKED_POLICY_FIELDS = new Set([
+  "schema",
+  "policy_status",
+  "real_mode_confirmed",
+  "fixture_passed",
+  "production_status",
+  "blocked_reason_label",
+  "boundary_policy",
+]);
+const SAFE_GIT_CLEAN_GATE_FIELDS = new Set([
+  "schema",
+  "gate_status",
+  "changed_file_count",
+  "clean_required",
+  "safe_flag_label",
+  "boundary_policy",
+]);
+const SAFE_RUNTIME_DATA_IGNORE_POLICY_FIELDS = new Set([
+  "schema",
+  "policy_status",
+  "checked_file_count",
+  "runtime_delta_count",
+  "k_change_file_count",
+  "runtime_delta_action_label",
+  "boundary_policy",
+]);
+const SAFE_DOCS_SPEC_GUARD_FIELDS = new Set([
+  "schema",
+  "guard_status",
+  "checked_file_count",
+  "docs_report_spec_changed",
+  "stop_required",
+  "safe_flag_label",
+  "boundary_policy",
+]);
+const SAFE_COMMIT_MESSAGE_SUGGESTION_FIELDS = new Set([
+  "schema",
+  "suggestion_status",
+  "range_label",
+  "category_label",
+  "commit_message_label",
+  "git_commit_performed",
+  "boundary_policy",
+]);
+const SAFE_COMPLETION_REVIEW_SUMMARY_FIELDS = new Set([
+  "schema",
+  "summary_status",
+  "range_label",
+  "completed_category_label",
+  "missing_category_label",
+  "next_priority_label",
+  "residual_risk_label",
+  "one_line_summary",
   "boundary_policy",
 ]);
 const BOUNDARY_FIELDS = [
@@ -212,6 +298,365 @@ export function createKBatchModifiedFilePolicyCheck({
   };
   assertKBatchModifiedFilePolicyCheckSafe(summary);
   return summary;
+}
+
+export function createKBatchGitCleanGate({ files = [], statusText = "" } = {}) {
+  const entries = collectPolicyFileEntries({ files, statusText });
+  const hasChanges = entries.length > 0;
+  const summary = {
+    schema: "iris_k_batch_git_clean_gate_v1",
+    gate_status: hasChanges ? "blocked" : "clean",
+    changed_file_count: entries.length,
+    clean_required: hasChanges,
+    safe_flag_label: hasChanges ? "changes_require_confirm_or_stash" : "none",
+    boundary_policy: {
+      safe_flag_only: true,
+      counts_only: true,
+      file_paths_excluded: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      no_auto_fix: true,
+    },
+  };
+  assertKBatchGitCleanGateSafe(summary);
+  return summary;
+}
+
+export function assertKBatchGitCleanGateSafe(
+  summary,
+  context = "K-batch Git clean gate"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_git_clean_gate_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SAFE_GIT_CLEAN_GATE_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["clean", "blocked"].includes(summary.gate_status) ||
+    !Number.isInteger(summary.changed_file_count) ||
+    summary.changed_file_count < 0 ||
+    typeof summary.clean_required !== "boolean" ||
+    summary.safe_flag_label !== safeLabel(summary.safe_flag_label)
+  ) {
+    throw new ContractError(`${context}: invalid gate`);
+  }
+  const hasChanges = summary.changed_file_count > 0;
+  if (
+    summary.gate_status !== (hasChanges ? "blocked" : "clean") ||
+    summary.clean_required !== hasChanges ||
+    summary.safe_flag_label !==
+      (hasChanges ? "changes_require_confirm_or_stash" : "none")
+  ) {
+    throw new ContractError(`${context}: clean gate mismatch`);
+  }
+  assertGitCleanGateBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function createKBatchRuntimeDataIgnorePolicy({
+  files = [],
+  statusText = "",
+} = {}) {
+  const entries = collectPolicyFileEntries({ files, statusText });
+  const runtimeDeltaCount = entries.filter((entry) =>
+    isRuntimeDataPath(entry.path)
+  ).length;
+  const kChangeFileCount = entries.length - runtimeDeltaCount;
+  const summary = {
+    schema: "iris_k_batch_runtime_data_ignore_policy_v1",
+    policy_status:
+      runtimeDeltaCount > 0 && kChangeFileCount === 0
+        ? "runtime_only"
+        : runtimeDeltaCount > 0
+          ? "mixed"
+          : "none",
+    checked_file_count: entries.length,
+    runtime_delta_count: runtimeDeltaCount,
+    k_change_file_count: kChangeFileCount,
+    runtime_delta_action_label:
+      runtimeDeltaCount > 0 ? "stash_restore_or_ignore_runtime_delta" : "none",
+    boundary_policy: {
+      runtime_delta_safe_summary_only: true,
+      runtime_data_not_counted_as_k_change: true,
+      stash_restore_ignore_label_only: true,
+      file_paths_excluded: true,
+      counts_only: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      no_auto_fix: true,
+    },
+  };
+  assertKBatchRuntimeDataIgnorePolicySafe(summary);
+  return summary;
+}
+
+export function assertKBatchRuntimeDataIgnorePolicySafe(
+  summary,
+  context = "K-batch runtime data ignore policy"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_runtime_data_ignore_policy_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_RUNTIME_DATA_IGNORE_POLICY_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["none", "runtime_only", "mixed"].includes(summary.policy_status) ||
+    !Number.isInteger(summary.checked_file_count) ||
+    !Number.isInteger(summary.runtime_delta_count) ||
+    !Number.isInteger(summary.k_change_file_count) ||
+    summary.checked_file_count < 0 ||
+    summary.runtime_delta_count < 0 ||
+    summary.k_change_file_count < 0 ||
+    summary.runtime_delta_action_label !== safeLabel(summary.runtime_delta_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid policy`);
+  }
+  if (
+    summary.checked_file_count !==
+      summary.runtime_delta_count + summary.k_change_file_count ||
+    summary.runtime_delta_action_label !==
+      (summary.runtime_delta_count > 0
+        ? "stash_restore_or_ignore_runtime_delta"
+        : "none")
+  ) {
+    throw new ContractError(`${context}: runtime delta mismatch`);
+  }
+  const expectedStatus =
+    summary.runtime_delta_count > 0 && summary.k_change_file_count === 0
+      ? "runtime_only"
+      : summary.runtime_delta_count > 0
+        ? "mixed"
+        : "none";
+  if (summary.policy_status !== expectedStatus) {
+    throw new ContractError(`${context}: invalid policy status`);
+  }
+  assertRuntimeDataIgnorePolicyBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function createKBatchDocsSpecGuard({ files = [], statusText = "" } = {}) {
+  const entries = collectPolicyFileEntries({ files, statusText });
+  const docsReportSpecChanged = entries.some((entry) =>
+    isDocsReportSpecPath(entry.path)
+  );
+  const summary = {
+    schema: "iris_k_batch_docs_spec_guard_v1",
+    guard_status: docsReportSpecChanged ? "ng" : "pass",
+    checked_file_count: entries.length,
+    docs_report_spec_changed: docsReportSpecChanged,
+    stop_required: docsReportSpecChanged,
+    safe_flag_label: docsReportSpecChanged ? "docs_spec_change_stop_required" : "none",
+    boundary_policy: {
+      docs_spec_change_detected_as_ng: true,
+      stop_without_auto_fix: true,
+      safe_flag_only: true,
+      file_paths_excluded: true,
+      counts_only: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+    },
+  };
+  assertKBatchDocsSpecGuardSafe(summary);
+  return summary;
+}
+
+export function assertKBatchDocsSpecGuardSafe(
+  summary,
+  context = "K-batch docs/spec guard"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_docs_spec_guard_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SAFE_DOCS_SPEC_GUARD_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["pass", "ng"].includes(summary.guard_status) ||
+    !Number.isInteger(summary.checked_file_count) ||
+    summary.checked_file_count < 0 ||
+    typeof summary.docs_report_spec_changed !== "boolean" ||
+    typeof summary.stop_required !== "boolean" ||
+    summary.safe_flag_label !== safeLabel(summary.safe_flag_label)
+  ) {
+    throw new ContractError(`${context}: invalid guard`);
+  }
+  if (
+    summary.guard_status !== (summary.docs_report_spec_changed ? "ng" : "pass") ||
+    summary.stop_required !== summary.docs_report_spec_changed ||
+    summary.safe_flag_label !==
+      (summary.docs_report_spec_changed ? "docs_spec_change_stop_required" : "none")
+  ) {
+    throw new ContractError(`${context}: docs/spec guard mismatch`);
+  }
+  assertDocsSpecGuardBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function createKBatchCommitMessageSuggestion({
+  rangeLabel = "K671-K680",
+  category = "k_batch",
+} = {}) {
+  const safeRange = safeLabel(rangeLabel);
+  const safeCategory = safeLabel(category);
+  const summary = {
+    schema: "iris_k_batch_commit_message_suggestion_v1",
+    suggestion_status: "suggested",
+    range_label: safeRange,
+    category_label: safeCategory,
+    commit_message_label: `${safeRange}_${safeCategory}`,
+    git_commit_performed: false,
+    boundary_policy: {
+      suggestion_only: true,
+      git_commit_not_performed: true,
+      safe_label_only: true,
+      raw_diff_excluded: true,
+      file_paths_excluded: true,
+      sensitive_values_excluded: true,
+    },
+  };
+  assertKBatchCommitMessageSuggestionSafe(summary);
+  return summary;
+}
+
+export function assertKBatchCommitMessageSuggestionSafe(
+  summary,
+  context = "K-batch commit message suggestion"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_commit_message_suggestion_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_COMMIT_MESSAGE_SUGGESTION_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    summary.suggestion_status !== "suggested" ||
+    summary.range_label !== safeLabel(summary.range_label) ||
+    summary.category_label !== safeLabel(summary.category_label) ||
+    summary.commit_message_label !== safeLabel(summary.commit_message_label) ||
+    summary.git_commit_performed !== false
+  ) {
+    throw new ContractError(`${context}: invalid suggestion`);
+  }
+  if (
+    summary.commit_message_label !==
+    safeLabel(`${summary.range_label}_${summary.category_label}`)
+  ) {
+    throw new ContractError(`${context}: message mismatch`);
+  }
+  assertCommitMessageSuggestionBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function createKBatchCompletionReviewSummary({
+  rangeLabel = "K671-K680",
+  completedCategories = [],
+  missingCategories = [],
+  nextPriority = "production_blocker_carryover",
+  residualRisks = [],
+} = {}) {
+  const completed = summarizeSafeListLabel(completedCategories, "none");
+  const missing = summarizeSafeListLabel(missingCategories, "none");
+  const riskSummary = createKBatchResidualRiskNormalizer({ risks: residualRisks });
+  const residualRiskLabel = riskSummary.risk_status === "attention" ? "attention" : "none";
+  const safeRange = safeLabel(rangeLabel);
+  const safeNextPriority = safeLabel(nextPriority);
+  const summary = {
+    schema: "iris_k_batch_completion_review_summary_v1",
+    summary_status: "ready",
+    range_label: safeRange,
+    completed_category_label: completed,
+    missing_category_label: missing,
+    next_priority_label: safeNextPriority,
+    residual_risk_label: residualRiskLabel,
+    one_line_summary: [
+      safeRange,
+      completed,
+      missing,
+      safeNextPriority,
+      residualRiskLabel,
+    ].join(" / "),
+    boundary_policy: {
+      one_line_summary_only: true,
+      safe_labels_only: true,
+      category_details_excluded: true,
+      raw_logs_excluded: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      whole_test_not_run_instruction_excluded: true,
+    },
+  };
+  assertKBatchCompletionReviewSummarySafe(summary);
+  return summary;
+}
+
+export function assertKBatchCompletionReviewSummarySafe(
+  summary,
+  context = "K-batch completion review summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_completion_review_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_COMPLETION_REVIEW_SUMMARY_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    summary.summary_status !== "ready" ||
+    summary.range_label !== safeLabel(summary.range_label) ||
+    summary.completed_category_label !== safeLabel(summary.completed_category_label) ||
+    summary.missing_category_label !== safeLabel(summary.missing_category_label) ||
+    summary.next_priority_label !== safeLabel(summary.next_priority_label) ||
+    !["none", "attention"].includes(summary.residual_risk_label)
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  const expectedLine = [
+    summary.range_label,
+    summary.completed_category_label,
+    summary.missing_category_label,
+    summary.next_priority_label,
+    summary.residual_risk_label,
+  ].join(" / ");
+  if (summary.one_line_summary !== expectedLine) {
+    throw new ContractError(`${context}: one line mismatch`);
+  }
+  assertCompletionReviewSummaryBoundaryPolicy(summary.boundary_policy, context);
 }
 
 export function createKBatchCoreImmediateAuditFlag({
@@ -394,6 +839,35 @@ export function createKBatchAuditNgCompactReport({
   return report;
 }
 
+export function createKBatchNgRepairInstruction({
+  problemK = "K000",
+  problem = "audit_ng",
+  nearbyRepairPolicy = "nearby_fix_only",
+  residualRisks = [],
+} = {}) {
+  const riskSummary = createKBatchResidualRiskNormalizer({ risks: residualRisks });
+  const instruction = {
+    schema: "iris_k_batch_ng_repair_instruction_v1",
+    instruction_status: "ng_repair_required",
+    problem_k: safeKLabel(problemK),
+    problem_label: safeLabel(problem),
+    nearby_repair_policy_label: safeLabel(nearbyRepairPolicy),
+    residual_risk_label: riskSummary.risk_status === "attention" ? "attention" : "none",
+    boundary_policy: {
+      problem_k_problem_policy_risk_only: true,
+      nearby_repair_only: true,
+      compact_instruction_only: true,
+      safe_labels_only: true,
+      raw_logs_excluded: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      no_auto_fix: true,
+    },
+  };
+  assertKBatchNgRepairInstructionSafe(instruction);
+  return instruction;
+}
+
 export function createKBatchNoAutoFixAuditMode({ ngDetected = false } = {}) {
   const detected = ngDetected === true;
   const summary = {
@@ -515,6 +989,112 @@ export function createK501K600CompletionReviewHook({ batchLabel = "K501-K600" } 
     },
   };
   assertK501K600CompletionReviewHookSafe(summary);
+  return summary;
+}
+
+export function createK601K700CompletionReviewHook({ batchLabel = "K601-K700" } = {}) {
+  const summary = {
+    schema: "iris_k601_k700_completion_review_hook_v1",
+    status: "review_recommended",
+    batch_label: safeLabel(batchLabel),
+    review_recommended: true,
+    next_step_label: "k601_k700_completion_review",
+    boundary_policy: {
+      safe_status_only: true,
+      code_change_not_required: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      personal_values_excluded: true,
+      operation_values_excluded: true,
+    },
+  };
+  assertK601K700CompletionReviewHookSafe(summary);
+  return summary;
+}
+
+export function createK600ProductionReadinessCompletionReviewHook({
+  batchLabel = "K600-plus",
+  realResidencyConfirmed = false,
+} = {}) {
+  const confirmed = realResidencyConfirmed === true;
+  const summary = {
+    schema: "iris_k600_production_readiness_completion_review_hook_v1",
+    status: confirmed ? "review_ready" : "review_blocked",
+    batch_label: safeLabel(batchLabel),
+    production_status: confirmed ? "ready" : "blocked",
+    real_residency_confirmed: confirmed,
+    residual_risk_label: confirmed ? "none" : "real_residency_unconfirmed",
+    review_recommended: true,
+    next_step_label: "k600_production_completion_review",
+    boundary_policy: {
+      safe_completion_status_only: true,
+      production_blocker_preserved: true,
+      fixture_pass_not_real_ready: true,
+      real_residency_risk_retained: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      operation_values_excluded: true,
+    },
+  };
+  assertK600ProductionReadinessCompletionReviewHookSafe(summary);
+  return summary;
+}
+
+export function createKBatchProductionBlockerCarryover({
+  sourceRangeLabel = "K601-K670",
+  nextRangeLabel = "K671-K680",
+  blockers = ["real_residency_unconfirmed"],
+} = {}) {
+  const safeBlockers = [
+    ...new Set((Array.isArray(blockers) ? blockers : []).map((item) => safeLabel(item))),
+  ].filter((item) => item !== "item");
+  const summary = {
+    schema: "iris_k_batch_production_blocker_carryover_v1",
+    carryover_status: safeBlockers.length > 0 ? "blocked" : "clear",
+    source_range_label: safeLabel(sourceRangeLabel),
+    next_range_label: safeLabel(nextRangeLabel),
+    blocked_count: safeBlockers.length,
+    blocker_labels: safeBlockers.slice(0, 20),
+    carryover_required: safeBlockers.length > 0,
+    readiness_exploration_performed: false,
+    boundary_policy: {
+      safe_carryover_labels_only: true,
+      production_blocked_status_preserved: true,
+      next_range_carryover_only: true,
+      readiness_exploration_not_performed: true,
+      counts_only: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      operation_values_excluded: true,
+    },
+  };
+  assertKBatchProductionBlockerCarryoverSafe(summary);
+  return summary;
+}
+
+export function createKBatchRealModeBlockedPolicy({
+  realModeConfirmed = false,
+  fixturePassed = false,
+  blockedReason = "real_mode_unconfirmed",
+} = {}) {
+  const confirmed = realModeConfirmed === true;
+  const summary = {
+    schema: "iris_k_batch_real_mode_blocked_policy_v1",
+    policy_status: confirmed ? "pass" : "blocked",
+    real_mode_confirmed: confirmed,
+    fixture_passed: fixturePassed === true,
+    production_status: confirmed ? "ready" : "blocked",
+    blocked_reason_label: confirmed ? "none" : safeLabel(blockedReason),
+    boundary_policy: {
+      real_mode_unconfirmed_blocks_ready: true,
+      fixture_pass_separated_from_real_mode: true,
+      safe_status_only: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      operation_values_excluded: true,
+    },
+  };
+  assertKBatchRealModeBlockedPolicySafe(summary);
   return summary;
 }
 
@@ -834,6 +1414,38 @@ export function assertKBatchAuditNgCompactReportSafe(
   assertAuditNgCompactBoundaryPolicy(report.boundary_policy, context);
 }
 
+export function assertKBatchNgRepairInstructionSafe(
+  instruction,
+  context = "K-batch NG repair instruction"
+) {
+  if (!instruction || typeof instruction !== "object" || Array.isArray(instruction)) {
+    throw new ContractError(`${context}: instruction required`);
+  }
+  assertNoUnsafeValues(instruction, context);
+  if (instruction.schema !== "iris_k_batch_ng_repair_instruction_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(instruction)) {
+    if (
+      !SAFE_NG_REPAIR_INSTRUCTION_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    instruction.instruction_status !== "ng_repair_required" ||
+    instruction.problem_k !== safeKLabel(instruction.problem_k) ||
+    instruction.problem_label !== safeLabel(instruction.problem_label) ||
+    instruction.nearby_repair_policy_label !==
+      safeLabel(instruction.nearby_repair_policy_label) ||
+    !["none", "attention"].includes(instruction.residual_risk_label)
+  ) {
+    throw new ContractError(`${context}: invalid instruction`);
+  }
+  assertNgRepairInstructionBoundaryPolicy(instruction.boundary_policy, context);
+}
+
 export function assertKBatchNoAutoFixAuditModeSafe(
   summary,
   context = "K-batch no auto-fix audit mode"
@@ -1025,6 +1637,166 @@ export function assertK501K600CompletionReviewHookSafe(
   assertReviewHookBoundaryPolicy(summary.boundary_policy, context);
 }
 
+export function assertK601K700CompletionReviewHookSafe(
+  summary,
+  context = "K601-K700 completion review hook"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k601_k700_completion_review_hook_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SAFE_REVIEW_HOOK_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.status !== "review_recommended" || summary.review_recommended !== true) {
+    throw new ContractError(`${context}: invalid review status`);
+  }
+  if (summary.batch_label !== safeLabel(summary.batch_label)) {
+    throw new ContractError(`${context}: invalid batch label`);
+  }
+  if (summary.next_step_label !== "k601_k700_completion_review") {
+    throw new ContractError(`${context}: invalid next step label`);
+  }
+  assertReviewHookBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function assertK600ProductionReadinessCompletionReviewHookSafe(
+  summary,
+  context = "K600 production readiness completion review hook"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k600_production_readiness_completion_review_hook_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_PRODUCTION_COMPLETION_REVIEW_HOOK_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["review_ready", "review_blocked"].includes(summary.status) ||
+    !["ready", "blocked"].includes(summary.production_status) ||
+    typeof summary.real_residency_confirmed !== "boolean" ||
+    summary.review_recommended !== true
+  ) {
+    throw new ContractError(`${context}: invalid review status`);
+  }
+  if (summary.batch_label !== safeLabel(summary.batch_label)) {
+    throw new ContractError(`${context}: invalid batch label`);
+  }
+  if (summary.next_step_label !== "k600_production_completion_review") {
+    throw new ContractError(`${context}: invalid next step label`);
+  }
+  const expectedStatus = summary.real_residency_confirmed
+    ? ["review_ready", "ready", "none"]
+    : ["review_blocked", "blocked", "real_residency_unconfirmed"];
+  if (
+    summary.status !== expectedStatus[0] ||
+    summary.production_status !== expectedStatus[1] ||
+    summary.residual_risk_label !== expectedStatus[2]
+  ) {
+    throw new ContractError(`${context}: production blocker mismatch`);
+  }
+  assertProductionCompletionReviewHookBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function assertKBatchProductionBlockerCarryoverSafe(
+  summary,
+  context = "K-batch production blocker carryover"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_production_blocker_carryover_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_PRODUCTION_BLOCKER_CARRYOVER_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["blocked", "clear"].includes(summary.carryover_status) ||
+    summary.source_range_label !== safeLabel(summary.source_range_label) ||
+    summary.next_range_label !== safeLabel(summary.next_range_label) ||
+    !Number.isInteger(summary.blocked_count) ||
+    summary.blocked_count < 0 ||
+    !Array.isArray(summary.blocker_labels) ||
+    summary.blocker_labels.some((item) => item !== safeLabel(item)) ||
+    typeof summary.carryover_required !== "boolean" ||
+    summary.readiness_exploration_performed !== false
+  ) {
+    throw new ContractError(`${context}: invalid carryover`);
+  }
+  if (
+    summary.blocked_count !== summary.blocker_labels.length ||
+    summary.carryover_required !== (summary.blocked_count > 0) ||
+    summary.carryover_status !== (summary.blocked_count > 0 ? "blocked" : "clear")
+  ) {
+    throw new ContractError(`${context}: carryover mismatch`);
+  }
+  assertProductionBlockerCarryoverBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function assertKBatchRealModeBlockedPolicySafe(
+  summary,
+  context = "K-batch real-mode blocked policy"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k_batch_real_mode_blocked_policy_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_REAL_MODE_BLOCKED_POLICY_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !["pass", "blocked"].includes(summary.policy_status) ||
+    typeof summary.real_mode_confirmed !== "boolean" ||
+    typeof summary.fixture_passed !== "boolean" ||
+    !["ready", "blocked"].includes(summary.production_status) ||
+    summary.blocked_reason_label !== safeLabel(summary.blocked_reason_label)
+  ) {
+    throw new ContractError(`${context}: invalid policy`);
+  }
+  const expected = summary.real_mode_confirmed
+    ? ["pass", "ready", "none"]
+    : ["blocked", "blocked", summary.blocked_reason_label];
+  if (
+    summary.policy_status !== expected[0] ||
+    summary.production_status !== expected[1] ||
+    (summary.real_mode_confirmed && summary.blocked_reason_label !== expected[2])
+  ) {
+    throw new ContractError(`${context}: real-mode readiness mismatch`);
+  }
+  if (!summary.real_mode_confirmed && summary.production_status !== "blocked") {
+    throw new ContractError(`${context}: fixture pass must not produce real ready`);
+  }
+  assertRealModeBlockedPolicyBoundaryPolicy(summary.boundary_policy, context);
+}
+
 function normalizeStatus(value) {
   const status = String(value ?? "").trim().toLowerCase();
   if (status === "pass" || status === "ok") return "pass";
@@ -1084,6 +1856,15 @@ function summarizeChangedFilesLabel(files) {
   if (count === 0) return "no_files";
   if (count === 1) return "one_file";
   return "multiple_files";
+}
+
+function summarizeSafeListLabel(items, fallback) {
+  const labels = [
+    ...new Set((Array.isArray(items) ? items : []).map((item) => safeLabel(item))),
+  ].filter((item) => item !== "item");
+  if (labels.length === 0) return safeLabel(fallback);
+  if (labels.length === 1) return labels[0];
+  return safeLabel(`${labels.length}_categories`);
 }
 
 function safeFileLabel(value) {
@@ -1157,6 +1938,20 @@ function isDocsReportSpecPath(path) {
   );
 }
 
+function isRuntimeDataPath(path) {
+  const normalized = normalizedPath(path);
+  return (
+    normalized.startsWith("data/") ||
+    normalized.startsWith("log/") ||
+    normalized.startsWith("logs/") ||
+    normalized.startsWith("tmp/") ||
+    normalized.startsWith(".tmp/") ||
+    normalized.includes("/data/") ||
+    normalized.includes("/logs/") ||
+    normalized.includes("/tmp/")
+  );
+}
+
 function normalizedPath(path) {
   return String(path ?? "").replace(/\\/g, "/").toLowerCase();
 }
@@ -1193,6 +1988,135 @@ function assertModifiedFilePolicyBoundaryPolicy(policy, context) {
     source_delta_values_excluded: true,
     sensitive_values_excluded: true,
     no_auto_fix: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertGitCleanGateBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    safe_flag_only: true,
+    counts_only: true,
+    file_paths_excluded: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    no_auto_fix: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertRuntimeDataIgnorePolicyBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    runtime_delta_safe_summary_only: true,
+    runtime_data_not_counted_as_k_change: true,
+    stash_restore_ignore_label_only: true,
+    file_paths_excluded: true,
+    counts_only: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    no_auto_fix: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertDocsSpecGuardBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    docs_spec_change_detected_as_ng: true,
+    stop_without_auto_fix: true,
+    safe_flag_only: true,
+    file_paths_excluded: true,
+    counts_only: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertCommitMessageSuggestionBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    suggestion_only: true,
+    git_commit_not_performed: true,
+    safe_label_only: true,
+    raw_diff_excluded: true,
+    file_paths_excluded: true,
+    sensitive_values_excluded: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertCompletionReviewSummaryBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    one_line_summary_only: true,
+    safe_labels_only: true,
+    category_details_excluded: true,
+    raw_logs_excluded: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    whole_test_not_run_instruction_excluded: true,
   };
   const allowed = new Set(Object.keys(expected));
   for (const field of Object.keys(policy)) {
@@ -1312,6 +2236,33 @@ function assertAuditNgCompactBoundaryPolicy(policy, context) {
   }
 }
 
+function assertNgRepairInstructionBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    problem_k_problem_policy_risk_only: true,
+    nearby_repair_only: true,
+    compact_instruction_only: true,
+    safe_labels_only: true,
+    raw_logs_excluded: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    no_auto_fix: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
 function assertNoAutoFixAuditModeBoundaryPolicy(policy, context) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
     throw new ContractError(`${context}: boundary policy required`);
@@ -1400,6 +2351,84 @@ function assertReviewHookBoundaryPolicy(policy, context) {
     source_delta_values_excluded: true,
     sensitive_values_excluded: true,
     personal_values_excluded: true,
+    operation_values_excluded: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertProductionCompletionReviewHookBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    safe_completion_status_only: true,
+    production_blocker_preserved: true,
+    fixture_pass_not_real_ready: true,
+    real_residency_risk_retained: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    operation_values_excluded: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertProductionBlockerCarryoverBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    safe_carryover_labels_only: true,
+    production_blocked_status_preserved: true,
+    next_range_carryover_only: true,
+    readiness_exploration_not_performed: true,
+    counts_only: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    operation_values_excluded: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertRealModeBlockedPolicyBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    real_mode_unconfirmed_blocks_ready: true,
+    fixture_pass_separated_from_real_mode: true,
+    safe_status_only: true,
+    source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
     operation_values_excluded: true,
   };
   const allowed = new Set(Object.keys(expected));
