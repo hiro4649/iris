@@ -88,6 +88,62 @@ const EMERGENCY_STOP_REHEARSAL_SUMMARY_FIELDS = new Set([
   "game_or_os_input_performed",
   "boundary_policy",
 ]);
+const PAUSE_CONTROLS_MANIFEST_FIELDS = new Set([
+  "schema",
+  "manifest_status",
+  "control_count",
+  "controls",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PAUSE_CONTROL_FIELDS = new Set([
+  "schema",
+  "control_label",
+  "pause_action_label",
+  "resume_action_label",
+  "safe_target_label",
+  "live_side_effect_possible",
+]);
+const PAUSE_CONTROLS_DRY_RUN_FIXTURE_FIELDS = new Set([
+  "schema",
+  "dry_run_status",
+  "action_label",
+  "safe_target_label",
+  "live_side_effect_possible",
+  "real_process_operation_performed",
+  "state_mutation_performed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PAUSE_CONTROLS_AUDIT_SAFE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "actor_role",
+  "action_type",
+  "safe_target_label",
+  "result_status",
+  "event_at_ms",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const EMERGENCY_AND_PAUSE_FIXTURE_PACK_FIELDS = new Set([
+  "schema",
+  "pack_status",
+  "fixture_count",
+  "fixtures",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const EMERGENCY_AND_PAUSE_FIXTURE_FIELDS = new Set([
+  "schema",
+  "fixture_label",
+  "expected_status",
+  "action_label",
+  "applied",
+  "confirmation_required",
+  "audit_entry_present",
+  "real_device_operation_performed",
+  "game_or_os_input_performed",
+]);
 const ADMIN_STREAM_MODE_GATE_FIELDS = new Set([
   "schema",
   "requested_mode",
@@ -190,6 +246,53 @@ const EMERGENCY_STOP_REHEARSAL_BOUNDARY_FIELDS = [
   "no_obs_operation_values",
   "no_raw_bridge_values",
 ];
+const PAUSE_CONTROLS_MANIFEST_BOUNDARY_FIELDS = [
+  "safe_control_labels_only",
+  "safe_pause_resume_labels_only",
+  "live_side_effect_label_only",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_real_process_operation",
+  "no_obs_operation_values",
+  "no_raw_bridge_values",
+];
+const PAUSE_CONTROLS_DRY_RUN_FIXTURE_BOUNDARY_FIELDS = [
+  "dry_run_safe_result_only",
+  "safe_action_and_target_labels_only",
+  "real_process_operation_not_performed",
+  "state_mutation_not_performed",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_payloads",
+  "no_commands",
+  "no_raw_bridge_values",
+];
+const PAUSE_CONTROLS_AUDIT_SAFE_SUMMARY_BOUNDARY_FIELDS = [
+  "actor_role_action_target_result_timestamp_only",
+  "safe_target_label_only",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_raw_bridge_values",
+];
+const EMERGENCY_AND_PAUSE_FIXTURE_PACK_BOUNDARY_FIELDS = [
+  "synthetic_fixture_only",
+  "safe_status_action_labels_only",
+  "emergency_stop_missing_covered",
+  "pause_unconfirmed_covered",
+  "raw_command_leak_rejected",
+  "audit_missing_rejected",
+  "no_endpoint_values",
+  "no_secret_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+  "no_real_device_operation",
+  "no_game_or_os_input",
+  "no_raw_bridge_values",
+];
 const ADMIN_STREAM_MODE_GATE_BOUNDARY_FIELDS = [
   "safe_mode_labels_only",
   "readiness_display_before_activation",
@@ -211,6 +314,26 @@ const ADMIN_SAFETY_CONTROL_STATE_BOUNDARY_FIELDS = [
   "no_obs_operations",
   "no_bridge_values",
 ];
+const PAUSE_CONTROL_DEFINITIONS = Object.freeze([
+  Object.freeze(["tts", "pause_tts", "resume_tts"]),
+  Object.freeze(["live2d", "pause_live2d", "resume_live2d"]),
+  Object.freeze(["obs", "pause_obs_handoff", "resume_obs_handoff"]),
+  Object.freeze(["ingest", "pause_youtube_ingest", "resume_youtube_ingest"]),
+  Object.freeze(["memory", "pause_memory_commits", "resume_memory_commits"]),
+  Object.freeze([
+    "relationship",
+    "pause_relationship_commits",
+    "resume_relationship_commits",
+  ]),
+  Object.freeze([
+    "game_action",
+    "pause_game_action_approval",
+    "resume_game_action_approval",
+  ]),
+]);
+const PAUSE_CONTROL_LABELS = new Set(
+  PAUSE_CONTROL_DEFINITIONS.map(([label]) => label)
+);
 
 export function createInMemoryAdminSafetyControlStore({
   generatedAtMs = Date.now(),
@@ -401,6 +524,331 @@ export function createEmergencyStopRehearsalSummary({
   };
   assertEmergencyStopRehearsalSummarySafe(summary);
   return summary;
+}
+
+export function createPauseControlsManifest() {
+  const controls = PAUSE_CONTROL_DEFINITIONS.map(
+    ([controlLabel, pauseActionLabel, resumeActionLabel]) => ({
+      schema: "iris_pause_control_manifest_item_v1",
+      control_label: controlLabel,
+      pause_action_label: pauseActionLabel,
+      resume_action_label: resumeActionLabel,
+      safe_target_label: targetLabelForAction(pauseActionLabel),
+      live_side_effect_possible: true,
+    })
+  );
+  const manifest = {
+    schema: "iris_pause_controls_manifest_v1",
+    manifest_status: "safe_manifest",
+    control_count: controls.length,
+    controls,
+    boundary_policy: Object.fromEntries(
+      PAUSE_CONTROLS_MANIFEST_BOUNDARY_FIELDS.map((field) => [field, true])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPauseControlsManifestSafe(manifest);
+  return manifest;
+}
+
+export function assertPauseControlsManifestSafe(
+  manifest,
+  context = "pause controls manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest required`);
+  }
+  assertNoUnsafeText(manifest, context);
+  for (const field of Object.keys(manifest)) {
+    if (!PAUSE_CONTROLS_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected manifest field ${field}`);
+    }
+  }
+  if (
+    manifest.schema !== "iris_pause_controls_manifest_v1" ||
+    manifest.manifest_status !== "safe_manifest" ||
+    !Array.isArray(manifest.controls) ||
+    manifest.control_count !== manifest.controls.length ||
+    manifest.control_count !== PAUSE_CONTROL_DEFINITIONS.length ||
+    manifest.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid manifest`);
+  }
+  const seen = new Set();
+  manifest.controls.forEach((control, index) => {
+    const [expectedControl, expectedPause, expectedResume] =
+      PAUSE_CONTROL_DEFINITIONS[index];
+    assertPauseControlManifestItemSafe(
+      control,
+      expectedControl,
+      expectedPause,
+      expectedResume,
+      context
+    );
+    if (seen.has(control.control_label)) {
+      throw new ContractError(`${context}: duplicate control label`);
+    }
+    seen.add(control.control_label);
+  });
+  assertBoundaryPolicy(
+    manifest.boundary_policy,
+    PAUSE_CONTROLS_MANIFEST_BOUNDARY_FIELDS,
+    `${context} boundary policy`
+  );
+}
+
+export function createPauseControlsDryRunFixture({ action = "pause_tts" } = {}) {
+  const normalizedAction = sanitizeAction(action);
+  if (!Object.prototype.hasOwnProperty.call(PAUSE_FIELDS, normalizedAction)) {
+    throw new ContractError("pause controls dry-run fixture: pause action required");
+  }
+  const fixture = {
+    schema: "iris_pause_controls_dry_run_fixture_v1",
+    dry_run_status: normalizedAction.startsWith("pause_")
+      ? "pause_dry_run"
+      : "resume_dry_run",
+    action_label: normalizedAction,
+    safe_target_label: targetLabelForAction(normalizedAction),
+    live_side_effect_possible: true,
+    real_process_operation_performed: false,
+    state_mutation_performed: false,
+    boundary_policy: Object.fromEntries(
+      PAUSE_CONTROLS_DRY_RUN_FIXTURE_BOUNDARY_FIELDS.map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPauseControlsDryRunFixtureSafe(fixture);
+  return fixture;
+}
+
+export function assertPauseControlsDryRunFixtureSafe(
+  fixture,
+  context = "pause controls dry-run fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  assertNoUnsafeText(fixture, context);
+  for (const field of Object.keys(fixture)) {
+    if (!PAUSE_CONTROLS_DRY_RUN_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.schema !== "iris_pause_controls_dry_run_fixture_v1" ||
+    !["pause_dry_run", "resume_dry_run"].includes(fixture.dry_run_status) ||
+    !Object.prototype.hasOwnProperty.call(PAUSE_FIELDS, fixture.action_label) ||
+    fixture.safe_target_label !== targetLabelForAction(fixture.action_label) ||
+    fixture.live_side_effect_possible !== true ||
+    fixture.real_process_operation_performed !== false ||
+    fixture.state_mutation_performed !== false ||
+    fixture.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  if (
+    fixture.dry_run_status !==
+    (fixture.action_label.startsWith("pause_") ? "pause_dry_run" : "resume_dry_run")
+  ) {
+    throw new ContractError(`${context}: dry-run status mismatch`);
+  }
+  assertBoundaryPolicy(
+    fixture.boundary_policy,
+    PAUSE_CONTROLS_DRY_RUN_FIXTURE_BOUNDARY_FIELDS,
+    `${context} boundary policy`
+  );
+}
+
+export function createPauseControlsAuditSafeSummary({ auditEntry } = {}) {
+  assertAuditEntrySafe(auditEntry, "pause controls audit safe summary source");
+  if (!Object.prototype.hasOwnProperty.call(PAUSE_FIELDS, auditEntry.action_type)) {
+    throw new ContractError("pause controls audit safe summary: pause action required");
+  }
+  const summary = {
+    schema: "iris_pause_controls_audit_safe_summary_v1",
+    actor_role: auditEntry.actor_role,
+    action_type: auditEntry.action_type,
+    safe_target_label: auditEntry.safe_target_label,
+    result_status: auditEntry.result_status,
+    event_at_ms: auditEntry.event_at_ms,
+    boundary_policy: Object.fromEntries(
+      PAUSE_CONTROLS_AUDIT_SAFE_SUMMARY_BOUNDARY_FIELDS.map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPauseControlsAuditSafeSummarySafe(summary);
+  return summary;
+}
+
+export function assertPauseControlsAuditSafeSummarySafe(
+  summary,
+  context = "pause controls audit safe summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeText(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PAUSE_CONTROLS_AUDIT_SAFE_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_pause_controls_audit_safe_summary_v1" ||
+    !["owner", "operator", "moderator", "developer", "read_only"].includes(
+      summary.actor_role
+    ) ||
+    !Object.prototype.hasOwnProperty.call(PAUSE_FIELDS, summary.action_type) ||
+    summary.safe_target_label !== targetLabelForAction(summary.action_type) ||
+    !["applied", "blocked"].includes(summary.result_status) ||
+    !Number.isInteger(summary.event_at_ms) ||
+    summary.event_at_ms < 0 ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PAUSE_CONTROLS_AUDIT_SAFE_SUMMARY_BOUNDARY_FIELDS,
+    `${context} boundary policy`
+  );
+}
+
+export function createEmergencyAndPauseFixturePack() {
+  const store = createInMemoryAdminSafetyControlStore({ generatedAtMs: 0 });
+  const emergencyMissing = applyAdminSafetyControlAction({
+    store,
+    action: "emergency_stop",
+    actorRole: "operator",
+    confirmed: false,
+    nowMs: 1,
+  });
+  const pauseUnconfirmed = applyAdminSafetyControlAction({
+    store,
+    action: "pause_tts",
+    actorRole: "operator",
+    confirmed: false,
+    nowMs: 2,
+  });
+  const validPause = applyAdminSafetyControlAction({
+    store,
+    action: "pause_tts",
+    actorRole: "operator",
+    confirmed: true,
+    nowMs: 3,
+  });
+  const rawCommandLeakRejected = (() => {
+    try {
+      assertAdminSafetyControlActionResultSafe(
+        {
+          ...validPause,
+          raw_command: "unsafe",
+        },
+        "emergency and pause raw command leak fixture"
+      );
+      return false;
+    } catch {
+      return true;
+    }
+  })();
+  const auditMissingRejected = (() => {
+    try {
+      assertAdminSafetyControlActionResultSafe(
+        {
+          ...validPause,
+          audit_entry: null,
+        },
+        "emergency and pause audit missing fixture"
+      );
+      return false;
+    } catch {
+      return true;
+    }
+  })();
+  const fixtures = [
+    fixtureFromActionResult(
+      "emergency_stop_missing",
+      "blocked",
+      emergencyMissing
+    ),
+    fixtureFromActionResult("pause_unconfirmed", "blocked", pauseUnconfirmed),
+    rejectionFixture(
+      "raw_command_leak",
+      rawCommandLeakRejected,
+      "raw_command_leak_rejected"
+    ),
+    rejectionFixture(
+      "audit_missing",
+      auditMissingRejected,
+      "audit_missing_rejected"
+    ),
+  ];
+  const pack = {
+    schema: "iris_emergency_and_pause_fixture_pack_v1",
+    pack_status: fixtures.every((fixture) => fixture.expected_status === "pass")
+      ? "pass"
+      : "blocked",
+    fixture_count: fixtures.length,
+    fixtures,
+    boundary_policy: Object.fromEntries(
+      EMERGENCY_AND_PAUSE_FIXTURE_PACK_BOUNDARY_FIELDS.map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertEmergencyAndPauseFixturePackSafe(pack);
+  return pack;
+}
+
+export function assertEmergencyAndPauseFixturePackSafe(
+  pack,
+  context = "emergency and pause fixture pack"
+) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    throw new ContractError(`${context}: pack required`);
+  }
+  assertNoUnsafeText(pack, context);
+  for (const field of Object.keys(pack)) {
+    if (!EMERGENCY_AND_PAUSE_FIXTURE_PACK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected pack field`);
+    }
+  }
+  if (
+    pack.schema !== "iris_emergency_and_pause_fixture_pack_v1" ||
+    pack.pack_status !== "pass" ||
+    !Array.isArray(pack.fixtures) ||
+    pack.fixture_count !== pack.fixtures.length ||
+    pack.fixture_count !== 4 ||
+    pack.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid pack`);
+  }
+  const expectedLabels = [
+    "emergency_stop_missing",
+    "pause_unconfirmed",
+    "raw_command_leak",
+    "audit_missing",
+  ];
+  pack.fixtures.forEach((fixture, index) =>
+    assertEmergencyAndPauseFixtureSafe(
+      fixture,
+      expectedLabels[index],
+      context
+    )
+  );
+  assertBoundaryPolicy(
+    pack.boundary_policy,
+    EMERGENCY_AND_PAUSE_FIXTURE_PACK_BOUNDARY_FIELDS,
+    `${context} boundary policy`
+  );
 }
 
 export function assertEmergencyStopRehearsalSummarySafe(
@@ -817,6 +1265,112 @@ function assertAuditEntrySafe(entry, context = "admin safety audit entry") {
   }
 }
 
+function assertPauseControlManifestItemSafe(
+  control,
+  expectedControl,
+  expectedPause,
+  expectedResume,
+  context
+) {
+  if (!control || typeof control !== "object" || Array.isArray(control)) {
+    throw new ContractError(`${context}: pause control required`);
+  }
+  for (const field of Object.keys(control)) {
+    if (!PAUSE_CONTROL_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected pause control field`);
+    }
+  }
+  if (
+    control.schema !== "iris_pause_control_manifest_item_v1" ||
+    control.control_label !== expectedControl ||
+    control.pause_action_label !== expectedPause ||
+    control.resume_action_label !== expectedResume ||
+    !PAUSE_CONTROL_LABELS.has(control.control_label) ||
+    !ACTIONS.has(control.pause_action_label) ||
+    !ACTIONS.has(control.resume_action_label) ||
+    control.safe_target_label !== targetLabelForAction(control.pause_action_label) ||
+    control.live_side_effect_possible !== true
+  ) {
+    throw new ContractError(`${context}: invalid pause control`);
+  }
+}
+
+function fixtureFromActionResult(fixtureLabel, expectedActionStatus, result) {
+  assertAdminSafetyControlActionResultSafe(result, `${fixtureLabel} result`);
+  return {
+    schema: "iris_emergency_and_pause_fixture_v1",
+    fixture_label: fixtureLabel,
+    expected_status:
+      result.action_status === "blocked_confirmation_required" &&
+      expectedActionStatus === "blocked" &&
+      result.applied === false &&
+      result.audit_entry.confirmation_required === true
+        ? "pass"
+        : "blocked",
+    action_label: result.audit_entry.safe_target_label,
+    applied: result.applied,
+    confirmation_required: result.audit_entry.confirmation_required,
+    audit_entry_present: true,
+    real_device_operation_performed: false,
+    game_or_os_input_performed: false,
+  };
+}
+
+function rejectionFixture(fixtureLabel, rejected, actionLabel) {
+  return {
+    schema: "iris_emergency_and_pause_fixture_v1",
+    fixture_label: fixtureLabel,
+    expected_status: rejected === true ? "pass" : "blocked",
+    action_label: actionLabel,
+    applied: false,
+    confirmation_required: true,
+    audit_entry_present: false,
+    real_device_operation_performed: false,
+    game_or_os_input_performed: false,
+  };
+}
+
+function assertEmergencyAndPauseFixtureSafe(fixture, expectedLabel, context) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  for (const field of Object.keys(fixture)) {
+    if (!EMERGENCY_AND_PAUSE_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.schema !== "iris_emergency_and_pause_fixture_v1" ||
+    fixture.fixture_label !== expectedLabel ||
+    fixture.expected_status !== "pass" ||
+    typeof fixture.action_label !== "string" ||
+    !["global_safe_stop", "tts", "raw_command_leak_rejected", "audit_missing_rejected"].includes(
+      fixture.action_label
+    ) ||
+    typeof fixture.applied !== "boolean" ||
+    fixture.confirmation_required !== true ||
+    typeof fixture.audit_entry_present !== "boolean" ||
+    fixture.real_device_operation_performed !== false ||
+    fixture.game_or_os_input_performed !== false
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  if (
+    (fixture.fixture_label === "emergency_stop_missing" ||
+      fixture.fixture_label === "pause_unconfirmed") &&
+    (fixture.applied !== false || fixture.audit_entry_present !== true)
+  ) {
+    throw new ContractError(`${context}: confirmation fixture mismatch`);
+  }
+  if (
+    (fixture.fixture_label === "raw_command_leak" ||
+      fixture.fixture_label === "audit_missing") &&
+    fixture.audit_entry_present !== false
+  ) {
+    throw new ContractError(`${context}: rejection fixture mismatch`);
+  }
+}
+
 function countActivePauses(state) {
   return Object.values(PAUSE_FIELDS).filter((field, index, fields) => {
     return fields.indexOf(field) === index && state[field] === true;
@@ -824,7 +1378,11 @@ function countActivePauses(state) {
 }
 
 function requiresConfirmation(action) {
-  return action === "emergency_stop" || action === "resume_safe_local_operation";
+  return (
+    action === "emergency_stop" ||
+    action === "resume_safe_local_operation" ||
+    Object.prototype.hasOwnProperty.call(PAUSE_FIELDS, action)
+  );
 }
 
 function targetLabelForAction(action) {
