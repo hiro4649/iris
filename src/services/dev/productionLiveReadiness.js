@@ -493,10 +493,19 @@ const LIVE_PRODUCTION_GO_NO_GO_CLASSIFIER_FIELDS = new Set([
   "component_count",
   "ready_count",
   "blocker_count",
+  "blocked_reason_labels",
+  "go_result_scope",
+  "dry_run_go_allowed",
   "component_statuses",
+  "fresh_evidence_status",
   "owner_confirmation_status",
+  "owner_confirmation_checked_at_ms",
+  "owner_confirmation_expires_at_ms",
+  "emergency_stop_status",
+  "audit_readiness_status",
   "audit_entry_required",
   "audit_entry",
+  "degraded_mode_available",
   "production_go_allowed",
   "boundary_policy",
   "adapter_validation_required",
@@ -507,6 +516,14 @@ const LIVE_PRODUCTION_GO_NO_GO_COMPONENT_FIELDS = new Set([
   "status",
   "blocker_present",
 ]);
+const LIVE_PRODUCTION_GO_NO_GO_BLOCKED_REASONS = new Set([
+  "component_not_ready",
+  "fresh_evidence_required",
+  "owner_confirmation_required",
+  "emergency_stop_required",
+  "audit_readiness_required",
+  "audit_entry_required",
+]);
 const LIVE_PRODUCTION_GO_NO_GO_SAFE_EXPORT_FIELDS = new Set([
   "schema",
   "export_status",
@@ -514,6 +531,8 @@ const LIVE_PRODUCTION_GO_NO_GO_SAFE_EXPORT_FIELDS = new Set([
   "component_count",
   "ready_count",
   "blocker_count",
+  "go_result_scope",
+  "dry_run_go_allowed",
   "component_statuses",
   "production_go_allowed",
   "boundary_policy",
@@ -799,6 +818,52 @@ const LIVE_PRODUCTION_AUDIT_REVIEW_EVENT_FIELDS = new Set([
   "event_label",
   "status",
 ]);
+const LIVE_EVIDENCE_AUDIT_EVENT_FIELDS = new Set([
+  "schema",
+  "audit_event_label",
+  "audit_status",
+  "event_at_ms",
+  "freshness_checked_at_ms",
+  "timestamp_freshness",
+  "actor_role",
+  "safe_target_label",
+  "result_label",
+  "append_only",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_EVIDENCE_AUDIT_LOG_FIELDS = new Set([
+  "schema",
+  "log_status",
+  "event_count",
+  "recorded_count",
+  "attention_count",
+  "blocked_count",
+  "events",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_EVIDENCE_AUDIT_PUBLIC_SUMMARY_FIELDS = new Set([
+  "schema",
+  "public_status",
+  "event_count",
+  "recorded_count",
+  "attention_count",
+  "blocked_count",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_EVIDENCE_AUDIT_COMPLETION_HOOK_FIELDS = new Set([
+  "schema",
+  "review_status",
+  "completion_review_label",
+  "audit_public_status",
+  "audit_event_count",
+  "audit_blocked_count",
+  "production_go_allowed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 const LIVE_PRODUCTION_AUDIT_ROLE_GATE_FIELDS = new Set([
   "schema",
   "gate_status",
@@ -823,8 +888,11 @@ const LIVE_PRODUCTION_AUDIT_FIXTURE_FIELDS = new Set([
   "fixture_label",
   "expected_status",
   "audit_review",
+  "audit_log",
   "role_gate",
   "sensitive_value_rejected",
+  "overwrite_attempt_rejected",
+  "stale_timestamp_attention",
 ]);
 const PRODUCTION_LIVE_STARTUP_SEQUENCE_MANIFEST_FIELDS = new Set([
   "schema",
@@ -1232,6 +1300,103 @@ const LIVE_READINESS_COMPLETION_BLOCKER_CARRYOVER_FIELDS = new Set([
   "boundary_policy",
   "adapter_validation_required",
 ]);
+const PRIORITY1_BLOCKER_PERSISTENCE_STATE_FIELDS = new Set([
+  "schema",
+  "priority_label",
+  "blocker_status",
+  "real_residency_status",
+  "blocker_retained",
+  "k_completion_ignored",
+  "fixture_pass_ignored",
+  "unresolved_blocked_count",
+  "blocker_labels",
+  "production_ready_allowed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRIORITY1_BLOCKER_RESOLUTION_GUARD_FIELDS = new Set([
+  "schema",
+  "guard_status",
+  "priority_label",
+  "blocker_status",
+  "evidence_freshness",
+  "evidence_source",
+  "owner_confirmation_status",
+  "owner_confirmed",
+  "audit_entry_ref_required",
+  "audit_entry_ref",
+  "resolution_allowed",
+  "production_ready_allowed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRIORITY1_BLOCKER_SAFE_AUDIT_ENTRY_REF_FIELDS = new Set([
+  "schema",
+  "audit_label",
+  "event_status",
+  "safe_target_label",
+  "event_timestamp_ms",
+  "payload_stored",
+]);
+const PRIORITY1_BLOCKER_PUBLIC_SUMMARY_FIELDS = new Set([
+  "schema",
+  "component",
+  "status",
+  "next_action",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRIORITY1_BLOCKER_ADMIN_SUMMARY_FIELDS = new Set([
+  "schema",
+  "viewer_role",
+  "ordinary_summary",
+  "owner_detail_visible",
+  "owner_detail_labels",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRIORITY1_BLOCKER_FIXTURE_PACK_FIELDS = new Set([
+  "schema",
+  "pack_status",
+  "fixture_count",
+  "fixtures",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRIORITY1_BLOCKER_FIXTURE_FIELDS = new Set([
+  "schema",
+  "fixture_label",
+  "expected_resolution_allowed",
+  "guard",
+]);
+const PRIORITY1_READINESS_NO_SWEETENING_SWEEP_FIELDS = new Set([
+  "schema",
+  "sweep_status",
+  "k_range",
+  "ready_allowed",
+  "fixture_count",
+  "fixtures",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRIORITY1_READINESS_NO_SWEETENING_SWEEP_FIXTURE_FIELDS = new Set([
+  "schema",
+  "fixture_label",
+  "k_range",
+  "blocker_status",
+  "ready_allowed",
+  "blocker_state",
+]);
+const LIVE_HANDOFF_FINAL_PREFLIGHT_SUMMARY_FIELDS = new Set([
+  "schema",
+  "summary_status",
+  "summary_line",
+  "blocked_count",
+  "owner_confirmation_required_count",
+  "fresh_evidence_missing_count",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 const REAL_READINESS_UNRESOLVED_BLOCKER_REPORT_FIELDS = new Set([
   "schema",
   "report_status",
@@ -1306,6 +1471,194 @@ const OPERATIONAL_REHEARSAL_ENTRY_FIELDS = new Set([
   "confirmation_required",
   "status",
   "script_name",
+]);
+const LIVE_HANDOFF_REHEARSAL_MANIFEST_FIELDS = new Set([
+  "schema",
+  "manifest_status",
+  "rehearsal_count",
+  "rehearsals",
+  "real_external_operation_performed",
+  "real_worker_started",
+  "obs_changed",
+  "db_connected",
+  "game_input_sent",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_ENTRY_FIELDS = new Set([
+  "schema",
+  "component",
+  "order",
+  "fixture_mode",
+  "script_name",
+  "status",
+]);
+const LIVE_HANDOFF_REHEARSAL_RESULT_SUMMARY_FIELDS = new Set([
+  "schema",
+  "result_status",
+  "pass_count",
+  "fail_count",
+  "blocker_count",
+  "result_timestamp_ms",
+  "freshness_checked_at_ms",
+  "freshness_status",
+  "fresh_readiness_allowed",
+  "script_names",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_OWNER_CONFIRMATION_MOCK_FIELDS = new Set([
+  "schema",
+  "confirmation_status",
+  "test_only",
+  "real_confirmation",
+  "production_go_allowed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_EMERGENCY_STOP_MOCK_FIELDS = new Set([
+  "schema",
+  "emergency_stop_status",
+  "test_only",
+  "real_emergency_stop_evidence",
+  "production_go_allowed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_FIXTURE_PACK_FIELDS = new Set([
+  "schema",
+  "pack_status",
+  "fixture_count",
+  "fixtures",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_FIXTURE_FIELDS = new Set([
+  "schema",
+  "fixture_label",
+  "expected_status",
+  "owner_confirmation_mock",
+  "emergency_stop_mock",
+  "result_summary",
+  "mock_evidence_test_only",
+  "packet_body_rejected",
+]);
+const LIVE_HANDOFF_REHEARSAL_SAFE_NEXT_ACTION_FIELDS = new Set([
+  "schema",
+  "action_status",
+  "next_action_label",
+  "script_label",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_ADMIN_SUMMARY_FIELDS = new Set([
+  "schema",
+  "summary_status",
+  "result_status",
+  "pass_count",
+  "fail_count",
+  "blocker_count",
+  "fixture_count",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_HANDOFF_REHEARSAL_COMPLETION_HOOK_FIELDS = new Set([
+  "schema",
+  "review_status",
+  "completion_review_label",
+  "rehearsal_result_status",
+  "rehearsal_blocker_count",
+  "real_ready_status",
+  "real_ready_allowed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_READINESS_MANIFEST_FIELDS = new Set([
+  "schema",
+  "manifest_status",
+  "deployment_ready",
+  "preflight_count",
+  "verified_count",
+  "blocker_count",
+  "preflight_items",
+  "real_residency_required",
+  "real_external_operation_performed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_READINESS_PREFLIGHT_ITEM_FIELDS = new Set([
+  "schema",
+  "item_label",
+  "status",
+  "required",
+]);
+const LIVE_DEPLOYMENT_DECISION_AUDIT_ENTRY_FIELDS = new Set([
+  "schema",
+  "audit_status",
+  "actor_role",
+  "safe_target_label",
+  "result_status",
+  "event_at_ms",
+  "payload_stored_in_audit",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_DECISION_FIELDS = new Set([
+  "schema",
+  "decision_status",
+  "deployment_ready",
+  "audit_entry_required",
+  "audit_entry",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_SAFE_SUMMARY_EXPORT_FIELDS = new Set([
+  "schema",
+  "export_status",
+  "deployment_ready",
+  "preflight_count",
+  "verified_count",
+  "blocker_count",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_DRY_RUN_RESULT_FIELDS = new Set([
+  "schema",
+  "dry_run_status",
+  "deployment_ready",
+  "safe_prerequisite_count",
+  "safe_prerequisite_pass_count",
+  "safe_prerequisite_blocker_count",
+  "real_operation_performed",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_FIXTURE_PACK_FIELDS = new Set([
+  "schema",
+  "pack_status",
+  "fixture_count",
+  "fixtures",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const LIVE_DEPLOYMENT_FIXTURE_FIELDS = new Set([
+  "schema",
+  "fixture_label",
+  "expected_status",
+  "manifest",
+  "safe_summary",
+  "sensitive_value_rejected",
+]);
+const LIVE_DEPLOYMENT_COMPLETION_HOOK_FIELDS = new Set([
+  "schema",
+  "review_status",
+  "completion_review_label",
+  "deployment_ready",
+  "deployment_export_status",
+  "safe_residual_risk_count",
+  "safe_residual_risk_labels",
+  "boundary_policy",
+  "adapter_validation_required",
 ]);
 const OPERATIONAL_REHEARSAL_RESULT_FIELDS = new Set([
   "schema",
@@ -1940,6 +2293,15 @@ const GAME_LIVE_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
 ]);
 const LIVE_PRODUCTION_GO_NO_GO_CLASSIFIER_BOUNDARY_FIELDS = new Set([
   "component_status_count_blocker_only",
+  "fresh_evidence_required_for_go",
+  "owner_confirmation_required_for_go",
+  "expired_owner_confirmation_blocks_go",
+  "emergency_stop_required_for_go",
+  "audit_readiness_required_for_go",
+  "degraded_mode_separate_from_full_ready",
+  "dry_run_result_separate_from_real_go",
+  "fixed_no_go_reason_labels_only",
+  "raw_diagnostics_excluded",
   "all_required_components_must_be_ready",
   "unconfirmed_component_blocks_go",
   "no_readiness_sweetening",
@@ -1961,12 +2323,51 @@ const LIVE_PRODUCTION_GO_NO_GO_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
   "all_ready_can_go",
   "owner_missing_not_go",
   "emergency_missing_not_go",
-  "component_blocked_not_go",
-  "sensitive_leak_rejected",
+  "audit_missing_not_go",
+  "partial_ready_not_go",
+  "secret_leak_rejected",
   "safe_export_only",
   "sensitive_values_excluded",
   "raw_material_values_excluded",
   "device_action_values_excluded",
+]);
+const LIVE_EVIDENCE_AUDIT_EVENT_BOUNDARY_FIELDS = new Set([
+  "safe_audit_schema_only",
+  "fresh_evidence_owner_handoff_go_no_go_labels_only",
+  "packet_body_excluded",
+  "sensitive_values_excluded",
+  "auth_values_excluded",
+  "network_values_excluded",
+  "control_body_excluded",
+]);
+const LIVE_EVIDENCE_AUDIT_LOG_BOUNDARY_FIELDS = new Set([
+  "safe_audit_events_only",
+  "required_live_evidence_audit_labels_recordable",
+  "packet_body_excluded",
+  "sensitive_values_excluded",
+  "auth_values_excluded",
+  "network_values_excluded",
+  "control_body_excluded",
+]);
+const LIVE_EVIDENCE_AUDIT_PUBLIC_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "audit_count_status_only",
+  "actor_detail_excluded",
+  "note_body_excluded",
+  "packet_body_excluded",
+  "sensitive_values_excluded",
+  "auth_values_excluded",
+  "network_values_excluded",
+  "control_body_excluded",
+]);
+const LIVE_EVIDENCE_AUDIT_COMPLETION_HOOK_BOUNDARY_FIELDS = new Set([
+  "completion_review_safe_status_only",
+  "audit_count_status_only",
+  "actor_detail_excluded",
+  "packet_body_excluded",
+  "sensitive_values_excluded",
+  "auth_values_excluded",
+  "network_values_excluded",
+  "control_body_excluded",
 ]);
 const PRODUCTION_READINESS_ROUTE_REQUIRED_OUTPUT_FIELDS = [
   "schema",
@@ -2467,6 +2868,73 @@ const LIVE_READINESS_COMPLETION_BLOCKER_CARRYOVER_BOUNDARY_FIELDS = new Set([
   "raw_material_values_excluded",
   "device_action_values_excluded",
 ]);
+const PRIORITY1_BLOCKER_PERSISTENCE_STATE_BOUNDARY_FIELDS = new Set([
+  "priority1_real_residency_blocked_retained",
+  "k_completion_does_not_clear",
+  "fixture_pass_does_not_clear",
+  "safe_blocker_labels_only",
+  "production_ready_never_granted",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
+const PRIORITY1_BLOCKER_RESOLUTION_GUARD_BOUNDARY_FIELDS = new Set([
+  "stale_evidence_does_not_resolve",
+  "fixture_evidence_does_not_resolve",
+  "owner_confirmation_required_to_resolve",
+  "safe_audit_entry_ref_required_to_resolve",
+  "priority1_blocked_retained",
+  "safe_status_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
+const PRIORITY1_BLOCKER_PUBLIC_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "component_status_next_action_only",
+  "detail_body_excluded",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
+const PRIORITY1_BLOCKER_ADMIN_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "ordinary_summary_safe_fields_only",
+  "owner_detail_role_gated",
+  "detail_body_excluded",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
+const PRIORITY1_BLOCKER_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
+  "synthetic_fixture_only",
+  "fixture_pass_does_not_resolve",
+  "stale_evidence_does_not_resolve",
+  "owner_confirmation_required",
+  "fresh_real_evidence_with_owner_and_audit_allows_resolution",
+  "priority1_production_ready_not_granted",
+  "safe_status_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
+const PRIORITY1_READINESS_NO_SWEETENING_SWEEP_BOUNDARY_FIELDS = new Set([
+  "k801_k900_cross_fixture_only",
+  "priority1_blocked_retained",
+  "fixture_pass_does_not_grant_ready",
+  "completion_does_not_grant_ready",
+  "ordinary_summary_safe_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
+const LIVE_HANDOFF_FINAL_PREFLIGHT_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "one_line_safe_summary_only",
+  "blocked_count_only",
+  "owner_confirmation_required_count_only",
+  "fresh_evidence_missing_count_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+]);
 const OPERATIONAL_REHEARSAL_MANIFEST_BOUNDARY_FIELDS = new Set([
   "safe_rehearsal_manifest_only",
   "synthetic_fixture_default",
@@ -2476,6 +2944,117 @@ const OPERATIONAL_REHEARSAL_MANIFEST_BOUNDARY_FIELDS = new Set([
   "sensitive_values_excluded",
   "raw_material_values_excluded",
   "device_action_values_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_MANIFEST_BOUNDARY_FIELDS = new Set([
+  "synthetic_fixture_only",
+  "script_names_only",
+  "real_worker_start_not_performed",
+  "obs_change_not_performed",
+  "db_connection_not_performed",
+  "game_input_not_performed",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_RESULT_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "pass_fail_blocker_count_only",
+  "script_names_only",
+  "stale_result_not_fresh_evidence",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_OWNER_CONFIRMATION_MOCK_BOUNDARY_FIELDS = new Set([
+  "test_only_confirmation",
+  "real_confirmation_not_granted",
+  "production_go_not_allowed",
+  "note_body_excluded",
+  "private_value_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_EMERGENCY_STOP_MOCK_BOUNDARY_FIELDS = new Set([
+  "test_only_emergency_stop",
+  "real_emergency_stop_evidence_not_granted",
+  "production_go_not_allowed",
+  "note_body_excluded",
+  "private_value_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
+  "synthetic_fixture_only",
+  "test_only_mocks_not_real_evidence",
+  "stale_result_not_fresh_evidence",
+  "packet_body_leak_rejected",
+  "script_names_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_SAFE_NEXT_ACTION_BOUNDARY_FIELDS = new Set([
+  "safe_label_only",
+  "script_label_only",
+  "command_body_excluded",
+  "packet_body_excluded",
+  "network_value_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_ADMIN_SUMMARY_BOUNDARY_FIELDS = new Set([
+  "safe_status_count_only",
+  "fixture_body_excluded",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "script_labels_excluded",
+]);
+const LIVE_HANDOFF_REHEARSAL_COMPLETION_HOOK_BOUNDARY_FIELDS = new Set([
+  "completion_review_safe_summary_only",
+  "rehearsal_separate_from_real_ready",
+  "real_ready_not_granted_by_rehearsal",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_DEPLOYMENT_READINESS_MANIFEST_BOUNDARY_FIELDS = new Set([
+  "final_preflight_manifest_only",
+  "safe_status_count_only",
+  "real_residency_not_required_for_validation",
+  "real_operation_not_performed",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_DEPLOYMENT_DECISION_AUDIT_ENTRY_BOUNDARY_FIELDS = new Set([
+  "safe_audit_entry_only",
+  "payload_not_stored",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_DEPLOYMENT_DECISION_BOUNDARY_FIELDS = new Set([
+  "safe_decision_status_only",
+  "audit_entry_required",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_DEPLOYMENT_SAFE_SUMMARY_EXPORT_BOUNDARY_FIELDS = new Set([
+  "status_count_blocker_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
+  "network_values_excluded",
+]);
+const LIVE_DEPLOYMENT_DRY_RUN_RESULT_BOUNDARY_FIELDS = new Set([
+  "dry_run_only",
+  "safe_prerequisite_result_only",
+  "real_operation_not_performed",
+  "packet_body_excluded",
+  "control_body_excluded",
+]);
+const LIVE_DEPLOYMENT_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
+  "fixture_pack_only",
+  "safe_summary_only",
+  "missing_owner_blocks",
+  "missing_emergency_blocks",
+  "missing_rollback_blocks",
+  "missing_audit_blocks",
+  "sensitive_value_leak_rejected",
+]);
+const LIVE_DEPLOYMENT_COMPLETION_HOOK_BOUNDARY_FIELDS = new Set([
+  "completion_review_safe_summary_only",
+  "safe_residual_risk_labels_only",
+  "packet_body_excluded",
+  "control_body_excluded",
+  "sensitive_values_excluded",
 ]);
 const REAL_READINESS_DRY_RUN_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
   "dry_run_fixture_only",
@@ -5784,6 +6363,329 @@ export function assertLiveProductionAuditReviewPageSafe(
   );
 }
 
+export function createLiveEvidenceAuditEvent({
+  auditEventLabel = "fresh_evidence_acquired",
+  auditStatus = "recorded",
+  eventAtMs = null,
+  freshnessCheckedAtMs = null,
+  maxAuditAgeMs = 86_400_000,
+  actorRole = null,
+  safeTargetLabel = null,
+  resultLabel = null,
+} = {}) {
+  const safeLabel = safeLiveEvidenceAuditEventLabel(auditEventLabel);
+  if (!Number.isInteger(eventAtMs) || eventAtMs < 0) {
+    throw new ContractError("live evidence audit event: event timestamp required");
+  }
+  const checkedAtMs =
+    Number.isInteger(freshnessCheckedAtMs) && freshnessCheckedAtMs >= 0
+      ? freshnessCheckedAtMs
+      : eventAtMs;
+  const maxAgeMs =
+    Number.isInteger(maxAuditAgeMs) && maxAuditAgeMs >= 0 ? maxAuditAgeMs : 86_400_000;
+  const timestampFreshness =
+    eventAtMs > checkedAtMs
+      ? "future"
+      : checkedAtMs - eventAtMs > maxAgeMs
+        ? "stale"
+        : "fresh";
+  const requestedStatus = safeLiveEvidenceAuditStatus(auditStatus);
+  const safeStatus = timestampFreshness === "fresh" ? requestedStatus : "attention";
+  if (
+    ["owner_confirmation", "handoff_plan"].includes(safeLabel) &&
+    !safeGateDetailLabel(actorRole)
+  ) {
+    throw new ContractError("live evidence audit event: actor role required");
+  }
+  const event = {
+    schema: "iris_live_evidence_audit_event_v1",
+    audit_event_label: safeLabel,
+    audit_status: safeStatus,
+    event_at_ms: eventAtMs,
+    freshness_checked_at_ms: checkedAtMs,
+    timestamp_freshness: timestampFreshness,
+    actor_role: safeLiveEvidenceAuditActorRole(actorRole),
+    safe_target_label: safeLiveEvidenceAuditTargetLabel(safeTargetLabel ?? safeLabel),
+    result_label: safeLiveEvidenceAuditResultLabel(resultLabel ?? safeStatus),
+    append_only: true,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_EVIDENCE_AUDIT_EVENT_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveEvidenceAuditEventSafe(event);
+  return event;
+}
+
+export function assertLiveEvidenceAuditEventSafe(
+  event,
+  context = "live evidence audit event"
+) {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
+    throw new ContractError(`${context}: event required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(event, context);
+  for (const field of Object.keys(event)) {
+    if (!LIVE_EVIDENCE_AUDIT_EVENT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected event field`);
+    }
+  }
+  if (
+    event.schema !== "iris_live_evidence_audit_event_v1" ||
+    ![
+      "fresh_evidence_acquired",
+      "owner_confirmation",
+      "handoff_plan",
+      "production_go_no_go",
+    ].includes(event.audit_event_label) ||
+    !["recorded", "attention", "blocked", "missing"].includes(event.audit_status) ||
+    !Number.isInteger(event.event_at_ms) ||
+    event.event_at_ms < 0 ||
+    !Number.isInteger(event.freshness_checked_at_ms) ||
+    event.freshness_checked_at_ms < 0 ||
+    !["fresh", "future", "stale"].includes(event.timestamp_freshness) ||
+    (event.timestamp_freshness !== "fresh" && event.audit_status === "recorded") ||
+    (event.timestamp_freshness === "future" &&
+      event.event_at_ms <= event.freshness_checked_at_ms) ||
+    (event.timestamp_freshness !== "future" &&
+      event.event_at_ms > event.freshness_checked_at_ms) ||
+    !["owner", "operator", "developer", "system"].includes(event.actor_role) ||
+    typeof event.safe_target_label !== "string" ||
+    typeof event.result_label !== "string" ||
+    event.append_only !== true ||
+    event.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid event`);
+  }
+  assertBoundaryPolicy(
+    event.boundary_policy,
+    LIVE_EVIDENCE_AUDIT_EVENT_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveEvidenceAuditLog({ auditEvents = [] } = {}) {
+  const sourceEvents = Array.isArray(auditEvents) ? auditEvents : [];
+  const events = sourceEvents.map((event) => {
+    assertLiveEvidenceAuditEventSafe(event, "live evidence audit log event");
+    return event;
+  });
+  const recordedCount = events.filter((event) => event.audit_status === "recorded").length;
+  const attentionCount = events.filter((event) => event.audit_status === "attention").length;
+  const blockedCount = events.filter((event) =>
+    ["blocked", "missing"].includes(event.audit_status)
+  ).length;
+  const log = {
+    schema: "iris_live_evidence_audit_log_v1",
+    log_status: blockedCount > 0 ? "BLOCKED" : attentionCount > 0 ? "attention" : "ready",
+    event_count: events.length,
+    recorded_count: recordedCount,
+    attention_count: attentionCount,
+    blocked_count: blockedCount,
+    events,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_EVIDENCE_AUDIT_LOG_BOUNDARY_FIELDS].map((field) => [field, true])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveEvidenceAuditLogSafe(log);
+  return log;
+}
+
+export function assertLiveEvidenceAuditLogSafe(
+  log,
+  context = "live evidence audit log"
+) {
+  if (!log || typeof log !== "object" || Array.isArray(log)) {
+    throw new ContractError(`${context}: log required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(log, context);
+  for (const field of Object.keys(log)) {
+    if (!LIVE_EVIDENCE_AUDIT_LOG_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected log field`);
+    }
+  }
+  if (
+    log.schema !== "iris_live_evidence_audit_log_v1" ||
+    !["BLOCKED", "attention", "ready"].includes(log.log_status) ||
+    !Number.isInteger(log.event_count) ||
+    !Number.isInteger(log.recorded_count) ||
+    !Number.isInteger(log.attention_count) ||
+    !Number.isInteger(log.blocked_count) ||
+    !Array.isArray(log.events) ||
+    log.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid log`);
+  }
+  let recordedCount = 0;
+  let attentionCount = 0;
+  let blockedCount = 0;
+  for (const event of log.events) {
+    assertLiveEvidenceAuditEventSafe(event, context);
+    if (event.audit_status === "recorded") recordedCount += 1;
+    if (event.audit_status === "attention") attentionCount += 1;
+    if (event.audit_status === "blocked" || event.audit_status === "missing") {
+      blockedCount += 1;
+    }
+  }
+  if (
+    log.event_count !== log.events.length ||
+    log.recorded_count !== recordedCount ||
+    log.attention_count !== attentionCount ||
+    log.blocked_count !== blockedCount ||
+    log.log_status !== (blockedCount > 0 ? "BLOCKED" : attentionCount > 0 ? "attention" : "ready")
+  ) {
+    throw new ContractError(`${context}: log count mismatch`);
+  }
+  assertBoundaryPolicy(
+    log.boundary_policy,
+    LIVE_EVIDENCE_AUDIT_LOG_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveEvidenceAuditPublicSummary({
+  auditLog = createLiveEvidenceAuditLog(),
+} = {}) {
+  assertLiveEvidenceAuditLogSafe(auditLog, "live evidence audit public summary log");
+  const publicSummary = {
+    schema: "iris_live_evidence_audit_public_summary_v1",
+    public_status: auditLog.log_status,
+    event_count: auditLog.event_count,
+    recorded_count: auditLog.recorded_count,
+    attention_count: auditLog.attention_count,
+    blocked_count: auditLog.blocked_count,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_EVIDENCE_AUDIT_PUBLIC_SUMMARY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveEvidenceAuditPublicSummarySafe(publicSummary);
+  return publicSummary;
+}
+
+export function assertLiveEvidenceAuditPublicSummarySafe(
+  publicSummary,
+  context = "live evidence audit public summary"
+) {
+  if (!publicSummary || typeof publicSummary !== "object" || Array.isArray(publicSummary)) {
+    throw new ContractError(`${context}: public summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(publicSummary, context);
+  for (const field of Object.keys(publicSummary)) {
+    if (!LIVE_EVIDENCE_AUDIT_PUBLIC_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected public summary field`);
+    }
+  }
+  if (
+    publicSummary.schema !== "iris_live_evidence_audit_public_summary_v1" ||
+    !["BLOCKED", "attention", "ready"].includes(publicSummary.public_status) ||
+    !Number.isInteger(publicSummary.event_count) ||
+    !Number.isInteger(publicSummary.recorded_count) ||
+    !Number.isInteger(publicSummary.attention_count) ||
+    !Number.isInteger(publicSummary.blocked_count) ||
+    publicSummary.event_count < 0 ||
+    publicSummary.recorded_count < 0 ||
+    publicSummary.attention_count < 0 ||
+    publicSummary.blocked_count < 0 ||
+    publicSummary.event_count !==
+      publicSummary.recorded_count +
+        publicSummary.attention_count +
+        publicSummary.blocked_count ||
+    publicSummary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid public summary`);
+  }
+  assertBoundaryPolicy(
+    publicSummary.boundary_policy,
+    LIVE_EVIDENCE_AUDIT_PUBLIC_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveEvidenceAuditCompletionHook({
+  publicSummary = createLiveEvidenceAuditPublicSummary(),
+} = {}) {
+  assertLiveEvidenceAuditPublicSummarySafe(
+    publicSummary,
+    "live evidence audit completion hook public summary"
+  );
+  const productionGoAllowed = publicSummary.public_status === "ready";
+  const hook = {
+    schema: "iris_live_evidence_audit_completion_hook_v1",
+    review_status: productionGoAllowed
+      ? "audit_completion_review_ready"
+      : "audit_completion_review_required",
+    completion_review_label: "live_evidence_audit_completion_review",
+    audit_public_status: publicSummary.public_status,
+    audit_event_count: publicSummary.event_count,
+    audit_blocked_count: publicSummary.blocked_count,
+    production_go_allowed: productionGoAllowed,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_EVIDENCE_AUDIT_COMPLETION_HOOK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveEvidenceAuditCompletionHookSafe(hook);
+  return hook;
+}
+
+export function assertLiveEvidenceAuditCompletionHookSafe(
+  hook,
+  context = "live evidence audit completion hook"
+) {
+  if (!hook || typeof hook !== "object" || Array.isArray(hook)) {
+    throw new ContractError(`${context}: hook required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(hook, context);
+  for (const field of Object.keys(hook)) {
+    if (!LIVE_EVIDENCE_AUDIT_COMPLETION_HOOK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected hook field`);
+    }
+  }
+  if (
+    hook.schema !== "iris_live_evidence_audit_completion_hook_v1" ||
+    !["audit_completion_review_ready", "audit_completion_review_required"].includes(
+      hook.review_status
+    ) ||
+    hook.completion_review_label !== "live_evidence_audit_completion_review" ||
+    !["BLOCKED", "attention", "ready"].includes(hook.audit_public_status) ||
+    !Number.isInteger(hook.audit_event_count) ||
+    hook.audit_event_count < 0 ||
+    !Number.isInteger(hook.audit_blocked_count) ||
+    hook.audit_blocked_count < 0 ||
+    hook.audit_blocked_count > hook.audit_event_count ||
+    typeof hook.production_go_allowed !== "boolean" ||
+    hook.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid hook`);
+  }
+  const expectedReady = hook.audit_public_status === "ready";
+  if (
+    hook.production_go_allowed !== expectedReady ||
+    hook.review_status !==
+      (expectedReady
+        ? "audit_completion_review_ready"
+        : "audit_completion_review_required")
+  ) {
+    throw new ContractError(`${context}: hook status mismatch`);
+  }
+  assertBoundaryPolicy(
+    hook.boundary_policy,
+    LIVE_EVIDENCE_AUDIT_COMPLETION_HOOK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
 export function createLiveProductionAuditRoleGate({
   viewerRole = "ordinary",
   detailLabels = [],
@@ -5879,36 +6781,46 @@ export function assertLiveProductionAuditRoleGateSafe(
 export function createLiveProductionAuditFixturePack() {
   const fixtures = [
     liveProductionAuditFixture({
-      fixtureLabel: "missing_audit",
-      expectedStatus: "BLOCKED",
-      auditReview: createLiveProductionAuditReviewPage({
-        auditEntries: [{ event_label: "emergency_stop", status: "recorded" }],
-        requiredEventLabels: ["emergency_stop", "operator_handoff"],
-      }),
-      roleGate: createLiveProductionAuditRoleGate({
-        viewerRole: "ordinary",
-        detailLabels: ["operator_handoff"],
-      }),
-    }),
-    liveProductionAuditFixture({
-      fixtureLabel: "role_leak",
+      fixtureLabel: "missing_role",
       expectedStatus: "rejected",
       auditReview: createLiveProductionAuditReviewPage({
-        auditEntries: [{ event_label: "operator_handoff", status: "recorded" }],
+        auditEntries: [{ event_label: "operator_handoff", status: "blocked" }],
         requiredEventLabels: ["operator_handoff"],
       }),
+      auditLog: createLiveEvidenceAuditLog({
+        auditEvents: [
+          createLiveEvidenceAuditEvent({
+            auditEventLabel: "handoff_plan",
+            auditStatus: "blocked",
+            eventAtMs: 1,
+            actorRole: "operator",
+          }),
+        ],
+      }),
       roleGate: createLiveProductionAuditRoleGate({
-        viewerRole: "ordinary",
+        viewerRole: "owner",
         detailLabels: ["operator_handoff"],
       }),
     }),
     liveProductionAuditFixture({
-      fixtureLabel: "sensitive_leak",
+      fixtureLabel: "raw_secret",
       expectedStatus: "rejected",
       sensitiveValueRejected: true,
       auditReview: createLiveProductionAuditReviewPage({
         auditEntries: [{ event_label: "final_preflight", status: "blocked" }],
         requiredEventLabels: ["final_preflight"],
+      }),
+      auditLog: createLiveEvidenceAuditLog({
+        auditEvents: [
+          createLiveEvidenceAuditEvent({
+            auditEventLabel: "fresh_evidence_acquired",
+            auditStatus: "blocked",
+            eventAtMs: 2,
+            actorRole: "system",
+            safeTargetLabel: "raw_secret_token",
+            resultLabel: "secret_rejected",
+          }),
+        ],
       }),
       roleGate: createLiveProductionAuditRoleGate({
         viewerRole: "owner",
@@ -5916,18 +6828,75 @@ export function createLiveProductionAuditFixturePack() {
       }),
     }),
     liveProductionAuditFixture({
-      fixtureLabel: "safe_review",
-      expectedStatus: "ready",
+      fixtureLabel: "overwrite_attempt",
+      expectedStatus: "rejected",
+      overwriteAttemptRejected: true,
       auditReview: createLiveProductionAuditReviewPage({
-        auditEntries: [
-          { event_label: "emergency_stop", status: "recorded" },
-          { event_label: "operator_handoff", status: "recorded" },
+        auditEntries: [{ event_label: "audit_event", status: "blocked" }],
+        requiredEventLabels: ["audit_event"],
+      }),
+      auditLog: createLiveEvidenceAuditLog({
+        auditEvents: [
+          createLiveEvidenceAuditEvent({
+            auditEventLabel: "production_go_no_go",
+            auditStatus: "blocked",
+            eventAtMs: 3,
+            actorRole: "operator",
+          }),
         ],
-        requiredEventLabels: ["emergency_stop", "operator_handoff"],
       }),
       roleGate: createLiveProductionAuditRoleGate({
-        viewerRole: "operator",
-        detailLabels: ["emergency_stop", "operator_handoff"],
+        viewerRole: "owner",
+        detailLabels: ["audit_event"],
+      }),
+    }),
+    liveProductionAuditFixture({
+      fixtureLabel: "stale_timestamp",
+      expectedStatus: "attention",
+      auditReview: createLiveProductionAuditReviewPage({
+        auditEntries: [
+          { event_label: "final_preflight", status: "attention" },
+        ],
+        requiredEventLabels: ["final_preflight"],
+      }),
+      auditLog: createLiveEvidenceAuditLog({
+        auditEvents: [
+          createLiveEvidenceAuditEvent({
+            auditEventLabel: "fresh_evidence_acquired",
+            auditStatus: "recorded",
+            eventAtMs: 1,
+            freshnessCheckedAtMs: 10_000,
+            maxAuditAgeMs: 1,
+            actorRole: "system",
+          }),
+        ],
+      }),
+      roleGate: createLiveProductionAuditRoleGate({
+        viewerRole: "owner",
+        detailLabels: ["final_preflight"],
+      }),
+      staleTimestampAttention: true,
+    }),
+    liveProductionAuditFixture({
+      fixtureLabel: "owner_gate",
+      expectedStatus: "rejected",
+      auditReview: createLiveProductionAuditReviewPage({
+        auditEntries: [{ event_label: "operator_handoff", status: "recorded" }],
+        requiredEventLabels: ["operator_handoff"],
+      }),
+      auditLog: createLiveEvidenceAuditLog({
+        auditEvents: [
+          createLiveEvidenceAuditEvent({
+            auditEventLabel: "owner_confirmation",
+            auditStatus: "recorded",
+            eventAtMs: 4,
+            actorRole: "owner",
+          }),
+        ],
+      }),
+      roleGate: createLiveProductionAuditRoleGate({
+        viewerRole: "ordinary",
+        detailLabels: ["operator_handoff"],
       }),
     }),
   ];
@@ -5939,6 +6908,9 @@ export function createLiveProductionAuditFixturePack() {
     boundary_policy: {
       missing_audit_blocks_go: true,
       owner_operator_detail_role_gated: true,
+      missing_role_rejected: true,
+      overwrite_attempt_rejected: true,
+      stale_timestamp_attention: true,
       packet_body_excluded: true,
       sensitive_values_excluded: true,
       control_body_excluded: true,
@@ -5971,10 +6943,11 @@ export function assertLiveProductionAuditFixturePackSafe(
     throw new ContractError(`${context}: invalid pack`);
   }
   const requiredLabels = new Set([
-    "missing_audit",
-    "role_leak",
-    "sensitive_leak",
-    "safe_review",
+    "missing_role",
+    "raw_secret",
+    "overwrite_attempt",
+    "stale_timestamp",
+    "owner_gate",
   ]);
   for (const fixture of pack.fixtures) {
     assertLiveProductionAuditFixtureSafe(fixture, context);
@@ -5988,6 +6961,9 @@ export function assertLiveProductionAuditFixturePackSafe(
     new Set([
       "missing_audit_blocks_go",
       "owner_operator_detail_role_gated",
+      "missing_role_rejected",
+      "overwrite_attempt_rejected",
+      "stale_timestamp_attention",
       "packet_body_excluded",
       "sensitive_values_excluded",
       "control_body_excluded",
@@ -8619,6 +9595,760 @@ export function assertLiveReadinessCompletionBlockerCarryoverSafe(
   );
 }
 
+export function createPriority1BlockerPersistenceState({
+  realResidencyConfirmed = false,
+  blockerLabels = ["fixture_only"],
+  kCompleted = false,
+  fixturePassed = false,
+} = {}) {
+  const realConfirmed = realResidencyConfirmed === true;
+  const safeLabels = (Array.isArray(blockerLabels) ? blockerLabels : [])
+    .map((label) => safeProductionReadinessBlockerReason(label))
+    .filter((label) => PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(label));
+  if (!realConfirmed && !safeLabels.includes("fixture_only")) {
+    safeLabels.push("fixture_only");
+  }
+  const labels = [...new Set(safeLabels)].sort();
+  const retained = !realConfirmed || labels.length > 0;
+  const state = {
+    schema: "iris_priority1_blocker_persistence_state_v1",
+    priority_label: "priority1",
+    blocker_status: retained ? "BLOCKED" : "attention",
+    real_residency_status: realConfirmed ? "confirmed" : "unconfirmed",
+    blocker_retained: retained,
+    k_completion_ignored: kCompleted === true,
+    fixture_pass_ignored: fixturePassed === true,
+    unresolved_blocked_count: retained ? labels.length : 0,
+    blocker_labels: retained ? labels : [],
+    production_ready_allowed: false,
+    boundary_policy: Object.fromEntries(
+      [...PRIORITY1_BLOCKER_PERSISTENCE_STATE_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPriority1BlockerPersistenceStateSafe(state);
+  return state;
+}
+
+export function assertPriority1BlockerPersistenceStateSafe(
+  state,
+  context = "priority1 blocker persistence state"
+) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new ContractError(`${context}: state required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(state, context);
+  for (const field of Object.keys(state)) {
+    if (!PRIORITY1_BLOCKER_PERSISTENCE_STATE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected state field`);
+    }
+  }
+  if (
+    state.schema !== "iris_priority1_blocker_persistence_state_v1" ||
+    state.priority_label !== "priority1" ||
+    !["BLOCKED", "attention"].includes(state.blocker_status) ||
+    !["confirmed", "unconfirmed"].includes(state.real_residency_status) ||
+    typeof state.blocker_retained !== "boolean" ||
+    typeof state.k_completion_ignored !== "boolean" ||
+    typeof state.fixture_pass_ignored !== "boolean" ||
+    !Number.isInteger(state.unresolved_blocked_count) ||
+    state.unresolved_blocked_count < 0 ||
+    !Array.isArray(state.blocker_labels) ||
+    state.production_ready_allowed !== false ||
+    state.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid state`);
+  }
+  for (const label of state.blocker_labels) {
+    if (!PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(label)) {
+      throw new ContractError(`${context}: invalid blocker label`);
+    }
+  }
+  const retained =
+    state.real_residency_status === "unconfirmed" || state.blocker_labels.length > 0;
+  if (
+    state.blocker_retained !== retained ||
+    state.unresolved_blocked_count !== state.blocker_labels.length ||
+    state.blocker_status !== (retained ? "BLOCKED" : "attention") ||
+    (state.real_residency_status === "unconfirmed" &&
+      !state.blocker_labels.includes("fixture_only")) ||
+    ((state.k_completion_ignored || state.fixture_pass_ignored) &&
+      state.production_ready_allowed !== false)
+  ) {
+    throw new ContractError(`${context}: persistence mismatch`);
+  }
+  assertBoundaryPolicy(
+    state.boundary_policy,
+    PRIORITY1_BLOCKER_PERSISTENCE_STATE_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createPriority1BlockerResolutionGuard({
+  evidenceFreshness = "stale",
+  evidenceSource = "fixture",
+  ownerConfirmed = false,
+  auditEntryRef = null,
+} = {}) {
+  const freshness = safeGateDetailLabel(evidenceFreshness) === "fresh" ? "fresh" : "stale";
+  const source = ["real_probe", "operator_confirmed"].includes(
+    safeGateDetailLabel(evidenceSource)
+  )
+    ? safeGateDetailLabel(evidenceSource)
+    : "fixture";
+  const confirmed = ownerConfirmed === true;
+  const safeAuditEntryRef = auditEntryRef
+    ? createPriority1BlockerSafeAuditEntryRef(auditEntryRef)
+    : null;
+  const hasAuditEntryRef = safeAuditEntryRef !== null;
+  const resolutionAllowed =
+    freshness === "fresh" && source !== "fixture" && confirmed && hasAuditEntryRef;
+  const guard = {
+    schema: "iris_priority1_blocker_resolution_guard_v1",
+    guard_status: resolutionAllowed ? "attention" : "BLOCKED",
+    priority_label: "priority1",
+    blocker_status: resolutionAllowed ? "attention" : "BLOCKED",
+    evidence_freshness: freshness,
+    evidence_source: source,
+    owner_confirmation_status: confirmed ? "owner_confirmed" : "owner_required",
+    owner_confirmed: confirmed,
+    audit_entry_ref_required: true,
+    audit_entry_ref: safeAuditEntryRef,
+    resolution_allowed: resolutionAllowed,
+    production_ready_allowed: false,
+    boundary_policy: Object.fromEntries(
+      [...PRIORITY1_BLOCKER_RESOLUTION_GUARD_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPriority1BlockerResolutionGuardSafe(guard);
+  return guard;
+}
+
+export function createPriority1BlockerSafeAuditEntryRef(options = {}) {
+  const auditLabel =
+    options.auditLabel ?? options.audit_label ?? "priority1_blocker_resolution";
+  const eventStatus = options.eventStatus ?? options.event_status ?? "recorded";
+  const safeTargetLabel =
+    options.safeTargetLabel ?? options.safe_target_label ?? "priority1_blocker";
+  const eventTimestampMs =
+    options.eventTimestampMs ?? options.event_timestamp_ms ?? 0;
+  const payloadStored = options.payloadStored ?? options.payload_stored ?? false;
+  const ref = {
+    schema: "iris_priority1_blocker_safe_audit_entry_ref_v1",
+    audit_label: safeGateDetailLabel(auditLabel) || "priority1_blocker_resolution",
+    event_status: ["recorded", "attention"].includes(safeGateDetailLabel(eventStatus))
+      ? safeGateDetailLabel(eventStatus)
+      : "attention",
+    safe_target_label: safeGateDetailLabel(safeTargetLabel) || "priority1_blocker",
+    event_timestamp_ms: safeTimestampMs(eventTimestampMs),
+    payload_stored: payloadStored === true,
+  };
+  assertPriority1BlockerSafeAuditEntryRef(ref);
+  return ref;
+}
+
+export function assertPriority1BlockerSafeAuditEntryRef(
+  ref,
+  context = "priority1 blocker safe audit entry ref"
+) {
+  if (!ref || typeof ref !== "object" || Array.isArray(ref)) {
+    throw new ContractError(`${context}: audit entry ref required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(ref, context);
+  for (const field of Object.keys(ref)) {
+    if (!PRIORITY1_BLOCKER_SAFE_AUDIT_ENTRY_REF_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected audit entry ref field`);
+    }
+  }
+  if (
+    ref.schema !== "iris_priority1_blocker_safe_audit_entry_ref_v1" ||
+    !safeGateDetailLabel(ref.audit_label) ||
+    !["recorded", "attention"].includes(ref.event_status) ||
+    !safeGateDetailLabel(ref.safe_target_label) ||
+    !Number.isInteger(ref.event_timestamp_ms) ||
+    ref.event_timestamp_ms < 0 ||
+    ref.payload_stored !== false
+  ) {
+    throw new ContractError(`${context}: invalid audit entry ref`);
+  }
+}
+
+export function assertPriority1BlockerResolutionGuardSafe(
+  guard,
+  context = "priority1 blocker resolution guard"
+) {
+  if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+    throw new ContractError(`${context}: guard required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(guard, context);
+  for (const field of Object.keys(guard)) {
+    if (!PRIORITY1_BLOCKER_RESOLUTION_GUARD_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected guard field`);
+    }
+  }
+  const expectedAllowed =
+    guard.evidence_freshness === "fresh" &&
+    guard.evidence_source !== "fixture" &&
+    guard.owner_confirmed === true &&
+    guard.audit_entry_ref !== null;
+  if (
+    guard.schema !== "iris_priority1_blocker_resolution_guard_v1" ||
+    guard.priority_label !== "priority1" ||
+    !["BLOCKED", "attention"].includes(guard.guard_status) ||
+    !["BLOCKED", "attention"].includes(guard.blocker_status) ||
+    !["fresh", "stale"].includes(guard.evidence_freshness) ||
+    !["fixture", "real_probe", "operator_confirmed"].includes(guard.evidence_source) ||
+    !["owner_confirmed", "owner_required"].includes(guard.owner_confirmation_status) ||
+    typeof guard.owner_confirmed !== "boolean" ||
+    guard.owner_confirmation_status !==
+      (guard.owner_confirmed ? "owner_confirmed" : "owner_required") ||
+    guard.audit_entry_ref_required !== true ||
+    typeof guard.resolution_allowed !== "boolean" ||
+    guard.resolution_allowed !== expectedAllowed ||
+    guard.production_ready_allowed !== false ||
+    guard.guard_status !== (expectedAllowed ? "attention" : "BLOCKED") ||
+    guard.blocker_status !== (expectedAllowed ? "attention" : "BLOCKED") ||
+    guard.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid guard`);
+  }
+  if (guard.audit_entry_ref !== null) {
+    assertPriority1BlockerSafeAuditEntryRef(
+      guard.audit_entry_ref,
+      `${context}: audit entry ref`
+    );
+  }
+  assertBoundaryPolicy(
+    guard.boundary_policy,
+    PRIORITY1_BLOCKER_RESOLUTION_GUARD_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createPriority1BlockerPublicSummary({
+  component = "runtime_residency",
+  state = createPriority1BlockerPersistenceState(),
+} = {}) {
+  assertPriority1BlockerPersistenceStateSafe(
+    state,
+    "priority1 blocker public summary state"
+  );
+  const safeComponent = safeGateDetailLabel(component) || "runtime_residency";
+  const summary = {
+    schema: "iris_priority1_blocker_public_summary_v1",
+    component: safeComponent,
+    status: state.blocker_status,
+    next_action:
+      state.blocker_status === "BLOCKED"
+        ? "collect_real_fresh_evidence_and_owner_confirmation"
+        : "owner_review_required",
+    boundary_policy: Object.fromEntries(
+      [...PRIORITY1_BLOCKER_PUBLIC_SUMMARY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPriority1BlockerPublicSummarySafe(summary);
+  return summary;
+}
+
+export function assertPriority1BlockerPublicSummarySafe(
+  summary,
+  context = "priority1 blocker public summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRIORITY1_BLOCKER_PUBLIC_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_priority1_blocker_public_summary_v1" ||
+    !safeGateDetailLabel(summary.component) ||
+    !["BLOCKED", "attention"].includes(summary.status) ||
+    ![
+      "collect_real_fresh_evidence_and_owner_confirmation",
+      "owner_review_required",
+    ].includes(summary.next_action) ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  if (
+    (summary.status === "BLOCKED" &&
+      summary.next_action !==
+        "collect_real_fresh_evidence_and_owner_confirmation") ||
+    (summary.status !== "BLOCKED" && summary.next_action !== "owner_review_required")
+  ) {
+    throw new ContractError(`${context}: next action mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRIORITY1_BLOCKER_PUBLIC_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createPriority1BlockerAdminSummary({
+  viewerRole = "ordinary",
+  publicSummary = createPriority1BlockerPublicSummary(),
+  ownerDetailLabels = [],
+} = {}) {
+  assertPriority1BlockerPublicSummarySafe(
+    publicSummary,
+    "priority1 blocker admin summary ordinary summary"
+  );
+  const safeViewerRole = ["ordinary", "admin", "owner"].includes(viewerRole)
+    ? viewerRole
+    : "ordinary";
+  const ownerVisible = safeViewerRole === "owner";
+  const safeOwnerLabels = (Array.isArray(ownerDetailLabels) ? ownerDetailLabels : [])
+    .map((label) => safeGateDetailLabel(label))
+    .filter(Boolean);
+  const summary = {
+    schema: "iris_priority1_blocker_admin_summary_v1",
+    viewer_role: safeViewerRole,
+    ordinary_summary: publicSummary,
+    owner_detail_visible: ownerVisible,
+    owner_detail_labels: ownerVisible ? [...new Set(safeOwnerLabels)].sort() : [],
+    boundary_policy: Object.fromEntries(
+      [...PRIORITY1_BLOCKER_ADMIN_SUMMARY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPriority1BlockerAdminSummarySafe(summary);
+  return summary;
+}
+
+export function assertPriority1BlockerAdminSummarySafe(
+  summary,
+  context = "priority1 blocker admin summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!PRIORITY1_BLOCKER_ADMIN_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_priority1_blocker_admin_summary_v1" ||
+    !["ordinary", "admin", "owner"].includes(summary.viewer_role) ||
+    typeof summary.owner_detail_visible !== "boolean" ||
+    !Array.isArray(summary.owner_detail_labels) ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  assertPriority1BlockerPublicSummarySafe(
+    summary.ordinary_summary,
+    `${context}: ordinary summary`
+  );
+  const ownerVisible = summary.viewer_role === "owner";
+  if (summary.owner_detail_visible !== ownerVisible) {
+    throw new ContractError(`${context}: owner detail gate mismatch`);
+  }
+  if (!ownerVisible && summary.owner_detail_labels.length > 0) {
+    throw new ContractError(`${context}: owner detail label leak`);
+  }
+  for (const label of summary.owner_detail_labels) {
+    if (!safeGateDetailLabel(label)) {
+      throw new ContractError(`${context}: invalid owner detail label`);
+    }
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    PRIORITY1_BLOCKER_ADMIN_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createPriority1BlockerFixturePack() {
+  const auditEntryRef = createPriority1BlockerSafeAuditEntryRef({
+    auditLabel: "priority1_blocker_resolution",
+    eventStatus: "recorded",
+    safeTargetLabel: "priority1_blocker",
+    eventTimestampMs: 1,
+  });
+  const fixtures = [
+    priority1BlockerFixture({
+      fixtureLabel: "fixture_pass",
+      expectedResolutionAllowed: false,
+      guard: createPriority1BlockerResolutionGuard({
+        evidenceFreshness: "fresh",
+        evidenceSource: "fixture",
+        ownerConfirmed: true,
+        auditEntryRef,
+      }),
+    }),
+    priority1BlockerFixture({
+      fixtureLabel: "stale_evidence",
+      expectedResolutionAllowed: false,
+      guard: createPriority1BlockerResolutionGuard({
+        evidenceFreshness: "stale",
+        evidenceSource: "real_probe",
+        ownerConfirmed: true,
+        auditEntryRef,
+      }),
+    }),
+    priority1BlockerFixture({
+      fixtureLabel: "missing_owner",
+      expectedResolutionAllowed: false,
+      guard: createPriority1BlockerResolutionGuard({
+        evidenceFreshness: "fresh",
+        evidenceSource: "real_probe",
+        ownerConfirmed: false,
+        auditEntryRef,
+      }),
+    }),
+    priority1BlockerFixture({
+      fixtureLabel: "fresh_real_evidence",
+      expectedResolutionAllowed: true,
+      guard: createPriority1BlockerResolutionGuard({
+        evidenceFreshness: "fresh",
+        evidenceSource: "real_probe",
+        ownerConfirmed: true,
+        auditEntryRef,
+      }),
+    }),
+  ];
+  const pack = {
+    schema: "iris_priority1_blocker_fixture_pack_v1",
+    pack_status: "pass",
+    fixture_count: fixtures.length,
+    fixtures,
+    boundary_policy: Object.fromEntries(
+      [...PRIORITY1_BLOCKER_FIXTURE_PACK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertPriority1BlockerFixturePackSafe(pack);
+  return pack;
+}
+
+export function assertPriority1BlockerFixturePackSafe(
+  pack,
+  context = "priority1 blocker fixture pack"
+) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    throw new ContractError(`${context}: pack required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(pack, context);
+  for (const field of Object.keys(pack)) {
+    if (!PRIORITY1_BLOCKER_FIXTURE_PACK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected pack field`);
+    }
+  }
+  if (
+    pack.schema !== "iris_priority1_blocker_fixture_pack_v1" ||
+    pack.pack_status !== "pass" ||
+    !Array.isArray(pack.fixtures) ||
+    pack.fixture_count !== pack.fixtures.length ||
+    pack.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid pack`);
+  }
+  const requiredLabels = new Set([
+    "fixture_pass",
+    "stale_evidence",
+    "missing_owner",
+    "fresh_real_evidence",
+  ]);
+  for (const fixture of pack.fixtures) {
+    assertPriority1BlockerFixtureSafe(fixture, `${context}: fixture`);
+    requiredLabels.delete(fixture.fixture_label);
+  }
+  if (requiredLabels.size > 0) {
+    throw new ContractError(`${context}: required fixture missing`);
+  }
+  assertBoundaryPolicy(
+    pack.boundary_policy,
+    PRIORITY1_BLOCKER_FIXTURE_PACK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+function priority1BlockerFixture({
+  fixtureLabel,
+  expectedResolutionAllowed,
+  guard,
+}) {
+  const fixture = {
+    schema: "iris_priority1_blocker_fixture_v1",
+    fixture_label: fixtureLabel,
+    expected_resolution_allowed: expectedResolutionAllowed === true,
+    guard,
+  };
+  assertPriority1BlockerFixtureSafe(fixture);
+  return fixture;
+}
+
+function assertPriority1BlockerFixtureSafe(
+  fixture,
+  context = "priority1 blocker fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(fixture, context);
+  for (const field of Object.keys(fixture)) {
+    if (!PRIORITY1_BLOCKER_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.schema !== "iris_priority1_blocker_fixture_v1" ||
+    ![
+      "fixture_pass",
+      "stale_evidence",
+      "missing_owner",
+      "fresh_real_evidence",
+    ].includes(fixture.fixture_label) ||
+    typeof fixture.expected_resolution_allowed !== "boolean"
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  assertPriority1BlockerResolutionGuardSafe(fixture.guard, `${context}: guard`);
+  if (fixture.guard.resolution_allowed !== fixture.expected_resolution_allowed) {
+    throw new ContractError(`${context}: expectation mismatch`);
+  }
+  if (
+    fixture.fixture_label !== "fresh_real_evidence" &&
+    fixture.expected_resolution_allowed !== false
+  ) {
+    throw new ContractError(`${context}: blocked fixture mismatch`);
+  }
+  if (
+    fixture.fixture_label === "fresh_real_evidence" &&
+    (fixture.guard.evidence_freshness !== "fresh" ||
+      fixture.guard.evidence_source === "fixture" ||
+      fixture.guard.owner_confirmed !== true ||
+      fixture.guard.audit_entry_ref === null ||
+      fixture.expected_resolution_allowed !== true)
+  ) {
+    throw new ContractError(`${context}: fresh evidence fixture mismatch`);
+  }
+}
+
+export function createPriority1ReadinessNoSweeteningSweep() {
+  const fixtures = [
+    priority1NoSweeteningSweepFixture("k801_k820_fresh_evidence", "K801-K820"),
+    priority1NoSweeteningSweepFixture("k821_k840_owner_handoff", "K821-K840"),
+    priority1NoSweeteningSweepFixture("k841_k860_preflight_go_no_go", "K841-K860"),
+    priority1NoSweeteningSweepFixture("k861_k880_audit_rehearsal", "K861-K880"),
+    priority1NoSweeteningSweepFixture("k881_k900_deployment_priority1", "K881-K900"),
+  ];
+  const sweep = {
+    schema: "iris_priority1_readiness_no_sweetening_sweep_v1",
+    sweep_status: "BLOCKED",
+    k_range: "K801-K900",
+    ready_allowed: false,
+    fixture_count: fixtures.length,
+    fixtures,
+    boundary_policy: Object.fromEntries(
+      [...PRIORITY1_READINESS_NO_SWEETENING_SWEEP_BOUNDARY_FIELDS].map(
+        (field) => [field, true]
+      )
+    ),
+    adapter_validation_required: true,
+  };
+  assertPriority1ReadinessNoSweeteningSweepSafe(sweep);
+  return sweep;
+}
+
+export function assertPriority1ReadinessNoSweeteningSweepSafe(
+  sweep,
+  context = "priority1 readiness no sweetening sweep"
+) {
+  if (!sweep || typeof sweep !== "object" || Array.isArray(sweep)) {
+    throw new ContractError(`${context}: sweep required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(sweep, context);
+  for (const field of Object.keys(sweep)) {
+    if (!PRIORITY1_READINESS_NO_SWEETENING_SWEEP_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected sweep field`);
+    }
+  }
+  if (
+    sweep.schema !== "iris_priority1_readiness_no_sweetening_sweep_v1" ||
+    sweep.sweep_status !== "BLOCKED" ||
+    sweep.k_range !== "K801-K900" ||
+    sweep.ready_allowed !== false ||
+    !Array.isArray(sweep.fixtures) ||
+    sweep.fixture_count !== sweep.fixtures.length ||
+    sweep.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid sweep`);
+  }
+  for (const fixture of sweep.fixtures) {
+    assertPriority1NoSweeteningSweepFixtureSafe(fixture, `${context}: fixture`);
+  }
+  if (sweep.fixtures.some((fixture) => fixture.ready_allowed !== false)) {
+    throw new ContractError(`${context}: readiness sweetening detected`);
+  }
+  assertBoundaryPolicy(
+    sweep.boundary_policy,
+    PRIORITY1_READINESS_NO_SWEETENING_SWEEP_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+function priority1NoSweeteningSweepFixture(fixtureLabel, kRange) {
+  const blockerState = createPriority1BlockerPersistenceState({
+    realResidencyConfirmed: false,
+    blockerLabels: ["real_residency_missing"],
+    kCompleted: true,
+    fixturePassed: true,
+  });
+  const fixture = {
+    schema: "iris_priority1_readiness_no_sweetening_sweep_fixture_v1",
+    fixture_label: fixtureLabel,
+    k_range: kRange,
+    blocker_status: blockerState.blocker_status,
+    ready_allowed: false,
+    blocker_state: blockerState,
+  };
+  assertPriority1NoSweeteningSweepFixtureSafe(fixture);
+  return fixture;
+}
+
+function assertPriority1NoSweeteningSweepFixtureSafe(
+  fixture,
+  context = "priority1 readiness no sweetening sweep fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(fixture, context);
+  for (const field of Object.keys(fixture)) {
+    if (!PRIORITY1_READINESS_NO_SWEETENING_SWEEP_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.schema !==
+      "iris_priority1_readiness_no_sweetening_sweep_fixture_v1" ||
+    ![
+      "k801_k820_fresh_evidence",
+      "k821_k840_owner_handoff",
+      "k841_k860_preflight_go_no_go",
+      "k861_k880_audit_rehearsal",
+      "k881_k900_deployment_priority1",
+    ].includes(fixture.fixture_label) ||
+    !["K801-K820", "K821-K840", "K841-K860", "K861-K880", "K881-K900"].includes(
+      fixture.k_range
+    ) ||
+    fixture.blocker_status !== "BLOCKED" ||
+    fixture.ready_allowed !== false
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  assertPriority1BlockerPersistenceStateSafe(
+    fixture.blocker_state,
+    `${context}: blocker state`
+  );
+  if (
+    fixture.blocker_state.blocker_retained !== true ||
+    fixture.blocker_state.k_completion_ignored !== true ||
+    fixture.blocker_state.fixture_pass_ignored !== true ||
+    fixture.blocker_state.production_ready_allowed !== false
+  ) {
+    throw new ContractError(`${context}: sweetening guard mismatch`);
+  }
+}
+
+export function createLiveHandoffFinalPreflightSummary({
+  sweep = createPriority1ReadinessNoSweeteningSweep(),
+  ownerConfirmationRequiredCount = 1,
+  freshEvidenceMissingCount = 1,
+} = {}) {
+  assertPriority1ReadinessNoSweeteningSweepSafe(
+    sweep,
+    "live handoff final preflight summary sweep"
+  );
+  const blockedCount = sweep.fixtures.filter(
+    (fixture) => fixture.blocker_status === "BLOCKED"
+  ).length;
+  const ownerCount = safeNonNegativeInteger(ownerConfirmationRequiredCount) ?? 0;
+  const freshMissingCount = safeNonNegativeInteger(freshEvidenceMissingCount) ?? 0;
+  const summary = {
+    schema: "iris_live_handoff_final_preflight_summary_v1",
+    summary_status: blockedCount > 0 ? "BLOCKED" : "attention",
+    summary_line: `blocked=${blockedCount};owner_confirmation_required=${ownerCount};fresh_evidence_missing=${freshMissingCount}`,
+    blocked_count: blockedCount,
+    owner_confirmation_required_count: ownerCount,
+    fresh_evidence_missing_count: freshMissingCount,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_FINAL_PREFLIGHT_SUMMARY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffFinalPreflightSummarySafe(summary);
+  return summary;
+}
+
+export function assertLiveHandoffFinalPreflightSummarySafe(
+  summary,
+  context = "live handoff final preflight summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!LIVE_HANDOFF_FINAL_PREFLIGHT_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  const expectedLine = `blocked=${summary.blocked_count};owner_confirmation_required=${summary.owner_confirmation_required_count};fresh_evidence_missing=${summary.fresh_evidence_missing_count}`;
+  if (
+    summary.schema !== "iris_live_handoff_final_preflight_summary_v1" ||
+    !["BLOCKED", "attention"].includes(summary.summary_status) ||
+    !Number.isInteger(summary.blocked_count) ||
+    !Number.isInteger(summary.owner_confirmation_required_count) ||
+    !Number.isInteger(summary.fresh_evidence_missing_count) ||
+    summary.blocked_count < 0 ||
+    summary.owner_confirmation_required_count < 0 ||
+    summary.fresh_evidence_missing_count < 0 ||
+    summary.summary_line !== expectedLine ||
+    summary.summary_line.includes("\n") ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  if (summary.blocked_count > 0 && summary.summary_status !== "BLOCKED") {
+    throw new ContractError(`${context}: blocked status mismatch`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    LIVE_HANDOFF_FINAL_PREFLIGHT_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
 export function createRealReadinessUnresolvedBlockerReport({
   blockerLabels = [],
   realResidencyConfirmed = false,
@@ -9134,6 +10864,1451 @@ export function assertProductionLiveReadinessFinalReviewHookSafe(
       "packet_body_excluded",
       "control_body_excluded",
     ]),
+    `${context}: boundary policy`
+  );
+}
+
+const LIVE_HANDOFF_REHEARSAL_STEPS = Object.freeze([
+  Object.freeze(["bridge", "npm run dev:production:runtime-handoff-status"]),
+  Object.freeze(["engine", "npm run dev:production-loop:roundtrip"]),
+  Object.freeze(["overlay", "npm run dev:obs:overlay-rehearsal"]),
+  Object.freeze(["probe", "npm run dev:production:live-readiness"]),
+  Object.freeze(["go_no_go", "npm run dev:production:go-no-go"]),
+]);
+
+function liveHandoffRehearsalEntry([component, scriptName], order, status) {
+  const entry = {
+    schema: "iris_live_handoff_rehearsal_entry_v1",
+    component,
+    order,
+    fixture_mode: "synthetic_fixture",
+    script_name: scriptName,
+    status: safeOperatorHandoffStepStatus(status),
+  };
+  assertLiveHandoffRehearsalEntrySafe(entry);
+  return entry;
+}
+
+function assertLiveHandoffRehearsalEntrySafe(
+  entry,
+  context = "live handoff rehearsal entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(entry, context);
+  for (const field of Object.keys(entry)) {
+    if (!LIVE_HANDOFF_REHEARSAL_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected entry field`);
+    }
+  }
+  const expected = LIVE_HANDOFF_REHEARSAL_STEPS[entry.order - 1];
+  if (
+    entry.schema !== "iris_live_handoff_rehearsal_entry_v1" ||
+    !expected ||
+    entry.component !== expected[0] ||
+    entry.fixture_mode !== "synthetic_fixture" ||
+    entry.script_name !== expected[1] ||
+    !["attention", "ready"].includes(entry.status)
+  ) {
+    throw new ContractError(`${context}: invalid entry`);
+  }
+  assertSafeScriptName(entry.script_name, context);
+}
+
+export function createLiveHandoffRehearsalManifest({ rehearsalStatuses = {} } = {}) {
+  const rehearsals = LIVE_HANDOFF_REHEARSAL_STEPS.map((step, index) =>
+    liveHandoffRehearsalEntry(step, index + 1, rehearsalStatuses[step[0]])
+  );
+  const readyCount = rehearsals.filter((entry) => entry.status === "ready").length;
+  const manifest = {
+    schema: "iris_live_handoff_rehearsal_manifest_v1",
+    manifest_status:
+      readyCount === rehearsals.length ? "ready_for_rehearsal" : "attention",
+    rehearsal_count: rehearsals.length,
+    rehearsals,
+    real_external_operation_performed: false,
+    real_worker_started: false,
+    obs_changed: false,
+    db_connected: false,
+    game_input_sent: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_MANIFEST_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalManifestSafe(manifest);
+  return manifest;
+}
+
+export function assertLiveHandoffRehearsalManifestSafe(
+  manifest,
+  context = "live handoff rehearsal manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(manifest, context);
+  for (const field of Object.keys(manifest)) {
+    if (!LIVE_HANDOFF_REHEARSAL_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected manifest field`);
+    }
+  }
+  if (
+    manifest.schema !== "iris_live_handoff_rehearsal_manifest_v1" ||
+    !["attention", "ready_for_rehearsal"].includes(manifest.manifest_status) ||
+    !Array.isArray(manifest.rehearsals) ||
+    manifest.real_external_operation_performed !== false ||
+    manifest.real_worker_started !== false ||
+    manifest.obs_changed !== false ||
+    manifest.db_connected !== false ||
+    manifest.game_input_sent !== false ||
+    manifest.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid manifest`);
+  }
+  let readyCount = 0;
+  const seenComponents = new Set();
+  for (const entry of manifest.rehearsals) {
+    assertLiveHandoffRehearsalEntrySafe(entry, context);
+    seenComponents.add(entry.component);
+    if (entry.status === "ready") readyCount += 1;
+  }
+  if (
+    manifest.rehearsal_count !== LIVE_HANDOFF_REHEARSAL_STEPS.length ||
+    manifest.rehearsals.length !== LIVE_HANDOFF_REHEARSAL_STEPS.length ||
+    seenComponents.size !== LIVE_HANDOFF_REHEARSAL_STEPS.length ||
+    manifest.manifest_status !==
+      (readyCount === LIVE_HANDOFF_REHEARSAL_STEPS.length
+        ? "ready_for_rehearsal"
+        : "attention")
+  ) {
+    throw new ContractError(`${context}: manifest count mismatch`);
+  }
+  assertBoundaryPolicy(
+    manifest.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_MANIFEST_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveHandoffRehearsalResultSummary({
+  results = [],
+  manifest = null,
+  resultTimestampMs = null,
+  freshnessCheckedAtMs = null,
+  maxResultAgeMs = 86_400_000,
+} = {}) {
+  const sourceResults =
+    Array.isArray(results) && results.length > 0
+      ? results
+      : manifest && Array.isArray(manifest.rehearsals)
+        ? manifest.rehearsals
+        : [];
+  const scriptNames = [];
+  let passCount = 0;
+  let failCount = 0;
+  let blockerCount = 0;
+  for (const result of sourceResults) {
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+      failCount += 1;
+      blockerCount += 1;
+      continue;
+    }
+    const status = safeGateDetailLabel(result.status);
+    if (status === "ready" || status === "pass" || status === "verified") {
+      passCount += 1;
+    } else {
+      failCount += 1;
+      blockerCount += 1;
+    }
+    if (typeof result.script_name === "string") {
+      assertSafeScriptName(result.script_name, "live handoff rehearsal result");
+      scriptNames.push(result.script_name);
+    }
+  }
+  const checkedAtMs = Number.isInteger(freshnessCheckedAtMs)
+    ? freshnessCheckedAtMs
+    : Date.now();
+  const timestampMs = Number.isInteger(resultTimestampMs)
+    ? resultTimestampMs
+    : checkedAtMs;
+  const maxAgeMs =
+    Number.isInteger(maxResultAgeMs) && maxResultAgeMs >= 0
+      ? maxResultAgeMs
+      : 86_400_000;
+  const freshnessStatus =
+    timestampMs > checkedAtMs
+      ? "future"
+      : checkedAtMs - timestampMs > maxAgeMs
+        ? "stale"
+        : "fresh";
+  if (freshnessStatus !== "fresh") {
+    failCount += 1;
+    blockerCount += 1;
+  }
+  const summary = {
+    schema: "iris_live_handoff_rehearsal_result_summary_v1",
+    result_status: failCount === 0 ? "pass" : "fail",
+    pass_count: passCount,
+    fail_count: failCount,
+    blocker_count: blockerCount,
+    result_timestamp_ms: timestampMs,
+    freshness_checked_at_ms: checkedAtMs,
+    freshness_status: freshnessStatus,
+    fresh_readiness_allowed: freshnessStatus === "fresh" && failCount === 0,
+    script_names: [...new Set(scriptNames)],
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_RESULT_SUMMARY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalResultSummarySafe(summary);
+  return summary;
+}
+
+export function assertLiveHandoffRehearsalResultSummarySafe(
+  summary,
+  context = "live handoff rehearsal result summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!LIVE_HANDOFF_REHEARSAL_RESULT_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_live_handoff_rehearsal_result_summary_v1" ||
+    !["pass", "fail"].includes(summary.result_status) ||
+    !Number.isInteger(summary.pass_count) ||
+    !Number.isInteger(summary.fail_count) ||
+    !Number.isInteger(summary.blocker_count) ||
+    !Number.isInteger(summary.result_timestamp_ms) ||
+    !Number.isInteger(summary.freshness_checked_at_ms) ||
+    summary.pass_count < 0 ||
+    summary.fail_count < 0 ||
+    summary.blocker_count < 0 ||
+    summary.blocker_count !== summary.fail_count ||
+    !["fresh", "stale", "future"].includes(summary.freshness_status) ||
+    (summary.freshness_status === "fresh" &&
+      summary.result_timestamp_ms > summary.freshness_checked_at_ms) ||
+    (summary.freshness_status === "future" &&
+      summary.result_timestamp_ms <= summary.freshness_checked_at_ms) ||
+    (summary.freshness_status !== "fresh" &&
+      summary.fresh_readiness_allowed !== false) ||
+    summary.fresh_readiness_allowed !==
+      (summary.freshness_status === "fresh" && summary.fail_count === 0) ||
+    summary.result_status !== (summary.fail_count === 0 ? "pass" : "fail") ||
+    !Array.isArray(summary.script_names) ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  for (const scriptName of summary.script_names) {
+    assertSafeScriptName(scriptName, context);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_RESULT_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveHandoffRehearsalOwnerConfirmationMock({
+  confirmed = true,
+} = {}) {
+  const mock = {
+    schema: "iris_live_handoff_rehearsal_owner_confirmation_mock_v1",
+    confirmation_status: confirmed === true ? "test_only_confirmed" : "test_only_pending",
+    test_only: true,
+    real_confirmation: false,
+    production_go_allowed: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_OWNER_CONFIRMATION_MOCK_BOUNDARY_FIELDS].map(
+        (field) => [field, true]
+      )
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalOwnerConfirmationMockSafe(mock);
+  return mock;
+}
+
+export function assertLiveHandoffRehearsalOwnerConfirmationMockSafe(
+  mock,
+  context = "live handoff rehearsal owner confirmation mock"
+) {
+  if (!mock || typeof mock !== "object" || Array.isArray(mock)) {
+    throw new ContractError(`${context}: mock required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(mock, context);
+  for (const field of Object.keys(mock)) {
+    if (!LIVE_HANDOFF_REHEARSAL_OWNER_CONFIRMATION_MOCK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected mock field`);
+    }
+  }
+  if (
+    mock.schema !== "iris_live_handoff_rehearsal_owner_confirmation_mock_v1" ||
+    !["test_only_confirmed", "test_only_pending"].includes(
+      mock.confirmation_status
+    ) ||
+    mock.test_only !== true ||
+    mock.real_confirmation !== false ||
+    mock.production_go_allowed !== false ||
+    mock.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid mock`);
+  }
+  assertBoundaryPolicy(
+    mock.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_OWNER_CONFIRMATION_MOCK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveHandoffRehearsalEmergencyStopMock({
+  confirmed = true,
+} = {}) {
+  const mock = {
+    schema: "iris_live_handoff_rehearsal_emergency_stop_mock_v1",
+    emergency_stop_status:
+      confirmed === true ? "test_only_confirmed" : "test_only_missing",
+    test_only: true,
+    real_emergency_stop_evidence: false,
+    production_go_allowed: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_EMERGENCY_STOP_MOCK_BOUNDARY_FIELDS].map(
+        (field) => [field, true]
+      )
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalEmergencyStopMockSafe(mock);
+  return mock;
+}
+
+export function assertLiveHandoffRehearsalEmergencyStopMockSafe(
+  mock,
+  context = "live handoff rehearsal emergency stop mock"
+) {
+  if (!mock || typeof mock !== "object" || Array.isArray(mock)) {
+    throw new ContractError(`${context}: mock required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(mock, context);
+  for (const field of Object.keys(mock)) {
+    if (!LIVE_HANDOFF_REHEARSAL_EMERGENCY_STOP_MOCK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected mock field`);
+    }
+  }
+  if (
+    mock.schema !== "iris_live_handoff_rehearsal_emergency_stop_mock_v1" ||
+    !["test_only_confirmed", "test_only_missing"].includes(
+      mock.emergency_stop_status
+    ) ||
+    mock.test_only !== true ||
+    mock.real_emergency_stop_evidence !== false ||
+    mock.production_go_allowed !== false ||
+    mock.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid mock`);
+  }
+  assertBoundaryPolicy(
+    mock.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_EMERGENCY_STOP_MOCK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+function liveHandoffRehearsalFixture({
+  fixtureLabel,
+  expectedStatus,
+  ownerConfirmationMock = createLiveHandoffRehearsalOwnerConfirmationMock(),
+  emergencyStopMock = createLiveHandoffRehearsalEmergencyStopMock(),
+  resultSummary = createLiveHandoffRehearsalResultSummary(),
+  mockEvidenceTestOnly = true,
+  packetBodyRejected = false,
+}) {
+  const fixture = {
+    schema: "iris_live_handoff_rehearsal_fixture_v1",
+    fixture_label: fixtureLabel,
+    expected_status: expectedStatus,
+    owner_confirmation_mock: ownerConfirmationMock,
+    emergency_stop_mock: emergencyStopMock,
+    result_summary: resultSummary,
+    mock_evidence_test_only: mockEvidenceTestOnly === true,
+    packet_body_rejected: packetBodyRejected === true,
+  };
+  assertLiveHandoffRehearsalFixtureSafe(fixture);
+  return fixture;
+}
+
+function assertLiveHandoffRehearsalFixtureSafe(
+  fixture,
+  context = "live handoff rehearsal fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(fixture, context);
+  for (const field of Object.keys(fixture)) {
+    if (!LIVE_HANDOFF_REHEARSAL_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.schema !== "iris_live_handoff_rehearsal_fixture_v1" ||
+    ![
+      "test_only_confirmation",
+      "test_only_emergency",
+      "mock_evidence",
+      "stale_result",
+      "packet_body_leak",
+    ].includes(fixture.fixture_label) ||
+    !["pass", "fail", "rejected"].includes(fixture.expected_status) ||
+    fixture.mock_evidence_test_only !== true ||
+    typeof fixture.packet_body_rejected !== "boolean"
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  assertLiveHandoffRehearsalOwnerConfirmationMockSafe(
+    fixture.owner_confirmation_mock,
+    `${context}: owner confirmation mock`
+  );
+  assertLiveHandoffRehearsalEmergencyStopMockSafe(
+    fixture.emergency_stop_mock,
+    `${context}: emergency stop mock`
+  );
+  assertLiveHandoffRehearsalResultSummarySafe(
+    fixture.result_summary,
+    `${context}: result summary`
+  );
+  if (
+    (fixture.fixture_label === "test_only_confirmation" &&
+      (fixture.expected_status !== "fail" ||
+        fixture.owner_confirmation_mock.real_confirmation !== false ||
+        fixture.owner_confirmation_mock.production_go_allowed !== false)) ||
+    (fixture.fixture_label === "test_only_emergency" &&
+      (fixture.expected_status !== "fail" ||
+        fixture.emergency_stop_mock.real_emergency_stop_evidence !== false ||
+        fixture.emergency_stop_mock.production_go_allowed !== false)) ||
+    (fixture.fixture_label === "mock_evidence" &&
+      (fixture.expected_status !== "fail" ||
+        fixture.mock_evidence_test_only !== true)) ||
+    (fixture.fixture_label === "stale_result" &&
+      (fixture.expected_status !== "fail" ||
+        fixture.result_summary.fresh_readiness_allowed !== false ||
+        fixture.result_summary.freshness_status !== "stale")) ||
+    (fixture.fixture_label === "packet_body_leak" &&
+      (fixture.expected_status !== "rejected" ||
+        fixture.packet_body_rejected !== true))
+  ) {
+    throw new ContractError(`${context}: fixture expectation mismatch`);
+  }
+}
+
+export function createLiveHandoffRehearsalFixturePack() {
+  const staleSummary = createLiveHandoffRehearsalResultSummary({
+    results: [{ status: "pass", script_name: "npm run dev:production:live-readiness" }],
+    resultTimestampMs: 1,
+    freshnessCheckedAtMs: 1000,
+    maxResultAgeMs: 10,
+  });
+  const fixtures = [
+    liveHandoffRehearsalFixture({
+      fixtureLabel: "test_only_confirmation",
+      expectedStatus: "fail",
+    }),
+    liveHandoffRehearsalFixture({
+      fixtureLabel: "test_only_emergency",
+      expectedStatus: "fail",
+    }),
+    liveHandoffRehearsalFixture({
+      fixtureLabel: "mock_evidence",
+      expectedStatus: "fail",
+    }),
+    liveHandoffRehearsalFixture({
+      fixtureLabel: "stale_result",
+      expectedStatus: "fail",
+      resultSummary: staleSummary,
+    }),
+    liveHandoffRehearsalFixture({
+      fixtureLabel: "packet_body_leak",
+      expectedStatus: "rejected",
+      packetBodyRejected: true,
+    }),
+  ];
+  const pack = {
+    schema: "iris_live_handoff_rehearsal_fixture_pack_v1",
+    pack_status: "pass",
+    fixture_count: fixtures.length,
+    fixtures,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_FIXTURE_PACK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalFixturePackSafe(pack);
+  return pack;
+}
+
+export function assertLiveHandoffRehearsalFixturePackSafe(
+  pack,
+  context = "live handoff rehearsal fixture pack"
+) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    throw new ContractError(`${context}: pack required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(pack, context);
+  for (const field of Object.keys(pack)) {
+    if (!LIVE_HANDOFF_REHEARSAL_FIXTURE_PACK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected pack field`);
+    }
+  }
+  if (
+    pack.schema !== "iris_live_handoff_rehearsal_fixture_pack_v1" ||
+    pack.pack_status !== "pass" ||
+    !Array.isArray(pack.fixtures) ||
+    pack.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid pack`);
+  }
+  const requiredLabels = new Set([
+    "test_only_confirmation",
+    "test_only_emergency",
+    "mock_evidence",
+    "stale_result",
+    "packet_body_leak",
+  ]);
+  for (const fixture of pack.fixtures) {
+    assertLiveHandoffRehearsalFixtureSafe(fixture, context);
+    requiredLabels.delete(fixture.fixture_label);
+  }
+  if (requiredLabels.size !== 0 || pack.fixture_count !== pack.fixtures.length) {
+    throw new ContractError(`${context}: fixture coverage mismatch`);
+  }
+  assertBoundaryPolicy(
+    pack.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_FIXTURE_PACK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveHandoffRehearsalSafeNextAction({
+  resultSummary = createLiveHandoffRehearsalResultSummary(),
+  blockerLabel = "mock_evidence",
+} = {}) {
+  assertLiveHandoffRehearsalResultSummarySafe(
+    resultSummary,
+    "live handoff rehearsal safe next action result summary"
+  );
+  const safeBlocker = [
+    "test_only_confirmation",
+    "test_only_emergency",
+    "mock_evidence",
+    "stale_result",
+    "packet_body_leak",
+  ].includes(safeGateDetailLabel(blockerLabel))
+    ? safeGateDetailLabel(blockerLabel)
+    : "mock_evidence";
+  const scriptLabelByBlocker = {
+    test_only_confirmation: "review_owner_confirmation_mock",
+    test_only_emergency: "review_emergency_stop_mock",
+    mock_evidence: "review_rehearsal_fixture",
+    stale_result: "rerun_rehearsal_fixture",
+    packet_body_leak: "inspect_safe_rehearsal_fixture",
+  };
+  const action = {
+    schema: "iris_live_handoff_rehearsal_safe_next_action_v1",
+    action_status: resultSummary.result_status === "pass" ? "none" : "required",
+    next_action_label:
+      resultSummary.result_status === "pass" ? "none" : `handle_${safeBlocker}`,
+    script_label:
+      resultSummary.result_status === "pass"
+        ? "none"
+        : scriptLabelByBlocker[safeBlocker],
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_SAFE_NEXT_ACTION_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalSafeNextActionSafe(action);
+  return action;
+}
+
+export function assertLiveHandoffRehearsalSafeNextActionSafe(
+  action,
+  context = "live handoff rehearsal safe next action"
+) {
+  if (!action || typeof action !== "object" || Array.isArray(action)) {
+    throw new ContractError(`${context}: action required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(action, context);
+  for (const field of Object.keys(action)) {
+    if (!LIVE_HANDOFF_REHEARSAL_SAFE_NEXT_ACTION_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected action field`);
+    }
+  }
+  if (
+    action.schema !== "iris_live_handoff_rehearsal_safe_next_action_v1" ||
+    !["none", "required"].includes(action.action_status) ||
+    typeof action.next_action_label !== "string" ||
+    typeof action.script_label !== "string" ||
+    action.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid action`);
+  }
+  if (action.action_status === "none") {
+    if (action.next_action_label !== "none" || action.script_label !== "none") {
+      throw new ContractError(`${context}: none action mismatch`);
+    }
+  } else if (
+    ![
+      "handle_test_only_confirmation",
+      "handle_test_only_emergency",
+      "handle_mock_evidence",
+      "handle_stale_result",
+      "handle_packet_body_leak",
+    ].includes(action.next_action_label) ||
+    ![
+      "review_owner_confirmation_mock",
+      "review_emergency_stop_mock",
+      "review_rehearsal_fixture",
+      "rerun_rehearsal_fixture",
+      "inspect_safe_rehearsal_fixture",
+    ].includes(action.script_label)
+  ) {
+    throw new ContractError(`${context}: invalid safe label`);
+  }
+  assertBoundaryPolicy(
+    action.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_SAFE_NEXT_ACTION_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveHandoffRehearsalAdminSummary({
+  resultSummary = createLiveHandoffRehearsalResultSummary(),
+  fixturePack = null,
+} = {}) {
+  assertLiveHandoffRehearsalResultSummarySafe(
+    resultSummary,
+    "live handoff rehearsal admin summary result summary"
+  );
+  const fixtureCount =
+    fixturePack && Number.isInteger(fixturePack.fixture_count)
+      ? fixturePack.fixture_count
+      : 0;
+  if (fixturePack !== null) {
+    assertLiveHandoffRehearsalFixturePackSafe(
+      fixturePack,
+      "live handoff rehearsal admin summary fixture pack"
+    );
+  }
+  const summary = {
+    schema: "iris_live_handoff_rehearsal_admin_summary_v1",
+    summary_status: resultSummary.result_status === "pass" ? "pass" : "attention",
+    result_status: resultSummary.result_status,
+    pass_count: resultSummary.pass_count,
+    fail_count: resultSummary.fail_count,
+    blocker_count: resultSummary.blocker_count,
+    fixture_count: fixtureCount,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_ADMIN_SUMMARY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalAdminSummarySafe(summary);
+  return summary;
+}
+
+export function assertLiveHandoffRehearsalAdminSummarySafe(
+  summary,
+  context = "live handoff rehearsal admin summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!LIVE_HANDOFF_REHEARSAL_ADMIN_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_live_handoff_rehearsal_admin_summary_v1" ||
+    !["pass", "attention"].includes(summary.summary_status) ||
+    !["pass", "fail"].includes(summary.result_status) ||
+    !Number.isInteger(summary.pass_count) ||
+    !Number.isInteger(summary.fail_count) ||
+    !Number.isInteger(summary.blocker_count) ||
+    !Number.isInteger(summary.fixture_count) ||
+    summary.pass_count < 0 ||
+    summary.fail_count < 0 ||
+    summary.blocker_count < 0 ||
+    summary.fixture_count < 0 ||
+    summary.blocker_count !== summary.fail_count ||
+    summary.summary_status !== (summary.result_status === "pass" ? "pass" : "attention") ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_ADMIN_SUMMARY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveHandoffRehearsalCompletionHook({
+  adminSummary = createLiveHandoffRehearsalAdminSummary(),
+} = {}) {
+  assertLiveHandoffRehearsalAdminSummarySafe(
+    adminSummary,
+    "live handoff rehearsal completion hook admin summary"
+  );
+  const hook = {
+    schema: "iris_live_handoff_rehearsal_completion_hook_v1",
+    review_status:
+      adminSummary.result_status === "pass"
+        ? "rehearsal_completion_review_ready"
+        : "rehearsal_completion_review_required",
+    completion_review_label: "live_handoff_rehearsal_completion_review",
+    rehearsal_result_status: adminSummary.result_status,
+    rehearsal_blocker_count: adminSummary.blocker_count,
+    real_ready_status: "not_real_ready",
+    real_ready_allowed: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_HANDOFF_REHEARSAL_COMPLETION_HOOK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveHandoffRehearsalCompletionHookSafe(hook);
+  return hook;
+}
+
+export function assertLiveHandoffRehearsalCompletionHookSafe(
+  hook,
+  context = "live handoff rehearsal completion hook"
+) {
+  if (!hook || typeof hook !== "object" || Array.isArray(hook)) {
+    throw new ContractError(`${context}: hook required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(hook, context);
+  for (const field of Object.keys(hook)) {
+    if (!LIVE_HANDOFF_REHEARSAL_COMPLETION_HOOK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected hook field`);
+    }
+  }
+  if (
+    hook.schema !== "iris_live_handoff_rehearsal_completion_hook_v1" ||
+    ![
+      "rehearsal_completion_review_ready",
+      "rehearsal_completion_review_required",
+    ].includes(hook.review_status) ||
+    hook.completion_review_label !==
+      "live_handoff_rehearsal_completion_review" ||
+    !["pass", "fail"].includes(hook.rehearsal_result_status) ||
+    !Number.isInteger(hook.rehearsal_blocker_count) ||
+    hook.rehearsal_blocker_count < 0 ||
+    hook.real_ready_status !== "not_real_ready" ||
+    hook.real_ready_allowed !== false ||
+    hook.review_status !==
+      (hook.rehearsal_result_status === "pass"
+        ? "rehearsal_completion_review_ready"
+        : "rehearsal_completion_review_required") ||
+    hook.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid hook`);
+  }
+  assertBoundaryPolicy(
+    hook.boundary_policy,
+    LIVE_HANDOFF_REHEARSAL_COMPLETION_HOOK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+const LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS = Object.freeze([
+  "unresolved_blocker",
+  "owner_approval",
+  "emergency_stop",
+  "rollback_plan",
+  "audit_trail",
+]);
+
+function liveDeploymentReadinessPreflightItem(itemLabel, status) {
+  const safeLabel = safeGateDetailLabel(itemLabel);
+  const safeStatus = ["verified", "ready", "confirmed", "pass"].includes(
+    safeGateDetailLabel(status)
+  )
+    ? "verified"
+    : "blocked";
+  const item = {
+    schema: "iris_live_deployment_readiness_preflight_item_v1",
+    item_label: LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS.includes(safeLabel)
+      ? safeLabel
+      : "unresolved_blocker",
+    status: safeStatus,
+    required: true,
+  };
+  assertLiveDeploymentReadinessPreflightItemSafe(item);
+  return item;
+}
+
+function assertLiveDeploymentReadinessPreflightItemSafe(
+  item,
+  context = "live deployment readiness preflight item"
+) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    throw new ContractError(`${context}: item required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(item, context);
+  for (const field of Object.keys(item)) {
+    if (!LIVE_DEPLOYMENT_READINESS_PREFLIGHT_ITEM_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected item field`);
+    }
+  }
+  if (
+    item.schema !== "iris_live_deployment_readiness_preflight_item_v1" ||
+    !LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS.includes(item.item_label) ||
+    !["verified", "blocked"].includes(item.status) ||
+    item.required !== true
+  ) {
+    throw new ContractError(`${context}: invalid item`);
+  }
+}
+
+export function createLiveDeploymentReadinessManifest({ preflightStatuses = {} } = {}) {
+  const preflightItems = LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS.map((label) =>
+    liveDeploymentReadinessPreflightItem(label, preflightStatuses[label])
+  );
+  const verifiedCount = preflightItems.filter(
+    (item) => item.status === "verified"
+  ).length;
+  const blockerCount = preflightItems.length - verifiedCount;
+  const manifest = {
+    schema: "iris_live_deployment_readiness_manifest_v1",
+    manifest_status: blockerCount === 0 ? "verified" : "BLOCKED",
+    deployment_ready: blockerCount === 0,
+    preflight_count: preflightItems.length,
+    verified_count: verifiedCount,
+    blocker_count: blockerCount,
+    preflight_items: preflightItems,
+    real_residency_required: false,
+    real_external_operation_performed: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_READINESS_MANIFEST_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentReadinessManifestSafe(manifest);
+  return manifest;
+}
+
+export function assertLiveDeploymentReadinessManifestSafe(
+  manifest,
+  context = "live deployment readiness manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(manifest, context);
+  for (const field of Object.keys(manifest)) {
+    if (!LIVE_DEPLOYMENT_READINESS_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected manifest field`);
+    }
+  }
+  if (
+    manifest.schema !== "iris_live_deployment_readiness_manifest_v1" ||
+    !["BLOCKED", "verified"].includes(manifest.manifest_status) ||
+    typeof manifest.deployment_ready !== "boolean" ||
+    !Number.isInteger(manifest.preflight_count) ||
+    !Number.isInteger(manifest.verified_count) ||
+    !Number.isInteger(manifest.blocker_count) ||
+    !Array.isArray(manifest.preflight_items) ||
+    manifest.real_residency_required !== false ||
+    manifest.real_external_operation_performed !== false ||
+    manifest.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid manifest`);
+  }
+  let verifiedCount = 0;
+  const requiredLabels = new Set(LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS);
+  for (const item of manifest.preflight_items) {
+    assertLiveDeploymentReadinessPreflightItemSafe(item, context);
+    requiredLabels.delete(item.item_label);
+    if (item.status === "verified") verifiedCount += 1;
+  }
+  const blockerCount = manifest.preflight_items.length - verifiedCount;
+  if (
+    requiredLabels.size !== 0 ||
+    manifest.preflight_count !== LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS.length ||
+    manifest.preflight_items.length !==
+      LIVE_DEPLOYMENT_READINESS_PREFLIGHT_LABELS.length ||
+    manifest.verified_count !== verifiedCount ||
+    manifest.blocker_count !== blockerCount ||
+    manifest.deployment_ready !== (blockerCount === 0) ||
+    manifest.manifest_status !== (blockerCount === 0 ? "verified" : "BLOCKED")
+  ) {
+    throw new ContractError(`${context}: manifest count mismatch`);
+  }
+  assertBoundaryPolicy(
+    manifest.boundary_policy,
+    LIVE_DEPLOYMENT_READINESS_MANIFEST_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveDeploymentDecisionAuditEntry({
+  actorRole = "operator",
+  resultStatus = "blocked",
+  eventAtMs = 0,
+} = {}) {
+  const safeRole = safeGateDetailLabel(actorRole);
+  const safeResult = safeGateDetailLabel(resultStatus) === "ready" ? "ready" : "blocked";
+  const entry = {
+    schema: "iris_live_deployment_decision_audit_entry_v1",
+    audit_status: "recorded",
+    actor_role: ["owner", "operator", "system"].includes(safeRole)
+      ? safeRole
+      : "operator",
+    safe_target_label: "live_deployment_decision",
+    result_status: safeResult,
+    event_at_ms: safeTimestampMs(eventAtMs),
+    payload_stored_in_audit: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_DECISION_AUDIT_ENTRY_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentDecisionAuditEntrySafe(entry);
+  return entry;
+}
+
+export function assertLiveDeploymentDecisionAuditEntrySafe(
+  entry,
+  context = "live deployment decision audit entry"
+) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new ContractError(`${context}: entry required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(entry, context);
+  for (const field of Object.keys(entry)) {
+    if (!LIVE_DEPLOYMENT_DECISION_AUDIT_ENTRY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected entry field`);
+    }
+  }
+  if (
+    entry.schema !== "iris_live_deployment_decision_audit_entry_v1" ||
+    entry.audit_status !== "recorded" ||
+    !["owner", "operator", "system"].includes(entry.actor_role) ||
+    entry.safe_target_label !== "live_deployment_decision" ||
+    !["ready", "blocked"].includes(entry.result_status) ||
+    !Number.isInteger(entry.event_at_ms) ||
+    entry.event_at_ms < 0 ||
+    entry.payload_stored_in_audit !== false ||
+    entry.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid entry`);
+  }
+  assertBoundaryPolicy(
+    entry.boundary_policy,
+    LIVE_DEPLOYMENT_DECISION_AUDIT_ENTRY_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveDeploymentDecision({
+  manifest = createLiveDeploymentReadinessManifest(),
+  auditEntry = null,
+} = {}) {
+  assertLiveDeploymentReadinessManifestSafe(
+    manifest,
+    "live deployment decision manifest"
+  );
+  const entry =
+    auditEntry ??
+    createLiveDeploymentDecisionAuditEntry({
+      resultStatus: manifest.deployment_ready ? "ready" : "blocked",
+    });
+  assertLiveDeploymentDecisionAuditEntrySafe(
+    entry,
+    "live deployment decision audit entry"
+  );
+  const deploymentReady =
+    manifest.deployment_ready === true && entry.result_status === "ready";
+  const decision = {
+    schema: "iris_live_deployment_decision_v1",
+    decision_status: deploymentReady ? "ready" : "blocked",
+    deployment_ready: deploymentReady,
+    audit_entry_required: true,
+    audit_entry: entry,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_DECISION_BOUNDARY_FIELDS].map((field) => [field, true])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentDecisionSafe(decision);
+  return decision;
+}
+
+export function assertLiveDeploymentDecisionSafe(
+  decision,
+  context = "live deployment decision"
+) {
+  if (!decision || typeof decision !== "object" || Array.isArray(decision)) {
+    throw new ContractError(`${context}: decision required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(decision, context);
+  for (const field of Object.keys(decision)) {
+    if (!LIVE_DEPLOYMENT_DECISION_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected decision field`);
+    }
+  }
+  assertLiveDeploymentDecisionAuditEntrySafe(decision.audit_entry, context);
+  const ready = decision.audit_entry.result_status === "ready";
+  if (
+    decision.schema !== "iris_live_deployment_decision_v1" ||
+    !["ready", "blocked"].includes(decision.decision_status) ||
+    typeof decision.deployment_ready !== "boolean" ||
+    decision.audit_entry_required !== true ||
+    decision.deployment_ready !== ready ||
+    decision.decision_status !== (ready ? "ready" : "blocked") ||
+    decision.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid decision`);
+  }
+  assertBoundaryPolicy(
+    decision.boundary_policy,
+    LIVE_DEPLOYMENT_DECISION_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveDeploymentSafeSummaryExport({
+  manifest = createLiveDeploymentReadinessManifest(),
+} = {}) {
+  assertLiveDeploymentReadinessManifestSafe(
+    manifest,
+    "live deployment safe summary export manifest"
+  );
+  const summary = {
+    schema: "iris_live_deployment_safe_summary_export_v1",
+    export_status: manifest.deployment_ready ? "ready" : "blocked",
+    deployment_ready: manifest.deployment_ready,
+    preflight_count: manifest.preflight_count,
+    verified_count: manifest.verified_count,
+    blocker_count: manifest.blocker_count,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_SAFE_SUMMARY_EXPORT_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentSafeSummaryExportSafe(summary);
+  return summary;
+}
+
+export function assertLiveDeploymentSafeSummaryExportSafe(
+  summary,
+  context = "live deployment safe summary export"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!LIVE_DEPLOYMENT_SAFE_SUMMARY_EXPORT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_live_deployment_safe_summary_export_v1" ||
+    !["ready", "blocked"].includes(summary.export_status) ||
+    typeof summary.deployment_ready !== "boolean" ||
+    !Number.isInteger(summary.preflight_count) ||
+    !Number.isInteger(summary.verified_count) ||
+    !Number.isInteger(summary.blocker_count) ||
+    summary.preflight_count < 0 ||
+    summary.verified_count < 0 ||
+    summary.blocker_count < 0 ||
+    summary.preflight_count !== summary.verified_count + summary.blocker_count ||
+    summary.deployment_ready !== (summary.blocker_count === 0) ||
+    summary.export_status !== (summary.deployment_ready ? "ready" : "blocked") ||
+    summary.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  assertBoundaryPolicy(
+    summary.boundary_policy,
+    LIVE_DEPLOYMENT_SAFE_SUMMARY_EXPORT_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveDeploymentDryRunResult({
+  manifest = createLiveDeploymentReadinessManifest(),
+} = {}) {
+  assertLiveDeploymentReadinessManifestSafe(
+    manifest,
+    "live deployment dry-run manifest"
+  );
+  const result = {
+    schema: "iris_live_deployment_dry_run_result_v1",
+    dry_run_status: manifest.deployment_ready ? "pass" : "blocked",
+    deployment_ready: false,
+    safe_prerequisite_count: manifest.preflight_count,
+    safe_prerequisite_pass_count: manifest.verified_count,
+    safe_prerequisite_blocker_count: manifest.blocker_count,
+    real_operation_performed: false,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_DRY_RUN_RESULT_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentDryRunResultSafe(result);
+  return result;
+}
+
+export function assertLiveDeploymentDryRunResultSafe(
+  result,
+  context = "live deployment dry-run result"
+) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    throw new ContractError(`${context}: result required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(result, context);
+  for (const field of Object.keys(result)) {
+    if (!LIVE_DEPLOYMENT_DRY_RUN_RESULT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected result field`);
+    }
+  }
+  if (
+    result.schema !== "iris_live_deployment_dry_run_result_v1" ||
+    !["pass", "blocked"].includes(result.dry_run_status) ||
+    result.deployment_ready !== false ||
+    !Number.isInteger(result.safe_prerequisite_count) ||
+    !Number.isInteger(result.safe_prerequisite_pass_count) ||
+    !Number.isInteger(result.safe_prerequisite_blocker_count) ||
+    result.safe_prerequisite_count < 0 ||
+    result.safe_prerequisite_pass_count < 0 ||
+    result.safe_prerequisite_blocker_count < 0 ||
+    result.safe_prerequisite_count !==
+      result.safe_prerequisite_pass_count +
+        result.safe_prerequisite_blocker_count ||
+    result.dry_run_status !==
+      (result.safe_prerequisite_blocker_count === 0 ? "pass" : "blocked") ||
+    result.real_operation_performed !== false ||
+    result.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid result`);
+  }
+  assertBoundaryPolicy(
+    result.boundary_policy,
+    LIVE_DEPLOYMENT_DRY_RUN_RESULT_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+function liveDeploymentFixture({ fixtureLabel, expectedStatus, manifest, sensitiveValueRejected = false }) {
+  const fixture = {
+    schema: "iris_live_deployment_fixture_v1",
+    fixture_label: fixtureLabel,
+    expected_status: expectedStatus,
+    manifest,
+    safe_summary: createLiveDeploymentSafeSummaryExport({ manifest }),
+    sensitive_value_rejected: sensitiveValueRejected === true,
+  };
+  assertLiveDeploymentFixtureSafe(fixture);
+  return fixture;
+}
+
+function assertLiveDeploymentFixtureSafe(
+  fixture,
+  context = "live deployment fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(fixture, context);
+  for (const field of Object.keys(fixture)) {
+    if (!LIVE_DEPLOYMENT_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.schema !== "iris_live_deployment_fixture_v1" ||
+    ![
+      "owner_missing",
+      "emergency_missing",
+      "rollback_missing",
+      "audit_missing",
+      "sensitive_value_leak",
+    ].includes(fixture.fixture_label) ||
+    !["blocked", "rejected"].includes(fixture.expected_status) ||
+    typeof fixture.sensitive_value_rejected !== "boolean"
+  ) {
+    throw new ContractError(`${context}: invalid fixture`);
+  }
+  assertLiveDeploymentReadinessManifestSafe(fixture.manifest, context);
+  assertLiveDeploymentSafeSummaryExportSafe(fixture.safe_summary, context);
+  if (
+    fixture.safe_summary.deployment_ready !== false ||
+    fixture.safe_summary.blocker_count < 1 ||
+    (fixture.fixture_label === "owner_missing" &&
+      fixture.manifest.preflight_items.find((item) => item.item_label === "owner_approval")
+        ?.status !== "blocked") ||
+    (fixture.fixture_label === "emergency_missing" &&
+      fixture.manifest.preflight_items.find((item) => item.item_label === "emergency_stop")
+        ?.status !== "blocked") ||
+    (fixture.fixture_label === "rollback_missing" &&
+      fixture.manifest.preflight_items.find((item) => item.item_label === "rollback_plan")
+        ?.status !== "blocked") ||
+    (fixture.fixture_label === "audit_missing" &&
+      fixture.manifest.preflight_items.find((item) => item.item_label === "audit_trail")
+        ?.status !== "blocked") ||
+    (fixture.fixture_label === "sensitive_value_leak" &&
+      (fixture.expected_status !== "rejected" ||
+        fixture.sensitive_value_rejected !== true))
+  ) {
+    throw new ContractError(`${context}: fixture expectation mismatch`);
+  }
+}
+
+export function createLiveDeploymentFixturePack() {
+  const verified = {
+    unresolved_blocker: "verified",
+    owner_approval: "verified",
+    emergency_stop: "verified",
+    rollback_plan: "verified",
+    audit_trail: "verified",
+  };
+  const fixtures = [
+    liveDeploymentFixture({
+      fixtureLabel: "owner_missing",
+      expectedStatus: "blocked",
+      manifest: createLiveDeploymentReadinessManifest({
+        preflightStatuses: { ...verified, owner_approval: "blocked" },
+      }),
+    }),
+    liveDeploymentFixture({
+      fixtureLabel: "emergency_missing",
+      expectedStatus: "blocked",
+      manifest: createLiveDeploymentReadinessManifest({
+        preflightStatuses: { ...verified, emergency_stop: "blocked" },
+      }),
+    }),
+    liveDeploymentFixture({
+      fixtureLabel: "rollback_missing",
+      expectedStatus: "blocked",
+      manifest: createLiveDeploymentReadinessManifest({
+        preflightStatuses: { ...verified, rollback_plan: "blocked" },
+      }),
+    }),
+    liveDeploymentFixture({
+      fixtureLabel: "audit_missing",
+      expectedStatus: "blocked",
+      manifest: createLiveDeploymentReadinessManifest({
+        preflightStatuses: { ...verified, audit_trail: "blocked" },
+      }),
+    }),
+    liveDeploymentFixture({
+      fixtureLabel: "sensitive_value_leak",
+      expectedStatus: "rejected",
+      manifest: createLiveDeploymentReadinessManifest({
+        preflightStatuses: { ...verified, unresolved_blocker: "blocked" },
+      }),
+      sensitiveValueRejected: true,
+    }),
+  ];
+  const pack = {
+    schema: "iris_live_deployment_fixture_pack_v1",
+    pack_status: "pass",
+    fixture_count: fixtures.length,
+    fixtures,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_FIXTURE_PACK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentFixturePackSafe(pack);
+  return pack;
+}
+
+export function assertLiveDeploymentFixturePackSafe(
+  pack,
+  context = "live deployment fixture pack"
+) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    throw new ContractError(`${context}: pack required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(pack, context);
+  for (const field of Object.keys(pack)) {
+    if (!LIVE_DEPLOYMENT_FIXTURE_PACK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected pack field`);
+    }
+  }
+  if (
+    pack.schema !== "iris_live_deployment_fixture_pack_v1" ||
+    pack.pack_status !== "pass" ||
+    !Array.isArray(pack.fixtures) ||
+    pack.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid pack`);
+  }
+  const requiredLabels = new Set([
+    "owner_missing",
+    "emergency_missing",
+    "rollback_missing",
+    "audit_missing",
+    "sensitive_value_leak",
+  ]);
+  for (const fixture of pack.fixtures) {
+    assertLiveDeploymentFixtureSafe(fixture, context);
+    requiredLabels.delete(fixture.fixture_label);
+  }
+  if (requiredLabels.size !== 0 || pack.fixture_count !== pack.fixtures.length) {
+    throw new ContractError(`${context}: fixture coverage mismatch`);
+  }
+  assertBoundaryPolicy(
+    pack.boundary_policy,
+    LIVE_DEPLOYMENT_FIXTURE_PACK_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createLiveDeploymentCompletionHook({
+  safeSummary = createLiveDeploymentSafeSummaryExport(),
+  residualRiskLabels = [],
+} = {}) {
+  assertLiveDeploymentSafeSummaryExportSafe(
+    safeSummary,
+    "live deployment completion hook safe summary"
+  );
+  const labels = (Array.isArray(residualRiskLabels) ? residualRiskLabels : [])
+    .map((label) => safeGateDetailLabel(label))
+    .filter((label) =>
+      [
+        "unresolved_blocker",
+        "owner_approval",
+        "emergency_stop",
+        "rollback_plan",
+        "audit_trail",
+      ].includes(label)
+    );
+  if (!safeSummary.deployment_ready && labels.length === 0) {
+    labels.push("unresolved_blocker");
+  }
+  const uniqueLabels = [...new Set(labels)].sort();
+  const hook = {
+    schema: "iris_live_deployment_completion_hook_v1",
+    review_status: safeSummary.deployment_ready
+      ? "deployment_completion_review_ready"
+      : "deployment_completion_review_required",
+    completion_review_label: "live_deployment_completion_review",
+    deployment_ready: safeSummary.deployment_ready,
+    deployment_export_status: safeSummary.export_status,
+    safe_residual_risk_count: uniqueLabels.length,
+    safe_residual_risk_labels: uniqueLabels,
+    boundary_policy: Object.fromEntries(
+      [...LIVE_DEPLOYMENT_COMPLETION_HOOK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertLiveDeploymentCompletionHookSafe(hook);
+  return hook;
+}
+
+export function assertLiveDeploymentCompletionHookSafe(
+  hook,
+  context = "live deployment completion hook"
+) {
+  if (!hook || typeof hook !== "object" || Array.isArray(hook)) {
+    throw new ContractError(`${context}: hook required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(hook, context);
+  for (const field of Object.keys(hook)) {
+    if (!LIVE_DEPLOYMENT_COMPLETION_HOOK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected hook field`);
+    }
+  }
+  if (
+    hook.schema !== "iris_live_deployment_completion_hook_v1" ||
+    ![
+      "deployment_completion_review_ready",
+      "deployment_completion_review_required",
+    ].includes(hook.review_status) ||
+    hook.completion_review_label !== "live_deployment_completion_review" ||
+    typeof hook.deployment_ready !== "boolean" ||
+    !["ready", "blocked"].includes(hook.deployment_export_status) ||
+    !Number.isInteger(hook.safe_residual_risk_count) ||
+    hook.safe_residual_risk_count < 0 ||
+    !Array.isArray(hook.safe_residual_risk_labels) ||
+    hook.safe_residual_risk_count !== hook.safe_residual_risk_labels.length ||
+    hook.review_status !==
+      (hook.deployment_ready
+        ? "deployment_completion_review_ready"
+        : "deployment_completion_review_required") ||
+    hook.deployment_export_status !== (hook.deployment_ready ? "ready" : "blocked") ||
+    (hook.deployment_ready && hook.safe_residual_risk_count !== 0) ||
+    (!hook.deployment_ready && hook.safe_residual_risk_count < 1) ||
+    hook.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: invalid hook`);
+  }
+  for (const label of hook.safe_residual_risk_labels) {
+    if (
+      ![
+        "unresolved_blocker",
+        "owner_approval",
+        "emergency_stop",
+        "rollback_plan",
+        "audit_trail",
+      ].includes(label)
+    ) {
+      throw new ContractError(`${context}: invalid residual risk label`);
+    }
+  }
+  assertBoundaryPolicy(
+    hook.boundary_policy,
+    LIVE_DEPLOYMENT_COMPLETION_HOOK_BOUNDARY_FIELDS,
     `${context}: boundary policy`
   );
 }
@@ -10192,7 +13367,9 @@ export function assertLocalBridgeWorkerFixturePackSafe(
 
 export function createTtsLiveReadinessChecklist({
   engineHealthStatus = "missing",
+  engineHealthFreshness = "fresh",
   voiceSourceStatus = "placeholder",
+  voiceSourceFreshness = "fresh",
   licenseStatus = "operator_attention_required",
   placeholderPolicyStatus = "separated",
 } = {}) {
@@ -10202,8 +13379,16 @@ export function createTtsLiveReadinessChecklist({
       safeTtsLiveEngineHealthStatus(engineHealthStatus)
     ),
     ttsLiveReadinessCheck(
+      "engine_health_freshness",
+      safeTtsLiveFreshnessStatus(engineHealthFreshness)
+    ),
+    ttsLiveReadinessCheck(
       "voice_source",
       safeTtsLiveVoiceSourceStatus(voiceSourceStatus)
+    ),
+    ttsLiveReadinessCheck(
+      "voice_source_freshness",
+      safeTtsLiveFreshnessStatus(voiceSourceFreshness)
     ),
     ttsLiveReadinessCheck(
       "license_status",
@@ -10258,7 +13443,9 @@ export function assertTtsLiveReadinessChecklistSafe(
   }
   const requiredLabels = new Set([
     "engine_health",
+    "engine_health_freshness",
     "voice_source",
+    "voice_source_freshness",
     "license_status",
     "placeholder_policy",
   ]);
@@ -10391,8 +13578,11 @@ export function assertTtsLiveDryRunFixturePackSafe(
 
 export function createLive2dLiveReadinessChecklist({
   rendererHealthStatus = "missing",
+  rendererHeartbeatFreshness = "fresh",
   modelConfiguredStatus = "missing",
+  modelConfiguredFreshness = "fresh",
   cueCapabilityStatus = "unsupported",
+  cueCapabilityFreshness = "fresh",
   recoverySupportStatus = "missing",
 } = {}) {
   const checks = [
@@ -10401,12 +13591,24 @@ export function createLive2dLiveReadinessChecklist({
       safeLive2dLiveRendererHealthStatus(rendererHealthStatus)
     ),
     live2dLiveReadinessCheck(
+      "renderer_heartbeat_freshness",
+      safeLive2dLiveFreshnessStatus(rendererHeartbeatFreshness)
+    ),
+    live2dLiveReadinessCheck(
       "model_configured",
       safeLive2dLiveConfiguredStatus(modelConfiguredStatus)
     ),
     live2dLiveReadinessCheck(
+      "model_configured_freshness",
+      safeLive2dLiveFreshnessStatus(modelConfiguredFreshness)
+    ),
+    live2dLiveReadinessCheck(
       "cue_capability",
       safeLive2dLiveCapabilityStatus(cueCapabilityStatus)
+    ),
+    live2dLiveReadinessCheck(
+      "cue_capability_freshness",
+      safeLive2dLiveFreshnessStatus(cueCapabilityFreshness)
     ),
     live2dLiveReadinessCheck(
       "recovery_support",
@@ -10457,8 +13659,11 @@ export function assertLive2dLiveReadinessChecklistSafe(
   }
   const requiredLabels = new Set([
     "renderer_health",
+    "renderer_heartbeat_freshness",
     "model_configured",
+    "model_configured_freshness",
     "cue_capability",
+    "cue_capability_freshness",
     "recovery_support",
   ]);
   let readyCount = 0;
@@ -10601,8 +13806,11 @@ export function assertLive2dLiveFixturePackSafe(
 
 export function createSubtitleEngineLiveReadinessChecklist({
   engineStatus = "missing",
+  engineFreshness = "fresh",
   syncSourceStatus = "missing",
+  syncSourceFreshness = "fresh",
   safeAreaStatus = "missing",
+  safeAreaFreshness = "fresh",
   lineBreakStatus = "missing",
   rtlSupportStatus = "unsupported",
 } = {}) {
@@ -10612,12 +13820,24 @@ export function createSubtitleEngineLiveReadinessChecklist({
       safeSubtitleEngineLiveRequiredStatus(engineStatus)
     ),
     subtitleEngineLiveReadinessCheck(
+      "subtitle_engine_freshness",
+      safeSubtitleEngineLiveFreshnessStatus(engineFreshness)
+    ),
+    subtitleEngineLiveReadinessCheck(
       "sync_source",
       safeSubtitleEngineLiveRequiredStatus(syncSourceStatus)
     ),
     subtitleEngineLiveReadinessCheck(
+      "sync_source_freshness",
+      safeSubtitleEngineLiveFreshnessStatus(syncSourceFreshness)
+    ),
+    subtitleEngineLiveReadinessCheck(
       "safe_area",
       safeSubtitleEngineLiveRequiredStatus(safeAreaStatus)
+    ),
+    subtitleEngineLiveReadinessCheck(
+      "safe_area_freshness",
+      safeSubtitleEngineLiveFreshnessStatus(safeAreaFreshness)
     ),
     subtitleEngineLiveReadinessCheck(
       "line_break",
@@ -10671,8 +13891,11 @@ export function assertSubtitleEngineLiveReadinessChecklistSafe(
   }
   const requiredLabels = new Set([
     "subtitle_engine",
+    "subtitle_engine_freshness",
     "sync_source",
+    "sync_source_freshness",
     "safe_area",
+    "safe_area_freshness",
     "line_break",
     "rtl_support",
   ]);
@@ -11091,10 +14314,15 @@ export function assertObsLiveFixturePackSafe(
 
 export function createDbLiveReadinessChecklist({
   postgresConfiguredStatus = "missing",
+  connectionFreshness = "fresh",
   schemaStatus = "missing",
+  schemaFreshness = "fresh",
   indexStatus = "missing",
+  indexFreshness = "fresh",
   migrationStatus = "missing",
+  migrationFreshness = "fresh",
   backupStatus = "missing",
+  backupFreshness = "fresh",
   restoreRehearsalStatus = "missing",
 } = {}) {
   const checks = [
@@ -11102,10 +14330,27 @@ export function createDbLiveReadinessChecklist({
       "postgres_configured",
       safeDbLiveRequiredStatus(postgresConfiguredStatus)
     ),
+    dbLiveReadinessCheck(
+      "connection_freshness",
+      safeDbLiveFreshnessStatus(connectionFreshness)
+    ),
     dbLiveReadinessCheck("schema", safeDbLiveRequiredStatus(schemaStatus)),
+    dbLiveReadinessCheck(
+      "schema_freshness",
+      safeDbLiveFreshnessStatus(schemaFreshness)
+    ),
     dbLiveReadinessCheck("index", safeDbLiveRequiredStatus(indexStatus)),
+    dbLiveReadinessCheck("index_freshness", safeDbLiveFreshnessStatus(indexFreshness)),
     dbLiveReadinessCheck("migration", safeDbLiveRequiredStatus(migrationStatus)),
+    dbLiveReadinessCheck(
+      "migration_freshness",
+      safeDbLiveFreshnessStatus(migrationFreshness)
+    ),
     dbLiveReadinessCheck("backup", safeDbLiveRequiredStatus(backupStatus)),
+    dbLiveReadinessCheck(
+      "backup_freshness",
+      safeDbLiveFreshnessStatus(backupFreshness)
+    ),
     dbLiveReadinessCheck(
       "restore_rehearsal",
       safeDbLiveRequiredStatus(restoreRehearsalStatus)
@@ -11155,10 +14400,15 @@ export function assertDbLiveReadinessChecklistSafe(
   }
   const requiredLabels = new Set([
     "postgres_configured",
+    "connection_freshness",
     "schema",
+    "schema_freshness",
     "index",
+    "index_freshness",
     "migration",
+    "migration_freshness",
     "backup",
+    "backup_freshness",
     "restore_rehearsal",
   ]);
   let readyCount = 0;
@@ -11308,14 +14558,22 @@ export function assertDbLiveFixturePackSafe(
 
 export function createYoutubeLiveReadinessChecklist({
   oauthStatus = "missing",
+  oauthFreshnessStatus = "fresh",
   tokenFreshnessStatus = "missing",
   liveChatIdStatus = "missing",
   pollingStatus = "missing",
+  pollingFreshnessStatus = "fresh",
   dedupeStatus = "missing",
+  dedupeFreshnessStatus = "fresh",
   moderationStatus = "missing",
+  moderationFreshnessStatus = "fresh",
 } = {}) {
   const checks = [
     youtubeLiveReadinessCheck("oauth", safeYoutubeLiveRequiredStatus(oauthStatus)),
+    youtubeLiveReadinessCheck(
+      "oauth_freshness",
+      safeYoutubeLiveFreshnessStatus(oauthFreshnessStatus)
+    ),
     youtubeLiveReadinessCheck(
       "token_freshness",
       safeYoutubeLiveFreshnessStatus(tokenFreshnessStatus)
@@ -11329,12 +14587,24 @@ export function createYoutubeLiveReadinessChecklist({
       safeYoutubeLiveRequiredStatus(pollingStatus)
     ),
     youtubeLiveReadinessCheck(
+      "polling_freshness",
+      safeYoutubeLiveFreshnessStatus(pollingFreshnessStatus)
+    ),
+    youtubeLiveReadinessCheck(
       "dedupe",
       safeYoutubeLiveRequiredStatus(dedupeStatus)
     ),
     youtubeLiveReadinessCheck(
+      "dedupe_freshness",
+      safeYoutubeLiveFreshnessStatus(dedupeFreshnessStatus)
+    ),
+    youtubeLiveReadinessCheck(
       "moderation",
       safeYoutubeLiveRequiredStatus(moderationStatus)
+    ),
+    youtubeLiveReadinessCheck(
+      "moderation_freshness",
+      safeYoutubeLiveFreshnessStatus(moderationFreshnessStatus)
     ),
   ];
   const readyCheckCount = checks.filter((check) => check.ready_allowed).length;
@@ -11381,11 +14651,15 @@ export function assertYoutubeLiveReadinessChecklistSafe(
   }
   const requiredLabels = new Set([
     "oauth",
+    "oauth_freshness",
     "token_freshness",
     "live_chat_id",
     "polling",
+    "polling_freshness",
     "dedupe",
+    "dedupe_freshness",
     "moderation",
+    "moderation_freshness",
   ]);
   let readyCount = 0;
   for (const check of checklist.checks) {
@@ -11524,11 +14798,16 @@ export function assertYoutubeLiveFixturePackSafe(
 
 export function createGameLiveReadinessChecklist({
   gameAdapterStatus = "missing",
+  gameAdapterFreshness = "fresh",
   safeActionMapStatus = "missing",
+  safeActionMapFreshness = "fresh",
   manualApprovalStatus = "missing",
+  manualApprovalFreshness = "fresh",
   emergencyStopStatus = "missing",
+  emergencyStopFreshness = "fresh",
   cooldownStatus = "missing",
   auditReadinessStatus = "missing",
+  auditFreshness = "fresh",
 } = {}) {
   const checks = [
     gameLiveReadinessCheck(
@@ -11536,21 +14815,41 @@ export function createGameLiveReadinessChecklist({
       safeGameLiveRequiredStatus(gameAdapterStatus)
     ),
     gameLiveReadinessCheck(
+      "game_adapter_freshness",
+      safeGameLiveFreshnessStatus(gameAdapterFreshness)
+    ),
+    gameLiveReadinessCheck(
       "safe_action_map",
       safeGameLiveRequiredStatus(safeActionMapStatus)
+    ),
+    gameLiveReadinessCheck(
+      "safe_action_map_freshness",
+      safeGameLiveFreshnessStatus(safeActionMapFreshness)
     ),
     gameLiveReadinessCheck(
       "manual_approval",
       safeGameLiveRequiredStatus(manualApprovalStatus)
     ),
     gameLiveReadinessCheck(
+      "manual_approval_freshness",
+      safeGameLiveFreshnessStatus(manualApprovalFreshness)
+    ),
+    gameLiveReadinessCheck(
       "emergency_stop",
       safeGameLiveRequiredStatus(emergencyStopStatus)
+    ),
+    gameLiveReadinessCheck(
+      "emergency_stop_freshness",
+      safeGameLiveFreshnessStatus(emergencyStopFreshness)
     ),
     gameLiveReadinessCheck("cooldown", safeGameLiveRequiredStatus(cooldownStatus)),
     gameLiveReadinessCheck(
       "audit_readiness",
       safeGameLiveRequiredStatus(auditReadinessStatus)
+    ),
+    gameLiveReadinessCheck(
+      "audit_freshness",
+      safeGameLiveFreshnessStatus(auditFreshness)
     ),
   ];
   const readyCheckCount = checks.filter((check) => check.ready_allowed).length;
@@ -11597,11 +14896,16 @@ export function assertGameLiveReadinessChecklistSafe(
   }
   const requiredLabels = new Set([
     "game_adapter",
+    "game_adapter_freshness",
     "safe_action_map",
+    "safe_action_map_freshness",
     "manual_approval",
+    "manual_approval_freshness",
     "emergency_stop",
+    "emergency_stop_freshness",
     "cooldown",
     "audit_readiness",
+    "audit_freshness",
   ]);
   let readyCount = 0;
   for (const check of checklist.checks) {
@@ -11750,9 +15054,24 @@ export function assertGameLiveFixturePackSafe(
 
 export function createLiveProductionGoNoGoClassifier({
   componentStatuses = {},
+  freshEvidenceReady = false,
   ownerConfirmed = false,
+  emergencyStopConfirmed = false,
+  auditReadinessReady = false,
   auditEntry = null,
+  goResultScope = "real",
+  ownerConfirmationCheckedAtMs = 0,
+  ownerConfirmationExpiresAtMs = null,
 } = {}) {
+  const safeGoResultScope = goResultScope === "dry_run" ? "dry_run" : "real";
+  const safeOwnerConfirmationCheckedAtMs =
+    Number.isInteger(ownerConfirmationCheckedAtMs) && ownerConfirmationCheckedAtMs >= 0
+      ? ownerConfirmationCheckedAtMs
+      : 0;
+  const safeOwnerConfirmationExpiresAtMs =
+    Number.isInteger(ownerConfirmationExpiresAtMs) && ownerConfirmationExpiresAtMs >= 0
+      ? ownerConfirmationExpiresAtMs
+      : null;
   const components = [
     "bridge",
     "tts",
@@ -11774,8 +15093,24 @@ export function createLiveProductionGoNoGoClassifier({
   const blockerCount = components.filter(
     (component) => component.blocker_present
   ).length;
+  const ownerConfirmationExpired =
+    ownerConfirmed === true &&
+    safeOwnerConfirmationExpiresAtMs !== null &&
+    safeOwnerConfirmationExpiresAtMs <= safeOwnerConfirmationCheckedAtMs;
   const ownerConfirmationStatus =
-    ownerConfirmed === true ? "owner_confirmed" : "owner_confirmation_required";
+    ownerConfirmed !== true
+      ? "owner_confirmation_required"
+      : ownerConfirmationExpired
+        ? "owner_confirmation_expired"
+        : "owner_confirmed";
+  const freshEvidenceStatus =
+    freshEvidenceReady === true ? "fresh_evidence_ready" : "fresh_evidence_required";
+  const emergencyStopStatus =
+    emergencyStopConfirmed === true
+      ? "emergency_stop_confirmed"
+      : "emergency_stop_required";
+  const auditReadinessStatus =
+    auditReadinessReady === true ? "audit_readiness_ready" : "audit_readiness_required";
   const hasAuditEntry = auditEntry !== null && auditEntry !== undefined;
   if (hasAuditEntry) {
     assertEmergencyStopSafeAuditEntrySafe(
@@ -11784,11 +15119,31 @@ export function createLiveProductionGoNoGoClassifier({
       "live production go/no-go audit entry"
     );
   }
-  const productionGoAllowed =
+  const dryRunGoAllowed =
     readyCount === components.length &&
     blockerCount === 0 &&
+    freshEvidenceStatus === "fresh_evidence_ready" &&
     ownerConfirmationStatus === "owner_confirmed" &&
+    emergencyStopStatus === "emergency_stop_confirmed" &&
+    auditReadinessStatus === "audit_readiness_ready" &&
     hasAuditEntry;
+  const productionGoAllowed =
+    safeGoResultScope === "real" && dryRunGoAllowed;
+  const degradedModeAvailable =
+    components.some((component) => component.status === "degraded") &&
+    freshEvidenceStatus === "fresh_evidence_ready" &&
+    ownerConfirmationStatus === "owner_confirmed" &&
+    emergencyStopStatus === "emergency_stop_confirmed" &&
+    auditReadinessStatus === "audit_readiness_ready" &&
+    hasAuditEntry;
+  const blockedReasonLabels = liveProductionGoNoGoBlockedReasonLabels({
+    blockerCount,
+    freshEvidenceStatus,
+    ownerConfirmationStatus,
+    emergencyStopStatus,
+    auditReadinessStatus,
+    hasAuditEntry,
+  });
   const classifier = {
     schema: "iris_live_production_go_no_go_classifier_v1",
     classifier_status: productionGoAllowed ? "go" : "no_go",
@@ -11796,12 +15151,24 @@ export function createLiveProductionGoNoGoClassifier({
     ready_count: readyCount,
     blocker_count:
       blockerCount +
+      (freshEvidenceStatus === "fresh_evidence_ready" ? 0 : 1) +
       (ownerConfirmationStatus === "owner_confirmed" ? 0 : 1) +
+      (emergencyStopStatus === "emergency_stop_confirmed" ? 0 : 1) +
+      (auditReadinessStatus === "audit_readiness_ready" ? 0 : 1) +
       (hasAuditEntry ? 0 : 1),
+    blocked_reason_labels: blockedReasonLabels,
+    go_result_scope: safeGoResultScope,
+    dry_run_go_allowed: dryRunGoAllowed,
     component_statuses: components,
+    fresh_evidence_status: freshEvidenceStatus,
     owner_confirmation_status: ownerConfirmationStatus,
+    owner_confirmation_checked_at_ms: safeOwnerConfirmationCheckedAtMs,
+    owner_confirmation_expires_at_ms: safeOwnerConfirmationExpiresAtMs,
+    emergency_stop_status: emergencyStopStatus,
+    audit_readiness_status: auditReadinessStatus,
     audit_entry_required: true,
     audit_entry: hasAuditEntry ? auditEntry : null,
+    degraded_mode_available: degradedModeAvailable,
     production_go_allowed: productionGoAllowed,
     boundary_policy: Object.fromEntries(
       [...LIVE_PRODUCTION_GO_NO_GO_CLASSIFIER_BOUNDARY_FIELDS].map((field) => [
@@ -11831,11 +15198,33 @@ export function assertLiveProductionGoNoGoClassifierSafe(
   if (
     classifier.schema !== "iris_live_production_go_no_go_classifier_v1" ||
     !["go", "no_go"].includes(classifier.classifier_status) ||
+    !["dry_run", "real"].includes(classifier.go_result_scope) ||
+    !Array.isArray(classifier.blocked_reason_labels) ||
     !Array.isArray(classifier.component_statuses) ||
-    !["owner_confirmation_required", "owner_confirmed"].includes(
+    !["fresh_evidence_required", "fresh_evidence_ready"].includes(
+      classifier.fresh_evidence_status
+    ) ||
+    ![
+      "owner_confirmation_required",
+      "owner_confirmation_expired",
+      "owner_confirmed",
+    ].includes(
       classifier.owner_confirmation_status
     ) ||
+    !Number.isInteger(classifier.owner_confirmation_checked_at_ms) ||
+    classifier.owner_confirmation_checked_at_ms < 0 ||
+    (classifier.owner_confirmation_expires_at_ms !== null &&
+      (!Number.isInteger(classifier.owner_confirmation_expires_at_ms) ||
+        classifier.owner_confirmation_expires_at_ms < 0)) ||
+    !["emergency_stop_required", "emergency_stop_confirmed"].includes(
+      classifier.emergency_stop_status
+    ) ||
+    !["audit_readiness_required", "audit_readiness_ready"].includes(
+      classifier.audit_readiness_status
+    ) ||
     classifier.audit_entry_required !== true ||
+    typeof classifier.dry_run_go_allowed !== "boolean" ||
+    typeof classifier.degraded_mode_available !== "boolean" ||
     typeof classifier.production_go_allowed !== "boolean" ||
     classifier.adapter_validation_required !== true
   ) {
@@ -11866,25 +15255,58 @@ export function assertLiveProductionGoNoGoClassifierSafe(
     if (component.status === "ready") readyCount += 1;
     if (component.blocker_present) blockerCount += 1;
   }
-  const allowed =
+  const dryRunAllowed =
     requiredLabels.size === 0 &&
     readyCount === classifier.component_statuses.length &&
     blockerCount === 0 &&
+    classifier.fresh_evidence_status === "fresh_evidence_ready" &&
     classifier.owner_confirmation_status === "owner_confirmed" &&
+    classifier.emergency_stop_status === "emergency_stop_confirmed" &&
+    classifier.audit_readiness_status === "audit_readiness_ready" &&
+    classifier.audit_entry !== null;
+  const allowed = classifier.go_result_scope === "real" && dryRunAllowed;
+  const expectedDegradedModeAvailable =
+    classifier.component_statuses.some((component) => component.status === "degraded") &&
+    classifier.fresh_evidence_status === "fresh_evidence_ready" &&
+    classifier.owner_confirmation_status === "owner_confirmed" &&
+    classifier.emergency_stop_status === "emergency_stop_confirmed" &&
+    classifier.audit_readiness_status === "audit_readiness_ready" &&
     classifier.audit_entry !== null;
   const expectedBlockerCount =
     blockerCount +
+    (classifier.fresh_evidence_status === "fresh_evidence_ready" ? 0 : 1) +
     (classifier.owner_confirmation_status === "owner_confirmed" ? 0 : 1) +
+    (classifier.emergency_stop_status === "emergency_stop_confirmed" ? 0 : 1) +
+    (classifier.audit_readiness_status === "audit_readiness_ready" ? 0 : 1) +
     (classifier.audit_entry !== null ? 0 : 1);
+  const expectedBlockedReasonLabels = liveProductionGoNoGoBlockedReasonLabels({
+    blockerCount,
+    freshEvidenceStatus: classifier.fresh_evidence_status,
+    ownerConfirmationStatus: classifier.owner_confirmation_status,
+    emergencyStopStatus: classifier.emergency_stop_status,
+    auditReadinessStatus: classifier.audit_readiness_status,
+    hasAuditEntry: classifier.audit_entry !== null,
+  });
   if (
     requiredLabels.size !== 0 ||
     classifier.component_count !== classifier.component_statuses.length ||
     classifier.ready_count !== readyCount ||
     classifier.blocker_count !== expectedBlockerCount ||
+    !sameStringArray(classifier.blocked_reason_labels, expectedBlockedReasonLabels) ||
+    classifier.dry_run_go_allowed !== dryRunAllowed ||
+    classifier.degraded_mode_available !== expectedDegradedModeAvailable ||
     classifier.production_go_allowed !== allowed ||
     classifier.classifier_status !== (allowed ? "go" : "no_go")
   ) {
     throw new ContractError(`${context}: classifier count mismatch`);
+  }
+  if (
+    classifier.owner_confirmation_expires_at_ms !== null &&
+    classifier.owner_confirmation_expires_at_ms <=
+      classifier.owner_confirmation_checked_at_ms &&
+    classifier.owner_confirmation_status !== "owner_confirmation_expired"
+  ) {
+    throw new ContractError(`${context}: owner confirmation expiration mismatch`);
   }
   assertBoundaryPolicy(
     classifier.boundary_policy,
@@ -11907,6 +15329,8 @@ export function createLiveProductionGoNoGoSafeExport({
     component_count: classifier.component_count,
     ready_count: classifier.ready_count,
     blocker_count: classifier.blocker_count,
+    go_result_scope: classifier.go_result_scope,
+    dry_run_go_allowed: classifier.dry_run_go_allowed,
     component_statuses: classifier.component_statuses.map((component) => ({
       schema: component.schema,
       component_label: component.component_label,
@@ -11943,7 +15367,9 @@ export function assertLiveProductionGoNoGoSafeExportSafe(
     safeExport.schema !== "iris_live_production_go_no_go_safe_export_v1" ||
     !["go", "no_go"].includes(safeExport.export_status) ||
     !["go", "no_go"].includes(safeExport.classifier_status) ||
+    !["dry_run", "real"].includes(safeExport.go_result_scope) ||
     !Array.isArray(safeExport.component_statuses) ||
+    typeof safeExport.dry_run_go_allowed !== "boolean" ||
     typeof safeExport.production_go_allowed !== "boolean" ||
     safeExport.adapter_validation_required !== true
   ) {
@@ -11960,6 +15386,8 @@ export function assertLiveProductionGoNoGoSafeExportSafe(
     safeExport.component_count !== safeExport.component_statuses.length ||
     safeExport.ready_count !== readyCount ||
     safeExport.blocker_count < blockerCount ||
+    (safeExport.production_go_allowed &&
+      (safeExport.go_result_scope !== "real" || safeExport.dry_run_go_allowed !== true)) ||
     safeExport.production_go_allowed !==
       (safeExport.classifier_status === "go" && safeExport.blocker_count === 0) ||
     safeExport.export_status !== safeExport.classifier_status
@@ -11993,7 +15421,10 @@ export function createLiveProductionGoNoGoFixturePack() {
       fixtureLabel: "all_ready",
       classifier: createLiveProductionGoNoGoClassifier({
         componentStatuses: readyStatuses,
+        freshEvidenceReady: true,
         ownerConfirmed: true,
+        emergencyStopConfirmed: true,
+        auditReadinessReady: true,
         auditEntry,
       }),
       expectedStatus: "go",
@@ -12002,6 +15433,9 @@ export function createLiveProductionGoNoGoFixturePack() {
       fixtureLabel: "owner_missing",
       classifier: createLiveProductionGoNoGoClassifier({
         componentStatuses: readyStatuses,
+        freshEvidenceReady: true,
+        emergencyStopConfirmed: true,
+        auditReadinessReady: true,
         auditEntry,
       }),
       expectedStatus: "no_go",
@@ -12009,32 +15443,47 @@ export function createLiveProductionGoNoGoFixturePack() {
     liveProductionGoNoGoFixture({
       fixtureLabel: "emergency_missing",
       classifier: createLiveProductionGoNoGoClassifier({
-        componentStatuses: {
-          ...readyStatuses,
-          game: "BLOCKED",
-        },
+        componentStatuses: readyStatuses,
+        freshEvidenceReady: true,
         ownerConfirmed: true,
+        auditReadinessReady: true,
         auditEntry,
       }),
       expectedStatus: "no_go",
     }),
     liveProductionGoNoGoFixture({
-      fixtureLabel: "component_blocked",
+      fixtureLabel: "audit_missing",
+      classifier: createLiveProductionGoNoGoClassifier({
+        componentStatuses: readyStatuses,
+        freshEvidenceReady: true,
+        ownerConfirmed: true,
+        emergencyStopConfirmed: true,
+      }),
+      expectedStatus: "no_go",
+    }),
+    liveProductionGoNoGoFixture({
+      fixtureLabel: "partial_ready",
       classifier: createLiveProductionGoNoGoClassifier({
         componentStatuses: {
           ...readyStatuses,
           db: "missing",
         },
+        freshEvidenceReady: true,
         ownerConfirmed: true,
+        emergencyStopConfirmed: true,
+        auditReadinessReady: true,
         auditEntry,
       }),
       expectedStatus: "no_go",
     }),
     liveProductionGoNoGoFixture({
-      fixtureLabel: "sensitive_leak",
+      fixtureLabel: "secret_leak",
       classifier: createLiveProductionGoNoGoClassifier({
         componentStatuses: readyStatuses,
+        freshEvidenceReady: true,
         ownerConfirmed: true,
+        emergencyStopConfirmed: true,
+        auditReadinessReady: true,
         auditEntry,
       }),
       expectedStatus: "rejected",
@@ -12082,8 +15531,9 @@ export function assertLiveProductionGoNoGoFixturePackSafe(
     "all_ready",
     "owner_missing",
     "emergency_missing",
-    "component_blocked",
-    "sensitive_leak",
+    "audit_missing",
+    "partial_ready",
+    "secret_leak",
   ]);
   for (const fixture of pack.fixtures) {
     assertLiveProductionGoNoGoFixtureSafe(fixture, context);
@@ -13026,9 +16476,14 @@ function assertTtsLiveReadinessCheckSafe(
   }
   if (
     check.schema !== "iris_tts_live_readiness_check_v1" ||
-    !["engine_health", "voice_source", "license_status", "placeholder_policy"].includes(
-      check.check_label
-    ) ||
+    ![
+      "engine_health",
+      "engine_health_freshness",
+      "voice_source",
+      "voice_source_freshness",
+      "license_status",
+      "placeholder_policy",
+    ].includes(check.check_label) ||
     !["ready", "BLOCKED", "operator_attention_required"].includes(check.status) ||
     check.ready_allowed !== (check.status === "ready")
   ) {
@@ -13122,8 +16577,11 @@ function assertLive2dLiveReadinessCheckSafe(
     check.schema !== "iris_live2d_live_readiness_check_v1" ||
     ![
       "renderer_health",
+      "renderer_heartbeat_freshness",
       "model_configured",
+      "model_configured_freshness",
       "cue_capability",
+      "cue_capability_freshness",
       "recovery_support",
     ].includes(check.check_label) ||
     !["ready", "BLOCKED", "operator_attention_required"].includes(check.status) ||
@@ -13223,8 +16681,11 @@ function assertSubtitleEngineLiveReadinessCheckSafe(
     check.schema !== "iris_subtitle_engine_live_readiness_check_v1" ||
     ![
       "subtitle_engine",
+      "subtitle_engine_freshness",
       "sync_source",
+      "sync_source_freshness",
       "safe_area",
+      "safe_area_freshness",
       "line_break",
       "rtl_support",
     ].includes(check.check_label) ||
@@ -13421,10 +16882,15 @@ function assertDbLiveReadinessCheckSafe(
     check.schema !== "iris_db_live_readiness_check_v1" ||
     ![
       "postgres_configured",
+      "connection_freshness",
       "schema",
+      "schema_freshness",
       "index",
+      "index_freshness",
       "migration",
+      "migration_freshness",
       "backup",
+      "backup_freshness",
       "restore_rehearsal",
     ].includes(check.check_label) ||
     !["ready", "BLOCKED", "operator_attention_required"].includes(check.status) ||
@@ -13514,11 +16980,15 @@ function assertYoutubeLiveReadinessCheckSafe(
     check.schema !== "iris_youtube_live_readiness_check_v1" ||
     ![
       "oauth",
+      "oauth_freshness",
       "token_freshness",
       "live_chat_id",
       "polling",
+      "polling_freshness",
       "dedupe",
+      "dedupe_freshness",
       "moderation",
+      "moderation_freshness",
     ].includes(check.check_label) ||
     !["ready", "BLOCKED", "operator_attention_required"].includes(check.status) ||
     check.ready_allowed !== (check.status === "ready")
@@ -13610,11 +17080,16 @@ function assertGameLiveReadinessCheckSafe(
     check.schema !== "iris_game_live_readiness_check_v1" ||
     ![
       "game_adapter",
+      "game_adapter_freshness",
       "safe_action_map",
+      "safe_action_map_freshness",
       "manual_approval",
+      "manual_approval_freshness",
       "emergency_stop",
+      "emergency_stop_freshness",
       "cooldown",
       "audit_readiness",
+      "audit_freshness",
     ].includes(check.check_label) ||
     !["ready", "BLOCKED", "operator_attention_required"].includes(check.status) ||
     check.ready_allowed !== (check.status === "ready")
@@ -13688,6 +17163,44 @@ function liveProductionGoNoGoComponent(componentLabel, status) {
   return component;
 }
 
+function liveProductionGoNoGoBlockedReasonLabels({
+  blockerCount,
+  freshEvidenceStatus,
+  ownerConfirmationStatus,
+  emergencyStopStatus,
+  auditReadinessStatus,
+  hasAuditEntry,
+}) {
+  const labels = [];
+  if (blockerCount > 0) labels.push("component_not_ready");
+  if (freshEvidenceStatus !== "fresh_evidence_ready") {
+    labels.push("fresh_evidence_required");
+  }
+  if (ownerConfirmationStatus !== "owner_confirmed") {
+    labels.push("owner_confirmation_required");
+  }
+  if (emergencyStopStatus !== "emergency_stop_confirmed") {
+    labels.push("emergency_stop_required");
+  }
+  if (auditReadinessStatus !== "audit_readiness_ready") {
+    labels.push("audit_readiness_required");
+  }
+  if (!hasAuditEntry) labels.push("audit_entry_required");
+  return labels;
+}
+
+function sameStringArray(left, right) {
+  return (
+    Array.isArray(left) &&
+    Array.isArray(right) &&
+    left.length === right.length &&
+    left.every(
+      (value, index) =>
+        value === right[index] && LIVE_PRODUCTION_GO_NO_GO_BLOCKED_REASONS.has(value)
+    )
+  );
+}
+
 function assertLiveProductionGoNoGoComponentSafe(
   component,
   context = "live production go/no-go component"
@@ -13755,8 +17268,9 @@ function assertLiveProductionGoNoGoFixtureSafe(
       "all_ready",
       "owner_missing",
       "emergency_missing",
-      "component_blocked",
-      "sensitive_leak",
+      "audit_missing",
+      "partial_ready",
+      "secret_leak",
     ].includes(fixture.fixture_label) ||
     !["go", "no_go", "rejected"].includes(fixture.expected_status)
   ) {
@@ -13764,13 +17278,13 @@ function assertLiveProductionGoNoGoFixtureSafe(
   }
   assertLiveProductionGoNoGoSafeExportSafe(fixture.safe_export, context);
   if (
-    fixture.fixture_label === "sensitive_leak" &&
+    fixture.fixture_label === "secret_leak" &&
     fixture.expected_status !== "rejected"
   ) {
-    throw new ContractError(`${context}: sensitive leak must be rejected`);
+    throw new ContractError(`${context}: secret leak must be rejected`);
   }
   if (
-    fixture.fixture_label !== "sensitive_leak" &&
+    fixture.fixture_label !== "secret_leak" &&
     fixture.safe_export.export_status !== fixture.expected_status
   ) {
     throw new ContractError(`${context}: fixture expectation mismatch`);
@@ -14228,16 +17742,22 @@ function liveProductionAuditFixture({
   fixtureLabel,
   expectedStatus,
   auditReview,
+  auditLog,
   roleGate,
   sensitiveValueRejected = false,
+  overwriteAttemptRejected = false,
+  staleTimestampAttention = false,
 }) {
   const fixture = {
     schema: "iris_live_production_audit_fixture_v1",
     fixture_label: fixtureLabel,
     expected_status: expectedStatus,
     audit_review: auditReview,
+    audit_log: auditLog,
     role_gate: roleGate,
     sensitive_value_rejected: sensitiveValueRejected,
+    overwrite_attempt_rejected: overwriteAttemptRejected,
+    stale_timestamp_attention: staleTimestampAttention,
   };
   assertLiveProductionAuditFixtureSafe(fixture);
   return fixture;
@@ -14259,13 +17779,16 @@ function assertLiveProductionAuditFixtureSafe(
   if (
     fixture.schema !== "iris_live_production_audit_fixture_v1" ||
     ![
-      "missing_audit",
-      "role_leak",
-      "sensitive_leak",
-      "safe_review",
+      "missing_role",
+      "raw_secret",
+      "overwrite_attempt",
+      "stale_timestamp",
+      "owner_gate",
     ].includes(fixture.fixture_label) ||
-    !["BLOCKED", "rejected", "ready"].includes(fixture.expected_status) ||
-    typeof fixture.sensitive_value_rejected !== "boolean"
+    !["attention", "rejected"].includes(fixture.expected_status) ||
+    typeof fixture.sensitive_value_rejected !== "boolean" ||
+    typeof fixture.overwrite_attempt_rejected !== "boolean" ||
+    typeof fixture.stale_timestamp_attention !== "boolean"
   ) {
     throw new ContractError(`${context}: invalid fixture`);
   }
@@ -14273,25 +17796,29 @@ function assertLiveProductionAuditFixtureSafe(
     fixture.audit_review,
     `${context}: audit review`
   );
+  assertLiveEvidenceAuditLogSafe(fixture.audit_log, `${context}: audit log`);
   assertLiveProductionAuditRoleGateSafe(fixture.role_gate, `${context}: role gate`);
   if (
-    (fixture.fixture_label === "missing_audit" &&
-      (fixture.expected_status !== "BLOCKED" ||
-        fixture.audit_review.production_go_allowed !== false ||
-        fixture.audit_review.missing_required_count < 1)) ||
-    (fixture.fixture_label === "role_leak" &&
+    (fixture.fixture_label === "missing_role" &&
       (fixture.expected_status !== "rejected" ||
-        fixture.role_gate.viewer_role !== "ordinary" ||
-        fixture.role_gate.detail_visible !== false ||
-        fixture.role_gate.safe_detail_labels.length !== 0)) ||
-    (fixture.fixture_label === "sensitive_leak" &&
+        fixture.audit_log.log_status !== "BLOCKED")) ||
+    (fixture.fixture_label === "raw_secret" &&
       (fixture.expected_status !== "rejected" ||
         fixture.sensitive_value_rejected !== true ||
         fixture.audit_review.production_go_allowed !== false)) ||
-    (fixture.fixture_label === "safe_review" &&
-      (fixture.expected_status !== "ready" ||
-        fixture.audit_review.production_go_allowed !== true ||
-        fixture.role_gate.detail_visible !== true))
+    (fixture.fixture_label === "overwrite_attempt" &&
+      (fixture.expected_status !== "rejected" ||
+        fixture.overwrite_attempt_rejected !== true ||
+        fixture.audit_log.events.some((event) => event.append_only !== true))) ||
+    (fixture.fixture_label === "stale_timestamp" &&
+      (fixture.expected_status !== "attention" ||
+        fixture.stale_timestamp_attention !== true ||
+        fixture.audit_log.events.every((event) => event.timestamp_freshness !== "stale"))) ||
+    (fixture.fixture_label === "owner_gate" &&
+      (fixture.expected_status !== "rejected" ||
+        fixture.role_gate.viewer_role !== "ordinary" ||
+        fixture.role_gate.detail_visible !== false ||
+        fixture.role_gate.safe_detail_labels.length !== 0))
   ) {
     throw new ContractError(`${context}: fixture expectation mismatch`);
   }
@@ -14417,6 +17944,56 @@ function safeAuditReviewEventLabel(value) {
   return "audit_event";
 }
 
+function safeLiveEvidenceAuditEventLabel(value) {
+  const label = safeGateDetailLabel(value);
+  if (label?.includes("fresh") || label?.includes("evidence")) {
+    return "fresh_evidence_acquired";
+  }
+  if (label?.includes("owner") || label?.includes("confirmation")) {
+    return "owner_confirmation";
+  }
+  if (label?.includes("handoff") || label?.includes("plan")) return "handoff_plan";
+  if (label?.includes("go_no_go") || label?.includes("go_nogo")) {
+    return "production_go_no_go";
+  }
+  return "fresh_evidence_acquired";
+}
+
+function safeLiveEvidenceAuditStatus(value) {
+  const label = safeGateDetailLabel(value);
+  if (label === "recorded" || label === "confirmed" || label === "ready") {
+    return "recorded";
+  }
+  if (label === "missing") return "missing";
+  if (label === "blocked" || label === "rejected") return "blocked";
+  return "attention";
+}
+
+function safeLiveEvidenceAuditActorRole(value) {
+  const label = safeGateDetailLabel(value);
+  return ["owner", "operator", "developer", "system"].includes(label)
+    ? label
+    : "operator";
+}
+
+function safeLiveEvidenceAuditTargetLabel(value) {
+  const label = safeGateDetailLabel(value);
+  if (!label) return "live_evidence_audit";
+  return safeLiveEvidenceAuditPublicLabel(label);
+}
+
+function safeLiveEvidenceAuditResultLabel(value) {
+  const label = safeGateDetailLabel(value);
+  if (!label) return "attention";
+  return safeLiveEvidenceAuditPublicLabel(label);
+}
+
+function safeLiveEvidenceAuditPublicLabel(label) {
+  return /raw|payload|secret|token|endpoint|command|url|https?/i.test(label)
+    ? "redacted"
+    : label;
+}
+
 function safeAuditReviewEventStatus(value) {
   const label = safeGateDetailLabel(value);
   if (label === "recorded" || label === "pass" || label === "verified") {
@@ -14457,6 +18034,12 @@ function safeGameLiveRequiredStatus(status) {
       : "operator_attention_required";
 }
 
+function safeGameLiveFreshnessStatus(status) {
+  return safeGateDetailLabel(status) === "fresh"
+    ? "ready"
+    : "operator_attention_required";
+}
+
 function safeYoutubeLiveRequiredStatus(status) {
   const label = safeGateDetailLabel(status);
   return label === "ready" || label === "configured" || label === "verified"
@@ -14482,6 +18065,12 @@ function safeDbLiveRequiredStatus(status) {
     : label === "missing" || label === "blocked" || label === "unavailable"
       ? "BLOCKED"
       : "operator_attention_required";
+}
+
+function safeDbLiveFreshnessStatus(status) {
+  return safeGateDetailLabel(status) === "fresh"
+    ? "ready"
+    : "operator_attention_required";
 }
 
 function safeObsLiveRequiredStatus(status) {
@@ -14514,6 +18103,12 @@ function safeSubtitleEngineLiveRequiredStatus(status) {
 function safeSubtitleEngineLiveOptionalStatus(status) {
   const label = safeGateDetailLabel(status);
   return label === "ready" || label === "configured" || label === "supported"
+    ? "ready"
+    : "operator_attention_required";
+}
+
+function safeSubtitleEngineLiveFreshnessStatus(status) {
+  return safeGateDetailLabel(status) === "fresh"
     ? "ready"
     : "operator_attention_required";
 }
@@ -14560,6 +18155,12 @@ function safeLive2dLiveCapabilityStatus(status) {
     : "operator_attention_required";
 }
 
+function safeLive2dLiveFreshnessStatus(status) {
+  return safeGateDetailLabel(status) === "fresh"
+    ? "ready"
+    : "operator_attention_required";
+}
+
 function safeTtsLiveEngineHealthStatus(status) {
   const label = safeGateDetailLabel(status);
   return label === "ready" || label === "healthy"
@@ -14572,6 +18173,12 @@ function safeTtsLiveEngineHealthStatus(status) {
 function safeTtsLiveVoiceSourceStatus(status) {
   const label = safeGateDetailLabel(status);
   return label === "licensed_real_voice" || label === "licensed"
+    ? "ready"
+    : "operator_attention_required";
+}
+
+function safeTtsLiveFreshnessStatus(status) {
+  return safeGateDetailLabel(status) === "fresh"
     ? "ready"
     : "operator_attention_required";
 }
