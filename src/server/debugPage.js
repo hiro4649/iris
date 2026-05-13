@@ -1,4 +1,122 @@
+const SAFE_DEBUG_PAGE_SCRIPT_NAMES = [
+  "npm run dev:admin:dashboard",
+  "npm run dev:admin:operations-summary",
+  "npm run dev:admin:integration-checklist",
+  "npm run dev:public-report-boundary-audit",
+  "npm run dev:foundation:runtime-summary",
+  "npm run dev:production:attention-digest",
+];
+
 export function renderDebugPage() {
+  const scriptItems = SAFE_DEBUG_PAGE_SCRIPT_NAMES.map(
+    (scriptName) => `<li><code>${scriptName}</code></li>`
+  ).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IRIS Debug Console</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f6f7f4;
+      color: #1d2527;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f6f7f4;
+    }
+    header {
+      padding: 18px 22px;
+      border-bottom: 1px solid #d8ddd6;
+      background: #ffffff;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+    main {
+      display: grid;
+      gap: 16px;
+      max-width: 920px;
+      padding: 18px;
+    }
+    section {
+      border: 1px solid #d8ddd6;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 16px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) 1fr;
+      gap: 10px 14px;
+      margin: 0;
+    }
+    dt {
+      color: #60706a;
+      font-size: 12px;
+    }
+    dd {
+      margin: 0;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    ul {
+      margin: 0;
+      padding-left: 20px;
+      display: grid;
+      gap: 8px;
+    }
+    code {
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IRIS Debug Console</h1>
+  </header>
+  <main>
+    <section>
+      <h2>Status</h2>
+      <dl>
+        <dt>page_status</dt>
+        <dd>safe_summary_only</dd>
+        <dt>surface_status</dt>
+        <dd>read_only</dd>
+        <dt>detail_status</dt>
+        <dd>redacted</dd>
+      </dl>
+    </section>
+    <section>
+      <h2>Counts</h2>
+      <dl>
+        <dt>status_count</dt>
+        <dd>3</dd>
+        <dt>script_name_count</dt>
+        <dd>${SAFE_DEBUG_PAGE_SCRIPT_NAMES.length}</dd>
+      </dl>
+    </section>
+    <section>
+      <h2>Script Names</h2>
+      <ul>${scriptItems}</ul>
+    </section>
+  </main>
+</body>
+</html>`;
   return `<!doctype html>
 <html lang="en">
 <head>
