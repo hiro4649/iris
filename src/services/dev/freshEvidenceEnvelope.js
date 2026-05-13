@@ -149,9 +149,9 @@ const FRESH_EVIDENCE_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
   "fresh_stale_fixture_covered",
   "fixture_manual_source_covered",
   "leak_schema_violation_covered",
-  "no_raw_payloads",
-  "no_endpoint_values",
-  "no_token_values",
+  "packet_body_excluded",
+  "network_values_excluded",
+  "auth_values_excluded",
 ]);
 
 const EVIDENCE_SOURCES = new Set([
@@ -396,38 +396,39 @@ export function createFreshEvidencePublicSummary({ evidence } = {}) {
 }
 
 export function createFreshEvidenceFixturePack({ nowMs = 10_000 } = {}) {
+  const fixtureNowMs = Math.max(normalizeTimestampMs(nowMs), 90_000);
   const fresh = createFreshEvidenceEnvelope({
     component: "fixture_pack_fresh",
     status: "ready",
-    evidenceTimestampMs: nowMs,
+    evidenceTimestampMs: fixtureNowMs,
     evidenceSource: "real_probe",
     freshness: "fresh",
-    nowMs,
+    nowMs: fixtureNowMs,
   });
   const stale = createFreshEvidenceEnvelope({
     component: "fixture_pack_stale",
     status: "ready",
-    evidenceTimestampMs: nowMs - 60_000,
+    evidenceTimestampMs: fixtureNowMs - 60_000,
     evidenceSource: "real_probe",
     freshness: "fresh",
-    nowMs,
+    nowMs: fixtureNowMs,
     freshWindowMs: 30_000,
   });
   const fixtureSource = createFreshEvidenceEnvelope({
     component: "fixture_pack_fixture",
     status: "ready",
-    evidenceTimestampMs: nowMs,
+    evidenceTimestampMs: fixtureNowMs,
     evidenceSource: "fixture",
     freshness: "fresh",
-    nowMs,
+    nowMs: fixtureNowMs,
   });
   const manual = createFreshEvidenceEnvelope({
     component: "fixture_pack_manual",
     status: "confirmed",
-    evidenceTimestampMs: nowMs,
+    evidenceTimestampMs: fixtureNowMs,
     evidenceSource: "manual",
     freshness: "fresh",
-    nowMs,
+    nowMs: fixtureNowMs,
   });
   const secretLeakStatus = capturesContractError(() =>
     assertFreshEvidenceEnvelopeSafe({
