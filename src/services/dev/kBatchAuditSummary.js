@@ -147,6 +147,19 @@ const SAFE_REAL_MODE_BLOCKED_POLICY_FIELDS = new Set([
   "blocked_reason_label",
   "boundary_policy",
 ]);
+const SAFE_PRIORITY1_BLOCKER_STATE_FIELDS = new Set([
+  "schema",
+  "state_status",
+  "priority_label",
+  "component_label",
+  "blocker_status",
+  "blocked_reason_label",
+  "k_completion_seen",
+  "fixture_pass_seen",
+  "production_status",
+  "blocker_persisted",
+  "boundary_policy",
+]);
 const SAFE_GIT_CLEAN_GATE_FIELDS = new Set([
   "schema",
   "gate_status",
@@ -1098,6 +1111,37 @@ export function createKBatchRealModeBlockedPolicy({
   return summary;
 }
 
+export function createPriority1BlockerSafeState({
+  componentLabel = "live_residency",
+  blockedReason = "real_residency_unconfirmed",
+  kCompletionSeen = false,
+  fixturePassSeen = false,
+} = {}) {
+  const summary = {
+    schema: "iris_priority1_blocker_safe_state_v1",
+    state_status: "persisted",
+    priority_label: "priority1",
+    component_label: safeLabel(componentLabel),
+    blocker_status: "BLOCKED",
+    blocked_reason_label: safeLabel(blockedReason),
+    k_completion_seen: kCompletionSeen === true,
+    fixture_pass_seen: fixturePassSeen === true,
+    production_status: "blocked",
+    blocker_persisted: true,
+    boundary_policy: {
+      safe_state_only: true,
+      priority1_blocked_status_preserved: true,
+      k_completion_does_not_clear_blocker: true,
+      fixture_pass_does_not_clear_blocker: true,
+      real_residency_wait_retained: true,
+      sensitive_values_excluded: true,
+      operation_values_excluded: true,
+    },
+  };
+  assertPriority1BlockerSafeState(summary);
+  return summary;
+}
+
 export function assertKBatchAuditSummarySafe(summary, context = "K-batch audit summary") {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
     throw new ContractError(`${context}: summary required`);
@@ -1797,6 +1841,41 @@ export function assertKBatchRealModeBlockedPolicySafe(
   assertRealModeBlockedPolicyBoundaryPolicy(summary.boundary_policy, context);
 }
 
+export function assertPriority1BlockerSafeState(
+  summary,
+  context = "priority1 blocker safe state"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_priority1_blocker_safe_state_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !SAFE_PRIORITY1_BLOCKER_STATE_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    summary.state_status !== "persisted" ||
+    summary.priority_label !== "priority1" ||
+    summary.component_label !== safeLabel(summary.component_label) ||
+    summary.blocker_status !== "BLOCKED" ||
+    summary.blocked_reason_label !== safeLabel(summary.blocked_reason_label) ||
+    typeof summary.k_completion_seen !== "boolean" ||
+    typeof summary.fixture_pass_seen !== "boolean" ||
+    summary.production_status !== "blocked" ||
+    summary.blocker_persisted !== true
+  ) {
+    throw new ContractError(`${context}: invalid priority1 blocker state`);
+  }
+  assertPriority1BlockerBoundaryPolicy(summary.boundary_policy, context);
+}
+
 function normalizeStatus(value) {
   const status = String(value ?? "").trim().toLowerCase();
   if (status === "pass" || status === "ok") return "pass";
@@ -2428,6 +2507,32 @@ function assertRealModeBlockedPolicyBoundaryPolicy(policy, context) {
     fixture_pass_separated_from_real_mode: true,
     safe_status_only: true,
     source_delta_values_excluded: true,
+    sensitive_values_excluded: true,
+    operation_values_excluded: true,
+  };
+  const allowed = new Set(Object.keys(expected));
+  for (const field of Object.keys(policy)) {
+    if (!allowed.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field ${field}`);
+    }
+  }
+  for (const [field, expectedValue] of Object.entries(expected)) {
+    if (policy[field] !== expectedValue) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
+  }
+}
+
+function assertPriority1BlockerBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  const expected = {
+    safe_state_only: true,
+    priority1_blocked_status_preserved: true,
+    k_completion_does_not_clear_blocker: true,
+    fixture_pass_does_not_clear_blocker: true,
+    real_residency_wait_retained: true,
     sensitive_values_excluded: true,
     operation_values_excluded: true,
   };
