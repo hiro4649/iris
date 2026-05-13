@@ -13469,7 +13469,7 @@ function assertDbLiveFixtureSafe(fixture, context = "DB live fixture") {
       "schema_missing",
       "migration_pending",
       "backup_stale",
-      "sensitive_leak",
+      "secret_leak",
     ].includes(fixture.fixture_label) ||
     !["ready", "operator_attention_required"].includes(fixture.checklist_status) ||
     !["blocked", "attention", "rejected"].includes(fixture.expected_result) ||
@@ -13478,7 +13478,7 @@ function assertDbLiveFixtureSafe(fixture, context = "DB live fixture") {
     throw new ContractError(`${context}: invalid fixture`);
   }
   if (
-    fixture.fixture_label === "sensitive_leak" &&
+    fixture.fixture_label === "secret_leak" &&
     (fixture.expected_result !== "rejected" ||
       fixture.redaction_status !== "redacted")
   ) {
