@@ -136,23 +136,29 @@ export async function createAdminOperationsSummary({
   httpIngestScheduler = null,
   overlayEventBus = null,
   generatedAtMs = Date.now(),
+  liveReadinessMode = "full",
 } = {}) {
   const configDoctor = createProductionConfigDoctor({ env, generatedAtMs });
   const runbook = createProductionReadinessRunbook({ env, generatedAtMs });
-  const runtimeHandoff = createProductionRuntimeHandoffStatusReport({
-    env,
-    runtime,
-    streamState,
-    generatedAtMs,
-  });
-  const liveReadiness = await createProductionLiveReadinessReport({
-    env,
-    runtime,
-    streamState,
-    httpIngestScheduler,
-    overlayEventBus,
-    generatedAtMs,
-  });
+  const summaryOnlyLiveReadiness = liveReadinessMode === "summary_only";
+  const runtimeHandoff = summaryOnlyLiveReadiness
+    ? null
+    : createProductionRuntimeHandoffStatusReport({
+        env,
+        runtime,
+        streamState,
+        generatedAtMs,
+      });
+  const liveReadiness = summaryOnlyLiveReadiness
+    ? createAdminOperationsLiveReadinessSummary({ runbook })
+    : await createProductionLiveReadinessReport({
+        env,
+        runtime,
+        streamState,
+        httpIngestScheduler,
+        overlayEventBus,
+        generatedAtMs,
+      });
   const postgresAdminSavePreflight = createPostgresAdminSavePreflightReport({
     env,
     generatedAtMs,
@@ -166,14 +172,16 @@ export async function createAdminOperationsSummary({
 
   assertProductionConfigDoctorSafe(configDoctor, "admin operations config doctor");
   assertProductionReadinessRunbookSafe(runbook, "admin operations runbook");
-  assertProductionRuntimeHandoffStatusReportSafe(
-    runtimeHandoff,
-    "admin operations runtime handoff"
-  );
-  assertProductionLiveReadinessReportSafe(
-    liveReadiness,
-    "admin operations live readiness"
-  );
+  if (!summaryOnlyLiveReadiness) {
+    assertProductionRuntimeHandoffStatusReportSafe(
+      runtimeHandoff,
+      "admin operations runtime handoff"
+    );
+    assertProductionLiveReadinessReportSafe(
+      liveReadiness,
+      "admin operations live readiness"
+    );
+  }
   assertPostgresAdminSavePreflightReportSafe(
     postgresAdminSavePreflight,
     "admin operations postgres preflight"
@@ -414,11 +422,13 @@ function assertNoUnsafeReportLeak(report, context) {
 function createLowOutputRestartSummary({ runtimeHandoff, liveReadiness }) {
   const publicBoundaryAudit = createPublicReportBoundaryAuditReport();
   const focusCheckScript =
-    runtimeHandoff.handoff_status !== "ready_for_runtime_handoff"
+    runtimeHandoff && runtimeHandoff.handoff_status !== "ready_for_runtime_handoff"
       ? runtimeHandoff.next_component_id === "foundation_runtime"
         ? "npm run dev:foundation:runtime-summary"
         : runtimeHandoff.next_check_script
-      : liveReadiness.next_check_script;
+      : liveReadiness.next_stage_id === "tts_live2d_obs_foundation"
+        ? "npm run dev:foundation:runtime-summary"
+        : liveReadiness.next_check_script;
   return {
     entry_check_script: "npm run dev:admin:operations-summary",
     first_check_script: "npm run dev:production:attention-digest",
@@ -431,6 +441,65 @@ function createLowOutputRestartSummary({ runtimeHandoff, liveReadiness }) {
     missing_required_lightweight_script_count:
       publicBoundaryAudit.missing_required_lightweight_script_count,
   };
+}
+
+function createAdminOperationsLiveReadinessSummary({ runbook }) {
+  const priorityStages = runbook.stages.map((stage) => ({
+    stage_id: stage.stage_id,
+    ...adminOperationsLiveReadinessScriptsForStage(stage.stage_id),
+  }));
+  const nextStage =
+    runbook.stages.find((stage) => stage.readiness_state !== "ready") ??
+    runbook.stages[0] ??
+    null;
+  return {
+    priority_stages: priorityStages,
+    next_stage_id: nextStage?.stage_id ?? null,
+    next_check_script: nextStage
+      ? adminOperationsLiveReadinessScriptsForStage(nextStage.stage_id)
+          .first_attention_check_script
+      : null,
+  };
+}
+
+function adminOperationsLiveReadinessScriptsForStage(stageId) {
+  switch (stageId) {
+    case "tts_live2d_obs_foundation":
+      return {
+        first_attention_check_script: "npm run dev:foundation:status",
+        runtime_status_script: "npm run dev:foundation:runtime-status",
+        live_readiness_script: "npm run dev:foundation:live-readiness",
+        startup_checklist_script: "npm run dev:foundation:startup-checklist",
+      };
+    case "youtube_comments_and_support":
+      return {
+        first_attention_check_script: "npm run dev:youtube:source-status",
+        runtime_status_script: "npm run dev:youtube:runtime-status",
+        live_readiness_script: "npm run dev:youtube:live-readiness",
+        startup_checklist_script: "npm run dev:youtube:relay-startup-checklist",
+      };
+    case "memory_and_relationship_persistence":
+      return {
+        first_attention_check_script: "npm run dev:persistence:preflight",
+        runtime_status_script: "npm run dev:persistence:runtime-status",
+        live_readiness_script: "npm run dev:persistence:live-readiness",
+        startup_checklist_script: "npm run dev:persistence:startup-checklist",
+      };
+    case "vision_and_safe_game_control":
+      return {
+        first_attention_check_script: "npm run dev:gameplay:preflight",
+        runtime_status_script: "npm run dev:gameplay:runtime-status",
+        live_readiness_script: "npm run dev:gameplay:live-readiness",
+        startup_checklist_script: "npm run dev:gameplay:startup-checklist",
+      };
+    default:
+      return {
+        first_attention_check_script: null,
+        runtime_status_script: null,
+        live_readiness_script: null,
+        startup_checklist_script: null,
+      };
+  }
 }
 
 function summarizeStage(stage, liveReadiness) {

@@ -435,6 +435,7 @@ export async function createAdminDashboard({
     httpIngestScheduler,
     overlayEventBus,
     generatedAtMs,
+    liveReadinessMode: "summary_only",
   });
   const publicReportBoundaryAudit = createPublicReportBoundaryAuditReport();
   const nextModule =
