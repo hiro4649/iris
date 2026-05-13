@@ -69,7 +69,7 @@ const FORBIDDEN_FIELDS = new Set([
 ]);
 
 const UNSAFE_SUMMARY_PATTERN =
-  /\b(raw[_ -]?comment|raw[_ -]?support|support[_ -]?text|raw[_ -]?frame|raw[_ -]?chat|raw[_ -]?audio|candidate[_ -]?payload|private[_ -]?(?:viewer[_ -]?)?id|viewer_private_id|private[_ -]?contact|raw[_ -]?negotiation|raw[_ -]?channel[_ -]?token)\b/gi;
+  /\b(raw[_ -]?comment|raw[_ -]?support|support[_ -]?text|raw[_ -]?frame|raw[_ -]?chat|raw[_ -]?audio|candidate[_ -]?payload|private[_ -]?(?:viewer[_ -]?)?id|private[-_ ]?viewer[-_ ][a-z0-9-]+|private_user|viewer_private_id|private[_ -]?viewer[_ -]?data|private[_ -]?contact|raw[_ -]?negotiation|raw[_ -]?channel[_ -]?token)\b/gi;
 
 export function createContentStrategyCandidate({
   strategyKind = "topic_suggestion",
