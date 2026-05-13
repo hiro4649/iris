@@ -404,6 +404,26 @@ const DB_REAL_CONNECTOR_MIGRATION_READINESS_FIELDS = new Set([
   "boundary_policy",
   "adapter_validation_required",
 ]);
+const DB_REAL_CONNECTOR_E2E_FIXTURE_PACK_FIELDS = new Set([
+  "schema",
+  "db_unavailable_fixture",
+  "schema_stale_fixture",
+  "migration_pending_fixture",
+  "secret_leak_fixture",
+  "unbounded_query_fixture",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const DB_REAL_CONNECTOR_UNBOUNDED_QUERY_FIXTURE_FIELDS = new Set([
+  "schema",
+  "query_policy_status",
+  "unbounded_query_allowed",
+  "all_load_allowed",
+  "readiness_status",
+  "safe_status",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 const GAME_REAL_ADAPTER_CONNECTOR_PREFLIGHT_FIELDS = new Set([
   "schema",
   "mode",
@@ -896,6 +916,29 @@ const DB_REAL_CONNECTOR_MIGRATION_READINESS_BOUNDARY_FIELDS = new Set([
   "migration_applied_required",
   "pending_migration_not_ready",
   "missing_migration_not_ready",
+  "raw_sql_redacted",
+  "connection_string_redacted",
+  "password_values_redacted",
+  "host_values_redacted",
+  "safe_status_only",
+]);
+const DB_REAL_CONNECTOR_E2E_FIXTURE_PACK_BOUNDARY_FIELDS = new Set([
+  "db_unavailable_not_ready",
+  "schema_stale_not_ready",
+  "migration_pending_not_ready",
+  "secret_leak_redacted",
+  "unbounded_query_rejected",
+  "connection_string_redacted",
+  "password_values_redacted",
+  "host_values_redacted",
+  "raw_sql_redacted",
+  "query_value_redacted",
+  "safe_summary_only",
+]);
+const DB_REAL_CONNECTOR_UNBOUNDED_QUERY_FIXTURE_BOUNDARY_FIELDS = new Set([
+  "unbounded_query_rejected",
+  "all_load_rejected",
+  "query_value_redacted",
   "raw_sql_redacted",
   "connection_string_redacted",
   "password_values_redacted",
@@ -3177,6 +3220,140 @@ export function assertDbRealConnectorMigrationReadinessSafe(
     context
   );
   assertNoUnsafeText(readiness, context);
+}
+
+export function createDbRealConnectorE2EFixturePack() {
+  const pack = {
+    schema: "iris_db_real_connector_e2e_fixture_pack_v1",
+    db_unavailable_fixture: createDbRealConnectorAvailabilityGate({
+      realDbConnected: false,
+    }),
+    schema_stale_fixture: createDbRealConnectorSchemaFreshness({
+      schemaManifestAgeBucket: "stale",
+      schemaManifestStatus: "unconfirmed",
+    }),
+    migration_pending_fixture: createDbRealConnectorMigrationReadiness({
+      migrationStatus: "pending",
+    }),
+    secret_leak_fixture: createRealAdapterSecretLeakFixture({ adapter: "db" }),
+    unbounded_query_fixture: createDbRealConnectorUnboundedQueryFixture(),
+    boundary_policy: Object.fromEntries(
+      [...DB_REAL_CONNECTOR_E2E_FIXTURE_PACK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+    adapter_validation_required: true,
+  };
+  assertDbRealConnectorE2EFixturePackSafe(pack);
+  return pack;
+}
+
+export function assertDbRealConnectorE2EFixturePackSafe(
+  pack,
+  context = "DB real connector E2E fixture pack"
+) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    throw new ContractError(`${context}: pack required`);
+  }
+  if (pack.schema !== "iris_db_real_connector_e2e_fixture_pack_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(pack)) {
+    if (!DB_REAL_CONNECTOR_E2E_FIXTURE_PACK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected pack field`);
+    }
+  }
+  assertDbRealConnectorAvailabilityGateSafe(
+    pack.db_unavailable_fixture,
+    `${context}: DB unavailable fixture`
+  );
+  assertDbRealConnectorSchemaFreshnessSafe(
+    pack.schema_stale_fixture,
+    `${context}: schema stale fixture`
+  );
+  assertDbRealConnectorMigrationReadinessSafe(
+    pack.migration_pending_fixture,
+    `${context}: migration pending fixture`
+  );
+  assertRealAdapterSecretLeakFixtureSafe(
+    pack.secret_leak_fixture,
+    `${context}: secret leak fixture`
+  );
+  assertDbRealConnectorUnboundedQueryFixtureSafe(
+    pack.unbounded_query_fixture,
+    `${context}: unbounded query fixture`
+  );
+  if (
+    pack.db_unavailable_fixture.production_persistence_ready !== false ||
+    pack.db_unavailable_fixture.availability_status !== "BLOCKED" ||
+    pack.schema_stale_fixture.ready_allowed !== false ||
+    pack.schema_stale_fixture.readiness_status === "ready" ||
+    pack.migration_pending_fixture.production_db_ready !== false ||
+    pack.migration_pending_fixture.readiness_status === "ready" ||
+    pack.secret_leak_fixture.leak_detected !== false ||
+    pack.unbounded_query_fixture.unbounded_query_allowed !== false ||
+    pack.unbounded_query_fixture.query_policy_status !== "rejected" ||
+    pack.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: unsafe DB real connector fixture`);
+  }
+  assertDbRealConnectorE2EFixturePackBoundaryPolicy(
+    pack.boundary_policy,
+    context
+  );
+  assertNoUnsafeText(pack, context);
+}
+
+function createDbRealConnectorUnboundedQueryFixture() {
+  const fixture = {
+    schema: "iris_db_real_connector_unbounded_query_fixture_v1",
+    query_policy_status: "rejected",
+    unbounded_query_allowed: false,
+    all_load_allowed: false,
+    readiness_status: "attention_required",
+    safe_status: "attention_required",
+    boundary_policy: Object.fromEntries(
+      [...DB_REAL_CONNECTOR_UNBOUNDED_QUERY_FIXTURE_BOUNDARY_FIELDS].map(
+        (field) => [field, true]
+      )
+    ),
+    adapter_validation_required: true,
+  };
+  assertDbRealConnectorUnboundedQueryFixtureSafe(fixture);
+  return fixture;
+}
+
+function assertDbRealConnectorUnboundedQueryFixtureSafe(
+  fixture,
+  context = "DB real connector unbounded query fixture"
+) {
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new ContractError(`${context}: fixture required`);
+  }
+  if (fixture.schema !== "iris_db_real_connector_unbounded_query_fixture_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(fixture)) {
+    if (!DB_REAL_CONNECTOR_UNBOUNDED_QUERY_FIXTURE_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected fixture field`);
+    }
+  }
+  if (
+    fixture.query_policy_status !== "rejected" ||
+    fixture.unbounded_query_allowed !== false ||
+    fixture.all_load_allowed !== false ||
+    fixture.readiness_status === "ready" ||
+    fixture.safe_status !== "attention_required" ||
+    fixture.adapter_validation_required !== true
+  ) {
+    throw new ContractError(`${context}: unbounded query must be rejected`);
+  }
+  assertDbRealConnectorUnboundedQueryFixtureBoundaryPolicy(
+    fixture.boundary_policy,
+    context
+  );
+  assertNoUnsafeText(fixture, context);
 }
 
 export function createGameRealAdapterConnectorPreflight({
@@ -5482,6 +5659,41 @@ function assertDbRealConnectorMigrationReadinessBoundaryPolicy(policy, context) 
     }
   }
   for (const field of DB_REAL_CONNECTOR_MIGRATION_READINESS_BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary required`);
+    }
+  }
+}
+
+function assertDbRealConnectorE2EFixturePackBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of Object.keys(policy)) {
+    if (!DB_REAL_CONNECTOR_E2E_FIXTURE_PACK_BOUNDARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field`);
+    }
+  }
+  for (const field of DB_REAL_CONNECTOR_E2E_FIXTURE_PACK_BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary required`);
+    }
+  }
+}
+
+function assertDbRealConnectorUnboundedQueryFixtureBoundaryPolicy(
+  policy,
+  context
+) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of Object.keys(policy)) {
+    if (!DB_REAL_CONNECTOR_UNBOUNDED_QUERY_FIXTURE_BOUNDARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field`);
+    }
+  }
+  for (const field of DB_REAL_CONNECTOR_UNBOUNDED_QUERY_FIXTURE_BOUNDARY_FIELDS) {
     if (policy[field] !== true) {
       throw new ContractError(`${context}: boundary required`);
     }
