@@ -69,12 +69,18 @@ const FORBIDDEN_LIFECYCLE_FIELDS = new Set([
   "api_key",
   "raw_logs",
   "raw_comments",
+  "raw_support",
+  "raw_support_text",
+  "raw_frame",
+  "raw_audio",
   "private_ids",
   "private_memory",
   "sensitive_memory",
   "private_viewer_id",
   "viewer_private_note",
 ]);
+const RAW_SOURCE_SUMMARY_PATTERN =
+  /\b(?:raw[_\s-]?(?:comment|support|frame|screen|audio|action(?:[_\s-]?candidate)?)|raw_comment|raw_support|raw_frame|raw_screen|raw_audio|input_action_candidate|approved_game_input_action|world_command|game_input)\b/i;
 
 const SAFE_NEXT_STREAM_SEED_BURDEN_POLICIES = new Set([
   "optional_not_homework",
@@ -389,6 +395,8 @@ function buildCommunityCandidates({ phase01, phase15, gameEmbodiment }) {
     summary_hint: "safe funny game moment",
     community_policy: "keep_open_for_new_viewers",
     privacy_policy: "no_person_specific_detail",
+    safety_policy: "safe_public_context_only",
+    canon_policy: "non_canon_community_lore_candidate",
   };
   assertCandidateNotExecutable(candidate, "Stream lifecycle community memory candidate");
   return [candidate];
@@ -849,10 +857,11 @@ function sanitizeId(value) {
 }
 
 function safeSummary(value, maxLength = 160) {
-  return String(value ?? "")
+  const text = String(value ?? "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+  return RAW_SOURCE_SUMMARY_PATTERN.test(text) ? "" : text;
 }
 
 function safePrimingSummary(value, maxLength = 120) {

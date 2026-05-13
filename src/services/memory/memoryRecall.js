@@ -68,6 +68,30 @@ const FORBIDDEN_RECALL_FIELDS = new Set([
   "conversation_state",
 ]);
 
+const FORBIDDEN_RECALL_RECORD_FIELDS = new Set([
+  "raw_memory",
+  "raw_memory_body",
+  "memory_body",
+  "raw_youtube_text",
+  "raw_youtube_comment",
+  "raw_support_message",
+  "support_message",
+  "raw_frame",
+  "raw_screen",
+  "raw_audio",
+  "raw_audio_body",
+  "memory_candidate",
+  "relationship_update_candidate",
+  "community_memory_candidate",
+  "input_action_candidate",
+  "approved_game_input_action",
+  "world_command",
+  "execute",
+  "commit",
+  "write",
+  "apply",
+]);
+
 export function createMemoryRecall({
   event,
   coreResult,
@@ -223,6 +247,7 @@ function buildRecallCandidates({
     throw new ContractError("memory recall: memory records array is required");
   }
   return memoryRecords
+    .filter(isApprovedRecallMemoryRecord)
     .filter((record) => record?.event_id !== currentEventId)
     .map((record, index) => {
       const summary = String(record.summary ?? "");
@@ -256,6 +281,21 @@ function buildRecallCandidates({
       };
     })
     .filter((candidate) => MEMORY_TYPES.has(candidate.memory_type));
+}
+
+function isApprovedRecallMemoryRecord(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return false;
+  if (record.schema !== "approved_memory_record" || record.approved !== true) return false;
+  return !hasForbiddenRecallRecordField(record);
+}
+
+function hasForbiddenRecallRecordField(value) {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => hasForbiddenRecallRecordField(item));
+  return Object.entries(value).some(
+    ([field, child]) =>
+      FORBIDDEN_RECALL_RECORD_FIELDS.has(field) || hasForbiddenRecallRecordField(child)
+  );
 }
 
 function recallAllowedForCandidate({

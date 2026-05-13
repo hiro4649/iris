@@ -33,6 +33,7 @@ export function phase08Goal(phase07, runtime = {}) {
     "Phase08 input"
   );
   assertCoreBoundary(phase07, "Phase08 input");
+  assertNoPhase08InputActionType(phase07, "Phase08 input");
 
   const goalAge = normalizeGoalAge(runtime.goal_age);
   const rotationTriggered = goalAge >= 3;
@@ -254,5 +255,24 @@ function assertNoPhase08ForbiddenFields(value, context, path = "root") {
       });
     }
     assertNoPhase08ForbiddenFields(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoPhase08InputActionType(value, context, path = "root") {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoPhase08InputActionType(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (field === "action_type") {
+      throw new ContractError(`${context}: action_type must be decided by Phase04`, {
+        field,
+        path,
+      });
+    }
+    assertNoPhase08InputActionType(child, context, `${path}.${field}`);
   }
 }

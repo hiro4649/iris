@@ -37,6 +37,7 @@ import {
 
 const UNSAFE_RESPONSE_CONTEXT_TEXT_PATTERN =
   /\b(world_command|input_action|input_action_candidate|approved_game_input_action|execute|commit|write|apply|memory_write|direct_memory_write|commit_memory|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|token|secret|password|endpoint|url)\b|https?:\/\//i;
+const MODERATION_MEMORY_SUPPRESSION_STATUSES = new Set(["bounded", "muted", "blocked", "limited"]);
 
 export async function runCommentPipeline(event, runtime = {}) {
   assertNoWorldCommand(event, "Pipeline input");
@@ -81,8 +82,9 @@ export async function runCommentPipeline(event, runtime = {}) {
   const requestedLanguage = detectRequestedLanguageCode(phase01.normalized_text);
   const detectedLanguage = detectSpokenLanguageCode(phase01.normalized_text);
   const responseLanguageHint = requestedLanguage ?? detectedLanguage ?? "en";
-  const safeMemoryPromptSummary =
-    runtime.allowDirectMemoryPrompt === true
+  const safeMemoryPromptSummary = shouldSuppressPersonalizedMemoryPrompt(event)
+    ? ""
+    : runtime.allowDirectMemoryPrompt === true
       ? recentMemorySummarySafely(runtime.memoryStore)
       : buildSafeMemoryPromptSummarySafely({
           memoryStore: runtime.memoryStore,
@@ -187,6 +189,16 @@ function createPhase05CoreExport(phase05) {
 
 function buildSafeMemoryPromptSummary({ memoryStore, phase01 }) {
   return createApprovedMemoryPromptSummary({ memoryStore, phase01 }).prompt_summary;
+}
+
+function shouldSuppressPersonalizedMemoryPrompt(event) {
+  const status = String(
+    event?.moderation_recall_status ?? event?.moderation_status ??
+      event?.payload?.moderation_recall_status ?? event?.payload?.moderation_status ?? ""
+  )
+    .trim()
+    .toLowerCase();
+  return MODERATION_MEMORY_SUPPRESSION_STATUSES.has(status);
 }
 
 function summarizeRelationshipSafely(relationshipStore, linkedIdentityId) {

@@ -22,6 +22,7 @@ const REJECT_REASONS = new Set([
   "no_candidate",
   "unsafe_candidate",
   "privacy_filtered",
+  "community_validation_missing",
   "rights_guard_cautious",
   "unsupported_candidate_kind",
   "relationship_memory_disabled",
@@ -192,6 +193,15 @@ export function validateRuntimeCandidatesForPersistence({
     return validation;
   }
 
+  collectMemoryApproval({
+    candidate: coreResult?.phase05?.memory_candidate,
+    sourcePhase: "phase05",
+    base,
+    ownerScope: "shared_stream",
+    memoryType: "stream_experience",
+    approved_memory_records,
+    rejected_candidates,
+  });
   collectMemoryApproval({
     candidate: donationReaction.gratitude_memory_candidate,
     sourcePhase: "addendum_donation",
@@ -609,6 +619,20 @@ function collectMemoryApproval({
     );
     return;
   }
+  if (
+    candidate.candidate_kind === "community_memory_candidate" &&
+    !hasCommunityMemoryValidationPolicy(candidate)
+  ) {
+    rejected_candidates.push(
+      createReject({
+        ...base,
+        source_phase: sourcePhase,
+        source_candidate_kind: candidate.candidate_kind,
+        reason: "community_validation_missing",
+      })
+    );
+    return;
+  }
   const rawSummary = rawCandidateSummary(candidate);
   const sensitivity = inferSensitivityLevel(rawSummary);
   if (sensitivity === "private" || sensitivity === "sensitive") {
@@ -638,6 +662,10 @@ function collectMemoryApproval({
     source_phase: sourcePhase,
     source_candidate_kind: candidate.candidate_kind,
     sensitivity_level: sensitivity,
+    audit_status: "approved",
+    commit_snapshot_id: buildCommitSnapshotId(candidate, sourcePhase),
+    rollback_pointer_id: buildRollbackPointerId(candidate, sourcePhase),
+    moderation_precheck_status: "allowed",
     validation_route: "candidate_validator_v1",
     committed_at_ms: base.validated_at_ms,
   };
@@ -722,6 +750,10 @@ function collectRelationshipApproval({
     summary,
     source_phase: "phase20",
     source_candidate_kind: candidate.candidate_kind,
+    audit_status: "approved",
+    commit_snapshot_id: buildCommitSnapshotId(candidate, "phase20"),
+    rollback_pointer_id: buildRollbackPointerId(candidate, "phase20"),
+    moderation_precheck_status: "allowed",
     validation_route: "candidate_validator_v1",
     committed_at_ms: base.validated_at_ms,
   };
@@ -783,13 +815,31 @@ function stableMemorySummaryKey(summary) {
   return createHash("sha256").update(String(summary ?? "")).digest("hex").slice(0, 12);
 }
 
+function buildCommitSnapshotId(candidate, sourcePhase) {
+  return `snapshot:${sourcePhase}:${candidate.event_id ?? "unknown_event"}:${stableMemorySummaryKey(rawCandidateSummary(candidate))}`;
+}
+
+function buildRollbackPointerId(candidate, sourcePhase) {
+  return `rollback:${sourcePhase}:${candidate.event_id ?? "unknown_event"}:${stableMemorySummaryKey(rawCandidateSummary(candidate))}`;
+}
+
 function isSupportedMemoryCandidate(kind) {
   return [
     "donation_appreciation_memory_candidate",
     "media_watch_memory_candidate",
+    "experience_log",
     "memory_carryover_candidate",
     "community_memory_candidate",
   ].includes(kind);
+}
+
+function hasCommunityMemoryValidationPolicy(candidate) {
+  return (
+    candidate.privacy_policy === "no_person_specific_detail" &&
+    candidate.safety_policy === "safe_public_context_only" &&
+    candidate.canon_policy === "non_canon_community_lore_candidate" &&
+    candidate.community_policy === "keep_open_for_new_viewers"
+  );
 }
 
 function assertApprovedMemoryRecord(record, context) {
@@ -799,6 +849,7 @@ function assertApprovedMemoryRecord(record, context) {
   if (!record.summary || inferSensitivityLevel(record.summary) === "sensitive") {
     throw new ContractError(`${context}: unsafe memory summary`);
   }
+  assertRollbackGuardFields(record, context);
   if (
     ![
       "stream_experience",
@@ -820,11 +871,31 @@ function assertApprovedRelationshipRecord(record, context) {
   if (!record.linked_identity_id) {
     throw new ContractError(`${context}: relationship record missing identity`);
   }
+  assertRollbackGuardFields(record, context);
   if (record.affinity_delta < -0.1 || record.affinity_delta > 0.1) {
     throw new ContractError(`${context}: affinity delta out of range`);
   }
   if (record.familiarity_delta < -0.1 || record.familiarity_delta > 0.1) {
     throw new ContractError(`${context}: familiarity delta out of range`);
+  }
+}
+
+function assertRollbackGuardFields(record, context) {
+  for (const field of [
+    "audit_status",
+    "commit_snapshot_id",
+    "rollback_pointer_id",
+    "moderation_precheck_status",
+  ]) {
+    if (typeof record[field] !== "string" || record[field].trim() === "") {
+      throw new ContractError(`${context}: ${field} is required`);
+    }
+  }
+  if (record.audit_status !== "approved") {
+    throw new ContractError(`${context}: approved audit status required`);
+  }
+  if (record.moderation_precheck_status !== "allowed") {
+    throw new ContractError(`${context}: allowed moderation precheck required`);
   }
 }
 

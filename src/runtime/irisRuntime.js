@@ -1050,6 +1050,7 @@ function assertRuntimeGameControlHandoffAccepted(
 
 function createCorePipelineRuntimeConfig(runtimeConfig) {
   if (
+    runtimeConfig.enableCandidatePersistence !== true &&
     runtimeConfig.candidateMemoryCommitPaused !== true &&
     runtimeConfig.candidateRelationshipCommitPaused !== true
   ) {
@@ -1060,6 +1061,7 @@ function createCorePipelineRuntimeConfig(runtimeConfig) {
     memoryStore:
       runtimeConfig.candidateMemoryCommitPaused === true ? null : runtimeConfig.memoryStore,
     relationshipStore:
+      runtimeConfig.enableCandidatePersistence === true ||
       runtimeConfig.candidateRelationshipCommitPaused === true
         ? null
         : runtimeConfig.relationshipStore,

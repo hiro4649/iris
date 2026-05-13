@@ -49,6 +49,8 @@ const FORBIDDEN_OVERLAY_EVENT_FIELDS = new Set([
   "raw_payloads",
   "raw_bridge_payload",
   "raw_bridge_payloads",
+  "bridge_mutation",
+  "bridge_mutations",
   "bridge_payload",
   "bridge_payloads",
   "payload",

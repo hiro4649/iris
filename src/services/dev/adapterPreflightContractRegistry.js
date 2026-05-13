@@ -157,14 +157,21 @@ const PUBLIC_DIAGNOSTIC_BOUNDARY_FIELDS = new Set([
   "no_raw_packet",
   "no_world_command",
   "no_secret",
+  "no_token",
   "no_candidate",
+  "no_raw_response",
 ]);
 const ADMIN_DIAGNOSTIC_BOUNDARY_FIELDS = new Set([
   "ordinary_safe_summary_only",
   "owner_only_role_gated",
   "no_secret",
+  "no_token",
   "no_endpoint",
   "no_raw_diagnostics",
+  "no_raw_packet",
+  "no_world_command",
+  "no_candidate",
+  "no_raw_response",
 ]);
 const ADMIN_PAGE_BOUNDARY_FIELDS = new Set([
   "adapter_status_only",
@@ -657,7 +664,9 @@ export function createAdapterPreflightPublicDiagnostic({
       no_raw_packet: true,
       no_world_command: true,
       no_secret: true,
+      no_token: true,
       no_candidate: true,
+      no_raw_response: true,
     },
   };
   assertAdapterPreflightPublicDiagnosticSafe(diagnostic);
@@ -710,8 +719,13 @@ export function createAdapterPreflightAdminDiagnostic({
       ordinary_safe_summary_only: true,
       owner_only_role_gated: true,
       no_secret: true,
+      no_token: true,
       no_endpoint: true,
       no_raw_diagnostics: true,
+      no_raw_packet: true,
+      no_world_command: true,
+      no_candidate: true,
+      no_raw_response: true,
     },
   };
   assertAdapterPreflightAdminDiagnosticSafe(diagnostic);

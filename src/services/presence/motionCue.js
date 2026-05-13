@@ -2,6 +2,11 @@ import { ContractError, assertNoWorldCommand } from "../../core/contracts.js";
 
 const FORBIDDEN_MOTION_FIELDS = new Set([
   "world_command",
+  "obs_command",
+  "obs_command_payload",
+  "bridge_mutation",
+  "bridge_payload",
+  "raw_bridge_payload",
   "input_action",
   "input_action_candidate",
   "approved_game_input_action",

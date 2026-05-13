@@ -47,6 +47,15 @@ const FORBIDDEN_PRODUCTION_PROBE_FIELDS = new Set([
   "final_text",
   "text",
   "subtitle_text",
+  "raw_error",
+  "rawError",
+  "raw_job",
+  "rawJob",
+  "raw_payload",
+  "rawPayload",
+  "command",
+  "command_payload",
+  "commandPayload",
   "endpoint",
   "url",
   "api_key",
@@ -286,6 +295,11 @@ const PRODUCTION_PROBE_AUDIT_EVENT_FIELDS = new Set([
   "result_status",
   "timestamp_ms",
   "boundary_policy",
+]);
+const PRODUCTION_PROBE_AUDIT_SAFE_TARGETS = new Set([
+  "production_probe",
+  "production_preflight",
+  "production_readiness",
 ]);
 const PRODUCTION_PROBE_REPEATED_BLOCKER_GROUP_SUMMARY_FIELDS = new Set([
   "schema",
@@ -1475,12 +1489,15 @@ function assertProductionProbeOperatorCheckSafe(check, context) {
 export function createProductionProbeReadinessAuditEvent({
   generatedAtMs = Date.now(),
   verificationStatus = "configuration_attention",
+  safeTarget = "production_probe",
 } = {}) {
   const event = {
     schema: "iris_production_probe_readiness_audit_event_v1",
     actor_role: "system",
     audit_action: "readiness_status_update",
-    safe_target: "production_probe",
+    safe_target: PRODUCTION_PROBE_AUDIT_SAFE_TARGETS.has(safeTarget)
+      ? safeTarget
+      : "production_probe",
     result_status:
       verificationStatus === "configured_probe_ready" ? "ready" : "attention",
     timestamp_ms: Number.isFinite(Number(generatedAtMs))
@@ -1521,7 +1538,7 @@ export function assertProductionProbeReadinessAuditEventSafe(
   if (event.audit_action !== "readiness_status_update") {
     throw new ContractError(`${context}: invalid audit action`);
   }
-  if (event.safe_target !== "production_probe") {
+  if (!PRODUCTION_PROBE_AUDIT_SAFE_TARGETS.has(event.safe_target)) {
     throw new ContractError(`${context}: invalid safe target`);
   }
   if (!["ready", "attention"].includes(event.result_status)) {
@@ -1568,6 +1585,7 @@ export function createProductionProbeRepeatedBlockerGroupSummary({
     boundary_policy: {
       component_status_count_only: true,
       no_raw_error_detail: true,
+      no_raw_jobs: true,
       no_raw_logs: true,
       no_secret_values: true,
       no_endpoint_values: true,
@@ -1606,6 +1624,7 @@ export function assertProductionProbeRepeatedBlockerGroupSummarySafe(
   assertBoundaryPolicy(summary.boundary_policy, [
     "component_status_count_only",
     "no_raw_error_detail",
+    "no_raw_jobs",
     "no_raw_logs",
     "no_secret_values",
     "no_endpoint_values",

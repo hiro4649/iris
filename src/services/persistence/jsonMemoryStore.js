@@ -19,6 +19,7 @@ const FORBIDDEN_MEMORY_PUBLIC_FIELDS = new Set([
   "relationship_update_candidate",
   "memory_carryover_candidates",
   "community_memory_candidates",
+  "selected_memory_ids",
   "approved_memory_record",
   "approved_relationship_record",
   "relation_score",
@@ -204,6 +205,10 @@ export function approveMemoryCandidate(phase05, phase15) {
     event_id: candidate.event_id,
     store: phase05.updated_store,
     summary: candidate.summary,
+    audit_status: "approved",
+    commit_snapshot_id: `snapshot:phase05:${candidate.event_id}`,
+    rollback_pointer_id: `rollback:phase05:${candidate.event_id}`,
+    moderation_precheck_status: "allowed",
     committed_at_ms: Date.now(),
   };
 }
@@ -233,6 +238,9 @@ export function sanitizeApprovedMemoryRecordForPublicState(record) {
   if (!record) return null;
   assertApprovedMemoryRecordShape(record, "Approved memory public summary");
   if (isPrivateOwnerScope(record.owner_scope)) {
+    return null;
+  }
+  if (record.sensitivity_level === "private" || record.sensitivity_level === "sensitive") {
     return null;
   }
   const sensitivity = inferSensitivityLevel(record.summary ?? "");
@@ -575,6 +583,26 @@ function assertApprovedMemoryRecordShape(record, context) {
   assertNoForbiddenMemoryPublicFields(record, context);
   if (record.schema !== "approved_memory_record" || record.approved !== true) {
     throw new ContractError(`${context}: invalid approved memory record`);
+  }
+  assertRollbackGuardFields(record, context);
+}
+
+function assertRollbackGuardFields(record, context) {
+  for (const field of [
+    "audit_status",
+    "commit_snapshot_id",
+    "rollback_pointer_id",
+    "moderation_precheck_status",
+  ]) {
+    if (typeof record[field] !== "string" || record[field].trim() === "") {
+      throw new ContractError(`${context}: ${field} is required`);
+    }
+  }
+  if (record.audit_status !== "approved") {
+    throw new ContractError(`${context}: approved audit status required`);
+  }
+  if (record.moderation_precheck_status !== "allowed") {
+    throw new ContractError(`${context}: allowed moderation precheck required`);
   }
 }
 

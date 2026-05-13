@@ -68,6 +68,20 @@ const FORBIDDEN_PACKET_FIELDS = new Set([
   "internal_model_path",
   "model_path",
 ]);
+const CROSS_PACKET_ADAPTER_KINDS = new Set([
+  "tts",
+  "live2d",
+  "subtitle",
+  "obs",
+  "overlay",
+  "game",
+  "youtube",
+  "db",
+]);
+const CROSS_PACKET_FORBIDDEN_FIELD_PATTERN =
+  /(?:^|_)(?:secret|token|endpoint|raw_payload|raw_packet|raw_response|raw_body|raw_command|raw_comment|raw_support|raw_frame|candidate|candidates|commit|execute|write)(?:_|$)/u;
+const CROSS_PACKET_FORBIDDEN_TEXT_PATTERN =
+  /\b(?:secret|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|endpoint|raw[_\s-]?(?:payload|packet|response|command)|candidate(?:_kind)?|commit(?:_memory)?|direct[_-]?memory[_-]?write)\b|https?:\/\//iu;
 
 const TTS_ADAPTER_GUIDANCE_ALLOWED_FIELDS = new Set([
   "voice_hint",
@@ -108,6 +122,31 @@ const TTS_FIXTURE_PACKET_PREVIEW_FIELDS = new Set([
   "guidance_hint_count",
   "boundary_policy",
 ]);
+const TTS_ADAPTER_PACKET_ALLOWED_FIELDS = new Set([
+  "schema",
+  "adapter_kind",
+  "trace_id",
+  "trace_id_present",
+  "event_id",
+  "event_id_present",
+  "final_text",
+  "text",
+  "status",
+  "performance_cue",
+  "speech_cue",
+  "performance_plan",
+  "turn_rhythm",
+  "affective_continuity",
+  "personality_habit",
+  "expression_profile",
+  "autonomous_expression",
+  "speech_rate_profile",
+  "language_profile",
+  "subtitle_cue",
+  "tongue_twister_mode",
+  "tts_adapter_guidance",
+  "adapter_validation_required",
+]);
 const LIVE2D_FIXTURE_CUE_PREVIEW_FIELDS = new Set([
   "schema",
   "preview_status",
@@ -115,6 +154,28 @@ const LIVE2D_FIXTURE_CUE_PREVIEW_FIELDS = new Set([
   "packet_field_count",
   "motion_track_count",
   "boundary_policy",
+]);
+const LIVE2D_ADAPTER_PACKET_ALLOWED_FIELDS = new Set([
+  "schema",
+  "adapter_kind",
+  "trace_id",
+  "trace_id_present",
+  "event_id",
+  "event_id_present",
+  "action_type",
+  "canonical_envelope",
+  "performance_cue",
+  "motion_cue",
+  "body_continuity",
+  "camera_proximity",
+  "performance_plan",
+  "turn_rhythm",
+  "affective_continuity",
+  "personality_habit",
+  "expression_profile",
+  "autonomous_expression",
+  "live2d_adapter_guidance",
+  "adapter_validation_required",
 ]);
 const SUBTITLE_ADAPTER_PACKET_ALLOWED_FIELDS = new Set([
   "schema",
@@ -633,7 +694,8 @@ export function assertLive2dRecoveryCueRequired(packet, context = "Live2D adapte
 
 export function assertApprovedActionEnvelopeForAdapter(
   envelope,
-  context = "Adapter action envelope"
+  context = "Adapter action envelope",
+  expectedCorrelation = null
 ) {
   if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
     throw new ContractError(`${context}: approved action envelope required`);
@@ -653,7 +715,32 @@ export function assertApprovedActionEnvelopeForAdapter(
       action_type: envelope.action_type,
     });
   }
+  assertAdapterHandoffTraceCorrelation(envelope, expectedCorrelation, context);
   assertTargetPresenceReadyForAdapter(envelope, context);
+}
+
+export function assertAdapterHandoffTraceCorrelation(
+  envelope,
+  expectedCorrelation = null,
+  context = "Adapter handoff trace correlation"
+) {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
+    throw new ContractError(`${context}: approved action envelope required`);
+  }
+  const traceId = String(envelope.trace_id ?? "").trim();
+  const eventId = String(envelope.event_id ?? "").trim();
+  if (traceId === "" || eventId === "") {
+    throw new ContractError(`${context}: trace_id and event_id are required`);
+  }
+  if (expectedCorrelation == null) return;
+  const expectedTraceId = String(expectedCorrelation.trace_id ?? expectedCorrelation.traceId ?? "").trim();
+  const expectedEventId = String(expectedCorrelation.event_id ?? expectedCorrelation.eventId ?? "").trim();
+  if (expectedTraceId !== "" && traceId !== expectedTraceId) {
+    throw new ContractError(`${context}: trace_id changed before adapter handoff`);
+  }
+  if (expectedEventId !== "" && eventId !== expectedEventId) {
+    throw new ContractError(`${context}: event_id changed before adapter handoff`);
+  }
 }
 
 export function createAdapterHandoffFixtureRegressionPack({ nowMs = Date.now() } = {}) {
@@ -677,6 +764,9 @@ export function createAdapterHandoffFixtureRegressionPack({ nowMs = Date.now() }
     ["blocked_target", { ...approved, target_presence_id: "blocked" }, false],
     ["stale_timestamp", { ...approved, handoff_timestamp_status: "stale" }, false],
     ["candidate_mixed", { ...approved, candidate_kind: "adapter_shortcut" }, false],
+    ["task_type_shortcut", { ...approved, task_type: "INTERACT_USER" }, false],
+    ["review_queue_shortcut", { ...approved, handoff_route: "review" }, false],
+    ["world_command_shortcut", { ...approved, world_command: { kind: "unsafe" } }, false],
   ];
   const results = fixtures.map(([fixture, envelope, shouldPass]) => {
     let passed = false;
@@ -703,6 +793,12 @@ export function createAdapterHandoffFixtureRegressionPack({ nowMs = Date.now() }
       results.find((result) => result.fixture === "stale_timestamp")?.result === "reject",
     candidate_rejected:
       results.find((result) => result.fixture === "candidate_mixed")?.result === "reject",
+    task_type_rejected:
+      results.find((result) => result.fixture === "task_type_shortcut")?.result === "reject",
+    review_queue_rejected:
+      results.find((result) => result.fixture === "review_queue_shortcut")?.result === "reject",
+    world_command_rejected:
+      results.find((result) => result.fixture === "world_command_shortcut")?.result === "reject",
     boundary_policy: {
       safe_fixture_labels_only: true,
       no_raw_payload_values: true,
@@ -711,6 +807,131 @@ export function createAdapterHandoffFixtureRegressionPack({ nowMs = Date.now() }
       no_candidate_payload_values: true,
     },
   };
+}
+
+export function createAdapterRegressionPackRunner({ nowMs = Date.now() } = {}) {
+  const handoffPack = createAdapterHandoffFixtureRegressionPack({ nowMs });
+  const checks = [
+    handoffPack.approved_passed,
+    handoffPack.blocked_rejected,
+    handoffPack.stale_rejected,
+    handoffPack.candidate_rejected,
+    handoffPack.task_type_rejected,
+    handoffPack.review_queue_rejected,
+    handoffPack.world_command_rejected,
+  ];
+  const passed = checks.filter(Boolean).length;
+  const summary = {
+    schema: "iris_adapter_regression_pack_runner_v1",
+    runner_status: passed === checks.length ? "pass" : "fail",
+    pack_count: 1,
+    fixture_count: handoffPack.fixture_count,
+    pass_count: passed,
+    fail_count: checks.length - passed,
+    packs: [
+      {
+        pack_label: "adapter_handoff_fixture_regression",
+        pack_status: passed === checks.length ? "pass" : "fail",
+        fixture_count: handoffPack.fixture_count,
+      },
+    ],
+    boundary_policy: {
+      pass_fail_summary_only: true,
+      no_raw_logs: true,
+      no_raw_payload_values: true,
+      no_world_command_values: true,
+      no_secret_values: true,
+      no_candidate_payload_values: true,
+    },
+  };
+  assertAdapterRegressionPackRunnerSafe(summary);
+  return summary;
+}
+
+export function assertAdapterRegressionPackRunnerSafe(
+  summary,
+  context = "adapter regression pack runner"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  const allowedFields = new Set([
+    "schema",
+    "runner_status",
+    "pack_count",
+    "fixture_count",
+    "pass_count",
+    "fail_count",
+    "packs",
+    "boundary_policy",
+  ]);
+  for (const field of Object.keys(summary)) {
+    if (!allowedFields.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_adapter_regression_pack_runner_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["pass", "fail"].includes(summary.runner_status)) {
+    throw new ContractError(`${context}: invalid runner status`);
+  }
+  for (const field of ["pack_count", "fixture_count", "pass_count", "fail_count"]) {
+    if (!Number.isInteger(summary[field]) || summary[field] < 0) {
+      throw new ContractError(`${context}: invalid count`, { field });
+    }
+  }
+  if (!Array.isArray(summary.packs) || summary.packs.length !== summary.pack_count) {
+    throw new ContractError(`${context}: pack summary count mismatch`);
+  }
+  for (const pack of summary.packs) {
+    if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+      throw new ContractError(`${context}: pack summary required`);
+    }
+    for (const field of Object.keys(pack)) {
+      if (!["pack_label", "pack_status", "fixture_count"].includes(field)) {
+        throw new ContractError(`${context}: unexpected pack summary field`, { field });
+      }
+    }
+    if (!["pass", "fail"].includes(pack.pack_status)) {
+      throw new ContractError(`${context}: invalid pack status`);
+    }
+    if (!Number.isInteger(pack.fixture_count) || pack.fixture_count < 0) {
+      throw new ContractError(`${context}: invalid pack fixture count`);
+    }
+  }
+  for (const field of [
+    "pass_fail_summary_only",
+    "no_raw_logs",
+    "no_raw_payload_values",
+    "no_world_command_values",
+    "no_secret_values",
+    "no_candidate_payload_values",
+  ]) {
+    if (summary.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: missing boundary`, { field });
+    }
+  }
+  assertNoUnsafeRegressionRunnerValues(summary, context);
+}
+
+function assertNoUnsafeRegressionRunnerValues(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (CROSS_PACKET_FORBIDDEN_TEXT_PATTERN.test(value)) {
+      throw new ContractError(`${context}: unsafe runner summary value`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnsafeRegressionRunnerValues(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    assertNoUnsafeRegressionRunnerValues(child, context, `${path}.${field}`);
+  }
 }
 
 function assertApprovedActionEnvelopeAllowlist(envelope, context) {
@@ -1001,6 +1222,7 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
   assertNoForbiddenPacketFields(packet, context);
   assertAdapterHandoffTracePreserved(packet, context);
   if (packet.adapter_kind === "tts") {
+    assertTtsAdapterPacketAllowlist(packet, context);
     assertSpeechCueSafe(packet.speech_cue, `${context} speech cue`);
     assertPerformancePlanSafe(packet.performance_plan, `${context} performance plan`);
     if (packet.turn_rhythm) {
@@ -1036,6 +1258,7 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
     assertTtsAdapterGuidanceSafe(packet.tts_adapter_guidance, `${context} TTS adapter guidance`);
   }
   if (packet.adapter_kind === "live2d") {
+    assertLive2dAdapterPacketAllowlist(packet, context);
     if (!canonical.actionTypes.has(packet.action_type)) {
       throw new ContractError(`${context}: invalid live2d action_type`, {
         action_type: packet.action_type,
@@ -1102,6 +1325,38 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
     }
     if (packet.speech_rate_profile) {
       assertSpeechRateProfileSafe(packet.speech_rate_profile, `${context} speech rate profile`);
+    }
+  }
+}
+
+export function assertAdapterCrossPacketUnsafeFieldSweep(
+  packet,
+  { adapterKind = packet?.adapter_kind ?? packet?.adapter ?? "unknown" } = {},
+  context = "adapter cross-packet unsafe field sweep"
+) {
+  if (!packet || typeof packet !== "object" || Array.isArray(packet)) {
+    throw new ContractError(`${context}: packet object required`);
+  }
+  const normalizedKind = normalizePacketField(adapterKind);
+  if (!CROSS_PACKET_ADAPTER_KINDS.has(normalizedKind)) {
+    throw new ContractError(`${context}: unsupported adapter kind`, { adapter_kind: adapterKind });
+  }
+  assertNoForbiddenCrossPacketFields(packet, context);
+  return true;
+}
+
+function assertTtsAdapterPacketAllowlist(packet, context) {
+  for (const field of Object.keys(packet)) {
+    if (!TTS_ADAPTER_PACKET_ALLOWED_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unsupported TTS adapter packet field`, { field });
+    }
+  }
+}
+
+function assertLive2dAdapterPacketAllowlist(packet, context) {
+  for (const field of Object.keys(packet)) {
+    if (!LIVE2D_ADAPTER_PACKET_ALLOWED_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unsupported Live2D adapter packet field`, { field });
     }
   }
 }
@@ -1176,6 +1431,29 @@ function assertNoForbiddenPacketFields(value, context, path = "root") {
       });
     }
     assertNoForbiddenPacketFields(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoForbiddenCrossPacketFields(value, context, path = "root") {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoForbiddenCrossPacketFields(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    const normalized = normalizePacketField(field);
+    if (
+      isForbiddenPacketField(field) ||
+      CROSS_PACKET_FORBIDDEN_FIELD_PATTERN.test(normalized)
+    ) {
+      throw new ContractError(`${context}: unsafe adapter packet field`, { field, path });
+    }
+    if (typeof child === "string" && CROSS_PACKET_FORBIDDEN_TEXT_PATTERN.test(child)) {
+      throw new ContractError(`${context}: unsafe adapter packet value`, { field, path });
+    }
+    assertNoForbiddenCrossPacketFields(child, context, `${path}.${field}`);
   }
 }
 

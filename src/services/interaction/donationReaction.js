@@ -209,7 +209,10 @@ export function assertDonationReactionPublicSummarySafe(
   }
   assertNoWorldCommand(publicSummary, context);
   assertNoForbiddenDonationPublicSummaryFields(publicSummary, context);
-  if (publicSummary.gratitude_context?.gratitude_status !== "safe_gratitude_context") {
+  if (
+    publicSummary.gratitude_context?.gratitude_status !== "safe_gratitude_context" &&
+    publicSummary.gratitude_context?.gratitude_status !== "not_applicable"
+  ) {
     throw new ContractError(`${context}: invalid gratitude status`);
   }
   if (publicSummary.public_boundary?.gratitude_status_only !== true) {

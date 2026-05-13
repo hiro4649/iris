@@ -95,6 +95,28 @@ const RELATIONSHIP_PROFILE_PUBLIC_FIELDS = new Set([
   "recent_summaries",
   "public_boundary",
 ]);
+const RELATIONSHIP_ADMIN_ORDINARY_VIEW_FIELDS = new Set([
+  "schema",
+  "display_name",
+  "public_relationship_level",
+  "moderation_status",
+  "interaction_count",
+  "recent_summary_count",
+  "public_summary",
+  "owner_only_available",
+  "boundary_policy",
+]);
+const RELATIONSHIP_ADMIN_ORDINARY_BOUNDARY_POLICY = {
+  public_level_and_status_only: true,
+  internal_stage_role_gated: true,
+  no_internal_stage: true,
+  no_hidden_scores: true,
+  no_private_viewer_id: true,
+  no_raw_memory: true,
+  no_raw_support: true,
+  no_candidates: true,
+  no_commands: true,
+};
 
 export function createJsonRelationshipStore(
   filePath,
@@ -277,6 +299,10 @@ export function approveRelationshipCandidate(
     familiarity_delta: candidate.familiarity_delta,
     topic_key: candidate.topic_key,
     summary: candidate.summary,
+    audit_status: "approved",
+    commit_snapshot_id: `snapshot:phase05:${candidate.event_id}`,
+    rollback_pointer_id: `rollback:phase05:${candidate.event_id}`,
+    moderation_precheck_status: "allowed",
     committed_at_ms: Date.now(),
   };
 }
@@ -374,6 +400,70 @@ export function sanitizeRelationshipProfilesForPublicState(profiles) {
   return profiles.map((profile) => sanitizeRelationshipProfileForPublicState(profile)).filter(Boolean);
 }
 
+export function createRelationshipAdminOrdinaryViewSummary(profile) {
+  const publicProfile = sanitizeRelationshipProfileForPublicState(profile);
+  const recentSummaryCount = Array.isArray(publicProfile?.recent_summaries)
+    ? publicProfile.recent_summaries.length
+    : 0;
+  const summary = {
+    schema: "iris_relationship_admin_ordinary_view_summary_v1",
+    display_name: publicProfile?.display_name ?? "viewer",
+    public_relationship_level: publicProfile?.relationship_level ?? "new",
+    moderation_status: safePublicModerationStatus(moderationPublicLevelStatus(profile)),
+    interaction_count: Number(publicProfile?.interaction_count ?? 0),
+    recent_summary_count: recentSummaryCount,
+    public_summary: recentSummaryCount > 0 ? "safe_public_summary_available" : "none",
+    owner_only_available:
+      profile?.internal_relationship_stage !== undefined ||
+      profile?.affinity_score !== undefined ||
+      profile?.familiarity_score !== undefined,
+    boundary_policy: { ...RELATIONSHIP_ADMIN_ORDINARY_BOUNDARY_POLICY },
+  };
+  assertRelationshipAdminOrdinaryViewSummarySafe(summary);
+  return summary;
+}
+
+export function assertRelationshipAdminOrdinaryViewSummarySafe(
+  summary,
+  context = "relationship admin ordinary view summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!RELATIONSHIP_ADMIN_ORDINARY_VIEW_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_relationship_admin_ordinary_view_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!RELATIONSHIP_LEVELS.includes(summary.public_relationship_level)) {
+    throw new ContractError(`${context}: invalid public level`);
+  }
+  if (!["allowed", "watch", "limited", "muted", "blocked", "bounded", "unknown"].includes(summary.moderation_status)) {
+    throw new ContractError(`${context}: invalid moderation status`);
+  }
+  if (!Number.isInteger(summary.interaction_count) || summary.interaction_count < 0) {
+    throw new ContractError(`${context}: invalid interaction count`);
+  }
+  if (!Number.isInteger(summary.recent_summary_count) || summary.recent_summary_count < 0) {
+    throw new ContractError(`${context}: invalid recent summary count`);
+  }
+  if (!["safe_public_summary_available", "none"].includes(summary.public_summary)) {
+    throw new ContractError(`${context}: invalid public summary`);
+  }
+  if (typeof summary.owner_only_available !== "boolean") {
+    throw new ContractError(`${context}: invalid owner-only gate`);
+  }
+  assertExactBoundaryPolicy(
+    summary.boundary_policy,
+    RELATIONSHIP_ADMIN_ORDINARY_BOUNDARY_POLICY,
+    context
+  );
+  assertNoForbiddenRelationshipPublicFields(summary, context);
+}
+
 export function assertRelationshipProfilePublicSafe(profile, context = "relationship profile public") {
   if (!profile || typeof profile !== "object") {
     throw new ContractError(`${context}: missing profile`);
@@ -414,6 +504,26 @@ function assertApprovedRelationshipRecordShape(record, context) {
   }
   if (!record.linked_identity_id) {
     throw new ContractError(`${context}: linked_identity_id is required`);
+  }
+  assertRollbackGuardFields(record, context);
+}
+
+function assertRollbackGuardFields(record, context) {
+  for (const field of [
+    "audit_status",
+    "commit_snapshot_id",
+    "rollback_pointer_id",
+    "moderation_precheck_status",
+  ]) {
+    if (typeof record[field] !== "string" || record[field].trim() === "") {
+      throw new ContractError(`${context}: ${field} is required`);
+    }
+  }
+  if (record.audit_status !== "approved") {
+    throw new ContractError(`${context}: approved audit status required`);
+  }
+  if (record.moderation_precheck_status !== "allowed") {
+    throw new ContractError(`${context}: allowed moderation precheck required`);
   }
 }
 
@@ -460,6 +570,14 @@ function moderationPublicLevelStatus(profile) {
   )
     .trim()
     .toLowerCase();
+}
+
+function safePublicModerationStatus(value) {
+  const status = String(value ?? "").trim().toLowerCase();
+  if (["allowed", "watch", "limited", "muted", "blocked", "bounded"].includes(status)) {
+    return status;
+  }
+  return "unknown";
 }
 
 function readState(filePath) {

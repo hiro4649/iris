@@ -498,6 +498,26 @@ export function createK401K500CompletionReviewHook({ batchLabel = "K401-K500" } 
   return summary;
 }
 
+export function createK501K600CompletionReviewHook({ batchLabel = "K501-K600" } = {}) {
+  const summary = {
+    schema: "iris_k501_k600_completion_review_hook_v1",
+    status: "review_recommended",
+    batch_label: safeLabel(batchLabel),
+    review_recommended: true,
+    next_step_label: "k501_k600_completion_review",
+    boundary_policy: {
+      safe_status_only: true,
+      code_change_not_required: true,
+      source_delta_values_excluded: true,
+      sensitive_values_excluded: true,
+      personal_values_excluded: true,
+      operation_values_excluded: true,
+    },
+  };
+  assertK501K600CompletionReviewHookSafe(summary);
+  return summary;
+}
+
 export function assertKBatchAuditSummarySafe(summary, context = "K-batch audit summary") {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
     throw new ContractError(`${context}: summary required`);
@@ -972,6 +992,34 @@ export function assertK401K500CompletionReviewHookSafe(
     throw new ContractError(`${context}: invalid batch label`);
   }
   if (summary.next_step_label !== "k401_k500_completion_review") {
+    throw new ContractError(`${context}: invalid next step label`);
+  }
+  assertReviewHookBoundaryPolicy(summary.boundary_policy, context);
+}
+
+export function assertK501K600CompletionReviewHookSafe(
+  summary,
+  context = "K501-K600 completion review hook"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  assertNoUnsafeValues(summary, context);
+  if (summary.schema !== "iris_k501_k600_completion_review_hook_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!SAFE_REVIEW_HOOK_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.status !== "review_recommended" || summary.review_recommended !== true) {
+    throw new ContractError(`${context}: invalid review status`);
+  }
+  if (summary.batch_label !== safeLabel(summary.batch_label)) {
+    throw new ContractError(`${context}: invalid batch label`);
+  }
+  if (summary.next_step_label !== "k501_k600_completion_review") {
     throw new ContractError(`${context}: invalid next step label`);
   }
   assertReviewHookBoundaryPolicy(summary.boundary_policy, context);

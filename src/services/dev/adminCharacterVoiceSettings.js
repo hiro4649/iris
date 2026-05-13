@@ -1379,6 +1379,9 @@ export function createUnreleasedFootageLeakGuard({ surface = "runtime" } = {}) {
     raw_material_exposed: false,
     boundary_policy: {
       no_unreleased_footage: true,
+      no_raw_story_bible: true,
+      no_raw_script_excerpts: true,
+      no_raw_voice_samples: true,
       no_raw_animation_cuts: true,
       no_raw_model_sheets: true,
       no_runtime_raw_material: true,
@@ -2598,6 +2601,9 @@ export function assertUnreleasedFootageLeakGuardSafe(
     guard.boundary_policy,
     {
       no_unreleased_footage: true,
+      no_raw_story_bible: true,
+      no_raw_script_excerpts: true,
+      no_raw_voice_samples: true,
       no_raw_animation_cuts: true,
       no_raw_model_sheets: true,
       no_runtime_raw_material: true,
@@ -3276,7 +3282,7 @@ function assertNoVoiceLicenseCategoryRawMaterial(
 function assertNoUnreleasedFootageRawMaterial(value, context, path = "root") {
   if (typeof value === "string") {
     if (
-      /unreleased[_ -]?footage|raw[_ -]?animation(?:[_ -]?cut)?|animation[_ -]?cut|raw[_ -]?model[_ -]?sheet|model[_ -]?sheet|expression[_ -]?sheet|motion[_ -]?sheet|pose[_ -]?guide/i.test(
+      /unreleased[_ -]?footage|story[_ -]?bible|raw[_ -]?story|raw[_ -]?script|script[_ -]?excerpt|private[_ -]?production[_ -]?note|production[_ -]?note|raw[_ -]?voice|voice[_ -]?sample|raw[_ -]?animation(?:[_ -]?cut)?|animation[_ -]?cut|raw[_ -]?model[_ -]?sheet|model[_ -]?sheet|expression[_ -]?sheet|motion[_ -]?sheet|pose[_ -]?guide/i.test(
         value
       )
     ) {

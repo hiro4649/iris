@@ -257,6 +257,15 @@ const PRODUCTION_READINESS_BATCH_FIXTURE_FIELDS = new Set([
   "blocker_reason_summary",
   "boundary_policy",
 ]);
+const PRODUCTION_E2E_BLOCKER_REVIEW_HOOK_FIELDS = new Set([
+  "schema",
+  "review_status",
+  "completion_review_label",
+  "production_blocker_retained",
+  "unresolved_blocked_count",
+  "blocker_labels",
+  "boundary_policy",
+]);
 const PRODUCTION_READINESS_COMPONENT_DEPENDENCY_FIELDS = new Set([
   "schema",
   "component_id",
@@ -270,6 +279,9 @@ const PRODUCTION_READINESS_COMPONENT_IDS = new Set([
   "live2d",
   "subtitle",
   "obs",
+  "db",
+  "game",
+  "youtube",
   "overlay_pickup",
 ]);
 const PRODUCTION_LIVE_READINESS_REPORT_FIELDS = new Set([
@@ -406,8 +418,12 @@ const PRODUCTION_READINESS_BLOCKER_ACTION_BOUNDARY_FIELDS = new Set([
   "blocker_label_only",
   "no_shell_command_body",
   "no_endpoint_values",
+  "no_paths",
+  "no_tokens",
   "no_secret_values",
   "no_payloads",
+  "no_candidates",
+  "no_commands",
 ]);
 const PRODUCTION_READINESS_FIXTURE_MODE_LABEL_BOUNDARY_FIELDS = new Set([
   "fixture_and_real_readiness_separated",
@@ -506,6 +522,18 @@ const PRODUCTION_READINESS_BATCH_FIXTURE_BOUNDARY_FIELDS = new Set([
   "blocked_priority_preserved",
   "fixture_success_not_real_ready",
   "safe_summary_only",
+  "no_secret_values",
+  "no_endpoint_values",
+  "no_payloads",
+  "no_candidates",
+  "no_commands",
+]);
+const PRODUCTION_E2E_BLOCKER_REVIEW_HOOK_BOUNDARY_FIELDS = new Set([
+  "safe_review_hook_only",
+  "unresolved_blocked_retained",
+  "safe_blocker_labels_only",
+  "counts_only",
+  "no_readiness_sweetening",
   "no_secret_values",
   "no_endpoint_values",
   "no_payloads",
@@ -1318,6 +1346,9 @@ export function createProductionReadinessComponentDependencyMap({
   live2dStatus = "runtime_waiting",
   subtitleStatus = "runtime_waiting",
   obsStatus = "real_device_waiting",
+  dbStatus = "configuration_waiting",
+  gameStatus = "operator_review_required",
+  youtubeStatus = "configuration_waiting",
   overlayPickupStatus = "real_device_waiting",
 } = {}) {
   const components = [
@@ -1326,6 +1357,9 @@ export function createProductionReadinessComponentDependencyMap({
     componentDependency("live2d", live2dStatus),
     componentDependency("subtitle", subtitleStatus),
     componentDependency("obs", obsStatus),
+    componentDependency("db", dbStatus),
+    componentDependency("game", gameStatus),
+    componentDependency("youtube", youtubeStatus),
     componentDependency("overlay_pickup", overlayPickupStatus),
   ];
   const summary = {
@@ -1372,8 +1406,11 @@ export function assertProductionReadinessComponentDependencyMapSafe(
   ) {
     throw new ContractError(`${context}: invalid schema`);
   }
-  if (!Array.isArray(summary.components) || summary.components.length !== 6) {
-    throw new ContractError(`${context}: six component dependencies required`);
+  if (
+    !Array.isArray(summary.components) ||
+    summary.components.length !== PRODUCTION_READINESS_COMPONENT_IDS.size
+  ) {
+    throw new ContractError(`${context}: component dependencies required`);
   }
   const seen = new Set();
   for (const component of summary.components) {
@@ -2198,6 +2235,9 @@ export function createProductionReadinessBatchFixture() {
     live2dStatus: "ready",
     subtitleStatus: "ready",
     obsStatus: "configuration_waiting",
+    dbStatus: "configuration_waiting",
+    gameStatus: "operator_review_required",
+    youtubeStatus: "configuration_waiting",
     overlayPickupStatus: "ready",
   });
   const fixtureSummary = createProductionReadinessFixtureModeLabel({
@@ -2205,7 +2245,7 @@ export function createProductionReadinessBatchFixture() {
     realRuntimeConfirmed: false,
   });
   const blockerSummary = createProductionReadinessBlockerReasonSummary({
-    reasons: ["worker_missing", "engine_attention", "obs_missing", "fixture_only"],
+    reasons: ["worker_missing", "engine_attention", "obs_missing", "db_missing", "fixture_only"],
   });
   const classifier = createProductionReadinessBlockerClassifier({
     readinessState: "runtime_waiting",
@@ -2264,7 +2304,13 @@ export function assertProductionReadinessBatchFixtureSafe(
     fixture.blocker_reason_summary,
     `${context}: blocker reason summary`
   );
-  for (const reason of ["worker_missing", "engine_attention", "obs_missing", "fixture_only"]) {
+  for (const reason of [
+    "worker_missing",
+    "engine_attention",
+    "obs_missing",
+    "db_missing",
+    "fixture_only",
+  ]) {
     if (!fixture.blocker_reason_summary.reason_labels.includes(reason)) {
       throw new ContractError(`${context}: missing blocker reason`);
     }
@@ -2272,6 +2318,94 @@ export function assertProductionReadinessBatchFixtureSafe(
   assertBoundaryPolicy(
     fixture.boundary_policy,
     PRODUCTION_READINESS_BATCH_FIXTURE_BOUNDARY_FIELDS,
+    `${context}: boundary policy`
+  );
+}
+
+export function createProductionE2EBlockerReviewHook({
+  fixture = createProductionReadinessBatchFixture(),
+} = {}) {
+  assertProductionReadinessBatchFixtureSafe(
+    fixture,
+    "production E2E blocker review hook fixture"
+  );
+  const blocked = fixture.classification === "BLOCKED" || fixture.ready_allowed === false;
+  const blockerLabels = blocked
+    ? [...fixture.blocker_reason_summary.reason_labels].map((label) =>
+        safeProductionReadinessBlockerReason(label)
+      )
+    : [];
+  const hook = {
+    schema: "iris_production_e2e_blocker_review_hook_v1",
+    review_status: blocked
+      ? "production_blocker_review_required"
+      : "no_unresolved_blocker",
+    completion_review_label: "production_blocker_completion_review",
+    production_blocker_retained: blocked,
+    unresolved_blocked_count: blockerLabels.length,
+    blocker_labels: blockerLabels,
+    boundary_policy: Object.fromEntries(
+      [...PRODUCTION_E2E_BLOCKER_REVIEW_HOOK_BOUNDARY_FIELDS].map((field) => [
+        field,
+        true,
+      ])
+    ),
+  };
+  assertProductionE2EBlockerReviewHookSafe(hook);
+  return hook;
+}
+
+export function assertProductionE2EBlockerReviewHookSafe(
+  hook,
+  context = "production E2E blocker review hook"
+) {
+  if (!hook || typeof hook !== "object" || Array.isArray(hook)) {
+    throw new ContractError(`${context}: hook is required`);
+  }
+  assertNoForbiddenProductionLiveReadinessFields(hook, context);
+  for (const field of Object.keys(hook)) {
+    if (!PRODUCTION_E2E_BLOCKER_REVIEW_HOOK_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected hook field`);
+    }
+  }
+  if (hook.schema !== "iris_production_e2e_blocker_review_hook_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (
+    !["production_blocker_review_required", "no_unresolved_blocker"].includes(
+      hook.review_status
+    )
+  ) {
+    throw new ContractError(`${context}: invalid review status`);
+  }
+  if (hook.completion_review_label !== "production_blocker_completion_review") {
+    throw new ContractError(`${context}: invalid completion review label`);
+  }
+  if (typeof hook.production_blocker_retained !== "boolean") {
+    throw new ContractError(`${context}: invalid retained flag`);
+  }
+  if (!Number.isInteger(hook.unresolved_blocked_count) || hook.unresolved_blocked_count < 0) {
+    throw new ContractError(`${context}: invalid blocked count`);
+  }
+  if (!Array.isArray(hook.blocker_labels)) {
+    throw new ContractError(`${context}: blocker labels required`);
+  }
+  for (const label of hook.blocker_labels) {
+    if (!PRODUCTION_READINESS_BLOCKER_REASON_LABELS.has(label)) {
+      throw new ContractError(`${context}: invalid blocker label`);
+    }
+  }
+  if (
+    hook.production_blocker_retained !==
+      (hook.review_status === "production_blocker_review_required") ||
+    hook.unresolved_blocked_count !== hook.blocker_labels.length ||
+    (hook.production_blocker_retained && hook.unresolved_blocked_count < 1)
+  ) {
+    throw new ContractError(`${context}: production blocker must stay in review`);
+  }
+  assertBoundaryPolicy(
+    hook.boundary_policy,
+    PRODUCTION_E2E_BLOCKER_REVIEW_HOOK_BOUNDARY_FIELDS,
     `${context}: boundary policy`
   );
 }

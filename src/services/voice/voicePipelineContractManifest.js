@@ -134,11 +134,36 @@ const REGRESSION_PACK_BOUNDARY_FIELDS = new Set([
   "token_reject_fixture_required",
   "canonical_pollution_reject_fixture_required",
 ]);
+const COMPLETION_REVIEW_SUMMARY_FIELDS = new Set([
+  "schema",
+  "completion_status",
+  "completion_review_label",
+  "component_count",
+  "completed_components",
+  "residual_risk_label",
+  "boundary_policy",
+]);
+const COMPLETION_REVIEW_BOUNDARY_FIELDS = new Set([
+  "safe_summary_only",
+  "no_raw_voice_material",
+  "no_raw_cue_payload",
+  "no_candidate_payload",
+  "no_command_fields",
+]);
 const OPERATOR_ATTENTION_SUMMARY_FIELDS = new Set([
   "schema",
   "attention_status",
   "reason_labels",
   "safe_next_action",
+  "boundary_policy",
+]);
+const E2E_SAFE_PACKET_FIELDS = new Set([
+  "schema",
+  "packet_status",
+  "component_count",
+  "guidance_components",
+  "canonical_enum_exported",
+  "adapter_guidance_only",
   "boundary_policy",
 ]);
 const OPERATOR_ATTENTION_BOUNDARY_FIELDS = new Set([
@@ -151,6 +176,17 @@ const OPERATOR_ATTENTION_REASONS = new Set([
   "voice_unset",
   "rights_unverified",
   "placeholder_active",
+]);
+const E2E_SAFE_PACKET_BOUNDARY_FIELDS = new Set([
+  "voice_hint_adapter_guidance_only",
+  "speech_rate_profile_adapter_guidance_only",
+  "language_profile_adapter_guidance_only",
+  "subtitle_cue_adapter_guidance_only",
+  "mouth_cue_adapter_guidance_only",
+  "no_canonical_enum_export",
+  "no_memory_or_relationship_write",
+  "no_game_input",
+  "no_commands",
 ]);
 const REQUIRED_REGRESSION_FIXTURES = [
   "supported",
@@ -187,6 +223,76 @@ export function createVoicePipelineContractManifest() {
   };
   assertVoicePipelineContractManifestSafe(manifest);
   return manifest;
+}
+
+export function createVoicePipelineE2ESafePacket({
+  voiceHint = "safe_adapter_guidance",
+  speechRateProfile = "internal_voice_profile",
+  languageProfile = "internal_language_profile",
+  subtitleCue = "safe_display_cue",
+  mouthCue = "safe_timing_cue",
+} = {}) {
+  const packet = {
+    schema: "iris_voice_pipeline_e2e_safe_packet_v1",
+    packet_status: "safe_adapter_guidance",
+    component_count: COMPONENTS.length,
+    guidance_components: {
+      voice_hint: safeGuidanceLabel(voiceHint, "safe_adapter_guidance"),
+      speech_rate_profile: safeGuidanceLabel(
+        speechRateProfile,
+        "internal_voice_profile"
+      ),
+      language_profile: safeGuidanceLabel(languageProfile, "internal_language_profile"),
+      subtitle_cue: safeGuidanceLabel(subtitleCue, "safe_display_cue"),
+      mouth_cue: safeGuidanceLabel(mouthCue, "safe_timing_cue"),
+    },
+    canonical_enum_exported: false,
+    adapter_guidance_only: true,
+    boundary_policy: {
+      voice_hint_adapter_guidance_only: true,
+      speech_rate_profile_adapter_guidance_only: true,
+      language_profile_adapter_guidance_only: true,
+      subtitle_cue_adapter_guidance_only: true,
+      mouth_cue_adapter_guidance_only: true,
+      no_canonical_enum_export: true,
+      no_memory_or_relationship_write: true,
+      no_game_input: true,
+      no_commands: true,
+    },
+  };
+  assertVoicePipelineE2ESafePacketSafe(packet);
+  return packet;
+}
+
+export function assertVoicePipelineE2ESafePacketSafe(
+  packet,
+  context = "voice pipeline E2E safe packet"
+) {
+  if (!packet || typeof packet !== "object" || Array.isArray(packet)) {
+    throw new ContractError(`${context}: packet required`);
+  }
+  for (const field of Object.keys(packet)) {
+    if (!E2E_SAFE_PACKET_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected packet field`);
+    }
+  }
+  if (
+    packet.schema !== "iris_voice_pipeline_e2e_safe_packet_v1" ||
+    packet.packet_status !== "safe_adapter_guidance" ||
+    packet.component_count !== COMPONENTS.length ||
+    packet.canonical_enum_exported !== false ||
+    packet.adapter_guidance_only !== true
+  ) {
+    throw new ContractError(`${context}: invalid safe packet`);
+  }
+  assertVoicePipelineCanonicalFirewall(packet, context);
+  assertHandoffContract(packet.guidance_components, context);
+  for (const field of COMPONENTS) {
+    if (!SAFE_PUBLIC_TEXT_PATTERN.test(packet.guidance_components[field])) {
+      throw new ContractError(`${context}: unsafe guidance value`);
+    }
+  }
+  assertE2ESafePacketBoundaryPolicy(packet.boundary_policy, context);
 }
 
 export function assertVoicePipelineContractManifestSafe(
@@ -536,7 +642,7 @@ export function assertVoicePipelinePublicStateSafe(
     throw new ContractError(`${context}: invalid schema`);
   }
   for (const field of ["language", "subtitle_status", "speech_rate_label", "repair_status"]) {
-    if (!SAFE_PUBLIC_TEXT_PATTERN.test(state[field])) {
+    if (!SAFE_PUBLIC_TEXT_PATTERN.test(state[field]) || isUnsafePublicStateText(state[field])) {
       throw new ContractError(`${context}: invalid public state value`);
     }
   }
@@ -584,6 +690,57 @@ export function assertVoicePipelineFixtureRegressionPackSafe(
     throw new ContractError(`${context}: fixture count mismatch`);
   }
   assertRegressionPackBoundaryPolicy(pack.boundary_policy, context);
+}
+
+export function createVoicePipelineE2ECompletionReviewSummary({
+  completionStatus = "ready_for_completion_review",
+  residualRiskLabel = "none",
+} = {}) {
+  const summary = {
+    schema: "iris_voice_pipeline_e2e_completion_review_summary_v1",
+    completion_status: safeCompletionStatus(completionStatus),
+    completion_review_label: "voice_subtitle_language_pipeline_e2e",
+    component_count: 5,
+    completed_components: [...COMPONENTS],
+    residual_risk_label: safeCompletionRiskLabel(residualRiskLabel),
+    boundary_policy: {
+      safe_summary_only: true,
+      no_raw_voice_material: true,
+      no_raw_cue_payload: true,
+      no_candidate_payload: true,
+      no_command_fields: true,
+    },
+  };
+  assertVoicePipelineE2ECompletionReviewSummarySafe(summary);
+  return summary;
+}
+
+export function assertVoicePipelineE2ECompletionReviewSummarySafe(
+  summary,
+  context = "voice pipeline E2E completion review summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!COMPLETION_REVIEW_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected summary field`);
+    }
+  }
+  if (
+    summary.schema !== "iris_voice_pipeline_e2e_completion_review_summary_v1" ||
+    summary.completion_review_label !== "voice_subtitle_language_pipeline_e2e" ||
+    summary.component_count !== 5 ||
+    !["ready_for_completion_review", "blocked"].includes(summary.completion_status)
+  ) {
+    throw new ContractError(`${context}: invalid completion summary`);
+  }
+  assertExactComponents(summary.completed_components, context);
+  if (!SAFE_PUBLIC_TEXT_PATTERN.test(summary.residual_risk_label)) {
+    throw new ContractError(`${context}: invalid residual risk label`);
+  }
+  assertCompletionReviewBoundaryPolicy(summary.boundary_policy, context);
+  assertNoUnsafeCompletionReviewMaterial(summary, context, new WeakSet());
 }
 
 export function createVoicePipelineOperatorAttentionSummary({
@@ -809,6 +966,22 @@ function assertRegressionPackBoundaryPolicy(policy, context) {
   }
 }
 
+function assertCompletionReviewBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of Object.keys(policy)) {
+    if (!COMPLETION_REVIEW_BOUNDARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field`);
+    }
+  }
+  for (const field of COMPLETION_REVIEW_BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary policy required`);
+    }
+  }
+}
+
 function assertOperatorAttentionBoundaryPolicy(policy, context) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
     throw new ContractError(`${context}: boundary policy required`);
@@ -823,6 +996,39 @@ function assertOperatorAttentionBoundaryPolicy(policy, context) {
       throw new ContractError(`${context}: boundary policy required`);
     }
   }
+}
+
+function assertE2ESafePacketBoundaryPolicy(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of Object.keys(policy)) {
+    if (!E2E_SAFE_PACKET_BOUNDARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected boundary field`);
+    }
+  }
+  for (const field of E2E_SAFE_PACKET_BOUNDARY_FIELDS) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary policy required`);
+    }
+  }
+}
+
+function safeGuidanceLabel(value, fallback) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.:-]/g, "_")
+    .slice(0, 64);
+  if (
+    !SAFE_PUBLIC_TEXT_PATTERN.test(normalized) ||
+    /(^|[_.:-])(canonical|command|candidate|memory|relationship|game_input|endpoint|token|secret|raw)($|[_.:-])/i.test(
+      normalized
+    )
+  ) {
+    return fallback;
+  }
+  return normalized;
 }
 
 function assertExactRegressionFixtures(fixtures, context) {
@@ -955,5 +1161,45 @@ function safeSyncSource(value) {
 
 function safePublicText(value) {
   const text = String(value ?? "").trim();
-  return SAFE_PUBLIC_TEXT_PATTERN.test(text) ? text : "unknown";
+  return SAFE_PUBLIC_TEXT_PATTERN.test(text) && !isUnsafePublicStateText(text)
+    ? text
+    : "unknown";
+}
+
+function safeCompletionStatus(value) {
+  return value === "blocked" ? "blocked" : "ready_for_completion_review";
+}
+
+function safeCompletionRiskLabel(value) {
+  const label = String(value ?? "none").trim();
+  return SAFE_PUBLIC_TEXT_PATTERN.test(label) && !isUnsafePublicStateText(label)
+    ? label
+    : "attention_required";
+}
+
+function assertNoUnsafeCompletionReviewMaterial(value, context, seen) {
+  if (!value || typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((item) => assertNoUnsafeCompletionReviewMaterial(item, context, seen));
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (
+      typeof child === "string" &&
+      /(?:raw[_ -]?(?:voice|audio|cue|payload)|candidate|command|token|endpoint|secret|voice_sample|dataset_path|model_path)/iu.test(
+        child
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe completion review value`);
+    }
+    assertNoUnsafeCompletionReviewMaterial(child, context, seen);
+  }
+}
+
+function isUnsafePublicStateText(value) {
+  return /(?:^|[_.:-])(?:raw|token|secret|endpoint|candidate|command|memory|relationship|voice_id_value|raw_audio|raw_cue)(?:$|[_.:-])/iu.test(
+    String(value ?? "")
+  );
 }

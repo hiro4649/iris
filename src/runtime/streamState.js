@@ -30,7 +30,7 @@ import { sanitizeSubtitleCueForPublicState } from "../services/voice/subtitleCue
 import { ContractError } from "../core/contracts.js";
 
 const UNSAFE_VISION_METADATA_SUMMARY_PATTERN =
-  /\b(world_command|input_action|input_action_candidate|approved_game_input_action|execute|commit|write|apply|memory_write|direct_memory_write|commit_memory|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|token|secret|password|endpoint|url)\b|https?:\/\//i;
+  /\b(world_command|input_action|input_action_candidate|approved_game_input_action|execute|commit|write|apply|memory_write|direct_memory_write|commit_memory|raw[_\s-]?(?:comment|support|frame|audio)|raw_comment|raw_support|raw_frame|raw_audio|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|token|secret|password|endpoint|url)\b|https?:\/\//i;
 const UNSAFE_PUBLIC_TEXT_PATTERN =
   /\b(?:relation[\s_-]?score|relationship[\s_-]?score|internal[\s_-]?score|hidden[\s_-]?score|relationship[\s_-]?delta|proposed[\s_-]?relation[\s_-]?score[\s_-]?delta)\b|\b\d+(?:\.\d+)?\s*(?:relationship|relation)\s*(?:score|delta)\b/i;
 

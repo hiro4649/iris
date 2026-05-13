@@ -64,6 +64,17 @@ const YOUTUBE_API_PUBLIC_STATUS_OPTIONAL_NUMBER_FIELDS = [
   "last_error_retry_after_ms",
   "next_retry_after_ms",
 ];
+const STALE_LIVE_CHAT_DISCOVERY_GUARD_FIELDS = new Set([
+  "schema",
+  "discovery_status",
+  "readiness_status",
+  "fresh_ready",
+  "resolved_count",
+  "age_bucket",
+  "attention_reason",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 const YOUTUBE_API_STATUS_URL_PATTERN = /https?:\/\//i;
 
 const YOUTUBE_API_DETAIL_ERROR_KIND_BY_REASON = new Map([
@@ -418,6 +429,100 @@ export function createYouTubeLiveChatApiSource({
       return createPublicStatus(status);
     },
   };
+}
+
+export function createStaleLiveChatDiscoveryGuardSummary({
+  resolved = false,
+  discoveredAtMs = null,
+  nowMs = Date.now(),
+  maxAgeMs = 300_000,
+} = {}) {
+  const discoveryAgeMs =
+    resolved === true && Number.isFinite(Number(discoveredAtMs))
+      ? Math.max(0, Number(nowMs) - Number(discoveredAtMs))
+      : null;
+  const safeMaxAgeMs = clampInteger(maxAgeMs, 1, 86_400_000, 300_000);
+  const stale = discoveryAgeMs === null || discoveryAgeMs > safeMaxAgeMs;
+  const summary = {
+    schema: "iris_youtube_stale_live_chat_discovery_guard_v1",
+    discovery_status: resolved === true ? (stale ? "stale" : "fresh") : "unresolved",
+    readiness_status: stale ? "attention" : "ready",
+    fresh_ready: stale !== true,
+    resolved_count: resolved === true ? 1 : 0,
+    age_bucket: summarizeDiscoveryAgeBucket(discoveryAgeMs, safeMaxAgeMs),
+    attention_reason: stale ? "live_chat_discovery_stale_or_missing" : "none",
+    boundary_policy: {
+      status_count_age_bucket_only: true,
+      no_live_chat_id: true,
+      no_video_id: true,
+      no_raw_discovery_result: true,
+      no_api_response_body: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertStaleLiveChatDiscoveryGuardSummarySafe(summary);
+  return summary;
+}
+
+export function assertStaleLiveChatDiscoveryGuardSummarySafe(
+  summary,
+  context = "stale live chat discovery guard summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!STALE_LIVE_CHAT_DISCOVERY_GUARD_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_youtube_stale_live_chat_discovery_guard_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!["fresh", "stale", "unresolved"].includes(summary.discovery_status)) {
+    throw new ContractError(`${context}: invalid discovery status`);
+  }
+  if (!["ready", "attention"].includes(summary.readiness_status)) {
+    throw new ContractError(`${context}: invalid readiness status`);
+  }
+  if (![0, 1].includes(summary.resolved_count)) {
+    throw new ContractError(`${context}: invalid resolved count`);
+  }
+  if (
+    summary.discovery_status !== "fresh" &&
+    (summary.fresh_ready !== false || summary.readiness_status !== "attention")
+  ) {
+    throw new ContractError(`${context}: stale discovery must not be fresh ready`);
+  }
+  if (
+    summary.discovery_status === "fresh" &&
+    (summary.fresh_ready !== true || summary.readiness_status !== "ready")
+  ) {
+    throw new ContractError(`${context}: fresh discovery status mismatch`);
+  }
+  assertBoundaryPolicyFlags(
+    summary.boundary_policy,
+    [
+      "status_count_age_bucket_only",
+      "no_live_chat_id",
+      "no_video_id",
+      "no_raw_discovery_result",
+      "no_api_response_body",
+      "no_endpoint_values",
+      "no_secret_values",
+      "no_candidates",
+      "no_commands",
+    ],
+    `${context}: boundary policy`
+  );
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation is required`);
+  }
+  assertNoStaleLiveChatDiscoveryLeak(summary, context);
 }
 
 function createPublicStatus(status) {
@@ -2737,6 +2842,43 @@ function pickSupportDetails(snippet) {
     snippet.new_sponsor_details,
   ];
   return candidates.find((item) => hasObjectValue(item)) ?? {};
+}
+
+function summarizeDiscoveryAgeBucket(ageMs, maxAgeMs) {
+  if (!Number.isFinite(Number(ageMs))) return "missing";
+  const age = Number(ageMs);
+  const limit = Number(maxAgeMs);
+  if (age <= limit) return "fresh";
+  if (age <= limit * 2) return "stale";
+  return "expired";
+}
+
+function assertNoStaleLiveChatDiscoveryLeak(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(live[_ -]?chat[_ -]?id|video[_ -]?id|raw[_ -]?discovery|api[_ -]?response|response[_ -]?body|endpoint|url|oauth|refresh[_ -]?token|access[_ -]?token|api[_ -]?key|secret|authorization|candidate|command|world[_ -]?command|input[_ -]?action[_ -]?candidate)\b|https?:\/\//iu.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe discovery summary material`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoStaleLiveChatDiscoveryLeak(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (/^(raw|payload|live_chat_id|video_id|endpoint|token|secret|candidate|command)$/iu.test(field)) {
+      throw new ContractError(`${context}: unsafe discovery summary field`, {
+        path: `${path}.${field}`,
+      });
+    }
+    assertNoStaleLiveChatDiscoveryLeak(child, context, `${path}.${field}`);
+  }
 }
 
 function safeOptionalText(value) {

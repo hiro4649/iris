@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ContractError } from "../../core/contracts.js";
+import { phase01Intent } from "../../core/phases/phase01Intent.js";
 
 const FORBIDDEN_COMMENT_FIELDS = new Set([
   "world_command",
@@ -162,6 +163,21 @@ const YOUTUBE_INGEST_EVENT_SUMMARY_FIELDS = new Set([
   "boundary_policy",
   "adapter_validation_required",
 ]);
+const YOUTUBE_INGEST_PHASE01_E2E_SUMMARY_FIELDS = new Set([
+  "schema",
+  "source",
+  "phase01_event_ready",
+  "phase01_intent",
+  "payload_kind",
+  "trace_id_present",
+  "event_id_present",
+  "timestamp_present",
+  "target_presence_present",
+  "linked_identity_present",
+  "normalized_text_present",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
 
 export function normalizeYouTubeComment(raw) {
   assertCommentInputSafe(raw);
@@ -255,6 +271,37 @@ export function createYouTubeIngestEventSummaryContractManifest() {
   return manifest;
 }
 
+export function createYouTubeIngestPhase01E2ESummary(rawComment) {
+  const event = normalizeYouTubeComment(rawComment);
+  const phase01 = phase01Intent(event);
+  const summary = {
+    schema: "iris_youtube_ingest_phase01_e2e_summary_v1",
+    source: summarizeEventSource(phase01.source),
+    phase01_event_ready: phase01.payload_kind === "comment" && phase01.source === "youtube_live_chat",
+    phase01_intent: summarizePhase01Intent(phase01.intent),
+    payload_kind: phase01.payload_kind === "comment" ? "comment" : "unknown",
+    trace_id_present: cleanText(phase01.trace_id, 180) !== "",
+    event_id_present: cleanText(phase01.event_id, 180) !== "",
+    timestamp_present: Number.isFinite(Number(phase01.timestamp_ms)),
+    target_presence_present: cleanText(phase01.target_presence_id, 180) !== "",
+    linked_identity_present: cleanText(phase01.linked_identity_id, 180) !== "",
+    normalized_text_present: cleanText(phase01.normalized_text, 500) !== "",
+    boundary_policy: {
+      status_counts_and_labels_only: true,
+      no_raw_comment_text: true,
+      no_api_response_body: true,
+      no_private_author_ids: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_candidates: true,
+      no_commands: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertYouTubeIngestPhase01E2ESummarySafe(summary);
+  return summary;
+}
+
 export function assertYouTubeIngestEventSummarySafe(
   summary,
   context = "YouTube ingest event summary"
@@ -343,6 +390,49 @@ export function assertYouTubeIngestEventSummaryContractManifestSafe(
   assertNoUnsafeSummaryMaterial(manifest, context);
 }
 
+export function assertYouTubeIngestPhase01E2ESummarySafe(
+  summary,
+  context = "YouTube ingest Phase01 E2E summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary must be an object`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!YOUTUBE_INGEST_PHASE01_E2E_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field`, { field });
+    }
+  }
+  if (summary.schema !== "iris_youtube_ingest_phase01_e2e_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`, { schema: summary.schema });
+  }
+  if (summary.source !== "youtube_live_chat" || summary.payload_kind !== "comment") {
+    throw new ContractError(`${context}: invalid source or payload kind`);
+  }
+  if (!["respond", "observe", "ignore"].includes(summary.phase01_intent)) {
+    throw new ContractError(`${context}: invalid Phase01 intent`, {
+      phase01_intent: summary.phase01_intent,
+    });
+  }
+  for (const field of [
+    "phase01_event_ready",
+    "trace_id_present",
+    "event_id_present",
+    "timestamp_present",
+    "target_presence_present",
+    "linked_identity_present",
+    "normalized_text_present",
+  ]) {
+    if (typeof summary[field] !== "boolean") {
+      throw new ContractError(`${context}: boolean field required`, { field });
+    }
+  }
+  assertPhase01BoundaryPolicySafe(summary.boundary_policy, context);
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation is required`);
+  }
+  assertNoUnsafePhase01SummaryMaterial(summary, context);
+}
+
 function assertCommentInputSafe(value, path = "root") {
   if (!value || typeof value !== "object") return;
   if (Array.isArray(value)) {
@@ -405,12 +495,36 @@ function summarizePayloadKind(event) {
   return "unknown";
 }
 
+function summarizePhase01Intent(intent) {
+  return ["respond", "observe", "ignore"].includes(intent) ? intent : "ignore";
+}
+
 function assertSummaryBoundaryPolicySafe(policy, context) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
     throw new ContractError(`${context}: boundary policy required`);
   }
   for (const field of [
     "counts_types_and_booleans_only",
+    "no_raw_comment_text",
+    "no_api_response_body",
+    "no_private_author_ids",
+    "no_endpoint_values",
+    "no_secret_values",
+    "no_candidates",
+    "no_commands",
+  ]) {
+    if (policy[field] !== true) {
+      throw new ContractError(`${context}: boundary policy missing`, { field });
+    }
+  }
+}
+
+function assertPhase01BoundaryPolicySafe(policy, context) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    throw new ContractError(`${context}: boundary policy required`);
+  }
+  for (const field of [
+    "status_counts_and_labels_only",
     "no_raw_comment_text",
     "no_api_response_body",
     "no_private_author_ids",
@@ -443,6 +557,32 @@ function assertNoUnsafeSummaryMaterial(value, context, path = "root") {
   }
   for (const [field, child] of Object.entries(value)) {
     assertNoUnsafeSummaryMaterial(child, context, `${path}.${field}`);
+  }
+}
+
+function assertNoUnsafePhase01SummaryMaterial(value, context, path = "root") {
+  if (typeof value === "string") {
+    if (
+      /\b(world_command|input_action_candidate|approved_game_input_action|execute|commit|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|token|secret|password|endpoint|url|raw[_-]?comment|comment[_-]?text|comment[_-]?body|api[_-]?response|response[_-]?body|private[_-]?channel|author[_-]?channel[_-]?id|candidate|command)\b|https?:\/\//iu.test(
+        value
+      )
+    ) {
+      throw new ContractError(`${context}: unsafe summary material`, { path });
+    }
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertNoUnsafePhase01SummaryMaterial(item, context, `${path}[${index}]`)
+    );
+    return;
+  }
+  for (const [field, child] of Object.entries(value)) {
+    if (/^(raw|payload|candidate|command|api_response|response_body)$/iu.test(field)) {
+      throw new ContractError(`${context}: unsafe summary field`, { path: `${path}.${field}` });
+    }
+    assertNoUnsafePhase01SummaryMaterial(child, context, `${path}.${field}`);
   }
 }
 

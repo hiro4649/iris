@@ -14,13 +14,14 @@ const SAFE_BOUNDARY_FIELDS = [
   "sensitive_values_excluded",
   "network_location_values_excluded",
   "raw_body_values_excluded",
+  "job_body_values_excluded",
   "proposal_values_excluded",
   "operation_values_excluded",
 ];
 const UNSAFE_FIELD_PATTERN =
-  /(?:^|_)(secret|token|endpoint|url|raw_payload|payload|candidate|command|world_command|input_action_candidate|approved_game_input_action)(?:$|_)/i;
+  /(?:^|_)(secret|token|endpoint|url|raw_payload|payload|raw_job|job_payload|candidate|command|world_command|input_action_candidate|approved_game_input_action)(?:$|_)/i;
 const UNSAFE_TEXT_PATTERN =
-  /\b(secret|token|authorization|bearer|api[_-]?key|endpoint|raw[_-]?payload|payload|candidate|command|world[_-]?command|input[_-]?action[_-]?candidate|approved[_-]?game[_-]?input[_-]?action)\b|https?:\/\//i;
+  /\b(secret|token|authorization|bearer|api[_-]?key|endpoint|raw[_-]?payload|payload|raw[_-]?job|job[_-]?payload|candidate|command|world[_-]?command|input[_-]?action[_-]?candidate|approved[_-]?game[_-]?input[_-]?action)\b|https?:\/\//i;
 
 export function createRedactedTroubleshootingBundleGate({ items = [] } = {}) {
   const safeItems = Array.isArray(items) ? items : [];
@@ -95,7 +96,9 @@ function safeLabel(value) {
     .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .slice(0, 80);
-  return label && !UNSAFE_TEXT_PATTERN.test(label) ? label : "component";
+  return label && !UNSAFE_FIELD_PATTERN.test(label) && !UNSAFE_TEXT_PATTERN.test(label)
+    ? label
+    : "component";
 }
 
 function assertBoundaryPolicy(policy, context) {
