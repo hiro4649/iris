@@ -96,6 +96,7 @@ const PERSISTENCE_RUNTIME_STATUS_REPORT_FIELDS = new Set([
   "preflight_next_attention_reason",
   "json_store_status",
   "vector_memory_status",
+  "production_vector_memory_preflight",
   "persistence_mode",
   "vector_memory_mode",
   "memory_store_path_configured",
@@ -122,6 +123,35 @@ const PERSISTENCE_RUNTIME_STATUS_REPORT_FIELDS = new Set([
   "boundary_policy",
   "adapter_validation_required",
 ]);
+const PRODUCTION_VECTOR_MEMORY_REQUIRED_ENV_NAMES = [
+  "IRIS_MEMORY_SEARCH_ADAPTER",
+  "IRIS_MEMORY_SEARCH_ENDPOINT",
+];
+const PRODUCTION_VECTOR_MEMORY_PREFLIGHT_FIELDS = new Set([
+  "schema",
+  "vector_memory_status",
+  "required_env_names",
+  "configured_count",
+  "missing_count",
+  "blocker_reason_label",
+  "next_safe_action_label",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const PRODUCTION_VECTOR_MEMORY_BLOCKER_REASON_LABELS = new Set([
+  "none",
+  "missing_required_env",
+  "vector_memory_adapter_not_ready",
+  "vector_memory_target_policy_attention",
+]);
+const PRODUCTION_VECTOR_MEMORY_NEXT_SAFE_ACTION_LABELS = new Set([
+  "none",
+  "configure_vector_memory_env",
+  "configure_vector_memory_adapter",
+  "review_vector_memory_target_policy",
+  "run_vector_memory_preflight",
+]);
+const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const READINESS_STATUSES = new Set([
   "disabled",
   "configured_waiting_for_records",
@@ -342,6 +372,8 @@ export function createPersistenceRuntimeStatusReport({
     preflight_next_attention_reason: preflight.next_attention_reason,
     json_store_status: preflight.json_store_status,
     vector_memory_status: preflight.vector_memory_status,
+    production_vector_memory_preflight:
+      createProductionVectorMemoryPreflight(preflight),
     persistence_mode: preflight.persistence_mode,
     vector_memory_mode: preflight.vector_memory_mode,
     memory_store_path_configured: preflight.memory_store_path_configured,
@@ -515,6 +547,10 @@ export function assertPersistenceRuntimeStatusReportSafe(
   );
   assertPublicCountsSafe(report.runtime_counts, context);
   assertStoreHealthSafe(report.store_health, context);
+  assertProductionVectorMemoryPreflightSafe(
+    report.production_vector_memory_preflight,
+    context
+  );
   assertApprovedRecordFlowSummarySafe(report.approved_record_flow, context);
   assertIdentityScopeFlowSummarySafe(report.identity_scope_flow, context);
   assertCandidateCommitFlowSummarySafe(report.candidate_commit_flow, context);
@@ -575,6 +611,118 @@ function assertBoundaryPolicy(policy, requiredFields, context) {
     if (policy[field] !== true) {
       throw new ContractError(`${context}: ${field} boundary required`);
     }
+  }
+}
+
+function createProductionVectorMemoryPreflight(preflight) {
+  const configured = envNamesPresentIn(
+    preflight.configured_env,
+    PRODUCTION_VECTOR_MEMORY_REQUIRED_ENV_NAMES
+  );
+  const missing = envNamesPresentIn(
+    preflight.missing_required_env,
+    PRODUCTION_VECTOR_MEMORY_REQUIRED_ENV_NAMES
+  );
+  const blockerReasonLabel = productionVectorMemoryBlockerReasonLabel({
+    preflight,
+    missingCount: missing.length,
+  });
+  return {
+    schema: "iris_production_vector_memory_preflight_v1",
+    vector_memory_status: preflight.vector_memory_status,
+    required_env_names: PRODUCTION_VECTOR_MEMORY_REQUIRED_ENV_NAMES,
+    configured_count: configured.length,
+    missing_count: missing.length,
+    blocker_reason_label: blockerReasonLabel,
+    next_safe_action_label:
+      productionVectorMemoryNextSafeActionLabel(blockerReasonLabel),
+    boundary_policy: {
+      env_names_only: true,
+      counts_statuses_and_labels_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_raw_memory: true,
+      no_raw_payloads: true,
+      no_raw_db_values: true,
+      no_raw_vector_values: true,
+      no_ready_sweetening: true,
+    },
+    adapter_validation_required: true,
+  };
+}
+
+function assertProductionVectorMemoryPreflightSafe(summary, context) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: vector memory preflight is required`);
+  }
+  if (summary.schema !== "iris_production_vector_memory_preflight_v1") {
+    throw new ContractError(`${context}: invalid vector memory preflight schema`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (!PRODUCTION_VECTOR_MEMORY_PREFLIGHT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected vector memory field`, {
+        field,
+      });
+    }
+  }
+  if (!["ready", "attention"].includes(summary.vector_memory_status)) {
+    throw new ContractError(`${context}: invalid vector memory status`);
+  }
+  assertEnvNameListSafe(
+    summary.required_env_names,
+    `${context}: vector memory required env`
+  );
+  if (
+    summary.required_env_names.length !==
+      PRODUCTION_VECTOR_MEMORY_REQUIRED_ENV_NAMES.length ||
+    summary.required_env_names.some(
+      (name, index) =>
+        name !== PRODUCTION_VECTOR_MEMORY_REQUIRED_ENV_NAMES[index]
+    )
+  ) {
+    throw new ContractError(`${context}: invalid vector memory env names`);
+  }
+  assertNonNegativeInteger(
+    summary.configured_count,
+    `${context}: invalid vector memory configured count`
+  );
+  assertNonNegativeInteger(
+    summary.missing_count,
+    `${context}: invalid vector memory missing count`
+  );
+  if (
+    summary.configured_count + summary.missing_count !==
+    summary.required_env_names.length
+  ) {
+    throw new ContractError(`${context}: invalid vector memory env counts`);
+  }
+  if (
+    !PRODUCTION_VECTOR_MEMORY_BLOCKER_REASON_LABELS.has(
+      summary.blocker_reason_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid vector memory blocker label`);
+  }
+  if (
+    !PRODUCTION_VECTOR_MEMORY_NEXT_SAFE_ACTION_LABELS.has(
+      summary.next_safe_action_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid vector memory action label`);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "env_names_only",
+    "counts_statuses_and_labels_only",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_raw_memory",
+    "no_raw_payloads",
+    "no_raw_db_values",
+    "no_raw_vector_values",
+    "no_ready_sweetening",
+  ], context);
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: vector memory adapter validation required`);
   }
 }
 
@@ -2785,6 +2933,54 @@ function safeCount(value) {
 function safeNullableCount(value) {
   if (value === null || value === undefined) return null;
   return safeCount(value);
+}
+
+function envNamesPresentIn(names, requiredNames) {
+  const available = new Set(Array.isArray(names) ? names : []);
+  return requiredNames.filter((name) => available.has(name));
+}
+
+function productionVectorMemoryBlockerReasonLabel({
+  preflight,
+  missingCount,
+}) {
+  if (missingCount > 0) return "missing_required_env";
+  if (preflight.vector_memory_target_policy_status === "attention") {
+    return "vector_memory_target_policy_attention";
+  }
+  if (
+    preflight.vector_memory_status !== "ready" ||
+    preflight.vector_memory_mode !== "http_vector" ||
+    preflight.vector_memory_adapter_ready !== true
+  ) {
+    return "vector_memory_adapter_not_ready";
+  }
+  return "none";
+}
+
+function productionVectorMemoryNextSafeActionLabel(blockerReasonLabel) {
+  if (blockerReasonLabel === "none") return "none";
+  if (blockerReasonLabel === "missing_required_env") {
+    return "configure_vector_memory_env";
+  }
+  if (blockerReasonLabel === "vector_memory_target_policy_attention") {
+    return "review_vector_memory_target_policy";
+  }
+  if (blockerReasonLabel === "vector_memory_adapter_not_ready") {
+    return "configure_vector_memory_adapter";
+  }
+  return "run_vector_memory_preflight";
+}
+
+function assertEnvNameListSafe(names, context) {
+  if (!Array.isArray(names)) {
+    throw new ContractError(`${context}: env names must be an array`);
+  }
+  for (const name of names) {
+    if (typeof name !== "string" || !ENV_NAME_PATTERN.test(name)) {
+      throw new ContractError(`${context}: invalid env name`);
+    }
+  }
 }
 
 function readStreamState(streamState) {
