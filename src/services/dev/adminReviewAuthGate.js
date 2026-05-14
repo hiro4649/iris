@@ -43,6 +43,7 @@ const ADMIN_REVIEW_AUTH_GATE_FIELDS = new Set([
   "schema",
   "generated_at_ms",
   "auth_gate_status",
+  "admin_review_private_runner_gate_preflight",
   "actor_role_label",
   "admin_authenticated",
   "owner_confirmed",
@@ -60,6 +61,25 @@ const ADMIN_REVIEW_AUTH_GATE_FIELDS = new Set([
   "raw_candidate_exposed",
   "approved_record_exposed",
   "boundary_policy",
+]);
+const ADMIN_REVIEW_PRIVATE_RUNNER_GATE_PREFLIGHT_FIELDS = new Set([
+  "schema",
+  "required_env_names",
+  "configured_count",
+  "missing_count",
+  "role_gate_status",
+  "owner_gate_status",
+  "admin_review_gate_status",
+  "private_runner_gate_status",
+  "next_safe_action_label",
+]);
+const SAFE_GATE_STATUSES = new Set(["ready", "blocked"]);
+const SAFE_ACTION_LABELS = new Set([
+  "none",
+  "configure_admin_review_env",
+  "set_admin_or_owner_actor_role",
+  "request_owner_confirmation",
+  "complete_admin_review_private_runner_gate",
 ]);
 const ADMIN_REVIEW_AUTH_GATE_BOUNDARY_POLICY_FIELDS = new Set([
   "auth_status_only",
@@ -95,6 +115,14 @@ export function createAdminReviewAuthGateReport({
     schema: "iris_admin_review_auth_gate_v1",
     generated_at_ms: generatedAtMs,
     auth_gate_status: privateRunnerAllowed ? "ready" : "blocked",
+    admin_review_private_runner_gate_preflight:
+      createAdminReviewPrivateRunnerGatePreflight({
+        actorAllowed,
+        adminAuthenticated,
+        ownerConfirmed,
+        privateRunnerAllowed,
+        missingRequiredEnvNames,
+      }),
     actor_role_label: actorRoleLabel,
     admin_authenticated: adminAuthenticated,
     owner_confirmed: ownerConfirmed,
@@ -147,6 +175,11 @@ export function assertAdminReviewAuthGateSafe(
   if (!AUTH_GATE_STATUSES.has(report.auth_gate_status)) {
     throw new ContractError(`${context}: invalid auth gate status`);
   }
+  assertAdminReviewPrivateRunnerGatePreflightSafe(
+    report.admin_review_private_runner_gate_preflight,
+    report,
+    context
+  );
   if (!ALLOWED_ACTOR_ROLES.has(report.actor_role_label)) {
     throw new ContractError(`${context}: invalid actor role label`);
   }
@@ -238,6 +271,113 @@ export function assertAdminReviewAuthGateSafe(
     },
     context
   );
+}
+
+function createAdminReviewPrivateRunnerGatePreflight({
+  actorAllowed,
+  adminAuthenticated,
+  ownerConfirmed,
+  privateRunnerAllowed,
+  missingRequiredEnvNames,
+}) {
+  const configuredCount = REQUIRED_ENV_NAMES.length - missingRequiredEnvNames.length;
+  return {
+    schema: "iris_admin_review_private_runner_gate_preflight_v1",
+    required_env_names: REQUIRED_ENV_NAMES,
+    configured_count: configuredCount,
+    missing_count: missingRequiredEnvNames.length,
+    role_gate_status: actorAllowed ? "ready" : "blocked",
+    owner_gate_status: ownerConfirmed ? "ready" : "blocked",
+    admin_review_gate_status: adminAuthenticated ? "ready" : "blocked",
+    private_runner_gate_status: privateRunnerAllowed ? "ready" : "blocked",
+    next_safe_action_label: nextAdminReviewSafeActionLabel({
+      missingRequiredEnvNames,
+      actorAllowed,
+      ownerConfirmed,
+      adminAuthenticated,
+      privateRunnerAllowed,
+    }),
+  };
+}
+
+function assertAdminReviewPrivateRunnerGatePreflightSafe(
+  preflight,
+  report,
+  context
+) {
+  assertSafeObject(preflight, `${context}: private runner gate preflight`);
+  if (
+    preflight.schema !==
+    "iris_admin_review_private_runner_gate_preflight_v1"
+  ) {
+    throw new ContractError(`${context}: invalid private runner gate schema`);
+  }
+  for (const field of Object.keys(preflight)) {
+    if (!ADMIN_REVIEW_PRIVATE_RUNNER_GATE_PREFLIGHT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected private runner gate field ${field}`);
+    }
+  }
+  if (
+    !Array.isArray(preflight.required_env_names) ||
+    preflight.required_env_names.length !== REQUIRED_ENV_NAMES.length ||
+    REQUIRED_ENV_NAMES.some((name, index) => preflight.required_env_names[index] !== name)
+  ) {
+    throw new ContractError(`${context}: invalid private runner gate env names`);
+  }
+  if (
+    preflight.configured_count + preflight.missing_count !==
+      REQUIRED_ENV_NAMES.length ||
+    preflight.configured_count !== report.configured_required_env_count ||
+    preflight.missing_count !== report.missing_required_env_names.length
+  ) {
+    throw new ContractError(`${context}: invalid private runner gate env counts`);
+  }
+  for (const field of [
+    "role_gate_status",
+    "owner_gate_status",
+    "admin_review_gate_status",
+    "private_runner_gate_status",
+  ]) {
+    if (!SAFE_GATE_STATUSES.has(preflight[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (!SAFE_ACTION_LABELS.has(preflight.next_safe_action_label)) {
+    throw new ContractError(`${context}: invalid private runner next action`);
+  }
+  if (
+    preflight.role_gate_status !== (report.actor_allowed ? "ready" : "blocked") ||
+    preflight.owner_gate_status !== (report.owner_confirmed ? "ready" : "blocked") ||
+    preflight.admin_review_gate_status !==
+      (report.admin_authenticated ? "ready" : "blocked") ||
+    preflight.private_runner_gate_status !==
+      (report.private_runner_allowed ? "ready" : "blocked")
+  ) {
+    throw new ContractError(`${context}: private runner gate status mismatch`);
+  }
+  if (
+    preflight.private_runner_gate_status === "ready" &&
+    (preflight.role_gate_status !== "ready" ||
+      preflight.owner_gate_status !== "ready" ||
+      preflight.admin_review_gate_status !== "ready")
+  ) {
+    throw new ContractError(`${context}: private runner gate sweetening detected`);
+  }
+}
+
+function nextAdminReviewSafeActionLabel({
+  missingRequiredEnvNames,
+  actorAllowed,
+  ownerConfirmed,
+  adminAuthenticated,
+  privateRunnerAllowed,
+}) {
+  if (privateRunnerAllowed) return "none";
+  if (missingRequiredEnvNames.length > 0) return "configure_admin_review_env";
+  if (!actorAllowed) return "set_admin_or_owner_actor_role";
+  if (!ownerConfirmed) return "request_owner_confirmation";
+  if (!adminAuthenticated) return "complete_admin_review_private_runner_gate";
+  return "complete_admin_review_private_runner_gate";
 }
 
 function sanitizeActorRole(actorRole) {
