@@ -257,6 +257,17 @@ const PRODUCTION_PROBE_BLOCKER_FIELDS = new Set([
   "schema",
   "blocker_label",
   "status",
+  "next_safe_action_label",
+]);
+const PRODUCTION_PROBE_BLOCKER_NEXT_SAFE_ACTION_LABELS = new Set([
+  "configure_required_production_settings",
+  "start_required_runtime",
+  "connect_required_real_device",
+  "complete_operator_review",
+  "check_adapter_probe_status",
+  "check_obs_bridge_status",
+  "configure_missing_component",
+  "review_blocker_status",
 ]);
 const PRODUCTION_PROBE_DIRECT_REMEDIATION_POLICY_FIELDS = new Set([
   "schema",
@@ -1069,6 +1080,7 @@ export function createProductionProbeBlockerSummary({
         schema: "iris_production_probe_blocker_v1",
         blocker_label: blockerLabel,
         status: "blocked",
+        next_safe_action_label: safeBlockerNextActionLabel(blockerLabel),
       });
     }
   }
@@ -1079,6 +1091,7 @@ export function createProductionProbeBlockerSummary({
         schema: "iris_production_probe_blocker_v1",
         blocker_label: blockerLabel,
         status: "blocked",
+        next_safe_action_label: safeBlockerNextActionLabel(blockerLabel),
       });
     }
   }
@@ -1098,6 +1111,7 @@ export function createProductionProbeBlockerSummary({
       no_secret_values: true,
       no_endpoint_values: true,
       no_payloads: true,
+      next_safe_action_label_only: true,
     },
   };
   assertProductionProbeBlockerSummarySafe(summary);
@@ -1146,6 +1160,7 @@ export function assertProductionProbeBlockerSummarySafe(
     "no_secret_values",
     "no_endpoint_values",
     "no_payloads",
+    "next_safe_action_label_only",
   ], context);
 }
 
@@ -1167,6 +1182,9 @@ function assertProductionProbeBlockerSafe(blocker, context) {
   }
   if (blocker.status !== "blocked") {
     throw new ContractError(`${context}: invalid blocker status`);
+  }
+  if (!PRODUCTION_PROBE_BLOCKER_NEXT_SAFE_ACTION_LABELS.has(blocker.next_safe_action_label)) {
+    throw new ContractError(`${context}: invalid blocker next safe action`);
   }
 }
 
@@ -3686,6 +3704,27 @@ function safeBlockerLabel(value) {
     return "";
   }
   return text;
+}
+
+function safeBlockerNextActionLabel(blockerLabel) {
+  switch (blockerLabel) {
+    case "configuration_missing":
+      return "configure_required_production_settings";
+    case "runtime_waiting":
+      return "start_required_runtime";
+    case "real_device_waiting":
+      return "connect_required_real_device";
+    case "operator_review_required":
+      return "complete_operator_review";
+    case "adapter_probe_attention":
+      return "check_adapter_probe_status";
+    case "obs_bridge_attention":
+      return "check_obs_bridge_status";
+    default:
+      return String(blockerLabel ?? "").startsWith("missing_")
+        ? "configure_missing_component"
+        : "review_blocker_status";
+  }
 }
 
 function safeScriptName(value) {
