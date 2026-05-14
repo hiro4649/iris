@@ -1214,9 +1214,7 @@ export function createYouTubeIngestSourceStatusReport({
     ]),
     source_configured: Boolean(sourceResult.source),
     source_kind: sourceKind,
-    source_status_available:
-      statusSummary.ingest_readiness_status !== "not_configured" ||
-      sourceResult.instantiation_status === "ready",
+    source_status_available: sourceStatus !== null,
     source_status: sourceStatus,
     instantiation_status: sourceResult.instantiation_status,
     error_kind: sourceResult.error_kind,
