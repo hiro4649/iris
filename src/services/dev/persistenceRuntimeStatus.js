@@ -97,6 +97,7 @@ const PERSISTENCE_RUNTIME_STATUS_REPORT_FIELDS = new Set([
   "json_store_status",
   "vector_memory_status",
   "production_vector_memory_preflight",
+  "memory_relationship_persistence_preflight",
   "persistence_mode",
   "vector_memory_mode",
   "memory_store_path_configured",
@@ -150,6 +151,46 @@ const PRODUCTION_VECTOR_MEMORY_NEXT_SAFE_ACTION_LABELS = new Set([
   "configure_vector_memory_adapter",
   "review_vector_memory_target_policy",
   "run_vector_memory_preflight",
+]);
+const MEMORY_PERSISTENCE_REQUIRED_ENV_NAMES = [
+  "IRIS_MEMORY_STORE_PATH",
+  "IRIS_ENABLE_CANDIDATE_PERSISTENCE",
+];
+const RELATIONSHIP_PERSISTENCE_REQUIRED_ENV_NAMES = [
+  "IRIS_RELATIONSHIP_STORE_PATH",
+  "IRIS_ENABLE_RELATIONSHIP_MEMORY",
+];
+const MEMORY_RELATIONSHIP_PERSISTENCE_PREFLIGHT_FIELDS = new Set([
+  "schema",
+  "memory_persistence",
+  "relationship_persistence",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const MEMORY_RELATIONSHIP_PERSISTENCE_SECTION_FIELDS = new Set([
+  "schema",
+  "required_env_names",
+  "configured_count",
+  "missing_count",
+  "blocked_reason_label",
+  "approved_schema_gate_status",
+  "next_safe_action_label",
+]);
+const MEMORY_RELATIONSHIP_PERSISTENCE_BLOCKER_REASON_LABELS = new Set([
+  "none",
+  "missing_required_env",
+  "approved_schema_gate_not_ready",
+]);
+const MEMORY_RELATIONSHIP_PERSISTENCE_SCHEMA_GATE_STATUSES = new Set([
+  "approved_schema_gate_ready",
+  "approved_schema_gate_waiting",
+]);
+const MEMORY_RELATIONSHIP_PERSISTENCE_NEXT_SAFE_ACTION_LABELS = new Set([
+  "none",
+  "configure_memory_persistence_env",
+  "configure_relationship_persistence_env",
+  "enable_approved_memory_schema_gate",
+  "enable_approved_relationship_schema_gate",
 ]);
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const READINESS_STATUSES = new Set([
@@ -374,6 +415,8 @@ export function createPersistenceRuntimeStatusReport({
     vector_memory_status: preflight.vector_memory_status,
     production_vector_memory_preflight:
       createProductionVectorMemoryPreflight(preflight),
+    memory_relationship_persistence_preflight:
+      createMemoryRelationshipPersistencePreflight(preflight),
     persistence_mode: preflight.persistence_mode,
     vector_memory_mode: preflight.vector_memory_mode,
     memory_store_path_configured: preflight.memory_store_path_configured,
@@ -551,6 +594,10 @@ export function assertPersistenceRuntimeStatusReportSafe(
     report.production_vector_memory_preflight,
     context
   );
+  assertMemoryRelationshipPersistencePreflightSafe(
+    report.memory_relationship_persistence_preflight,
+    context
+  );
   assertApprovedRecordFlowSummarySafe(report.approved_record_flow, context);
   assertIdentityScopeFlowSummarySafe(report.identity_scope_flow, context);
   assertCandidateCommitFlowSummarySafe(report.candidate_commit_flow, context);
@@ -723,6 +770,199 @@ function assertProductionVectorMemoryPreflightSafe(summary, context) {
   ], context);
   if (summary.adapter_validation_required !== true) {
     throw new ContractError(`${context}: vector memory adapter validation required`);
+  }
+}
+
+function createMemoryRelationshipPersistencePreflight(preflight) {
+  return {
+    schema: "iris_memory_relationship_persistence_preflight_v1",
+    memory_persistence: createMemoryRelationshipPersistenceSection({
+      schema: "iris_memory_persistence_preflight_v1",
+      requiredEnvNames: MEMORY_PERSISTENCE_REQUIRED_ENV_NAMES,
+      configuredEnv: preflight.configured_env,
+      missingEnv: preflight.missing_required_env,
+      approvedSchemaGateReady: preflight.candidate_persistence_ready === true,
+      configureActionLabel: "configure_memory_persistence_env",
+      schemaGateActionLabel: "enable_approved_memory_schema_gate",
+    }),
+    relationship_persistence: createMemoryRelationshipPersistenceSection({
+      schema: "iris_relationship_persistence_preflight_v1",
+      requiredEnvNames: RELATIONSHIP_PERSISTENCE_REQUIRED_ENV_NAMES,
+      configuredEnv: preflight.configured_env,
+      missingEnv: preflight.missing_required_env,
+      approvedSchemaGateReady: preflight.relationship_memory_ready === true,
+      configureActionLabel: "configure_relationship_persistence_env",
+      schemaGateActionLabel: "enable_approved_relationship_schema_gate",
+    }),
+    boundary_policy: {
+      env_names_only: true,
+      counts_statuses_and_labels_only: true,
+      approved_schema_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_raw_memory: true,
+      no_raw_relationship: true,
+      no_raw_payloads: true,
+      no_raw_db_values: true,
+      no_raw_vector_values: true,
+      candidates_not_direct_commit: true,
+      selected_memory_ids_not_direct_commit: true,
+      relationship_update_candidates_not_direct_commit: true,
+      no_ready_sweetening: true,
+    },
+    adapter_validation_required: true,
+  };
+}
+
+function createMemoryRelationshipPersistenceSection({
+  schema,
+  requiredEnvNames,
+  configuredEnv,
+  missingEnv,
+  approvedSchemaGateReady,
+  configureActionLabel,
+  schemaGateActionLabel,
+}) {
+  const configured = envNamesPresentIn(configuredEnv, requiredEnvNames);
+  const missing = envNamesPresentIn(missingEnv, requiredEnvNames);
+  const blockedReasonLabel =
+    missing.length > 0
+      ? "missing_required_env"
+      : approvedSchemaGateReady
+        ? "none"
+        : "approved_schema_gate_not_ready";
+  return {
+    schema,
+    required_env_names: requiredEnvNames,
+    configured_count: configured.length,
+    missing_count: missing.length,
+    blocked_reason_label: blockedReasonLabel,
+    approved_schema_gate_status: approvedSchemaGateReady
+      ? "approved_schema_gate_ready"
+      : "approved_schema_gate_waiting",
+    next_safe_action_label:
+      blockedReasonLabel === "none"
+        ? "none"
+        : blockedReasonLabel === "missing_required_env"
+          ? configureActionLabel
+          : schemaGateActionLabel,
+  };
+}
+
+function assertMemoryRelationshipPersistencePreflightSafe(summary, context) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(
+      `${context}: memory relationship preflight is required`
+    );
+  }
+  if (summary.schema !== "iris_memory_relationship_persistence_preflight_v1") {
+    throw new ContractError(
+      `${context}: invalid memory relationship preflight schema`
+    );
+  }
+  for (const field of Object.keys(summary)) {
+    if (!MEMORY_RELATIONSHIP_PERSISTENCE_PREFLIGHT_FIELDS.has(field)) {
+      throw new ContractError(
+        `${context}: unexpected memory relationship preflight field`,
+        { field }
+      );
+    }
+  }
+  assertMemoryRelationshipPersistenceSectionSafe(
+    summary.memory_persistence,
+    MEMORY_PERSISTENCE_REQUIRED_ENV_NAMES,
+    "iris_memory_persistence_preflight_v1",
+    context
+  );
+  assertMemoryRelationshipPersistenceSectionSafe(
+    summary.relationship_persistence,
+    RELATIONSHIP_PERSISTENCE_REQUIRED_ENV_NAMES,
+    "iris_relationship_persistence_preflight_v1",
+    context
+  );
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "env_names_only",
+    "counts_statuses_and_labels_only",
+    "approved_schema_only",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_raw_memory",
+    "no_raw_relationship",
+    "no_raw_payloads",
+    "no_raw_db_values",
+    "no_raw_vector_values",
+    "candidates_not_direct_commit",
+    "selected_memory_ids_not_direct_commit",
+    "relationship_update_candidates_not_direct_commit",
+    "no_ready_sweetening",
+  ], context);
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(
+      `${context}: memory relationship adapter validation required`
+    );
+  }
+}
+
+function assertMemoryRelationshipPersistenceSectionSafe(
+  section,
+  requiredEnvNames,
+  schema,
+  context
+) {
+  if (!section || typeof section !== "object" || Array.isArray(section)) {
+    throw new ContractError(`${context}: persistence section is required`);
+  }
+  if (section.schema !== schema) {
+    throw new ContractError(`${context}: invalid persistence section schema`);
+  }
+  for (const field of Object.keys(section)) {
+    if (!MEMORY_RELATIONSHIP_PERSISTENCE_SECTION_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected persistence section field`, {
+        field,
+      });
+    }
+  }
+  assertEnvNameListSafe(
+    section.required_env_names,
+    `${context}: persistence section required env`
+  );
+  if (
+    section.required_env_names.length !== requiredEnvNames.length ||
+    section.required_env_names.some((name, index) => name !== requiredEnvNames[index])
+  ) {
+    throw new ContractError(`${context}: invalid persistence section env names`);
+  }
+  assertNonNegativeInteger(
+    section.configured_count,
+    `${context}: invalid persistence section configured count`
+  );
+  assertNonNegativeInteger(
+    section.missing_count,
+    `${context}: invalid persistence section missing count`
+  );
+  if (section.configured_count + section.missing_count !== requiredEnvNames.length) {
+    throw new ContractError(`${context}: invalid persistence section env counts`);
+  }
+  if (
+    !MEMORY_RELATIONSHIP_PERSISTENCE_BLOCKER_REASON_LABELS.has(
+      section.blocked_reason_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid persistence blocker label`);
+  }
+  if (
+    !MEMORY_RELATIONSHIP_PERSISTENCE_SCHEMA_GATE_STATUSES.has(
+      section.approved_schema_gate_status
+    )
+  ) {
+    throw new ContractError(`${context}: invalid approved schema gate status`);
+  }
+  if (
+    !MEMORY_RELATIONSHIP_PERSISTENCE_NEXT_SAFE_ACTION_LABELS.has(
+      section.next_safe_action_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid persistence action label`);
   }
 }
 
