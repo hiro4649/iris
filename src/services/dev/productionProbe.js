@@ -128,6 +128,7 @@ const PRODUCTION_PROBE_REPORT_FIELDS = new Set([
   "missing_component_summary",
   "blocker_summary",
   "media_external_topic_preflight",
+  "obs_overlay_preflight",
   "direct_remediation_policy",
   "admin_summary",
   "operator_checklist",
@@ -288,6 +289,37 @@ const MEDIA_EXTERNAL_TOPIC_NEXT_SAFE_ACTION_LABELS = new Set([
   "review_media_external_topic_policy",
   "enable_media_external_topic_ingest",
 ]);
+const OBS_OVERLAY_PREFLIGHT_FIELDS = new Set([
+  "schema",
+  "required_env_names",
+  "configured_count",
+  "missing_count",
+  "browser_source_status",
+  "overlay_pickup_status",
+  "heartbeat_status",
+  "next_safe_action_label",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const OBS_OVERLAY_STATUS_LABELS = new Set([
+  "ready",
+  "missing",
+  "blocked",
+  "stale",
+  "waiting",
+]);
+const OBS_OVERLAY_NEXT_SAFE_ACTION_LABELS = new Set([
+  "none",
+  "configure_obs_browser_source",
+  "verify_obs_overlay_pickup",
+  "refresh_obs_runtime_heartbeat",
+  "review_obs_bridge_status",
+]);
+const OBS_OVERLAY_REQUIRED_ENV_NAMES = [
+  "IRIS_HTTP_ORIGIN",
+  "IRIS_OBS_BRIDGE_ENDPOINT",
+  "IRIS_OBS_BRIDGE_HEALTH_ENDPOINT",
+];
 const PRODUCTION_PROBE_BLOCKER_NEXT_SAFE_ACTION_LABELS = new Set([
   "configure_required_production_settings",
   "start_required_runtime",
@@ -509,6 +541,11 @@ export async function createProductionProbeReport({
   });
   const mediaExternalTopicPreflight =
     createMediaExternalTopicDisabledSafePreflight({ doctor });
+  const obsOverlayPreflight = createObsOverlaySafePreflight({
+    env,
+    doctor,
+    obsBridgeHealth,
+  });
   const directRemediationPolicy = createProductionProbeDirectRemediationPolicy();
   const adminSummary = createProductionProbeAdminSummary({
     readinessStateCounts,
@@ -541,6 +578,7 @@ export async function createProductionProbeReport({
     missing_component_summary: missingComponentSummary,
     blocker_summary: blockerSummary,
     media_external_topic_preflight: mediaExternalTopicPreflight,
+    obs_overlay_preflight: obsOverlayPreflight,
     direct_remediation_policy: directRemediationPolicy,
     admin_summary: adminSummary,
     operator_checklist: operatorChecklist,
@@ -793,6 +831,10 @@ export function assertProductionProbeReportSafe(
   assertMediaExternalTopicDisabledSafePreflight(
     report.media_external_topic_preflight,
     `${context}: media external topic preflight`
+  );
+  assertObsOverlaySafePreflight(
+    report.obs_overlay_preflight,
+    `${context}: OBS overlay preflight`
   );
   assertProductionProbeDirectRemediationPolicySafe(
     report.direct_remediation_policy,
@@ -1381,6 +1423,137 @@ function assertMediaExternalTopicDisabledSafePreflight(
     preflight.missing_count > 0
   ) {
     throw new ContractError(`${context}: disabled ingest was promoted to ready`);
+  }
+}
+
+function createObsOverlaySafePreflight({ env, doctor, obsBridgeHealth }) {
+  const check = doctor.checks.find(
+    (item) => item.integration === "production_obs_overlay"
+  );
+  if (!check) {
+    throw new ContractError("production probe OBS overlay preflight: missing doctor check");
+  }
+  const requiredEnvNames = OBS_OVERLAY_REQUIRED_ENV_NAMES;
+  const configuredEnv = requiredEnvNames.filter((name) => Boolean(env?.[name]));
+  const missingEnv = requiredEnvNames.filter((name) => !env?.[name]);
+  const browserSourceStatus = obsBrowserSourceStatus(check);
+  const overlayPickupStatus = obsOverlayPickupStatus({ check, obsBridgeHealth });
+  const heartbeatStatus = obsHeartbeatStatus(obsBridgeHealth);
+  const preflight = {
+    schema: "iris_production_obs_overlay_safe_preflight_v1",
+    required_env_names: requiredEnvNames,
+    configured_count: requiredEnvNames.filter((name) =>
+      configuredEnv.includes(name)
+    ).length,
+    missing_count: requiredEnvNames.filter((name) => missingEnv.includes(name))
+      .length,
+    browser_source_status: browserSourceStatus,
+    overlay_pickup_status: overlayPickupStatus,
+    heartbeat_status: heartbeatStatus,
+    next_safe_action_label: obsOverlayNextSafeActionLabel({
+      browserSourceStatus,
+      overlayPickupStatus,
+      heartbeatStatus,
+    }),
+    boundary_policy: {
+      env_names_only: true,
+      counts_statuses_and_labels_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_obs_url_values: true,
+      no_credentials: true,
+      no_raw_obs_events: true,
+      no_raw_overlay_payloads: true,
+      no_raw_commands: true,
+      no_raw_frames: true,
+      heartbeat_stale_not_fresh: true,
+      fixture_not_real_ready: true,
+      no_ready_sweetening: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertObsOverlaySafePreflight(preflight);
+  return preflight;
+}
+
+function assertObsOverlaySafePreflight(
+  preflight,
+  context = "production OBS overlay safe preflight"
+) {
+  if (!preflight || typeof preflight !== "object" || Array.isArray(preflight)) {
+    throw new ContractError(`${context}: preflight is required`);
+  }
+  assertNoForbiddenProductionProbeFields(preflight, context);
+  if (preflight.schema !== "iris_production_obs_overlay_safe_preflight_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(preflight)) {
+    if (!OBS_OVERLAY_PREFLIGHT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (!Array.isArray(preflight.required_env_names)) {
+    throw new ContractError(`${context}: required env names must be an array`);
+  }
+  for (const name of preflight.required_env_names) {
+    if (typeof name !== "string" || !name.startsWith("IRIS_")) {
+      throw new ContractError(`${context}: unsafe env name`);
+    }
+  }
+  for (const field of ["configured_count", "missing_count"]) {
+    if (!Number.isInteger(preflight[field]) || preflight[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    preflight.configured_count + preflight.missing_count !==
+    preflight.required_env_names.length
+  ) {
+    throw new ContractError(`${context}: invalid env counts`);
+  }
+  for (const field of [
+    "browser_source_status",
+    "overlay_pickup_status",
+    "heartbeat_status",
+  ]) {
+    if (!OBS_OVERLAY_STATUS_LABELS.has(preflight[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    !OBS_OVERLAY_NEXT_SAFE_ACTION_LABELS.has(preflight.next_safe_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid next action label`);
+  }
+  assertBoundaryPolicy(preflight.boundary_policy, [
+    "env_names_only",
+    "counts_statuses_and_labels_only",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_obs_url_values",
+    "no_credentials",
+    "no_raw_obs_events",
+    "no_raw_overlay_payloads",
+    "no_raw_commands",
+    "no_raw_frames",
+    "heartbeat_stale_not_fresh",
+    "fixture_not_real_ready",
+    "no_ready_sweetening",
+  ], context);
+  if (preflight.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation required`);
+  }
+  if (
+    preflight.browser_source_status !== "ready" &&
+    preflight.next_safe_action_label === "none"
+  ) {
+    throw new ContractError(`${context}: browser source missing was promoted`);
+  }
+  if (
+    preflight.heartbeat_status === "stale" &&
+    preflight.overlay_pickup_status === "ready"
+  ) {
+    throw new ContractError(`${context}: stale heartbeat was promoted`);
   }
 }
 
@@ -2270,6 +2443,53 @@ function mediaExternalTopicNextSafeActionLabel({
     return "review_media_external_topic_policy";
   }
   return "enable_media_external_topic_ingest";
+}
+
+function obsBrowserSourceStatus(check) {
+  if (check.manual_browser_source_configured !== true) return "missing";
+  if (check.manual_browser_source_locality_ok !== true) return "blocked";
+  return "ready";
+}
+
+function obsOverlayPickupStatus({ check, obsBridgeHealth }) {
+  if (obsBrowserSourceStatus(check) !== "ready") return "waiting";
+  const bridgeStatus = obsBridgeHealth?.probe?.bridge_readiness_status;
+  const bridgeReportsReady = obsBridgeHealth?.probe?.bridge_reports_ready;
+  if (bridgeStatus === "ready" && bridgeReportsReady === true) return "ready";
+  if (bridgeStatus === "attention" || bridgeReportsReady === false) return "blocked";
+  return "waiting";
+}
+
+function obsHeartbeatStatus(obsBridgeHealth) {
+  const status = obsBridgeHealth?.probe?.status;
+  if (status === "pass") return "ready";
+  if (status === "health_endpoint_not_configured" || status === "not_configured") {
+    return "missing";
+  }
+  if (obsBridgeHealth?.probe?.bridge_readiness_status === "attention") {
+    return "stale";
+  }
+  return "waiting";
+}
+
+function obsOverlayNextSafeActionLabel({
+  browserSourceStatus,
+  overlayPickupStatus,
+  heartbeatStatus,
+}) {
+  if (
+    browserSourceStatus === "ready" &&
+    overlayPickupStatus === "ready" &&
+    heartbeatStatus === "ready"
+  ) {
+    return "none";
+  }
+  if (browserSourceStatus !== "ready") return "configure_obs_browser_source";
+  if (heartbeatStatus === "stale" || heartbeatStatus === "missing") {
+    return "refresh_obs_runtime_heartbeat";
+  }
+  if (overlayPickupStatus !== "ready") return "verify_obs_overlay_pickup";
+  return "review_obs_bridge_status";
 }
 
 function summarizeProductionNextTask(nextTask) {
