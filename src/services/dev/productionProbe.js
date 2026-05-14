@@ -127,6 +127,7 @@ const PRODUCTION_PROBE_REPORT_FIELDS = new Set([
   "failure_reason_summary",
   "missing_component_summary",
   "blocker_summary",
+  "media_external_topic_preflight",
   "direct_remediation_policy",
   "admin_summary",
   "operator_checklist",
@@ -258,6 +259,34 @@ const PRODUCTION_PROBE_BLOCKER_FIELDS = new Set([
   "blocker_label",
   "status",
   "next_safe_action_label",
+]);
+const MEDIA_EXTERNAL_TOPIC_PREFLIGHT_FIELDS = new Set([
+  "schema",
+  "required_env_names",
+  "configured_count",
+  "missing_count",
+  "media_ingest_status",
+  "external_topic_status",
+  "next_safe_action_label",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES = [
+  "IRIS_MEDIA_WATCH_ENDPOINT",
+  "IRIS_EXTERNAL_TOPIC_ENDPOINT",
+  "IRIS_ENABLE_HTTP_INGEST_SCHEDULER",
+];
+const MEDIA_EXTERNAL_TOPIC_STATUSES = new Set([
+  "ready",
+  "disabled",
+  "blocked",
+  "configuration_waiting",
+]);
+const MEDIA_EXTERNAL_TOPIC_NEXT_SAFE_ACTION_LABELS = new Set([
+  "none",
+  "configure_media_external_topic_env",
+  "review_media_external_topic_policy",
+  "enable_media_external_topic_ingest",
 ]);
 const PRODUCTION_PROBE_BLOCKER_NEXT_SAFE_ACTION_LABELS = new Set([
   "configure_required_production_settings",
@@ -478,6 +507,8 @@ export async function createProductionProbeReport({
     failureReasonSummary,
     missingComponentSummary,
   });
+  const mediaExternalTopicPreflight =
+    createMediaExternalTopicDisabledSafePreflight({ doctor });
   const directRemediationPolicy = createProductionProbeDirectRemediationPolicy();
   const adminSummary = createProductionProbeAdminSummary({
     readinessStateCounts,
@@ -509,6 +540,7 @@ export async function createProductionProbeReport({
     failure_reason_summary: failureReasonSummary,
     missing_component_summary: missingComponentSummary,
     blocker_summary: blockerSummary,
+    media_external_topic_preflight: mediaExternalTopicPreflight,
     direct_remediation_policy: directRemediationPolicy,
     admin_summary: adminSummary,
     operator_checklist: operatorChecklist,
@@ -757,6 +789,10 @@ export function assertProductionProbeReportSafe(
   assertProductionProbeBlockerSummarySafe(
     report.blocker_summary,
     `${context}: blocker summary`
+  );
+  assertMediaExternalTopicDisabledSafePreflight(
+    report.media_external_topic_preflight,
+    `${context}: media external topic preflight`
   );
   assertProductionProbeDirectRemediationPolicySafe(
     report.direct_remediation_policy,
@@ -1209,6 +1245,143 @@ export function createProductionProbeDirectRemediationPolicy() {
   };
   assertProductionProbeDirectRemediationPolicySafe(policy);
   return policy;
+}
+
+function createMediaExternalTopicDisabledSafePreflight({ doctor }) {
+  const check = doctor.checks.find(
+    (item) => item.integration === "media_and_external_topic_ingestion"
+  );
+  if (!check) {
+    throw new ContractError(
+      "production probe media external topic preflight: missing doctor check"
+    );
+  }
+  const configuredEnv = Array.isArray(check.configured_env)
+    ? check.configured_env
+    : [];
+  const missingEnv = Array.isArray(check.missing_env) ? check.missing_env : [];
+  const configuredCount = MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES.filter((name) =>
+    configuredEnv.includes(name)
+  ).length;
+  const missingCount = MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES.filter((name) =>
+    missingEnv.includes(name)
+  ).length;
+  const mediaIngestStatus = mediaExternalTopicComponentStatus({
+    check,
+    envName: "IRIS_MEDIA_WATCH_ENDPOINT",
+    localityOk: check.media_watch_endpoint_locality_ok,
+  });
+  const externalTopicStatus = mediaExternalTopicComponentStatus({
+    check,
+    envName: "IRIS_EXTERNAL_TOPIC_ENDPOINT",
+    localityOk: check.external_topic_endpoint_locality_ok,
+  });
+  const preflight = {
+    schema: "iris_media_external_topic_disabled_safe_preflight_v1",
+    required_env_names: MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES,
+    configured_count: configuredCount,
+    missing_count: missingCount,
+    media_ingest_status: mediaIngestStatus,
+    external_topic_status: externalTopicStatus,
+    next_safe_action_label: mediaExternalTopicNextSafeActionLabel({
+      missingCount,
+      mediaIngestStatus,
+      externalTopicStatus,
+      checkStatus: check.status,
+    }),
+    boundary_policy: {
+      env_names_only: true,
+      counts_statuses_and_labels_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_raw_media: true,
+      no_raw_external_topic: true,
+      no_raw_payloads: true,
+      no_raw_transcripts: true,
+      no_raw_link_text: true,
+      no_ready_sweetening: true,
+      fixture_not_real_ready: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertMediaExternalTopicDisabledSafePreflight(preflight);
+  return preflight;
+}
+
+function assertMediaExternalTopicDisabledSafePreflight(
+  preflight,
+  context = "media external topic disabled safe preflight"
+) {
+  if (!preflight || typeof preflight !== "object" || Array.isArray(preflight)) {
+    throw new ContractError(`${context}: preflight is required`);
+  }
+  assertNoForbiddenProductionProbeFields(preflight, context);
+  if (
+    preflight.schema !== "iris_media_external_topic_disabled_safe_preflight_v1"
+  ) {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(preflight)) {
+    if (!MEDIA_EXTERNAL_TOPIC_PREFLIGHT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (
+    !Array.isArray(preflight.required_env_names) ||
+    preflight.required_env_names.length !==
+      MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES.length ||
+    preflight.required_env_names.some(
+      (name, index) => name !== MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES[index]
+    )
+  ) {
+    throw new ContractError(`${context}: invalid required env names`);
+  }
+  for (const field of ["configured_count", "missing_count"]) {
+    if (!Number.isInteger(preflight[field]) || preflight[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    preflight.configured_count + preflight.missing_count !==
+    MEDIA_EXTERNAL_TOPIC_REQUIRED_ENV_NAMES.length
+  ) {
+    throw new ContractError(`${context}: invalid env counts`);
+  }
+  for (const field of ["media_ingest_status", "external_topic_status"]) {
+    if (!MEDIA_EXTERNAL_TOPIC_STATUSES.has(preflight[field])) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (
+    !MEDIA_EXTERNAL_TOPIC_NEXT_SAFE_ACTION_LABELS.has(
+      preflight.next_safe_action_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid next action label`);
+  }
+  assertBoundaryPolicy(preflight.boundary_policy, [
+    "env_names_only",
+    "counts_statuses_and_labels_only",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_raw_media",
+    "no_raw_external_topic",
+    "no_raw_payloads",
+    "no_raw_transcripts",
+    "no_raw_link_text",
+    "no_ready_sweetening",
+    "fixture_not_real_ready",
+  ], context);
+  if (preflight.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation required`);
+  }
+  if (
+    (preflight.media_ingest_status === "ready" ||
+      preflight.external_topic_status === "ready") &&
+    preflight.missing_count > 0
+  ) {
+    throw new ContractError(`${context}: disabled ingest was promoted to ready`);
+  }
 }
 
 export function assertProductionProbeDirectRemediationPolicySafe(
@@ -2069,6 +2242,34 @@ function requiredProductionProbeSummaryCount(summary, field, context) {
     throw new ContractError(`${context}: ${field} is required`);
   }
   return value;
+}
+
+function mediaExternalTopicComponentStatus({ check, envName, localityOk }) {
+  if (!Array.isArray(check.configured_env) || !check.configured_env.includes(envName)) {
+    return "disabled";
+  }
+  if (localityOk !== true) return "blocked";
+  if (
+    !Array.isArray(check.configured_env) ||
+    !check.configured_env.includes("IRIS_ENABLE_HTTP_INGEST_SCHEDULER")
+  ) {
+    return "configuration_waiting";
+  }
+  return check.status === "ready" ? "ready" : "configuration_waiting";
+}
+
+function mediaExternalTopicNextSafeActionLabel({
+  missingCount,
+  mediaIngestStatus,
+  externalTopicStatus,
+  checkStatus,
+}) {
+  if (checkStatus === "ready") return "none";
+  if (missingCount > 0) return "configure_media_external_topic_env";
+  if (mediaIngestStatus === "blocked" || externalTopicStatus === "blocked") {
+    return "review_media_external_topic_policy";
+  }
+  return "enable_media_external_topic_ingest";
 }
 
 function summarizeProductionNextTask(nextTask) {
