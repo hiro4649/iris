@@ -20,3 +20,4 @@ data/local_bridge_outbox/
 data/local_bridge_outbox/
 data/local_bridge_validation/artifacts/
 data/local_bridge_validation/outbox/
+data/local_bridge_validation/
