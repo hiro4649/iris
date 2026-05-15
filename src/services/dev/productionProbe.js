@@ -127,6 +127,7 @@ const PRODUCTION_PROBE_REPORT_FIELDS = new Set([
   "failure_reason_summary",
   "missing_component_summary",
   "blocker_summary",
+  "external_readiness_handoff_summary",
   "media_external_topic_preflight",
   "obs_overlay_preflight",
   "direct_remediation_policy",
@@ -196,6 +197,7 @@ const PRODUCTION_HANDOFF_SUMMARY_FIELDS = new Set([
   "failure_reason_summary",
   "missing_component_summary",
   "blocker_summary",
+  "external_readiness_handoff_summary",
   "direct_remediation_policy",
   "admin_summary",
   "operator_checklist",
@@ -260,6 +262,34 @@ const PRODUCTION_PROBE_BLOCKER_FIELDS = new Set([
   "blocker_label",
   "status",
   "next_safe_action_label",
+]);
+const EXTERNAL_READINESS_HANDOFF_SUMMARY_FIELDS = new Set([
+  "schema",
+  "handoff_status",
+  "production_ready_allowed",
+  "go_no_go_status",
+  "component_count",
+  "components",
+  "boundary_policy",
+  "adapter_validation_required",
+]);
+const EXTERNAL_READINESS_HANDOFF_COMPONENT_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "readiness_state",
+  "component_status",
+  "release_condition_label",
+  "human_preparation_label",
+  "owner_confirmation_required",
+  "real_api_required",
+  "real_device_required",
+  "operator_review_required",
+  "fixture_cannot_resolve",
+  "next_safe_action_label",
+]);
+const EXTERNAL_READINESS_HANDOFF_STATUSES = new Set([
+  "blocked",
+  "ready",
 ]);
 const MEDIA_EXTERNAL_TOPIC_PREFLIGHT_FIELDS = new Set([
   "schema",
@@ -539,6 +569,10 @@ export async function createProductionProbeReport({
     failureReasonSummary,
     missingComponentSummary,
   });
+  const externalReadinessHandoffSummary = createExternalReadinessHandoffSummary({
+    stages,
+    fixtureRealReadinessSummary,
+  });
   const mediaExternalTopicPreflight =
     createMediaExternalTopicDisabledSafePreflight({ doctor });
   const obsOverlayPreflight = createObsOverlaySafePreflight({
@@ -577,6 +611,7 @@ export async function createProductionProbeReport({
     failure_reason_summary: failureReasonSummary,
     missing_component_summary: missingComponentSummary,
     blocker_summary: blockerSummary,
+    external_readiness_handoff_summary: externalReadinessHandoffSummary,
     media_external_topic_preflight: mediaExternalTopicPreflight,
     obs_overlay_preflight: obsOverlayPreflight,
     direct_remediation_policy: directRemediationPolicy,
@@ -670,6 +705,7 @@ export async function createProductionProbeReport({
       failure_reason_summary: failureReasonSummary,
       missing_component_summary: missingComponentSummary,
       blocker_summary: blockerSummary,
+      external_readiness_handoff_summary: externalReadinessHandoffSummary,
       direct_remediation_policy: directRemediationPolicy,
       admin_summary: adminSummary,
       operator_checklist: operatorChecklist,
@@ -827,6 +863,10 @@ export function assertProductionProbeReportSafe(
   assertProductionProbeBlockerSummarySafe(
     report.blocker_summary,
     `${context}: blocker summary`
+  );
+  assertExternalReadinessHandoffSummarySafe(
+    report.external_readiness_handoff_summary,
+    `${context}: external readiness handoff summary`
   );
   assertMediaExternalTopicDisabledSafePreflight(
     report.media_external_topic_preflight,
@@ -1263,6 +1303,285 @@ function assertProductionProbeBlockerSafe(blocker, context) {
   }
   if (!PRODUCTION_PROBE_BLOCKER_NEXT_SAFE_ACTION_LABELS.has(blocker.next_safe_action_label)) {
     throw new ContractError(`${context}: invalid blocker next safe action`);
+  }
+}
+
+export function createExternalReadinessHandoffSummary({
+  stages = [],
+  fixtureRealReadinessSummary = null,
+} = {}) {
+  if (fixtureRealReadinessSummary) {
+    assertProductionProbeFixtureRealSummarySafe(
+      fixtureRealReadinessSummary,
+      "external readiness handoff fixture real summary"
+    );
+  }
+  const componentsByLabel = new Map();
+  for (const stage of Array.isArray(stages) ? stages : []) {
+    for (const check of Array.isArray(stage?.checks) ? stage.checks : []) {
+      if (check?.readiness_state === "ready") continue;
+      const componentLabel = safeComponentLabel(check?.integration);
+      if (!componentLabel) continue;
+      componentsByLabel.set(componentLabel, createExternalReadinessHandoffComponent({
+        componentLabel,
+        readinessState: check.readiness_state,
+        componentStatus: check.status,
+      }));
+    }
+  }
+  const components = [...componentsByLabel.values()].sort((left, right) =>
+    left.component_label.localeCompare(right.component_label)
+  );
+  const productionReadyAllowed =
+    fixtureRealReadinessSummary?.production_ready_allowed === true;
+  const summary = {
+    schema: "iris_external_readiness_handoff_summary_v1",
+    handoff_status: productionReadyAllowed ? "ready" : "blocked",
+    production_ready_allowed: productionReadyAllowed,
+    go_no_go_status: productionReadyAllowed ? "go" : "no_go",
+    component_count: components.length,
+    components,
+    boundary_policy: {
+      component_labels_and_safe_actions_only: true,
+      release_conditions_are_labels_only: true,
+      human_preparation_labels_only: true,
+      no_secret_values: true,
+      no_endpoint_values: true,
+      no_api_key_values: true,
+      no_token_values: true,
+      no_raw_payloads: true,
+      no_raw_commands: true,
+      no_raw_memory: true,
+      no_raw_obs_events: true,
+      no_raw_frames: true,
+      no_ocr_text: true,
+      fixture_local_bridge_not_real_ready: true,
+      no_readiness_sweetening: true,
+    },
+    adapter_validation_required: true,
+  };
+  assertExternalReadinessHandoffSummarySafe(summary);
+  return summary;
+}
+
+function createExternalReadinessHandoffComponent({
+  componentLabel,
+  readinessState,
+  componentStatus,
+}) {
+  const profile = externalReadinessHandoffProfile(componentLabel);
+  return {
+    schema: "iris_external_readiness_handoff_component_v1",
+    component_label: componentLabel,
+    readiness_state: READINESS_STATES.has(readinessState)
+      ? readinessState
+      : "operator_review_required",
+    component_status:
+      readinessState === "ready" && componentStatus === "ready" ? "ready" : "blocked",
+    release_condition_label: profile.release_condition_label,
+    human_preparation_label: profile.human_preparation_label,
+    owner_confirmation_required: profile.owner_confirmation_required,
+    real_api_required: profile.real_api_required,
+    real_device_required: profile.real_device_required,
+    operator_review_required: profile.operator_review_required,
+    fixture_cannot_resolve: true,
+    next_safe_action_label: profile.next_safe_action_label,
+  };
+}
+
+function externalReadinessHandoffProfile(componentLabel) {
+  switch (componentLabel) {
+    case "youtube_live_chat_api":
+      return {
+        release_condition_label: "real_youtube_live_chat_api_configured",
+        human_preparation_label: "prepare_youtube_live_chat_api",
+        owner_confirmation_required: false,
+        real_api_required: true,
+        real_device_required: false,
+        operator_review_required: false,
+        next_safe_action_label: "configure_missing_component",
+      };
+    case "media_and_external_topic_ingestion":
+      return {
+        release_condition_label: "real_media_external_topic_sources_configured",
+        human_preparation_label: "prepare_media_external_topic_sources",
+        owner_confirmation_required: false,
+        real_api_required: true,
+        real_device_required: false,
+        operator_review_required: false,
+        next_safe_action_label: "configure_missing_component",
+      };
+    case "production_obs_overlay":
+      return {
+        release_condition_label: "production_obs_overlay_verified",
+        human_preparation_label: "prepare_production_obs_overlay",
+        owner_confirmation_required: false,
+        real_api_required: false,
+        real_device_required: true,
+        operator_review_required: true,
+        next_safe_action_label: "configure_missing_component",
+      };
+    case "admin_review_private_runner_gate":
+      return {
+        release_condition_label: "owner_admin_private_runner_gate_confirmed",
+        human_preparation_label: "complete_owner_admin_private_runner_review",
+        owner_confirmation_required: true,
+        real_api_required: false,
+        real_device_required: false,
+        operator_review_required: true,
+        next_safe_action_label: "configure_missing_component",
+      };
+    case "real_screen_capture_or_vision_ingestion":
+      return {
+        release_condition_label: "real_vision_ingest_operator_reviewed",
+        human_preparation_label: "complete_vision_operator_review",
+        owner_confirmation_required: false,
+        real_api_required: false,
+        real_device_required: true,
+        operator_review_required: true,
+        next_safe_action_label: "complete_operator_review",
+      };
+    case "approved_game_control_adapter":
+      return {
+        release_condition_label: "approved_game_control_adapter_reviewed",
+        human_preparation_label: "complete_game_control_operator_review",
+        owner_confirmation_required: true,
+        real_api_required: false,
+        real_device_required: true,
+        operator_review_required: true,
+        next_safe_action_label: "complete_operator_review",
+      };
+    default:
+      return {
+        release_condition_label: "external_readiness_evidence_required",
+        human_preparation_label: "prepare_external_readiness_evidence",
+        owner_confirmation_required: false,
+        real_api_required: false,
+        real_device_required: false,
+        operator_review_required: true,
+        next_safe_action_label: "review_blocker_status",
+      };
+  }
+}
+
+export function assertExternalReadinessHandoffSummarySafe(
+  summary,
+  context = "external readiness handoff summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary is required`);
+  }
+  assertNoForbiddenProductionProbeFields(summary, context);
+  for (const field of Object.keys(summary)) {
+    if (!EXTERNAL_READINESS_HANDOFF_SUMMARY_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected field ${field}`);
+    }
+  }
+  if (summary.schema !== "iris_external_readiness_handoff_summary_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  if (!EXTERNAL_READINESS_HANDOFF_STATUSES.has(summary.handoff_status)) {
+    throw new ContractError(`${context}: invalid handoff status`);
+  }
+  if (typeof summary.production_ready_allowed !== "boolean") {
+    throw new ContractError(`${context}: invalid production ready flag`);
+  }
+  if (!["go", "no_go"].includes(summary.go_no_go_status)) {
+    throw new ContractError(`${context}: invalid go/no-go status`);
+  }
+  if (summary.production_ready_allowed !== (summary.go_no_go_status === "go")) {
+    throw new ContractError(`${context}: go/no-go mismatch`);
+  }
+  if (!Array.isArray(summary.components)) {
+    throw new ContractError(`${context}: components must be an array`);
+  }
+  if (
+    !Number.isInteger(summary.component_count) ||
+    summary.component_count !== summary.components.length
+  ) {
+    throw new ContractError(`${context}: invalid component count`);
+  }
+  const labels = new Set();
+  for (const component of summary.components) {
+    assertExternalReadinessHandoffComponentSafe(component, context);
+    if (labels.has(component.component_label)) {
+      throw new ContractError(`${context}: duplicate component label`);
+    }
+    labels.add(component.component_label);
+  }
+  assertBoundaryPolicy(summary.boundary_policy, [
+    "component_labels_and_safe_actions_only",
+    "release_conditions_are_labels_only",
+    "human_preparation_labels_only",
+    "no_secret_values",
+    "no_endpoint_values",
+    "no_api_key_values",
+    "no_token_values",
+    "no_raw_payloads",
+    "no_raw_commands",
+    "no_raw_memory",
+    "no_raw_obs_events",
+    "no_raw_frames",
+    "no_ocr_text",
+    "fixture_local_bridge_not_real_ready",
+    "no_readiness_sweetening",
+  ], context);
+  if (summary.adapter_validation_required !== true) {
+    throw new ContractError(`${context}: adapter validation is required`);
+  }
+}
+
+function assertExternalReadinessHandoffComponentSafe(component, context) {
+  if (!component || typeof component !== "object" || Array.isArray(component)) {
+    throw new ContractError(`${context}: component is required`);
+  }
+  assertNoForbiddenProductionProbeFields(component, context);
+  for (const field of Object.keys(component)) {
+    if (!EXTERNAL_READINESS_HANDOFF_COMPONENT_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected component field ${field}`);
+    }
+  }
+  if (component.schema !== "iris_external_readiness_handoff_component_v1") {
+    throw new ContractError(`${context}: invalid component schema`);
+  }
+  if (component.component_label !== safeComponentLabel(component.component_label)) {
+    throw new ContractError(`${context}: invalid component label`);
+  }
+  if (!READINESS_STATES.has(component.readiness_state)) {
+    throw new ContractError(`${context}: invalid readiness state`);
+  }
+  if (!EXTERNAL_READINESS_HANDOFF_STATUSES.has(component.component_status)) {
+    throw new ContractError(`${context}: invalid component status`);
+  }
+  for (const labelField of [
+    "release_condition_label",
+    "human_preparation_label",
+    "next_safe_action_label",
+  ]) {
+    if (component[labelField] !== safeBlockerLabel(component[labelField])) {
+      throw new ContractError(`${context}: invalid ${labelField}`);
+    }
+  }
+  if (
+    !PRODUCTION_PROBE_BLOCKER_NEXT_SAFE_ACTION_LABELS.has(
+      component.next_safe_action_label
+    )
+  ) {
+    throw new ContractError(`${context}: invalid next safe action`);
+  }
+  for (const flag of [
+    "owner_confirmation_required",
+    "real_api_required",
+    "real_device_required",
+    "operator_review_required",
+    "fixture_cannot_resolve",
+  ]) {
+    if (typeof component[flag] !== "boolean") {
+      throw new ContractError(`${context}: invalid component flag`);
+    }
+  }
+  if (component.component_status === "blocked" && component.fixture_cannot_resolve !== true) {
+    throw new ContractError(`${context}: fixture separation is required`);
   }
 }
 
@@ -2151,6 +2470,16 @@ function assertProductionProbeHandoffSummarySafe(summary, report, context) {
     JSON.stringify(report.blocker_summary)
   ) {
     throw new ContractError(`${context}: invalid handoff blocker summary`);
+  }
+  assertExternalReadinessHandoffSummarySafe(
+    summary.external_readiness_handoff_summary,
+    `${context}: handoff external readiness summary`
+  );
+  if (
+    JSON.stringify(summary.external_readiness_handoff_summary) !==
+    JSON.stringify(report.external_readiness_handoff_summary)
+  ) {
+    throw new ContractError(`${context}: invalid handoff external readiness summary`);
   }
   assertProductionProbeDirectRemediationPolicySafe(
     summary.direct_remediation_policy,
