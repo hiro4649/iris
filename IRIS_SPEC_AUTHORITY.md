@@ -110,6 +110,26 @@ Code and tests must not be used to rewrite specification meaning during specific
 
 If code conflicts with the current authority order, the conflict is an implementation issue unless an explicit specification revision says otherwise.
 
+### A08 Implementation Queue
+
+IRIS開発キュー.txt may be referenced as an implementation queue only when it exists in the current workspace or when the user explicitly provides it.
+
+Absence of IRIS開発キュー.txt is not, by itself, a reason to stop work.
+
+IRIS開発キュー.txt may describe implementation order, K-batches, and verification candidates.
+
+IRIS開発キュー.txt is not a normative specification.
+
+IRIS開発キュー.txt does not override Phase00, numbered Phase specifications, or cross-phase addenda.
+
+K items may be implemented only within the constraints of the applicable Phase specification and cross-phase addendum.
+
+If a K item is ambiguous or conflicts with the governing specification set, do not implement it and record the conflict as residual risk.
+
+K-batches are operational aids for safe summaries and targeted Node verification.
+
+K-batches are not evidence for readiness sweetening or production ready status.
+
 ## Domain-Specific Authority Notes
 
 ### Canonical Core Fields

@@ -132,3 +132,23 @@ candidate / approved / commit / execution / Adapter handoff / persistence writer
 
 残リスク:
 
+## IRIS 開発キューの扱い
+
+IRIS開発キュー.txt は、現在の作業フォルダに存在する場合、またはユーザーから明示提供された場合のみ、実装キューとして参照する。
+
+IRIS開発キュー.txt が存在しない場合でも、それだけで作業停止しない。
+
+IRIS開発キュー.txt は仕様権威ではない。
+
+K項目を実装する時も、先に ./IRIS_SPEC_AUTHORITY.md を読み、該当する Phase 仕様と cross-phase addendum に従う。
+
+K項目が仕様と衝突する場合は、実装せず残リスクに記載する。
+
+通常は対象Node検証を優先する。
+
+ただし scripts/run-tests.js / CI / test harness / runner 出力制御に触る場合だけ、必要最小の full run-tests または分割 run-tests を実行してよい。
+
+full run-tests FAIL を握りつぶさない。
+
+secret / endpoint / raw payload / raw logs を出さない。
+
