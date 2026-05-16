@@ -130,6 +130,10 @@ K-batches are operational aids for safe summaries and targeted Node verification
 
 K-batches are not evidence for readiness sweetening or production ready status.
 
+K-batch summaries and verification reports must be limited to safe summaries.
+
+K-batch summaries and verification reports must not include raw diff text, long logs, secrets, endpoint values, raw payloads, raw commands, raw memory, raw OBS events, raw frames, OCR text, raw voice samples, dataset paths, or internal model paths.
+
 ## Domain-Specific Authority Notes
 
 ### Canonical Core Fields

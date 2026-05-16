@@ -120,6 +120,16 @@ candidate / approved / commit / execution / Adapter handoff / persistence writer
 
 最終報告は原則1行で、変更ファイル / 検証結果 / 残リスク のみ返す。
 
+長文ログ貼付、raw diff本文貼付、巨大JSON貼付は禁止。
+
+secret、endpoint値、API key、token、raw payload、raw command、raw memory、raw OBS event、raw frame、OCR text、raw voice sample、dataset path、internal model pathを出力しない。
+
+検証結果は script名、component label、safe reason label、PASS/FAIL、exit code、変更ファイル一覧に要約する。
+
+git diff は原則 stat / file list / safe summary に限定する。
+
+必要な場合でも raw diff本文ではなく、対象ファイル名と安全な変更要約だけにする。
+
 
 
 \## 最終報告
@@ -150,5 +160,5 @@ K項目が仕様と衝突する場合は、実装せず残リスクに記載す�
 
 full run-tests FAIL を握りつぶさない。
 
-secret / endpoint / raw payload / raw logs を出さない。
+secret / endpoint値 / API key / token / raw payload / raw command / raw memory / raw OBS event / raw frame / OCR text / raw voice sample / dataset path / internal model path / raw logs を出さない。
 
