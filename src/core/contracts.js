@@ -123,6 +123,9 @@ function assertNoDirectCandidateCommitInValue(value, context, seen) {
     "relationship_update_candidate",
     "selected_memory_ids",
     "recall_candidate",
+    "input_action_candidate",
+    "memory_carryover_candidates",
+    "community_memory_candidates",
   ]) {
     if (Object.prototype.hasOwnProperty.call(value, forbidden)) {
       throw new ContractError(`${context}: candidate or reference cannot be committed directly`, {
@@ -136,10 +139,60 @@ function assertNoDirectCandidateCommitInValue(value, context, seen) {
   }
 }
 
+const INTERNAL_PROFILE_CANONICAL_FIREWALL_VALUES = new Set([
+  "body_state",
+  "laughter_state",
+  "response_mode",
+  "habit",
+  "commentary_mode",
+  "game_goal",
+  "game_strategy",
+  "game_embodied_state",
+  "session_phase",
+  "speech_rate_profile",
+  "language_profile",
+  "subtitle_cue",
+  "camera_proximity_profile",
+]);
+
+const CANONICAL_FIELD_KINDS = new Set([
+  "intent",
+  "action_type",
+  "tone",
+  "emotion",
+  "character_tag",
+  "task_type",
+  "conversation_state",
+  "updated_store",
+]);
+
+export function assertNoInternalProfileCanonicalLeak(payload, context) {
+  assertNoInternalProfileCanonicalLeakInValue(payload, context, new WeakSet());
+}
+
+function assertNoInternalProfileCanonicalLeakInValue(value, context, seen) {
+  if (!value || typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
+
+  for (const [field, child] of Object.entries(value)) {
+    if (
+      CANONICAL_FIELD_KINDS.has(field) &&
+      INTERNAL_PROFILE_CANONICAL_FIREWALL_VALUES.has(String(child))
+    ) {
+      throw new ContractError(`${context}: internal profile must not enter canonical enum field`, {
+        field,
+      });
+    }
+    assertNoInternalProfileCanonicalLeakInValue(child, context, seen);
+  }
+}
+
 export function assertCoreBoundary(payload, context) {
   assertNoWorldCommand(payload, context);
   assertNoDirectMemoryWrite(payload, context);
   assertNoDirectCandidateCommit(payload, context);
+  assertNoInternalProfileCanonicalLeak(payload, context);
 }
 
 export function normalizeFinalDecision(finalDecision) {

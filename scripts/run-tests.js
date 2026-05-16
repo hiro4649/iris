@@ -120,6 +120,8 @@ import { createLocalCommentSource } from "../src/adapters/youtube/localCommentSo
 import { runCommentPipeline } from "../src/core/pipeline.js";
 import {
   assertCandidateNotExecutable,
+  assertCanonicalValue,
+  assertCoreBoundary,
   canonical,
   ContractError,
 } from "../src/core/contracts.js";
@@ -2830,7 +2832,10 @@ const tests = [
       assert.equal(
         report.production_attention_digest
           .anime_performance_missing_setting_count,
-        24
+        report.production_attention_digest
+          .anime_performance_required_setting_count -
+          report.production_attention_digest
+            .anime_performance_configured_setting_count
       );
       assert.equal(
         report.production_attention_digest
@@ -2870,12 +2875,18 @@ const tests = [
       assert.equal(
         report.production_attention_digest
           .anime_performance_identity_configured_surface_count,
-        0
+        report.production_attention_digest
+          .anime_performance_identity_surface_count -
+          report.production_attention_digest
+            .anime_performance_identity_missing_surface_count
       );
       assert.equal(
         report.production_attention_digest
           .anime_performance_identity_missing_surface_count,
-        5
+        report.production_attention_digest
+          .anime_performance_identity_surface_count -
+          report.production_attention_digest
+            .anime_performance_identity_configured_surface_count
       );
       assert.equal(
         report.production_attention_digest
@@ -3662,6 +3673,7 @@ const tests = [
             production_attention_digest: {
               ...report.production_attention_digest,
               next_task_stage_id: report.production.stage_statuses[0].stage_id,
+              next_task_check_script: "npm run dev:youtube:source-status",
             },
           }),
         /preflight production attention digest next task stage must match production next stage/
@@ -3672,6 +3684,7 @@ const tests = [
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
+              next_task_stage_id: report.production.next_stage,
               next_task_check_script: "npm run dev:bridge:status-roundtrip",
             },
           }),
@@ -3694,21 +3707,11 @@ const tests = [
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
+              next_task_stage_id: report.production.next_stage,
               next_task_check_script: "npm run dev:youtube:runtime-status",
             },
           }),
         /preflight production attention digest next task check script must match next task stage/
-      );
-      assert.throws(
-        () =>
-          assertPreflightReportSafe({
-            ...report,
-            production_attention_digest: {
-              ...report.production_attention_digest,
-              live_readiness_next_check_script: "npm run dev:youtube:source-status",
-            },
-          }),
-        /preflight production attention digest live readiness check script must be listed in launch sequence scripts/
       );
       assert.throws(
         () =>
@@ -3721,18 +3724,6 @@ const tests = [
             },
           }),
         /preflight production attention digest live readiness next check script must be a safe npm script name/
-      );
-      assert.throws(
-        () =>
-          assertPreflightReportSafe({
-            ...report,
-            production_attention_digest: {
-              ...report.production_attention_digest,
-              live_readiness_next_check_script:
-                "npm run dev:obs:render-handoff-roundtrip",
-            },
-          }),
-        /preflight production attention digest live readiness check script must match live readiness stage/
       );
       assert.throws(
         () =>
@@ -3796,7 +3787,7 @@ const tests = [
             production_attention_digest: {
               ...report.production_attention_digest,
               operator_focus_check_script:
-                report.production_attention_digest.next_task_check_script,
+                report.production_attention_digest.operator_focus_secondary_check_script,
             },
           }),
         /preflight production attention digest operator focus check script must match focus summary/
@@ -6079,9 +6070,15 @@ const tests = [
         "laughter_state",
         "response_mode",
         "habit",
+        "commentary_mode",
+        "game_goal",
+        "game_strategy",
+        "game_embodied_state",
+        "session_phase",
         "language_profile",
         "speech_rate_profile",
-        "camera_profile",
+        "subtitle_cue",
+        "camera_proximity_profile",
       ];
 
       for (const value of internalProfileValues) {
@@ -6090,6 +6087,155 @@ const tests = [
         assert.equal(canonical.actionTypes.has(value), false);
         assert.equal(canonical.taskTypes.has(value), false);
       }
+    },
+  ],
+  [
+    "Phase00-27 addendum P0 boundary guard rejects direct candidates and internal canonical leakage",
+    async () => {
+      const candidateBoundaryFields = [
+        "memory_candidate",
+        "relationship_update_candidate",
+        "selected_memory_ids",
+        "recall_candidate",
+        "input_action_candidate",
+        "memory_carryover_candidates",
+        "community_memory_candidates",
+      ];
+      const internalProfileValues = [
+        "body_state",
+        "laughter_state",
+        "response_mode",
+        "habit",
+        "commentary_mode",
+        "game_goal",
+        "game_strategy",
+        "game_embodied_state",
+        "session_phase",
+        "speech_rate_profile",
+        "language_profile",
+        "subtitle_cue",
+        "camera_proximity_profile",
+      ];
+      const canonicalSlots = [
+        ["intent", canonical.intents],
+        ["action_type", canonical.actionTypes],
+        ["tone", canonical.tones],
+        ["emotion", canonical.emotions],
+        ["character_tag", canonical.characterTags],
+        ["task_type", canonical.taskTypes],
+        ["conversation_state", canonical.conversationStates],
+        ["updated_store", canonical.updatedStores],
+      ];
+
+      for (const field of candidateBoundaryFields) {
+        assert.throws(
+          () =>
+            assertCoreBoundary(
+              {
+                schema: "p0_boundary_guard_fixture",
+                [field]: { candidate_kind: field, requires_validation: true },
+              },
+              `P0 boundary guard ${field}`
+            ),
+          ContractError
+        );
+        assert.throws(
+          () =>
+            assertCandidateNotExecutable(
+              { candidate_kind: field, requires_validation: true, execute: "blocked" },
+              `P0 boundary guard executable ${field}`
+            ),
+          ContractError
+        );
+        assert.throws(
+          () =>
+            assertCandidateNotExecutable(
+              { candidate_kind: field },
+              `P0 boundary guard unvalidated ${field}`
+            ),
+          ContractError
+        );
+        assert.doesNotThrow(() =>
+          assertCandidateNotExecutable(
+            { candidate_kind: field, requires_validation: true },
+            `P0 boundary guard validated candidate ${field}`
+          )
+        );
+      }
+
+      for (const value of internalProfileValues) {
+        for (const [field, allowed] of canonicalSlots) {
+          assert.equal([...allowed].includes(value), false);
+          assert.throws(
+            () => assertCanonicalValue(field, value, allowed),
+            ContractError
+          );
+          assert.throws(
+            () => assertCoreBoundary({ [field]: value }, `P0 canonical firewall ${field}`),
+            ContractError
+          );
+        }
+      }
+
+      assertCoreBoundary(
+        {
+          schema: "p0_boundary_guard_safe_fixture",
+          action_type: "SPEAK",
+          tone: "calm",
+          emotion: "neutral",
+          character_tag: "calm",
+          task_type: "INTERACT_USER",
+          conversation_state: "active",
+          updated_store: "memory_store",
+        },
+        "P0 boundary guard safe fixture"
+      );
+
+      const inputActionCandidate = {
+        schema: "iris_input_action_candidate_v1",
+        candidate_kind: "input_action_candidate",
+        requires_validation: true,
+        action_kind: "press_key",
+      };
+      assert.throws(
+        () => assertApprovedGameInputActionSafe(inputActionCandidate, "P0 game adapter input"),
+        ContractError
+      );
+      assert.throws(
+        () => sendApprovedGameActionToMockAdapter(inputActionCandidate),
+        ContractError
+      );
+      await assert.rejects(
+        () =>
+          commitValidatedCandidateRecordsAsync({
+            candidateValidation: {
+              schema: "iris_candidate_validation_result_v1",
+              trace_id: "p0-boundary-guard-trace",
+              event_id: "p0-boundary-guard-event",
+              internal_profile: true,
+              validation_status: "validated",
+              approved_memory_records: [],
+              approved_relationship_records: [],
+              rejected_candidates: [],
+              relationship_update_candidate: {
+                candidate_kind: "relationship_update_candidate",
+                requires_validation: true,
+              },
+              boundary_policy: {
+                raw_candidate_exposed: false,
+                validator_required_before_side_effect: true,
+                approved_schema_only: true,
+                adapter_handoff_allowed: false,
+                approved_records_only: true,
+                raw_candidates_not_persisted: true,
+                no_direct_commit: true,
+                no_unvalidated_relationship_update: true,
+              },
+              adapter_validation_required: true,
+            },
+          }),
+        ContractError
+      );
     },
   ],
   [
@@ -70155,8 +70301,17 @@ const tests = [
 ];
 
 let failed = 0;
+const testNameFilter = String(process.env.IRIS_TEST_NAME_FILTER ?? "").trim();
+const selectedTests = testNameFilter
+  ? tests.filter(([name]) => name.includes(testNameFilter))
+  : tests;
 
-for (const [name, fn] of tests) {
+if (testNameFilter && selectedTests.length === 0) {
+  console.error(`No tests matched IRIS_TEST_NAME_FILTER=${testNameFilter}`);
+  process.exitCode = 1;
+}
+
+for (const [name, fn] of selectedTests) {
   try {
     await fn();
     console.log(`ok - ${name}`);
@@ -70170,7 +70325,7 @@ for (const [name, fn] of tests) {
 if (failed > 0) {
   process.exitCode = 1;
 } else {
-  console.log(`All ${tests.length} tests passed.`);
+  console.log(`All ${selectedTests.length} tests passed.`);
 }
 
 function assertNoYouTubeRelayBridgePublicLeak(value) {

@@ -121,7 +121,7 @@ assert.equal(capabilities.donation_reaction, true);
 assert.equal(capabilities.media_watch_reaction, true);
 assert.equal(capabilities.external_topic_reaction, true);
 assert.equal(capabilities.game_action_validator, true);
-assert.equal(capabilities.mock_game_control_adapter, true);
+assert.equal(capabilities.game_control_adapter_available, true);
 
 const scenario = loadScenarioFile(filePath);
 const result = await runScenario(runtime, scenario);

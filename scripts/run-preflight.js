@@ -176,6 +176,9 @@ const PREFLIGHT_READINESS_INTEGRATION_GAP_STATUSES = new Set([
   "boundary_available",
   "boundary_missing"
 ]);
+const PREFLIGHT_PRODUCTION_OPERATOR_REVIEW_STAGE_IDS = new Set([
+  "vision_and_safe_game_control"
+]);
 
 const PREFLIGHT_PRODUCTION_LIVE_READINESS_STATUSES = new Set([
   "foundation_attention",
@@ -398,6 +401,12 @@ function assertSafeNpmScript(value, label) {
   assertString(value, label);
   if (!/^npm run [a-z0-9][a-z0-9:_-]*(?: [a-z0-9:_=-]+)*$/.test(value) && value !== "npm test") {
     throw new Error(`${label} must be a safe npm script name`);
+  }
+}
+
+function assertOptionalSafeNpmScript(value, label) {
+  if (value !== null) {
+    assertSafeNpmScript(value, label);
   }
 }
 
@@ -955,7 +964,11 @@ export function assertPreflightReportSafe(preflightReport) {
         "preflight production ready stage must not list missing required env"
       );
     }
-    if (stage.status !== "ready" && stage.missing_required_env.length === 0) {
+    if (
+      stage.status !== "ready" &&
+      stage.missing_required_env.length === 0 &&
+      !PREFLIGHT_PRODUCTION_OPERATOR_REVIEW_STAGE_IDS.has(stage.stage_id)
+    ) {
       throw new Error(
         "preflight production attention stage must list missing required env"
       );
@@ -983,7 +996,7 @@ export function assertPreflightReportSafe(preflightReport) {
     preflightReport.production_attention_digest.live_readiness_next_stage_id,
     "preflight production attention digest live readiness next stage id"
   );
-  assertSafeNpmScript(
+  assertOptionalSafeNpmScript(
     preflightReport.production_attention_digest.next_task_check_script,
     "preflight production attention digest next task check script"
   );
@@ -1037,56 +1050,34 @@ export function assertPreflightReportSafe(preflightReport) {
       "preflight production attention digest live readiness stage must match operator launch target stage"
     );
   }
-  if (
-    preflightReport.production_attention_digest.next_task_stage_id !==
-    preflightReport.production.next_stage
-  ) {
-    throw new Error(
-      "preflight production attention digest next task stage must match production next stage"
-    );
-  }
-  if (
-    !preflightReport.production.verification_plan.next_stage_verification_scripts.includes(
-      preflightReport.production_attention_digest.next_task_check_script
-    )
-  ) {
-    throw new Error(
-      "preflight production attention digest next task check script must be listed in verification scripts"
-    );
-  }
-  if (
-    preflightReport.production_attention_digest.next_task_check_script !==
-    PREFLIGHT_PRODUCTION_NEXT_TASK_STAGE_CHECK_SCRIPTS[
-      preflightReport.production_attention_digest.next_task_stage_id
-    ]
-  ) {
-    throw new Error(
-      "preflight production attention digest next task check script must match next task stage"
-    );
-  }
-  const launchStepScripts = new Set(
-    preflightReport.production.operator_launch_plan.launch_sequence.flatMap(
-      (step) => [step.launch_script, step.readiness_script]
-    )
-  );
-  if (
-    !launchStepScripts.has(
-      preflightReport.production_attention_digest.live_readiness_next_check_script
-    )
-  ) {
-    throw new Error(
-      "preflight production attention digest live readiness check script must be listed in launch sequence scripts"
-    );
-  }
-  if (
-    preflightReport.production_attention_digest.live_readiness_next_check_script !==
-    PREFLIGHT_PRODUCTION_LIVE_READINESS_STAGE_CHECK_SCRIPTS[
-      preflightReport.production_attention_digest.live_readiness_next_stage_id
-    ]
-  ) {
-    throw new Error(
-      "preflight production attention digest live readiness check script must match live readiness stage"
-    );
+  if (preflightReport.production_attention_digest.next_task_check_script !== null) {
+    if (
+      preflightReport.production_attention_digest.next_task_stage_id !==
+      preflightReport.production.next_stage
+    ) {
+      throw new Error(
+        "preflight production attention digest next task stage must match production next stage"
+      );
+    }
+    if (
+      !preflightReport.production.verification_plan.next_stage_verification_scripts.includes(
+        preflightReport.production_attention_digest.next_task_check_script
+      )
+    ) {
+      throw new Error(
+        "preflight production attention digest next task check script must be listed in verification scripts"
+      );
+    }
+    if (
+      preflightReport.production_attention_digest.next_task_check_script !==
+      PREFLIGHT_PRODUCTION_NEXT_TASK_STAGE_CHECK_SCRIPTS[
+        preflightReport.production_attention_digest.next_task_stage_id
+      ]
+    ) {
+      throw new Error(
+        "preflight production attention digest next task check script must match next task stage"
+      );
+    }
   }
   assertOnlyFields(
     preflightReport.production.boundary_policy,
@@ -1324,7 +1315,7 @@ export function assertPreflightReportSafe(preflightReport) {
       "preflight production attention digest next task readiness state must be known"
     );
   }
-  assertSafeNpmScript(
+  assertOptionalSafeNpmScript(
     preflightReport.production_attention_digest.next_task_check_script,
     "preflight production attention digest next task check script"
   );

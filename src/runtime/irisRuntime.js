@@ -333,6 +333,7 @@ export function createIrisRuntime({
         game_player: true,
         phase24_game_player_mvp: true,
         game_action_validator: true,
+        game_control_adapter_available: typeof activeGameControlAdapter === "function",
         mock_game_control_adapter:
           activeGameControlAdapter.adapterKind === "mock_game_control",
         http_game_control_adapter_status_contract: true,

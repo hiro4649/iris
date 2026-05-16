@@ -131,7 +131,7 @@ const REQUIRED_CAPABILITIES = [
   "game_relationship_coordination",
   "game_player",
   "game_action_validator",
-  "mock_game_control_adapter",
+  "game_control_adapter_available",
   "http_game_control_adapter_status_contract",
   "game_embodiment",
   "stream_lifecycle",
