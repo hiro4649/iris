@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.3.0 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.3.1 -->
 # Skill: Security Reviewer
 
 Review security-sensitive behavior.
