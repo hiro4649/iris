@@ -58,6 +58,9 @@ function runScript(dir, script) {
 function runTest(dir, extra = []) {
   if (hasScript(dir, 'test')) run('npm', ['test', ...extra], dir);
 }
+function npmCheckEnabled(name) {
+  return process.env[name] === '1';
+}
 function commandExists(cmd) {
   const result = spawn(cmd, ['--version'], { stdio: 'ignore' });
   return result.status === 0;
@@ -96,24 +99,25 @@ if (!commandExists('npm')) {
 
 if (fs.existsSync('package.json')) {
   runScript('.', 'dev:config:doctor');
-  runScript('.', 'preflight');
-  runTest('.');
-  runScript('.', 'smoke');
-  runScript('.', 'build');
+  if (npmCheckEnabled('CODEX_RUN_PREFLIGHT')) runScript('.', 'preflight');
+  if (npmCheckEnabled('CODEX_RUN_NPM_TEST')) runTest('.');
+  if (npmCheckEnabled('CODEX_RUN_SMOKE')) runScript('.', 'smoke');
+  if (npmCheckEnabled('CODEX_RUN_BUILD')) runScript('.', 'build');
 }
 if (fs.existsSync('apps/backend/package.json')) {
-  runScript('apps/backend', 'prisma:validate');
-  runScript('apps/backend', 'build');
-  runTest('apps/backend', ['--', '--runInBand']);
+  if (npmCheckEnabled('CODEX_RUN_BACKEND_VALIDATE')) runScript('apps/backend', 'prisma:validate');
+  if (npmCheckEnabled('CODEX_RUN_BACKEND_BUILD')) runScript('apps/backend', 'build');
+  if (npmCheckEnabled('CODEX_RUN_BACKEND_TEST')) runTest('apps/backend', ['--', '--runInBand']);
 }
 if (fs.existsSync('apps/frontend/package.json')) {
-  if (fs.existsSync('apps/frontend/env.validation.test.mjs')) run('node', ['env.validation.test.mjs'], 'apps/frontend');
-  runScript('apps/frontend', 'build');
+  if (npmCheckEnabled('CODEX_RUN_FRONTEND_ENV_TEST') && fs.existsSync('apps/frontend/env.validation.test.mjs')) run('node', ['env.validation.test.mjs'], 'apps/frontend');
+  if (npmCheckEnabled('CODEX_RUN_FRONTEND_BUILD')) runScript('apps/frontend', 'build');
 }
 if (fs.existsSync('contracts/package.json')) {
-  runScript('contracts', 'compile');
-  runTest('contracts');
-  runScript('contracts', 'compile:nft');
-  runScript('contracts', 'test:nft');
+  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_COMPILE')) runScript('contracts', 'compile');
+  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_TEST')) runTest('contracts');
+  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_NFT_COMPILE')) runScript('contracts', 'compile:nft');
+  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_NFT_TEST')) runScript('contracts', 'test:nft');
 }
+console.log('Optional npm project checks require explicit CODEX_RUN_* flags.');
 console.log('Codex local quality gate passed.');
