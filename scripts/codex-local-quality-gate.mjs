@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.3.0
+// CODEX_QUALITY_HARNESS_FILE v0.3.1
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -37,14 +37,27 @@ function spawn(cmd, args, options = {}) {
   const spec = commandSpec(cmd, args);
   return spawnSync(spec.command, spec.args, {
     cwd: options.cwd || '.',
-    stdio: options.stdio || 'inherit',
+    stdio: options.stdio || 'pipe',
     encoding: options.encoding || 'utf8',
     env: { ...process.env, ...(options.env || {}) },
   });
 }
-function run(cmd, args, cwd = '.', name = null) {
+function redactOutput(text, env = {}) {
+  let out = text || '';
+  for (const value of Object.values(env)) {
+    const raw = String(value || '');
+    if (!raw) continue;
+    out = out.split(raw).join('[redacted policy env]');
+  }
+  return out;
+}
+function run(cmd, args, cwd = '.', name = null, env = {}) {
+  const envKeys = Object.keys(env).sort();
   console.log(`== ${cwd}: ${name || [cmd, ...args].join(' ')} ==`);
-  const result = spawn(cmd, args, { cwd });
+  if (envKeys.length) console.log(`Policy env: ${envKeys.join(', ')}`);
+  const result = spawn(cmd, args, { cwd, env });
+  if (result.stdout) process.stdout.write(redactOutput(result.stdout, env));
+  if (result.stderr) process.stderr.write(redactOutput(result.stderr, env));
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 function readJsonFile(file) {
@@ -94,6 +107,23 @@ function shouldRunCheck(check) {
 function checkNeedsNpm(check) {
   return check.type === 'npmScript' || check.command === 'npm';
 }
+function checkEnv(check) {
+  if (!check.env) return {};
+  if (typeof check.env !== 'object' || Array.isArray(check.env)) {
+    console.error(`Policy env must be an object for check: ${check.name || check.script || check.command}`);
+    process.exit(1);
+  }
+  const env = {};
+  for (const [key, value] of Object.entries(check.env)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      console.error(`Policy env contains an invalid key for check: ${check.name || check.script || check.command}`);
+      process.exit(1);
+    }
+    if (value === undefined || value === null) continue;
+    env[key] = String(value);
+  }
+  return env;
+}
 function packageLockSet(packageDirs) {
   return new Set(
     packageDirs
@@ -113,6 +143,7 @@ function assertNoNewPackageLocks(before, packageDirs) {
 function runCheck(check, packages, policy) {
   const cwd = check.cwd || '.';
   const missingMode = check.missingScript || policy.missingScript || 'skip';
+  const env = checkEnv(check);
   if (check.type === 'npmScript') {
     if (!packages.has(cwd)) {
       if (missingMode === 'fail') {
@@ -130,10 +161,10 @@ function runCheck(check, packages, policy) {
       console.log(`skip missing npm script: ${cwd} ${check.script}`);
       return;
     }
-    run('npm', ['run', check.script], cwd, check.name || `npm run ${check.script}`);
+    run('npm', ['run', check.script], cwd, check.name || `npm run ${check.script}`, env);
     return;
   }
-  if (check.command) run(check.command, check.args || [], cwd, check.name || check.command);
+  if (check.command) run(check.command, check.args || [], cwd, check.name || check.command, env);
 }
 
 console.log('== Codex local quality gate ==');
