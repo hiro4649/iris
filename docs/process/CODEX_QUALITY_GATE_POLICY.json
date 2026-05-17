@@ -12,6 +12,16 @@
       "profileRequired": true
     },
     {
+      "name": "IRIS Phase27/P0 boundary guard fixture",
+      "command": "node",
+      "cwd": ".",
+      "args": ["scripts/run-tests.js"],
+      "env": {
+        "IRIS_TEST_NAME_FILTER": "Phase00-27 addendum P0 boundary guard rejects direct candidates and internal canonical leakage"
+      },
+      "profileRequired": true
+    },
+    {
       "name": "npm test",
       "type": "npmScript",
       "cwd": ".",
