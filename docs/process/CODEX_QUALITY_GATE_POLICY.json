@@ -1,0 +1,47 @@
+{
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.3.0",
+  "profile": "iris",
+  "packageDirs": ["."],
+  "missingScript": "fail",
+  "checks": [
+    {
+      "name": "IRIS config doctor",
+      "type": "npmScript",
+      "cwd": ".",
+      "script": "dev:config:doctor",
+      "profileRequired": true
+    },
+    {
+      "name": "npm test",
+      "type": "npmScript",
+      "cwd": ".",
+      "script": "test",
+      "envFlag": "CODEX_RUN_NPM_TEST",
+      "missingScript": "skip"
+    },
+    {
+      "name": "npm build",
+      "type": "npmScript",
+      "cwd": ".",
+      "script": "build",
+      "envFlag": "CODEX_RUN_NPM_BUILD",
+      "missingScript": "skip"
+    },
+    {
+      "name": "npm lint",
+      "type": "npmScript",
+      "cwd": ".",
+      "script": "lint",
+      "envFlag": "CODEX_RUN_NPM_LINT",
+      "missingScript": "skip"
+    },
+    {
+      "name": "npm smoke",
+      "type": "npmScript",
+      "cwd": ".",
+      "script": "smoke",
+      "envFlag": "CODEX_RUN_NPM_SMOKE",
+      "missingScript": "skip"
+    }
+  ]
+}

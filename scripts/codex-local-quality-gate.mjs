@@ -1,9 +1,22 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.2.2
+// CODEX_QUALITY_HARNESS_FILE v0.3.0
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
+
+const policyPath = path.join('docs', 'process', 'CODEX_QUALITY_GATE_POLICY.json');
+const defaultPolicy = {
+  profile: 'generic',
+  packageDirs: ['.'],
+  missingScript: 'skip',
+  checks: [
+    { name: 'npm test', type: 'npmScript', cwd: '.', script: 'test', envFlag: 'CODEX_RUN_NPM_TEST' },
+    { name: 'npm build', type: 'npmScript', cwd: '.', script: 'build', envFlag: 'CODEX_RUN_NPM_BUILD' },
+    { name: 'npm lint', type: 'npmScript', cwd: '.', script: 'lint', envFlag: 'CODEX_RUN_NPM_LINT' },
+    { name: 'npm smoke', type: 'npmScript', cwd: '.', script: 'smoke', envFlag: 'CODEX_RUN_NPM_SMOKE' },
+  ],
+};
 
 function npmCliPath() {
   const candidates = [
@@ -29,8 +42,8 @@ function spawn(cmd, args, options = {}) {
     env: { ...process.env, ...(options.env || {}) },
   });
 }
-function run(cmd, args, cwd = '.') {
-  console.log(`== ${cwd}: ${[cmd, ...args].join(' ')} ==`);
+function run(cmd, args, cwd = '.', name = null) {
+  console.log(`== ${cwd}: ${name || [cmd, ...args].join(' ')} ==`);
   const result = spawn(cmd, args, { cwd });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
@@ -48,76 +61,130 @@ function readPackage(dir) {
     process.exit(1);
   }
 }
-function hasScript(dir, script) {
-  const pkg = readPackage(dir);
-  return Boolean(pkg?.scripts?.[script]);
-}
-function runScript(dir, script) {
-  if (hasScript(dir, script)) run('npm', ['run', script], dir);
-}
-function runTest(dir, extra = []) {
-  if (hasScript(dir, 'test')) run('npm', ['test', ...extra], dir);
-}
-function npmCheckEnabled(name) {
-  return process.env[name] === '1';
+function readPolicy() {
+  if (!fs.existsSync(policyPath)) return defaultPolicy;
+  try {
+    return { ...defaultPolicy, ...readJsonFile(policyPath) };
+  } catch (error) {
+    console.error(`Failed to parse ${policyPath}: ${error.message}`);
+    process.exit(1);
+  }
 }
 function commandExists(cmd) {
   const result = spawn(cmd, ['--version'], { stdio: 'ignore' });
   return result.status === 0;
 }
+function envEnabled(name) {
+  return Boolean(name) && process.env[name] === '1';
+}
+function normalizePackageDirs(policy) {
+  const dirs = Array.isArray(policy.packageDirs) && policy.packageDirs.length ? policy.packageDirs : ['.'];
+  return [...new Set(dirs.map((dir) => dir || '.'))];
+}
+function hasScript(packages, dir, script) {
+  return Boolean(packages.get(dir)?.scripts?.[script]);
+}
+function shouldRunCheck(check) {
+  if (check.defaultRequired === true) return true;
+  if (check.profileRequired === true && envEnabled('CODEX_RUN_PROFILE_REQUIRED_CHECKS')) return true;
+  if (check.ciRequired === true && envEnabled('CODEX_RUN_PROFILE_REQUIRED_CHECKS')) return true;
+  if (envEnabled(check.envFlag)) return true;
+  return false;
+}
+function checkNeedsNpm(check) {
+  return check.type === 'npmScript' || check.command === 'npm';
+}
+function packageLockSet(packageDirs) {
+  return new Set(
+    packageDirs
+      .map((dir) => path.join(dir || '.', 'package-lock.json'))
+      .filter((file) => fs.existsSync(file))
+      .map((file) => path.normalize(file)),
+  );
+}
+function assertNoNewPackageLocks(before, packageDirs) {
+  const after = packageLockSet(packageDirs);
+  const created = [...after].filter((file) => !before.has(file));
+  if (created.length) {
+    console.error(`package-lock.json was created during quality gate: ${created.join(', ')}`);
+    process.exit(1);
+  }
+}
+function runCheck(check, packages, policy) {
+  const cwd = check.cwd || '.';
+  const missingMode = check.missingScript || policy.missingScript || 'skip';
+  if (check.type === 'npmScript') {
+    if (!packages.has(cwd)) {
+      if (missingMode === 'fail') {
+        console.error(`Required package.json missing for check: ${check.name || check.script}`);
+        process.exit(1);
+      }
+      console.log(`skip missing package.json: ${check.name || check.script}`);
+      return;
+    }
+    if (!hasScript(packages, cwd, check.script)) {
+      if (missingMode === 'fail') {
+        console.error(`Required npm script missing: ${cwd} ${check.script}`);
+        process.exit(1);
+      }
+      console.log(`skip missing npm script: ${cwd} ${check.script}`);
+      return;
+    }
+    run('npm', ['run', check.script], cwd, check.name || `npm run ${check.script}`);
+    return;
+  }
+  if (check.command) run(check.command, check.args || [], cwd, check.name || check.command);
+}
 
 console.log('== Codex local quality gate ==');
 run('node', ['scripts/codex-secret-safety-scan.mjs']);
 
-const npmDirs = ['.', 'apps/backend', 'apps/frontend', 'contracts'].filter((dir) => fs.existsSync(path.join(dir, 'package.json')));
-if (!npmDirs.length) {
-  console.log('No package.json found; npm checks skipped.');
+const policy = readPolicy();
+const packageDirs = normalizePackageDirs(policy);
+const packages = new Map();
+for (const dir of packageDirs) {
+  const pkg = readPackage(dir);
+  if (pkg) packages.set(dir, pkg);
+}
+
+console.log(`Policy profile: ${policy.profile || 'generic'}`);
+console.log(`Package directories found: ${packages.size}`);
+
+if (process.env.CODEX_SKIP_NPM_CHECKS === '1' || process.env.CODEX_SKIP_NPM === '1') {
+  console.log('npm checks skipped by environment flag.');
   console.log('Codex local quality gate passed.');
   process.exit(0);
 }
 
-// Parse all candidate package.json files before deciding whether npm is available.
-// This catches invalid JSON and handles UTF-8 BOM package.json files safely.
-for (const dir of npmDirs) readPackage(dir);
+const checks = Array.isArray(policy.checks) ? policy.checks : [];
+const selectedChecks = checks.filter(shouldRunCheck);
+const needsNpm = selectedChecks.some(checkNeedsNpm) || (packages.size > 0 && process.env.CODEX_REQUIRE_NPM === '1');
+const packageLocksBefore = packageLockSet(packageDirs);
 
-if (process.env.CODEX_SKIP_NPM === '1') {
-  console.log('CODEX_SKIP_NPM=1; npm checks skipped.');
+if (!packages.size) {
+  console.log('No package.json found in policy packageDirs; npm checks skipped.');
   console.log('Codex local quality gate passed.');
   process.exit(0);
 }
 
-if (!commandExists('npm')) {
-  const message = 'npm was not found; npm project checks skipped in this environment. Run this gate again where npm is available before merge.';
-  if (process.env.CODEX_REQUIRE_NPM === '1') {
-    console.error(message);
-    process.exit(1);
-  }
-  console.log(message);
-  console.log('Codex local quality gate passed with npm checks skipped.');
+const npmAvailable = commandExists('npm');
+console.log(`npm available: ${npmAvailable ? 'yes' : 'no'}`);
+if (needsNpm && !npmAvailable) {
+  console.error('npm was required by policy or environment, but npm was not found.');
+  process.exit(1);
+}
+if (!npmAvailable) {
+  console.log('npm checks skipped because npm is unavailable and no npm check was required.');
+  console.log('Codex local quality gate passed.');
   process.exit(0);
 }
 
-if (fs.existsSync('package.json')) {
-  runScript('.', 'dev:config:doctor');
-  if (npmCheckEnabled('CODEX_RUN_PREFLIGHT')) runScript('.', 'preflight');
-  if (npmCheckEnabled('CODEX_RUN_NPM_TEST')) runTest('.');
-  if (npmCheckEnabled('CODEX_RUN_SMOKE')) runScript('.', 'smoke');
-  if (npmCheckEnabled('CODEX_RUN_BUILD')) runScript('.', 'build');
+if (!selectedChecks.length) {
+  console.log('No npm checks selected. Use CODEX_RUN_* flags or CODEX_RUN_PROFILE_REQUIRED_CHECKS=1 to enable policy checks.');
+  console.log('Codex local quality gate passed.');
+  process.exit(0);
 }
-if (fs.existsSync('apps/backend/package.json')) {
-  if (npmCheckEnabled('CODEX_RUN_BACKEND_VALIDATE')) runScript('apps/backend', 'prisma:validate');
-  if (npmCheckEnabled('CODEX_RUN_BACKEND_BUILD')) runScript('apps/backend', 'build');
-  if (npmCheckEnabled('CODEX_RUN_BACKEND_TEST')) runTest('apps/backend', ['--', '--runInBand']);
-}
-if (fs.existsSync('apps/frontend/package.json')) {
-  if (npmCheckEnabled('CODEX_RUN_FRONTEND_ENV_TEST') && fs.existsSync('apps/frontend/env.validation.test.mjs')) run('node', ['env.validation.test.mjs'], 'apps/frontend');
-  if (npmCheckEnabled('CODEX_RUN_FRONTEND_BUILD')) runScript('apps/frontend', 'build');
-}
-if (fs.existsSync('contracts/package.json')) {
-  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_COMPILE')) runScript('contracts', 'compile');
-  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_TEST')) runTest('contracts');
-  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_NFT_COMPILE')) runScript('contracts', 'compile:nft');
-  if (npmCheckEnabled('CODEX_RUN_CONTRACTS_NFT_TEST')) runScript('contracts', 'test:nft');
-}
-console.log('Optional npm project checks require explicit CODEX_RUN_* flags.');
+
+for (const check of selectedChecks) runCheck(check, packages, policy);
+assertNoNewPackageLocks(packageLocksBefore, packageDirs);
 console.log('Codex local quality gate passed.');
