@@ -165,25 +165,17 @@ secret / endpoint値 / API key / token / raw payload / raw command / raw memory 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
 ## Codex Quality Harness
 
-すべてのCodex作業は、最小差分、証拠ベース、PR前検証を必須とする。
-
-実装前に、目的、非目的、受け入れ条件、テスト計画、残リスクを短く確認する。
-
-仕様、テスト、実装、リリースのレビュー観点は docs/process/skills を参照する。
-
-PR前に scripts/codex-local-quality-gate.sh を実行する。失敗、未実行、スキップはPR本文に明記する。
-
-secret、private key、token、DB URL、raw production log、raw payloadを出力、保存、commitしない。
-
-無関係なリファクタ、依存追加、命名整理、広範囲変更を混ぜない。
+縺吶∋縺ｦ縺ｮCodex菴懈･ｭ縺ｯ縲∵怙蟆丞ｷｮ蛻・∬ｨｼ諡繝吶・繧ｹ縲￣R蜑肴､懆ｨｼ繧貞ｿ・医→縺吶ｋ縲・
+螳溯｣・燕縺ｫ縲∫岼逧・・撼逶ｮ逧・∝女縺大・繧梧擅莉ｶ縲√ユ繧ｹ繝郁ｨ育判縲∵ｮ九Μ繧ｹ繧ｯ繧堤洒縺冗｢ｺ隱阪☆繧九・
+莉墓ｧ倥√ユ繧ｹ繝医∝ｮ溯｣・√Μ繝ｪ繝ｼ繧ｹ縺ｮ繝ｬ繝薙Η繝ｼ隕ｳ轤ｹ縺ｯ docs/process/skills 繧貞盾辣ｧ縺吶ｋ縲・
+PR蜑阪↓ scripts/codex-local-quality-gate.sh 繧貞ｮ溯｡後☆繧九ょ､ｱ謨励∵悴螳溯｡後√せ繧ｭ繝・・縺ｯPR譛ｬ譁・↓譏手ｨ倥☆繧九・
+secret縲｝rivate key縲》oken縲．B URL縲〉aw production log縲〉aw payload繧貞・蜉帙∽ｿ晏ｭ倥…ommit縺励↑縺・・
+辟｡髢｢菫ゅ↑繝ｪ繝輔ぃ繧ｯ繧ｿ縲∽ｾ晏ｭ倩ｿｽ蜉縲∝多蜷肴紛逅・∝ｺ・ｯ・峇螟画峩繧呈ｷｷ縺懊↑縺・・
 
 ## IRIS Boundary Rule
 
-IRIS変更では、先に ./IRIS_SPEC_AUTHORITY.md を確認する。
-
-Phase00、Phase I/O、Core / Adapter boundary、candidate / approved / commit / execution separation、Source of Truth priorityを壊さない。
-
-コードやテストを仕様意味の上書きに使わない。
-
-境界変更はR3扱いにし、docs/process/skills/iris-boundary-reviewer.md の観点で確認する。
+IRIS螟画峩縺ｧ縺ｯ縲∝・縺ｫ ./IRIS_SPEC_AUTHORITY.md 繧堤｢ｺ隱阪☆繧九・
+Phase00縲￣hase I/O縲，ore / Adapter boundary縲…andidate / approved / commit / execution separation縲ヾource of Truth priority繧貞｣翫＆縺ｪ縺・・
+繧ｳ繝ｼ繝峨ｄ繝・せ繝医ｒ莉墓ｧ俶э蜻ｳ縺ｮ荳頑嶌縺阪↓菴ｿ繧上↑縺・・
+蠅・阜螟画峩縺ｯR3謇ｱ縺・↓縺励‥ocs/process/skills/iris-boundary-reviewer.md 縺ｮ隕ｳ轤ｹ縺ｧ遒ｺ隱阪☆繧九・
 <!-- CODEX_QUALITY_HARNESS_END -->

@@ -1,8 +1,33 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.3.1",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.4.0",
   "profile": "iris",
   "packageDirs": ["."],
   "missingScript": "fail",
+  "allowedPaths": [],
+  "blockedPaths": [".env", ".env.*", "**/*.pem", "**/*.p12", "**/*.pfx"],
+  "highRiskPaths": ["src/", "test/", "docs/specs/", "IRIS_SPEC_AUTHORITY.md", "scripts/run-tests.js"],
+  "diffScope": {
+    "outOfScope": "fail",
+    "blocked": "fail",
+    "highRisk": "warn"
+  },
+  "riskKeywords": {
+    "R3": [
+      "IRIS",
+      "IRIS_SPEC_AUTHORITY",
+      "Phase",
+      "candidate",
+      "approved",
+      "commit",
+      "execution",
+      "Core",
+      "Adapter",
+      "persistence",
+      "secret",
+      "admin"
+    ],
+    "R2": ["config", "workflow", "script", "dependency"]
+  },
   "checks": [
     {
       "name": "IRIS config doctor",

@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.3.1
+# CODEX_QUALITY_HARNESS_FILE v0.4.0
 name: weekly-health-check
 
 on:
@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -46,4 +48,5 @@ jobs:
         env:
           CODEX_REQUIRE_NPM: "1"
           CODEX_RUN_PROFILE_REQUIRED_CHECKS: "1"
+          CODEX_QUALITY_REPORT: "json"
         run: node scripts/codex-local-quality-gate.mjs
