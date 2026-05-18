@@ -60,6 +60,7 @@
     "dev:obs:failure-roundtrip": "node scripts/dev-obs-failure-roundtrip.js",
     "dev:obs:browser-source": "node scripts/dev-obs-browser-source-config.js",
     "dev:obs:invalid-artifact-roundtrip": "node scripts/dev-obs-invalid-artifact-roundtrip.js",
+    "dev:obs:overlay-production-preflight": "node scripts/dev-obs-overlay-production-preflight.js",
     "dev:obs:probe": "node scripts/dev-obs-probe.js",
     "dev:obs:render-handoff-roundtrip": "node scripts/dev-obs-render-handoff-roundtrip.js",
     "dev:obs:runtime-render-roundtrip": "node scripts/dev-obs-runtime-render-roundtrip.js",
