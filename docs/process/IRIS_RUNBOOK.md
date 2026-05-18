@@ -12,6 +12,10 @@ behavior.
 Check `./IRIS_SPEC_AUTHORITY.md` first. Treat Phase00 through Phase27 and the
 active cross-phase addenda as the specification authority. The IRIS development
 queue is an implementation queue only; it is not specification authority.
+After `./IRIS_SPEC_AUTHORITY.md`, check `docs/process/RELEASE_GATE.md`.
+The formal IRIS release gate is `docs/process/RELEASE_GATE.md`; do not use a
+separate `IRIS_RELEASE_GATE.md` alias. Check `RELEASE_GATE.md` for all release,
+merge, and PR decisions.
 
 ## Normal Development Flow
 
@@ -60,4 +64,3 @@ status labels, counts, booleans, and configured/missing states.
 Use one purpose per commit. Open a PR only after clean verification. Run
 `@codex review` only after the PR exists and before merge as an additional audit.
 Do not run `@codex review` while uncommitted diffs remain.
-

@@ -1,6 +1,11 @@
 <!-- CODEX_QUALITY_HARNESS_FILE v0.6.5 -->
 # Release Gate
 
+This document is the formal release gate for IRIS. Do not create a separate
+`IRIS_RELEASE_GATE.md`; the existing `docs/process/RELEASE_GATE.md` is formally
+adopted. This release gate is not a document for declaring production ready; it
+prevents production ready misdeclarations.
+
 Before merge or deploy, confirm:
 
 - The risk level is correct.
