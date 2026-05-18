@@ -10,6 +10,52 @@ const RUN_SCRIPT_PATTERN = /^run-.*\.js$/;
 const ASSERT_PATTERN = /\b(?:export\s+)?function\s+assert[A-Za-z0-9_]*\s*\(/;
 const ALLOWLIST_PATTERN =
   /(?:_FIELDS|REPORT_FIELDS|PAYLOAD_FIELDS|SUMMARY_FIELDS|CHECKLIST_FIELDS|REHEARSAL_FIELDS)/;
+const OUTPUT_ALLOWLIST_DECLARATION_PATTERNS = [
+  /const\s+([A-Z0-9_]*(?:_FIELDS|REPORT_FIELDS|PAYLOAD_FIELDS|SUMMARY_FIELDS|CHECKLIST_FIELDS|REHEARSAL_FIELDS))\s*=\s*new Set\(\s*\[([\s\S]*?)\]\s*\);/g,
+  /const\s+([A-Z0-9_]*(?:_FIELDS|REPORT_FIELDS|PAYLOAD_FIELDS|SUMMARY_FIELDS|CHECKLIST_FIELDS|REHEARSAL_FIELDS))\s*=\s*\[([\s\S]*?)\];/g
+];
+const OUTPUT_SOURCE_PATTERN =
+  /(?:public|admin|readiness|diagnostic|diagnostics|production|probe|report|summary)/i;
+const OUTPUT_FIELD_LITERAL_PATTERN = /["']([A-Za-z0-9_]+)["']/g;
+const FORBIDDEN_PUBLIC_OUTPUT_FIELD_NAMES = new Set([
+  "api_key",
+  "api_key_value",
+  "endpoint",
+  "endpoint_value",
+  "endpoint_values",
+  "exact_delta",
+  "hidden_rank",
+  "hidden_score",
+  "input_action_candidate",
+  "internal_relationship_stage",
+  "memory_carryover_candidates",
+  "private_viewer_id",
+  "raw_candidate",
+  "raw_candidates",
+  "raw_command",
+  "raw_comment",
+  "raw_frame",
+  "raw_frames",
+  "raw_log",
+  "raw_logs",
+  "raw_memory",
+  "raw_payload",
+  "raw_sql",
+  "raw_support_text",
+  "raw_vector",
+  "raw_voice",
+  "raw_voice_sample",
+  "raw_voice_samples",
+  "recall_candidate",
+  "relation_score",
+  "relationship_update_candidate",
+  "secret",
+  "secret_value",
+  "secret_values",
+  "selected_memory_ids",
+  "token",
+  "token_value"
+]);
 const SERVER_ALLOWLIST_PATTERN =
   /(?:_FIELDS|REPORT_FIELDS|PAYLOAD_FIELDS|SUMMARY_FIELDS|STATUS_FIELDS|HEALTH_FIELDS)/;
 const RUN_SCRIPT_BOUNDARY_PATTERN =
@@ -50,6 +96,8 @@ const PUBLIC_REPORT_BOUNDARY_AUDIT_FIELDS = new Set([
   "required_lightweight_scripts",
   "missing_required_lightweight_script_count",
   "missing_required_lightweight_scripts",
+  "unsafe_public_output_field_count",
+  "unsafe_public_output_fields",
   "boundary_policy"
 ]);
 
@@ -218,6 +266,62 @@ function findMissingRequiredLightweightScripts() {
   };
 }
 
+function collectUnsafeAllowlistFields(source, publicName) {
+  const unsafeFields = [];
+
+  for (const pattern of OUTPUT_ALLOWLIST_DECLARATION_PATTERNS) {
+    pattern.lastIndex = 0;
+    let declarationMatch;
+    while ((declarationMatch = pattern.exec(source)) !== null) {
+      const [, declarationName, declarationBody] = declarationMatch;
+      if (declarationName.startsWith("FORBIDDEN_")) {
+        continue;
+      }
+
+      OUTPUT_FIELD_LITERAL_PATTERN.lastIndex = 0;
+      let fieldMatch;
+      while ((fieldMatch = OUTPUT_FIELD_LITERAL_PATTERN.exec(declarationBody)) !== null) {
+        const fieldName = fieldMatch[1];
+        if (FORBIDDEN_PUBLIC_OUTPUT_FIELD_NAMES.has(fieldName)) {
+          unsafeFields.push(`${publicName}#${fieldName}`);
+        }
+      }
+    }
+  }
+
+  return unsafeFields;
+}
+
+function findUnsafePublicOutputAllowlistFields() {
+  const unsafePublicOutputFields = new Set();
+  const serviceNames = readdirSync(DEV_SERVICE_DIR)
+    .filter((name) => name.endsWith(".js") && OUTPUT_SOURCE_PATTERN.test(name))
+    .sort((left, right) => left.localeCompare(right));
+  const scriptNames = readdirSync(SCRIPT_DIR)
+    .filter((name) => DEV_SCRIPT_PATTERN.test(name) && OUTPUT_SOURCE_PATTERN.test(name))
+    .sort((left, right) => left.localeCompare(right));
+
+  for (const name of serviceNames) {
+    const publicName = toPublicDevServiceName(name);
+    const source = readFileSync(join(DEV_SERVICE_DIR, name), "utf8");
+    for (const unsafeField of collectUnsafeAllowlistFields(source, publicName)) {
+      unsafePublicOutputFields.add(unsafeField);
+    }
+  }
+
+  for (const name of scriptNames) {
+    const publicName = toPublicScriptName(name);
+    const source = readFileSync(join(SCRIPT_DIR, name), "utf8");
+    for (const unsafeField of collectUnsafeAllowlistFields(source, publicName)) {
+      unsafePublicOutputFields.add(unsafeField);
+    }
+  }
+
+  return [...unsafePublicOutputFields].sort((left, right) =>
+    left.localeCompare(right)
+  );
+}
+
 function verifyPublicReportBoundaryAuditReportSafe(report) {
   if (!report || typeof report !== "object" || Array.isArray(report)) {
     throw new Error("Public report boundary audit report must be an object");
@@ -251,7 +355,8 @@ function verifyPublicReportBoundaryAuditReportSafe(report) {
     "scanned_src_import_file_count",
     "script_layer_import_violation_count",
     "required_lightweight_script_count",
-    "missing_required_lightweight_script_count"
+    "missing_required_lightweight_script_count",
+    "unsafe_public_output_field_count"
   ]) {
     if (!Number.isInteger(report[field]) || report[field] < 0) {
       throw new Error(`Public report boundary audit count invalid: ${field}`);
@@ -295,7 +400,8 @@ function verifyPublicReportBoundaryAuditReportSafe(report) {
     report.missing_dev_service_allowlist_count +
     report.missing_server_allowlist_count +
     report.script_layer_import_violation_count +
-    report.missing_required_lightweight_script_count;
+    report.missing_required_lightweight_script_count +
+    report.unsafe_public_output_field_count;
   if (report.ok === true && missingCountTotal !== 0) {
     throw new Error("Public report boundary audit ok must have zero missing counts");
   }
@@ -460,6 +566,32 @@ function verifyPublicReportBoundaryAuditReportSafe(report) {
       );
     }
   }
+  if (!Array.isArray(report.unsafe_public_output_fields)) {
+    throw new Error(
+      "Public report boundary audit unsafe output field list must be an array"
+    );
+  }
+  if (
+    report.unsafe_public_output_fields.length !==
+    report.unsafe_public_output_field_count
+  ) {
+    throw new Error(
+      "Public report boundary audit unsafe output field count mismatch"
+    );
+  }
+  assertUniquePublicNames(report.unsafe_public_output_fields, "unsafe output field");
+  for (const fieldName of report.unsafe_public_output_fields) {
+    if (
+      typeof fieldName !== "string" ||
+      !/^(?:src\/services\/dev|scripts)\/[A-Za-z0-9_.-]+\.js#[A-Za-z0-9_]+$/.test(
+        fieldName
+      )
+    ) {
+      throw new Error(
+        "Public report boundary audit unsafe output field is not public-safe"
+      );
+    }
+  }
 
   const policy = report.boundary_policy;
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
@@ -471,6 +603,9 @@ function verifyPublicReportBoundaryAuditReportSafe(report) {
     "public_relative_file_names_only",
     "no_file_contents",
     "no_env_values",
+    "allowlist_fields_only",
+    "no_secret_or_raw_field_names",
+    "no_candidate_field_names",
     "no_commands"
   ];
   for (const field of requiredPolicyFields) {
@@ -513,6 +648,7 @@ export function createPublicReportBoundaryAuditReport() {
     requiredLightweightScriptNames,
     missingRequiredLightweightScripts
   } = findMissingRequiredLightweightScripts();
+  const unsafePublicOutputFields = findUnsafePublicOutputAllowlistFields();
 
   const report = {
     ok:
@@ -521,7 +657,8 @@ export function createPublicReportBoundaryAuditReport() {
       missingDevServiceAllowlistFiles.length === 0 &&
       missingServerAllowlistFiles.length === 0 &&
       scriptLayerImportViolationFiles.length === 0 &&
-      missingRequiredLightweightScripts.length === 0,
+      missingRequiredLightweightScripts.length === 0 &&
+      unsafePublicOutputFields.length === 0,
     schema: "iris_public_report_boundary_audit_v1",
     scanned_script_count: scriptNames.length,
     assert_script_count: assertScripts.length,
@@ -547,11 +684,16 @@ export function createPublicReportBoundaryAuditReport() {
     missing_required_lightweight_script_count:
       missingRequiredLightweightScripts.length,
     missing_required_lightweight_scripts: missingRequiredLightweightScripts,
+    unsafe_public_output_field_count: unsafePublicOutputFields.length,
+    unsafe_public_output_fields: unsafePublicOutputFields,
     boundary_policy: {
       script_names_only: true,
       public_relative_file_names_only: true,
       no_file_contents: true,
       no_env_values: true,
+      allowlist_fields_only: true,
+      no_secret_or_raw_field_names: true,
+      no_candidate_field_names: true,
       no_commands: true
     }
   };
