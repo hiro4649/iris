@@ -124,6 +124,7 @@
     "dev:voicevox:roundtrip": "node scripts/dev-voicevox-tts-engine-roundtrip.js",
     "dev:voicevox:unsafe-roundtrip": "node scripts/dev-voicevox-tts-engine-unsafe-roundtrip.js",
     "dev:vision:game-roundtrip": "node scripts/dev-vision-game-roundtrip.js",
+    "dev:vision:game-observation-readonly-boundary": "node scripts/dev-vision-game-observation-readonly-boundary.js",
     "dev:vision:unsafe-roundtrip": "node scripts/dev-vision-unsafe-roundtrip.js",
     "dev:youtube:preflight": "node scripts/dev-youtube-ingest-preflight.js",
     "dev:youtube:launch-plan": "node scripts/dev-youtube-ingest-launch-plan.js",
