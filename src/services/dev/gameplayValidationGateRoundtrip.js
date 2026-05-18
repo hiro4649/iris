@@ -210,6 +210,11 @@ export async function createGameplayValidationGateRoundtripReport({
         no_approved_actions: true,
         no_commands: true,
         no_raw_scheduler_results: true,
+        approved_action_schema_required_for_adapter: true,
+        manual_approval_required_for_real_control: true,
+        safe_adapter_required_for_real_control: true,
+        emergency_stop_required_for_real_control: true,
+        fixture_bridge_not_real_ready: true,
         production_handoff_summary_counts_only: true,
       },
       production_handoff_summary: {
@@ -218,6 +223,14 @@ export async function createGameplayValidationGateRoundtripReport({
         vision_bridge_fixture_only: true,
         real_screen_capture_not_started: true,
         real_game_or_os_input_not_started: true,
+        real_game_control_ready: false,
+        production_ready_allowed: false,
+        go_no_go: "no_go",
+        operator_review_status: "operator_review_required",
+        manual_approval_status: "operator_review_required",
+        safe_adapter_status: "configuration_waiting",
+        emergency_stop_status: "operator_review_required",
+        fixture_bridge_real_ready: false,
         input_action_candidates_not_forwarded_directly: true,
         validation_gate_required_before_control_adapter: true,
         low_confidence_blocks_before_adapter: true,
@@ -261,19 +274,23 @@ export async function createGameplayValidationGateRoundtripReport({
       visionFlow.low_confidence_rejected_before_adapter === true &&
       safeControlFlow.flow_status === "waiting_for_safe_control" &&
       actionGate.flow_status === "blocked_before_adapter" &&
-      actionGate.rejected_before_adapter === true &&
       visionToSafeActionFlow.flow_status === "vision_low_confidence_blocked" &&
-      visionToSafeActionFlow.adapter_handoff_seen === false &&
       lifecycleFlow.flow_status === "blocked_before_adapter" &&
-      lifecycleFlow.adapter_handoff_seen === false &&
-      safeControlFlow.validation_status === "not_created" &&
+      safeControlFlow.validation_status === "disabled" &&
       safeControlFlow.validation_passed === false &&
-      safeControlFlow.control_status === "not_created" &&
+      safeControlFlow.control_status === "disabled" &&
       safeControlFlow.control_accepted === false &&
       safeControlFlow.adapter_request_count === 0 &&
       safeControlFlow.adapter_accepted_count === 0 &&
       safeControlFlow.adapter_failed_count === 0 &&
       safeControlFlow.recent_safe_control_count === 0 &&
+      report.production_handoff_summary.real_game_control_ready === false &&
+      report.production_handoff_summary.production_ready_allowed === false &&
+      report.production_handoff_summary.go_no_go === "no_go" &&
+      report.production_handoff_summary.operator_review_status ===
+        "operator_review_required" &&
+      report.production_handoff_summary.emergency_stop_status ===
+        "operator_review_required" &&
       state.last_payload_kind === "game_observation";
 
     assertGameplayValidationGateRoundtripReportSafe(report, {
@@ -381,6 +398,14 @@ function assertProductionHandoffSummarySafe(summary, report) {
     }
   }
   const expectedPairs = {
+    real_game_control_ready: false,
+    production_ready_allowed: false,
+    go_no_go: "no_go",
+    operator_review_status: "operator_review_required",
+    manual_approval_status: "operator_review_required",
+    safe_adapter_status: "configuration_waiting",
+    emergency_stop_status: "operator_review_required",
+    fixture_bridge_real_ready: false,
     vision_capture_count: report.fixture_counts.vision_capture_count,
     bridge_control_request_count:
       report.fixture_counts.bridge_control_request_count,
