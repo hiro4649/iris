@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.4.0
+// CODEX_QUALITY_HARNESS_FILE v0.6.5
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -33,7 +33,7 @@ const defaultPolicy = {
 
 const levels = { R1: 1, R2: 2, R3: 3 };
 const report = {
-  marker: 'CODEX_QUALITY_HARNESS_FILE v0.4.0',
+  marker: 'CODEX_QUALITY_HARNESS_FILE v0.6.5',
   profile: 'generic',
   status: 'running',
   riskLevel: 'R1',

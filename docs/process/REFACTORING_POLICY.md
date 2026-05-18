@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.4.0 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.6.5 -->
 # Refactoring Policy
 
 Refactoring is not a cleanup reward. It is a risk-managed investment.
