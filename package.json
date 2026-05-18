@@ -52,6 +52,7 @@
     "dev:gameplay:validation-gate-roundtrip": "node scripts/dev-gameplay-validation-gate-roundtrip.js",
     "dev:gameplay:post-start-checklist": "node scripts/dev-gameplay-post-start-checklist.js",
     "dev:ingest:http": "node scripts/dev-http-ingest-once.js",
+    "dev:live2d-tts:bridge-readiness": "node scripts/dev-live2d-tts-bridge-readiness.js",
     "dev:live2d:bridge": "node scripts/dev-live2d-cue-engine-bridge.js",
     "dev:live2d:roundtrip": "node scripts/dev-live2d-cue-engine-roundtrip.js",
     "dev:live2d:unsafe-roundtrip": "node scripts/dev-live2d-cue-engine-unsafe-roundtrip.js",
