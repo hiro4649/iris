@@ -5,7 +5,9 @@ const AUTH_GATE_STATUSES = new Set(["ready", "blocked"]);
 const REQUIRED_ENV_NAMES = [
   "IRIS_ADMIN_REVIEW_ADMIN_AUTHENTICATED",
   "IRIS_ADMIN_REVIEW_OWNER_CONFIRMED",
+  "IRIS_ADMIN_REVIEW_DECISION_LOG_PATH",
 ];
+const DECISION_LOG_ENV_NAME = "IRIS_ADMIN_REVIEW_DECISION_LOG_PATH";
 const ALLOWED_ACTOR_ROLES = new Set(["owner", "admin", "operator"]);
 const FORBIDDEN_FIELDS = new Set([
   "world_command",
@@ -47,6 +49,7 @@ const ADMIN_REVIEW_AUTH_GATE_FIELDS = new Set([
   "actor_role_label",
   "admin_authenticated",
   "owner_confirmed",
+  "decision_log_configured",
   "actor_allowed",
   "required_env_names",
   "configured_required_env_count",
@@ -70,6 +73,7 @@ const ADMIN_REVIEW_PRIVATE_RUNNER_GATE_PREFLIGHT_FIELDS = new Set([
   "role_gate_status",
   "owner_gate_status",
   "admin_review_gate_status",
+  "decision_log_gate_status",
   "private_runner_gate_status",
   "next_safe_action_label",
 ]);
@@ -77,6 +81,7 @@ const SAFE_GATE_STATUSES = new Set(["ready", "blocked"]);
 const SAFE_ACTION_LABELS = new Set([
   "none",
   "configure_admin_review_env",
+  "configure_admin_review_decision_log",
   "set_admin_or_owner_actor_role",
   "request_owner_confirmation",
   "complete_admin_review_private_runner_gate",
@@ -105,12 +110,16 @@ export function createAdminReviewAuthGateReport({
   const adminAuthenticated =
     env?.IRIS_ADMIN_REVIEW_ADMIN_AUTHENTICATED === "true";
   const ownerConfirmed = env?.IRIS_ADMIN_REVIEW_OWNER_CONFIRMED === "true";
+  const decisionLogConfigured = isRequiredAdminReviewEnvConfigured(
+    env,
+    DECISION_LOG_ENV_NAME
+  );
   const missingRequiredEnvNames = REQUIRED_ENV_NAMES.filter(
-    (name) => env?.[name] !== "true"
+    (name) => !isRequiredAdminReviewEnvConfigured(env, name)
   );
   const actorAllowed = actorRoleLabel === "owner" || actorRoleLabel === "admin";
   const privateRunnerAllowed =
-    adminAuthenticated && ownerConfirmed && actorAllowed;
+    adminAuthenticated && ownerConfirmed && decisionLogConfigured && actorAllowed;
   const report = {
     schema: "iris_admin_review_auth_gate_v1",
     generated_at_ms: generatedAtMs,
@@ -120,12 +129,14 @@ export function createAdminReviewAuthGateReport({
         actorAllowed,
         adminAuthenticated,
         ownerConfirmed,
+        decisionLogConfigured,
         privateRunnerAllowed,
         missingRequiredEnvNames,
       }),
     actor_role_label: actorRoleLabel,
     admin_authenticated: adminAuthenticated,
     owner_confirmed: ownerConfirmed,
+    decision_log_configured: decisionLogConfigured,
     actor_allowed: actorAllowed,
     required_env_names: REQUIRED_ENV_NAMES,
     configured_required_env_count:
@@ -226,13 +237,17 @@ export function assertAdminReviewAuthGateSafe(
   if (
     typeof report.admin_authenticated !== "boolean" ||
     typeof report.owner_confirmed !== "boolean" ||
+    typeof report.decision_log_configured !== "boolean" ||
     typeof report.actor_allowed !== "boolean" ||
     typeof report.private_runner_allowed !== "boolean"
   ) {
     throw new ContractError(`${context}: invalid auth booleans`);
   }
   const expectedPrivateRunnerAllowed =
-    report.admin_authenticated && report.owner_confirmed && report.actor_allowed;
+    report.admin_authenticated &&
+    report.owner_confirmed &&
+    report.decision_log_configured &&
+    report.actor_allowed;
   const expectedActorAllowed =
     report.actor_role_label === "owner" || report.actor_role_label === "admin";
   if (report.actor_allowed !== expectedActorAllowed) {
@@ -277,6 +292,7 @@ function createAdminReviewPrivateRunnerGatePreflight({
   actorAllowed,
   adminAuthenticated,
   ownerConfirmed,
+  decisionLogConfigured,
   privateRunnerAllowed,
   missingRequiredEnvNames,
 }) {
@@ -289,12 +305,14 @@ function createAdminReviewPrivateRunnerGatePreflight({
     role_gate_status: actorAllowed ? "ready" : "blocked",
     owner_gate_status: ownerConfirmed ? "ready" : "blocked",
     admin_review_gate_status: adminAuthenticated ? "ready" : "blocked",
+    decision_log_gate_status: decisionLogConfigured ? "ready" : "blocked",
     private_runner_gate_status: privateRunnerAllowed ? "ready" : "blocked",
     next_safe_action_label: nextAdminReviewSafeActionLabel({
       missingRequiredEnvNames,
       actorAllowed,
       ownerConfirmed,
       adminAuthenticated,
+      decisionLogConfigured,
       privateRunnerAllowed,
     }),
   };
@@ -336,6 +354,7 @@ function assertAdminReviewPrivateRunnerGatePreflightSafe(
     "role_gate_status",
     "owner_gate_status",
     "admin_review_gate_status",
+    "decision_log_gate_status",
     "private_runner_gate_status",
   ]) {
     if (!SAFE_GATE_STATUSES.has(preflight[field])) {
@@ -350,6 +369,8 @@ function assertAdminReviewPrivateRunnerGatePreflightSafe(
     preflight.owner_gate_status !== (report.owner_confirmed ? "ready" : "blocked") ||
     preflight.admin_review_gate_status !==
       (report.admin_authenticated ? "ready" : "blocked") ||
+    preflight.decision_log_gate_status !==
+      (report.decision_log_configured ? "ready" : "blocked") ||
     preflight.private_runner_gate_status !==
       (report.private_runner_allowed ? "ready" : "blocked")
   ) {
@@ -359,7 +380,8 @@ function assertAdminReviewPrivateRunnerGatePreflightSafe(
     preflight.private_runner_gate_status === "ready" &&
     (preflight.role_gate_status !== "ready" ||
       preflight.owner_gate_status !== "ready" ||
-      preflight.admin_review_gate_status !== "ready")
+      preflight.admin_review_gate_status !== "ready" ||
+      preflight.decision_log_gate_status !== "ready")
   ) {
     throw new ContractError(`${context}: private runner gate sweetening detected`);
   }
@@ -370,19 +392,34 @@ function nextAdminReviewSafeActionLabel({
   actorAllowed,
   ownerConfirmed,
   adminAuthenticated,
+  decisionLogConfigured,
   privateRunnerAllowed,
 }) {
   if (privateRunnerAllowed) return "none";
+  if (
+    missingRequiredEnvNames.length === 1 &&
+    missingRequiredEnvNames[0] === DECISION_LOG_ENV_NAME
+  ) {
+    return "configure_admin_review_decision_log";
+  }
   if (missingRequiredEnvNames.length > 0) return "configure_admin_review_env";
   if (!actorAllowed) return "set_admin_or_owner_actor_role";
   if (!ownerConfirmed) return "request_owner_confirmation";
   if (!adminAuthenticated) return "complete_admin_review_private_runner_gate";
+  if (!decisionLogConfigured) return "configure_admin_review_decision_log";
   return "complete_admin_review_private_runner_gate";
 }
 
 function sanitizeActorRole(actorRole) {
   const value = String(actorRole ?? "operator").trim().toLowerCase();
   return ALLOWED_ACTOR_ROLES.has(value) ? value : "operator";
+}
+
+function isRequiredAdminReviewEnvConfigured(env, name) {
+  if (name === DECISION_LOG_ENV_NAME) {
+    return String(env?.[name] ?? "").trim().length > 0;
+  }
+  return env?.[name] === "true";
 }
 
 function assertBoundaryPolicy(actual, expected, context) {
