@@ -68,6 +68,9 @@ const YOUTUBE_INGEST_SOURCE_STATUS_REPORT_FIELDS = new Set([
   "source_status",
   "instantiation_status",
   "error_kind",
+  "external_real_evidence_status",
+  "production_ready_allowed",
+  "go_no_go",
   "status_summary",
   "support_event_policy",
   "boundary_policy",
@@ -216,6 +219,10 @@ const READINESS_STATES = new Set([
   "runtime_waiting",
   "real_device_waiting",
   "operator_review_required",
+]);
+const EXTERNAL_REAL_EVIDENCE_STATUSES = new Set([
+  "external_real_evidence_blocked",
+  "external_real_evidence_required",
 ]);
 const AUTH_MODES = new Set([
   "api_key",
@@ -1218,6 +1225,10 @@ export function createYouTubeIngestSourceStatusReport({
     source_status: sourceStatus,
     instantiation_status: sourceResult.instantiation_status,
     error_kind: sourceResult.error_kind,
+    external_real_evidence_status:
+      externalRealEvidenceStatusForSourceStatus(statusSummary),
+    production_ready_allowed: false,
+    go_no_go: "no_go",
     status_summary: statusSummary,
     support_event_policy: {
       normalized_as_donation_event: true,
@@ -1236,6 +1247,8 @@ export function createYouTubeIngestSourceStatusReport({
       no_instantiation_error_message: true,
       read_only_status: true,
       no_polling_side_effects: true,
+      source_status_not_production_ready_evidence: true,
+      fixture_or_local_relay_not_real_ready: true,
     },
     adapter_validation_required: true,
   };
@@ -1282,6 +1295,18 @@ export function assertYouTubeIngestSourceStatusReportSafe(
   if (report.error_kind !== null && !ERROR_KINDS.has(report.error_kind)) {
     throw new ContractError(`${context}: invalid error kind`);
   }
+  if (!EXTERNAL_REAL_EVIDENCE_STATUSES.has(report.external_real_evidence_status)) {
+    throw new ContractError(`${context}: invalid external evidence status`);
+  }
+  if (
+    report.external_real_evidence_status !==
+    externalRealEvidenceStatusForSourceStatus(report.status_summary)
+  ) {
+    throw new ContractError(`${context}: external evidence status mismatch`);
+  }
+  if (report.production_ready_allowed !== false || report.go_no_go !== "no_go") {
+    throw new ContractError(`${context}: production no-go invariant required`);
+  }
   if (report.instantiation_status === "ready") {
     if (
       report.source_configured !== true ||
@@ -1327,6 +1352,8 @@ export function assertYouTubeIngestSourceStatusReportSafe(
     "no_instantiation_error_message",
     "read_only_status",
     "no_polling_side_effects",
+    "source_status_not_production_ready_evidence",
+    "fixture_or_local_relay_not_real_ready",
   ], `${context}: boundary policy`);
   if (report.adapter_validation_required !== true) {
     throw new ContractError(`${context}: adapter validation flag required`);
@@ -1367,6 +1394,14 @@ function readinessStateForSourceStatus(statusSummary) {
     default:
       return "runtime_waiting";
   }
+}
+
+function externalRealEvidenceStatusForSourceStatus(statusSummary) {
+  return ["not_configured", "configuration_error"].includes(
+    statusSummary?.ingest_readiness_status
+  )
+    ? "external_real_evidence_blocked"
+    : "external_real_evidence_required";
 }
 
 function countReadinessStates(states) {

@@ -44,6 +44,11 @@ export function createYouTubeIngestSourceStatusCliReport(sourceStatus) {
       source_instantiation_status: sourceStatus.instantiation_status,
       source_ingest_readiness_status:
         sourceStatus.status_summary?.ingest_readiness_status ?? "unknown",
+      external_real_evidence_status: sourceStatus.external_real_evidence_status,
+      production_ready_allowed: sourceStatus.production_ready_allowed,
+      go_no_go: sourceStatus.go_no_go,
+      source_status_not_production_ready_evidence: true,
+      fixture_or_local_relay_not_real_ready: true,
       next_readiness_state: sourceStatus.next_readiness_state,
       readiness_state_counts: sourceStatus.readiness_state_counts,
       auth_mode: sourceStatus.status_summary?.auth_mode ?? "unknown",
@@ -73,6 +78,8 @@ export function createYouTubeIngestSourceStatusCliReport(sourceStatus) {
       read_only_cli: true,
       no_polling_side_effects: true,
       production_handoff_summary_counts_only: true,
+      source_status_not_production_ready_evidence: true,
+      fixture_or_local_relay_not_real_ready: true,
     },
   };
   assertYouTubeIngestSourceStatusCliReportSafe(report);
@@ -130,6 +137,8 @@ export function assertYouTubeIngestSourceStatusCliReportSafe(
     "candidates_not_exposed",
     "endpoint_values_not_exposed",
     "secret_values_not_exposed",
+    "source_status_not_production_ready_evidence",
+    "fixture_or_local_relay_not_real_ready",
   ]) {
     if (summary[field] !== true) throw new Error(`${context}: flag failed ${field}`);
   }
@@ -156,6 +165,10 @@ export function assertYouTubeIngestSourceStatusCliReportSafe(
       report.youtube_ingest_source_status.instantiation_status ||
     summary.source_ingest_readiness_status !==
       report.youtube_ingest_source_status.status_summary?.ingest_readiness_status ||
+    summary.external_real_evidence_status !==
+      report.youtube_ingest_source_status.external_real_evidence_status ||
+    summary.production_ready_allowed !== false ||
+    summary.go_no_go !== "no_go" ||
     summary.next_readiness_state !==
       report.youtube_ingest_source_status.next_readiness_state ||
     !sameReadinessStateCounts(
@@ -200,6 +213,8 @@ export function assertYouTubeIngestSourceStatusCliReportSafe(
     "read_only_cli",
     "no_polling_side_effects",
     "production_handoff_summary_counts_only",
+    "source_status_not_production_ready_evidence",
+    "fixture_or_local_relay_not_real_ready",
   ]) {
     if (report.boundary_policy[field] !== true) {
       throw new Error(`${context}: ${field} boundary required`);
