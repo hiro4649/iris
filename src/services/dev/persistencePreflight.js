@@ -102,6 +102,7 @@ const PERSISTENCE_PREFLIGHT_REPORT_FIELDS = new Set([
   "persistence_stage_summary",
   "integration_readiness",
   "verification_plan_summary",
+  "postgres_production_boundary_manifest",
   "persistence_policy",
   "boundary_policy",
   "adapter_validation_required",
@@ -122,6 +123,38 @@ const SAFE_FALLBACK_BACKEND_LABELS = new Set([
   "json_local_mvp_fallback",
   "postgresql_production_backend",
   "unknown_fallback",
+]);
+const POSTGRES_PRODUCTION_BOUNDARY_MANIFEST_FIELDS = new Set([
+  "schema",
+  "manifest_status",
+  "json_store_role",
+  "real_evidence_status",
+  "production_ready_allowed",
+  "postgres_real_database_connection_attempted",
+  "check_count",
+  "ready_check_count",
+  "attention_check_count",
+  "next_safe_action_label",
+  "boundary_policy",
+]);
+const POSTGRES_PRODUCTION_BOUNDARY_MANIFEST_STATUSES = new Set([
+  "blocked_by_json_fallback",
+  "blocked_by_missing_real_evidence",
+  "operator_review_required",
+]);
+const POSTGRES_REAL_EVIDENCE_STATUSES = new Set([
+  "external_real_evidence_blocked",
+  "operator_review_required",
+]);
+const POSTGRES_PRODUCTION_BOUNDARY_NEXT_ACTION_LABELS = new Set([
+  "select_postgresql_production_backend",
+  "configure_postgres_connection_env",
+  "prepare_postgres_migration_review",
+  "prepare_postgres_index_manifest",
+  "prepare_backup_restore_rehearsal",
+  "prepare_bounded_pagination_and_capacity_manifest",
+  "prepare_moderation_store_manifest",
+  "operator_review_required",
 ]);
 
 export function createPersistencePreflightReport({
@@ -249,6 +282,22 @@ export function createPersistencePreflightReport({
       json_store_failure_script: persistenceCheck.failure_command,
       vector_memory_fixture_script: vectorCheck.local_fixture_command,
     },
+    postgres_production_boundary_manifest: createPostgresProductionBoundaryManifest({
+      productionBackend: normalizePersistenceBackend(env.IRIS_PERSISTENCE_BACKEND),
+      postgresConnectionConfigured: Boolean(env.IRIS_POSTGRES_CONNECTION_STRING),
+      postgresMigrationsReady: env.IRIS_POSTGRES_MIGRATIONS_READY === "true",
+      postgresIndexesReady: env.IRIS_POSTGRES_INDEXES_READY === "true",
+      postgresBackupReady: env.IRIS_POSTGRES_BACKUP_READY === "true",
+      postgresTargetCapacityReady:
+        clampInteger(env.IRIS_POSTGRES_TARGET_VIEWER_PROFILE_CAPACITY, 0, 1_000_000_000, 0) >=
+        1_000_000,
+      moderationStoreEnabled: env.IRIS_MODERATION_STORE_ENABLED === "true",
+      moderationBlocklistEnabled: env.IRIS_MODERATION_BLOCKLIST_ENABLED === "true",
+      internalRelationshipStageCountReady:
+        clampInteger(env.IRIS_INTERNAL_RELATIONSHIP_STAGE_COUNT, 0, 10_000, 0) === 100,
+      publicRelationshipLevelCountReady:
+        clampInteger(env.IRIS_PUBLIC_RELATIONSHIP_LEVEL_COUNT, 0, 1000, 0) === 8,
+    }),
     persistence_policy: {
       memory_records_require_approval: true,
       relationship_records_require_approval: true,
@@ -379,10 +428,182 @@ export function assertPersistencePreflightReportSafe(
   assertPersistenceStageSummarySafe(report.persistence_stage_summary, context);
   assertPersistenceIntegrationReadinessListSafe(report.integration_readiness, context);
   assertVerificationSummarySafe(report.verification_plan_summary, context);
+  assertPostgresProductionBoundaryManifestSafe(
+    report.postgres_production_boundary_manifest,
+    context
+  );
   assertPersistencePolicySafe(report.persistence_policy, context);
   assertBoundaryPolicySafe(report.boundary_policy, context);
   if (report.adapter_validation_required !== true) {
     throw new ContractError(`${context}: adapter validation flag required`);
+  }
+}
+
+function createPostgresProductionBoundaryManifest({
+  productionBackend,
+  postgresConnectionConfigured,
+  postgresMigrationsReady,
+  postgresIndexesReady,
+  postgresBackupReady,
+  postgresTargetCapacityReady,
+  moderationStoreEnabled,
+  moderationBlocklistEnabled,
+  internalRelationshipStageCountReady,
+  publicRelationshipLevelCountReady,
+}) {
+  const jsonFallbackActive = productionBackend !== "postgresql";
+  const checks = [
+    postgresConnectionConfigured,
+    postgresMigrationsReady,
+    postgresIndexesReady,
+    postgresBackupReady,
+    postgresTargetCapacityReady,
+    moderationStoreEnabled,
+    moderationBlocklistEnabled,
+    internalRelationshipStageCountReady,
+    publicRelationshipLevelCountReady,
+  ];
+  const readyCheckCount = checks.filter(Boolean).length;
+  const attentionCheckCount = checks.length - readyCheckCount;
+  const manifest = {
+    schema: "iris_postgres_production_boundary_manifest_v1",
+    manifest_status: jsonFallbackActive
+      ? "blocked_by_json_fallback"
+      : attentionCheckCount > 0
+        ? "blocked_by_missing_real_evidence"
+        : "operator_review_required",
+    json_store_role: "local_mvp_rehearsal_fallback_only",
+    real_evidence_status: attentionCheckCount > 0
+      ? "external_real_evidence_blocked"
+      : "operator_review_required",
+    production_ready_allowed: false,
+    postgres_real_database_connection_attempted: false,
+    check_count: checks.length,
+    ready_check_count: readyCheckCount,
+    attention_check_count: attentionCheckCount,
+    next_safe_action_label: nextPostgresProductionBoundaryAction({
+      jsonFallbackActive,
+      postgresConnectionConfigured,
+      postgresMigrationsReady,
+      postgresIndexesReady,
+      postgresBackupReady,
+      postgresTargetCapacityReady,
+      moderationStoreEnabled,
+      moderationBlocklistEnabled,
+      internalRelationshipStageCountReady,
+      publicRelationshipLevelCountReady,
+    }),
+    boundary_policy: {
+      safe_labels_only: true,
+      read_only_manifest: true,
+      json_fallback_not_production_ready: true,
+      no_connection_values: true,
+      no_endpoint_values: true,
+      no_secret_values: true,
+      no_raw_sql: true,
+      no_raw_db_values: true,
+      no_raw_memory: true,
+      no_raw_candidates: true,
+    },
+  };
+  assertPostgresProductionBoundaryManifestSafe(manifest);
+  return manifest;
+}
+
+function nextPostgresProductionBoundaryAction({
+  jsonFallbackActive,
+  postgresConnectionConfigured,
+  postgresMigrationsReady,
+  postgresIndexesReady,
+  postgresBackupReady,
+  postgresTargetCapacityReady,
+  moderationStoreEnabled,
+  moderationBlocklistEnabled,
+  internalRelationshipStageCountReady,
+  publicRelationshipLevelCountReady,
+}) {
+  if (jsonFallbackActive) return "select_postgresql_production_backend";
+  if (!postgresConnectionConfigured) return "configure_postgres_connection_env";
+  if (!postgresMigrationsReady) return "prepare_postgres_migration_review";
+  if (!postgresIndexesReady) return "prepare_postgres_index_manifest";
+  if (!postgresBackupReady) return "prepare_backup_restore_rehearsal";
+  if (!postgresTargetCapacityReady) {
+    return "prepare_bounded_pagination_and_capacity_manifest";
+  }
+  if (
+    !moderationStoreEnabled ||
+    !moderationBlocklistEnabled ||
+    !internalRelationshipStageCountReady ||
+    !publicRelationshipLevelCountReady
+  ) {
+    return "prepare_moderation_store_manifest";
+  }
+  return "operator_review_required";
+}
+
+function assertPostgresProductionBoundaryManifestSafe(
+  manifest,
+  context = "postgres production boundary manifest"
+) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new ContractError(`${context}: manifest is required`);
+  }
+  assertNoForbiddenPersistencePreflightFields(manifest, context);
+  if (manifest.schema !== "iris_postgres_production_boundary_manifest_v1") {
+    throw new ContractError(`${context}: invalid schema`);
+  }
+  for (const field of Object.keys(manifest)) {
+    if (!POSTGRES_PRODUCTION_BOUNDARY_MANIFEST_FIELDS.has(field)) {
+      throw new ContractError(`${context}: unexpected manifest field`, { field });
+    }
+  }
+  if (!POSTGRES_PRODUCTION_BOUNDARY_MANIFEST_STATUSES.has(manifest.manifest_status)) {
+    throw new ContractError(`${context}: invalid manifest status`);
+  }
+  if (manifest.json_store_role !== "local_mvp_rehearsal_fallback_only") {
+    throw new ContractError(`${context}: invalid JSON store role`);
+  }
+  if (!POSTGRES_REAL_EVIDENCE_STATUSES.has(manifest.real_evidence_status)) {
+    throw new ContractError(`${context}: invalid real evidence status`);
+  }
+  if (manifest.production_ready_allowed !== false) {
+    throw new ContractError(`${context}: production ready must remain blocked`);
+  }
+  if (manifest.postgres_real_database_connection_attempted !== false) {
+    throw new ContractError(`${context}: preflight must not connect to PostgreSQL`);
+  }
+  for (const field of ["check_count", "ready_check_count", "attention_check_count"]) {
+    if (!Number.isInteger(manifest[field]) || manifest[field] < 0) {
+      throw new ContractError(`${context}: invalid ${field}`);
+    }
+  }
+  if (manifest.ready_check_count + manifest.attention_check_count !== manifest.check_count) {
+    throw new ContractError(`${context}: invalid check count summary`);
+  }
+  if (!POSTGRES_PRODUCTION_BOUNDARY_NEXT_ACTION_LABELS.has(manifest.next_safe_action_label)) {
+    throw new ContractError(`${context}: invalid next safe action`);
+  }
+  const requiredBoundaryFields = [
+    "safe_labels_only",
+    "read_only_manifest",
+    "json_fallback_not_production_ready",
+    "no_connection_values",
+    "no_endpoint_values",
+    "no_secret_values",
+    "no_raw_sql",
+    "no_raw_db_values",
+    "no_raw_memory",
+    "no_raw_candidates",
+  ];
+  for (const field of Object.keys(manifest.boundary_policy ?? {})) {
+    if (!requiredBoundaryFields.includes(field)) {
+      throw new ContractError(`${context}: unexpected boundary policy field ${field}`);
+    }
+  }
+  for (const field of requiredBoundaryFields) {
+    if (manifest.boundary_policy?.[field] !== true) {
+      throw new ContractError(`${context}: ${field} boundary required`);
+    }
   }
 }
 
