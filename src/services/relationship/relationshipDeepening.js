@@ -54,6 +54,7 @@ const MODERATION_RELATIONSHIP_PRECHECK_STATUSES = new Set([
   "muted",
   "blocked",
   "bounded",
+  "unconfirmed",
 ]);
 const NEGATIVE_BEHAVIOR_DISTANCE_REASONS = new Set(["spam", "hostile", "harassment"]);
 const OPERATOR_CORRECTION_KINDS = new Set([
@@ -63,7 +64,7 @@ const OPERATOR_CORRECTION_KINDS = new Set([
 const DONATION_AMOUNT_BOOST_BY_TIER = new Map([
   ["small", 0.006],
   ["medium", 0.012],
-  ["large", 0.018],
+  ["large", 0.02],
 ]);
 const RELATIONSHIP_DELTA_SOURCE_ALLOWLIST = new Set([
   "healthy_comment_participation",
@@ -487,6 +488,16 @@ function relationshipDeltaSource({ phase01, phase05, profile }) {
       : "thoughtful_support_message";
   }
   const candidateKind = phase05?.relationship_candidate?.candidate_kind;
+  if (candidateKind === "relationship_memory") {
+    const sourceText = String(
+      phase05?.relationship_candidate?.source_text ??
+        phase01?.normalized_text ??
+        phase05?.relationship_candidate?.summary ??
+        ""
+    ).toLowerCase();
+    if (/\b(lol|funny|joke|laugh|笑|面白)\b/iu.test(sourceText)) return "shared_joke";
+    return "healthy_comment_participation";
+  }
   if (candidateKind) return normalizeRelationshipDeltaSource(candidateKind);
   return null;
 }

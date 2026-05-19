@@ -97,6 +97,7 @@ const SAFE_SOURCE_ERROR_KINDS = new Set([
   "quota_or_rate_limited",
   "auth_required",
   "live_chat_ended",
+  "youtube_live_chat_api_live_chat_ended",
   "chat_disabled",
   "not_found",
   "no_active_live_chat",

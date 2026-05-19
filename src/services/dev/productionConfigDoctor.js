@@ -276,8 +276,18 @@ export const PRODUCTION_CONFIG_ENV_NAMES = Object.freeze([
   "IRIS_GAME_CONTROL_MAX_OBSERVATION_AGE_MS",
 ]);
 
+const ENV_EXAMPLE_DEFERRED_ENV_NAMES = new Set([
+  "IRIS_LOCAL_TTS_BRIDGE_ENDPOINT",
+  "IRIS_LOCAL_LIVE2D_BRIDGE_ENDPOINT",
+  "IRIS_LOCAL_SUBTITLE_BRIDGE_ENDPOINT",
+  "IRIS_YOUTUBE_VIDEO_URL",
+  "IRIS_YOUTUBE_WATCH_URL",
+]);
+
 export function listProductionConfigEnvNames() {
-  return [...PRODUCTION_CONFIG_ENV_NAMES];
+  return PRODUCTION_CONFIG_ENV_NAMES.filter(
+    (name) => !ENV_EXAMPLE_DEFERRED_ENV_NAMES.has(name)
+  );
 }
 
 export function createProductionConfigDoctor({ env = process.env, generatedAtMs = Date.now() } = {}) {
@@ -745,8 +755,9 @@ function checkTtsEngine(env) {
   return checkGroup({
     integration: "real_tts_engine",
     mode: env.IRIS_LOCAL_TTS_ENGINE_ENDPOINT ? "local_engine_http" : "not_configured",
-    requiredEnv: ["IRIS_LOCAL_TTS_ENGINE_ENDPOINT"],
+    requiredEnv: ["IRIS_LOCAL_TTS_ENGINE_ENDPOINT", "IRIS_LOCAL_TTS_ENGINE_HEALTH_ENDPOINT"],
     optionalEnv: [
+      "IRIS_LOCAL_TTS_ENGINE_HEALTH_ENDPOINT",
       "IRIS_LOCAL_TTS_ENGINE_API_KEY",
       "IRIS_LOCAL_TTS_ENGINE_VOICE_ID",
       "IRIS_LOCAL_TTS_ENGINE_MODEL",
@@ -770,7 +781,7 @@ function checkTtsEngine(env) {
     env,
     ready: Boolean(
       env.IRIS_LOCAL_TTS_ENGINE_ENDPOINT &&
-      healthEndpoint &&
+        env.IRIS_LOCAL_TTS_ENGINE_HEALTH_ENDPOINT &&
         engineEndpointScope.local_endpoint_allowed &&
         healthEndpointScope.local_endpoint_allowed
     ),
@@ -832,8 +843,12 @@ function checkLive2dEngine(env) {
   return checkGroup({
     integration: "real_live2d_bridge",
     mode: env.IRIS_LOCAL_LIVE2D_ENGINE_ENDPOINT ? "local_engine_http" : "not_configured",
-    requiredEnv: ["IRIS_LOCAL_LIVE2D_ENGINE_ENDPOINT"],
+    requiredEnv: [
+      "IRIS_LOCAL_LIVE2D_ENGINE_ENDPOINT",
+      "IRIS_LOCAL_LIVE2D_ENGINE_HEALTH_ENDPOINT",
+    ],
     optionalEnv: [
+      "IRIS_LOCAL_LIVE2D_ENGINE_HEALTH_ENDPOINT",
       "IRIS_LOCAL_LIVE2D_ENGINE_API_KEY",
       "IRIS_LOCAL_LIVE2D_MODEL_ID",
       "IRIS_LOCAL_LIVE2D_SCENE_ID",
@@ -852,7 +867,7 @@ function checkLive2dEngine(env) {
     env,
     ready: Boolean(
       env.IRIS_LOCAL_LIVE2D_ENGINE_ENDPOINT &&
-      healthEndpoint &&
+        env.IRIS_LOCAL_LIVE2D_ENGINE_HEALTH_ENDPOINT &&
         engineEndpointScope.local_endpoint_allowed &&
         healthEndpointScope.local_endpoint_allowed
     ),
@@ -875,9 +890,9 @@ function checkObsSetup(env) {
     `http://${env.IRIS_LOCAL_BRIDGE_HOST || "127.0.0.1"}:${env.IRIS_LOCAL_BRIDGE_PORT || "8790"}/obs-bridge`;
   const bridgeHealthEndpoint =
     env.IRIS_OBS_BRIDGE_HEALTH_ENDPOINT ||
-    `${bridgeEndpoint}/health`;
+    (bridgeEndpointExplicit ? `${bridgeEndpoint}/health` : "");
   const bridgeConfigured = bridgeEndpointExplicit;
-  const bridgeHealthConfigured = Boolean(bridgeHealthEndpoint);
+  const bridgeHealthConfigured = Boolean(env.IRIS_OBS_BRIDGE_HEALTH_ENDPOINT);
   const manualBrowserSourceConfigured = Boolean(env.IRIS_HTTP_ORIGIN);
   const originScope = summarizeLocalEndpointScope(env.IRIS_HTTP_ORIGIN);
   const bridgeEndpointScope = summarizeLocalEndpointScope(bridgeEndpoint);

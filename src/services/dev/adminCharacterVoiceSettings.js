@@ -151,6 +151,11 @@ const ADMIN_VOICE_SOURCE_SUMMARY_FIELDS = new Set([
   "safe_source_status_label",
   "fallback_voice_handoff_status",
   "fallback_voice_policy_label",
+  "voice_license_use_category_count",
+  "voice_license_use_category_configured_count",
+  "voice_license_use_category_missing_count",
+  "character_voice_profile_configured",
+  "character_voice_style_profile_configured",
 ]);
 const ANIME_CANON_LAYER_DOMAIN_LABELS = new Set([
   "anime_canon",
@@ -627,6 +632,8 @@ export function createAdminCharacterVoiceSettingsReport({
   const missingVoiceEnvNames = voiceEnvNames.filter(
     (name) => !configuredVoiceEnvNames.includes(name)
   );
+  const configuredVoiceLicenseUseCategoryCount =
+    VOICE_LICENSE_USE_CATEGORY_ENV_NAMES.filter((name) => hasConfiguredEnv(env, name)).length;
   const report = {
     schema: "iris_admin_character_voice_settings_v1",
     generated_at_ms: generatedAtMs,
@@ -655,6 +662,20 @@ export function createAdminCharacterVoiceSettingsReport({
       fallback_voice_policy_label: safeFallbackVoicePolicyLabel(
         env.IRIS_FALLBACK_VOICE_POLICY,
         env.IRIS_LICENSED_VOICE_SOURCE_STATUS
+      ),
+      voice_license_use_category_count: VOICE_LICENSE_USE_CATEGORY_ENV_NAMES.length,
+      voice_license_use_category_configured_count:
+        configuredVoiceLicenseUseCategoryCount,
+      voice_license_use_category_missing_count:
+        VOICE_LICENSE_USE_CATEGORY_ENV_NAMES.length -
+        configuredVoiceLicenseUseCategoryCount,
+      character_voice_profile_configured: hasConfiguredEnv(
+        env,
+        "IRIS_CHARACTER_VOICE_PROFILE_ID"
+      ),
+      character_voice_style_profile_configured: hasConfiguredEnv(
+        env,
+        "IRIS_CHARACTER_VOICE_STYLE_PROFILE_ID"
       ),
     },
     boundary_policy: reportBoundaryPolicy(),
@@ -2763,6 +2784,15 @@ function assertVoiceSourceSummarySafe(summary, context) {
     summary.env_name_count !== summary.configured_env_count + summary.missing_env_count
   ) {
     throw new ContractError(`${context}: voice env counts mismatch`);
+  }
+  if (
+    summary.voice_license_use_category_count !==
+      VOICE_LICENSE_USE_CATEGORY_ENV_NAMES.length ||
+    summary.voice_license_use_category_configured_count +
+      summary.voice_license_use_category_missing_count !==
+      summary.voice_license_use_category_count
+  ) {
+    throw new ContractError(`${context}: voice license use category counts mismatch`);
   }
   for (const name of [
     ...summary.env_names,

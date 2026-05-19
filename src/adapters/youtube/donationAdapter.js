@@ -625,9 +625,10 @@ function normalizeAmountTier(value) {
   const text = String(value ?? "unknown").toLowerCase();
   const numeric = Number(value);
   if (Number.isFinite(numeric)) {
-    if (numeric >= 10000) return "large";
-    if (numeric >= 1000) return "medium";
-    if (numeric > 0) return "small";
+    const normalizedAmount = numeric >= 1_000_000 ? numeric / 1_000_000 : numeric;
+    if (normalizedAmount >= 10000) return "large";
+    if (normalizedAmount >= 1000) return "medium";
+    if (normalizedAmount > 0) return "small";
   }
   const formattedNumeric = Number(text.replace(/[^0-9.]/g, ""));
   if (Number.isFinite(formattedNumeric) && formattedNumeric > 0) {

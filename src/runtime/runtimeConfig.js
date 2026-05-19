@@ -147,6 +147,19 @@ export function createRuntimeConfig(env = process.env, privateRuntime = {}) {
       24 * 3_600_000,
       5000
     ),
+    gameControlMode:
+      env.IRIS_GAME_CONTROL_MODE === "approved_safe_adapter"
+        ? "approved_safe_adapter"
+        : "manual_approval",
+    manualApprovalConfirmed: env.IRIS_GAME_CONTROL_MANUAL_APPROVAL_CONFIRMED === "true",
+    manualApprovalAuditOk: env.IRIS_GAME_CONTROL_MANUAL_APPROVAL_AUDIT_OK === "true",
+    approvedSafeAdapterConfirmation:
+      env.IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_CONFIRMATION === "true",
+    approvedSafeAdapterReady: env.IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_READY === "true",
+    approvedSafeAdapterAuditOk:
+      env.IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_AUDIT_OK === "true",
+    approvedSafeAdapterCooldownOk:
+      env.IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_COOLDOWN_OK === "true",
     responseGenerator: createResponseGeneratorFromEnv(env),
   };
 }

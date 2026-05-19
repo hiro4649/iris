@@ -113,7 +113,9 @@ export function assertScenarioSuiteReportSafe(report) {
   if (typeof report.ok !== "boolean") {
     throw new Error("Scenario suite ok must be a boolean");
   }
-  assert.equal(report.schema, "iris_scenario_suite_report_v1");
+  if (report.schema !== "iris_scenario_suite_report_v1") {
+    throw new Error("Scenario suite schema must match iris_scenario_suite_report_v1");
+  }
   assertPublicToken(report.script_name, "Scenario suite script name");
   assertNonNegativeInteger(report.scenario_count, "Scenario suite scenario count");
   assertNonNegativeInteger(report.pass_count, "Scenario suite pass count");

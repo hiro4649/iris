@@ -16,6 +16,7 @@ import { createYouTubeOAuthTokenProvider } from "./youtube/youtubeOAuthTokenProv
 import { createHttpPostAdapter } from "./httpPostAdapter.js";
 
 export function createRuntimeAdaptersFromEnv(env = process.env) {
+  const liveChatSource = createLiveChatSourceFromEnv(env);
   return {
     ttsAdapter: createTtsAdapterFromEnv(env),
     live2dAdapter: createLive2dAdapterFromEnv(env),
@@ -24,7 +25,7 @@ export function createRuntimeAdaptersFromEnv(env = process.env) {
     gameObservationSource: createGameObservationSourceFromEnv(env),
     mediaWatchSource: createMediaWatchSourceFromEnv(env),
     externalTopicSource: createExternalTopicSourceFromEnv(env),
-    liveChatSource: createLiveChatSourceFromEnv(env),
+    liveChatSource,
     memorySearchAdapter: createMemorySearchAdapterFromEnv(env),
   };
 }
@@ -296,12 +297,12 @@ export function createLiveChatSourceFromEnv(env) {
     env.IRIS_YOUTUBE_LIVE_CHAT_SOURCE ?? env.YOUTUBE_LIVE_CHAT_SOURCE
   );
   const videoId = resolveYouTubeVideoIdFromEnv(env);
-  const hasExplicitRelayEndpoint = resolveYouTubeRelayEndpointFromEnv(env) !== "";
+  const hasExplicitRelayEndpoint = Boolean(resolveYouTubeRelayEndpointFromEnv(env));
   const hasExplicitRelayBridge =
-    localLoopbackEndpoint({
+    Boolean(localLoopbackEndpoint({
       host: env.IRIS_YOUTUBE_RELAY_HOST ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_HOST,
       port: env.IRIS_YOUTUBE_RELAY_PORT ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_PORT,
-    }) !== "";
+    }));
   const hasRelaySourceSelected = source === "http";
   const hasRelayUpstream = (
     optionalEnvValue(env.IRIS_YOUTUBE_RELAY_UPSTREAM_ENDPOINT) ||
@@ -309,7 +310,7 @@ export function createLiveChatSourceFromEnv(env) {
       optionalEnvValue(env.YOUTUBE_RELAY_ENDPOINT) ||
       optionalEnvValue(env.YOUTUBE_LIVE_CHAT_ENDPOINT) ||
       ""
-  ) !== "";
+  );
   if (source === "youtube_api" || shouldUseYouTubeApiSource(env)) {
     requireYouTubeApiRuntimeConfig(env);
     const oauthTokenProvider = createYouTubeOAuthTokenProviderFromEnv(env);
@@ -768,8 +769,7 @@ function localBridgeAdapterEndpoint(env, adapterKind) {
       host: env.IRIS_LOCAL_BRIDGE_HOST,
       port: env.IRIS_LOCAL_BRIDGE_PORT,
     }) ??
-    requiredLocalRuntimeEndpoint(env, { port: 8790 }) ??
-    "http://127.0.0.1:8790";
+    requiredLocalRuntimeEndpoint(env, { port: 8790 });
   if (!base) return undefined;
   return `${base.replace(/\/+$/u, "")}/${adapterKind}`;
 }
@@ -781,8 +781,7 @@ function localGameBridgeAdapterEndpoint(env, adapterPath) {
       host: env.IRIS_LOCAL_GAME_BRIDGE_HOST,
       port: env.IRIS_LOCAL_GAME_BRIDGE_PORT,
     }) ??
-    requiredLocalRuntimeEndpoint(env, { port: 9112 }) ??
-    "http://127.0.0.1:9112";
+    requiredLocalRuntimeEndpoint(env, { port: 9112 });
   if (!base) return undefined;
   return `${base.replace(/\/+$/u, "")}/${adapterPath}`;
 }
@@ -816,8 +815,7 @@ function localYouTubeRelayEndpoint(env) {
       host: env.IRIS_YOUTUBE_RELAY_HOST ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_HOST,
       port: env.IRIS_YOUTUBE_RELAY_PORT ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_PORT,
     }) ??
-    (relaySourceSelected || relayUpstreamConfigured ? "http://127.0.0.1:9111" : undefined) ??
-    requiredLocalRuntimeEndpoint(env, { port: 9111 });
+    (relaySourceSelected || relayUpstreamConfigured ? "http://127.0.0.1:9111" : undefined);
   if (!base) return undefined;
   return `${base.replace(/\/+$/u, "")}/youtube/live-chat`;
 }

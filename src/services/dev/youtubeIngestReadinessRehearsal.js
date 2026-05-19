@@ -691,19 +691,7 @@ function isConfiguredIngestOncePreflightReady(preflight) {
 }
 
 function createGateSummary(liveReadiness) {
-  const gates = [
-    liveReadiness.source_gate,
-    liveReadiness.access_gate,
-    liveReadiness.scheduler_gate,
-    liveReadiness.runtime_ingest_gate,
-    liveReadiness.support_pipeline_gate,
-  ];
-  const readyGateCount = gates.filter((gate) => gate.ready === true).length;
-  return {
-    schema: "iris_youtube_ingest_rehearsal_gate_summary_v1",
-    gate_count: gates.length,
-    ready_gate_count: readyGateCount,
-    attention_gate_count: gates.length - readyGateCount,
+  const gateReadiness = {
     source_gate_ready:
       liveReadiness.source_gate.gate_status === "ready" &&
       liveReadiness.source_gate.preflight_ready === true &&
@@ -724,6 +712,14 @@ function createGateSummary(liveReadiness) {
       liveReadiness.runtime_ingest_gate.runtime_event_seen === true,
     support_pipeline_gate_ready:
       liveReadiness.support_pipeline_gate.ready === true,
+  };
+  const readyGateCount = Object.values(gateReadiness).filter(Boolean).length;
+  return {
+    schema: "iris_youtube_ingest_rehearsal_gate_summary_v1",
+    gate_count: Object.keys(gateReadiness).length,
+    ready_gate_count: readyGateCount,
+    attention_gate_count: Object.keys(gateReadiness).length - readyGateCount,
+    ...gateReadiness,
     source_gate_status: liveReadiness.source_gate.gate_status,
     access_gate_status: liveReadiness.access_gate.gate_status,
     scheduler_gate_status: liveReadiness.scheduler_gate.gate_status,

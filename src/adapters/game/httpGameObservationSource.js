@@ -711,7 +711,11 @@ function toGameObservationInput(raw) {
       vision.focus_areas,
       frame.ui_focus_areas,
     ]),
-    raw_frame_available: Object.hasOwn(raw, "raw_frame"),
+    raw_frame_available:
+      raw.raw_frame_available === true ||
+      vision.raw_frame_available === true ||
+      Object.hasOwn(raw, "raw_frame") ||
+      Object.hasOwn(vision, "raw_frame"),
   };
   if (!observation.trace_id) delete observation.trace_id;
   if (!observation.event_id) delete observation.event_id;

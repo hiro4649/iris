@@ -637,6 +637,14 @@ async function processEvent(
     lastApprovedActionAtMs: runtimeConfig.lastApprovedGameActionAtMs ?? null,
     minActionIntervalMs: runtimeConfig.gameControlMinIntervalMs ?? 0,
     maxObservationAgeMs: runtimeConfig.gameControlMaxObservationAgeMs ?? 5000,
+    gameControlMode: runtimeConfig.gameControlMode ?? "manual_approval",
+    manualApprovalConfirmed: runtimeConfig.manualApprovalConfirmed === true,
+    manualApprovalAuditOk: runtimeConfig.manualApprovalAuditOk === true,
+    approvedSafeAdapterConfirmation:
+      runtimeConfig.approvedSafeAdapterConfirmation === true,
+    approvedSafeAdapterReady: runtimeConfig.approvedSafeAdapterReady === true,
+    approvedSafeAdapterAuditOk: runtimeConfig.approvedSafeAdapterAuditOk === true,
+    approvedSafeAdapterCooldownOk: runtimeConfig.approvedSafeAdapterCooldownOk === true,
   });
   const game_control_result =
     runtimeConfig.enableGameControl === true &&

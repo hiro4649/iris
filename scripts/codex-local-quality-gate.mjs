@@ -1506,8 +1506,10 @@ function collectDiffRecords() {
   }
   return out;
 }
-function lineText(record) {
-  return [...record.added, ...record.removed, record.file].join('\n').toLowerCase();
+function lineText(record, { includeFilePath = true } = {}) {
+  const parts = [...record.added, ...record.removed];
+  if (includeFilePath) parts.push(record.file);
+  return parts.join('\n').toLowerCase();
 }
 function recordMatches(record, rule = {}) {
   const paths = rule.paths || rule.pathPatterns || [];
@@ -1516,6 +1518,40 @@ function recordMatches(record, rule = {}) {
   const text = lineText(record);
   const keywordHit = keywords.some((term) => term && text.includes(String(term).toLowerCase()));
   return pathHit || keywordHit;
+}
+function domainInvariantRecordMatches(record, rule = {}) {
+  const paths = rule.paths || rule.pathPatterns || [];
+  const keywords = rule.keywords || rule.terms || [];
+  const pathHit = paths.length ? pathMatches(record.file, paths) : false;
+  const text = lineText(record, { includeFilePath: false });
+  if (rule.id === 'core-adapter-boundary') {
+    if (hasForbiddenCoreExternalLayerDependency(record)) return true;
+    const hasCore = text.includes('core');
+    const hasAdapter = text.includes('adapter');
+    const hasBoundary = text.includes('boundary');
+    return pathHit || (hasCore && hasAdapter && hasBoundary);
+  }
+  const keywordHit = keywords.some((term) => term && text.includes(String(term).toLowerCase()));
+  return pathHit || keywordHit;
+}
+function isDocumentationPath(file) {
+  const f = normalizePath(file);
+  return /^docs\//.test(f) || /^[^/]+\.(md|txt)$/i.test(f);
+}
+function hasForbiddenCoreExternalLayerDependency(record) {
+  if (!/^src\/core\//.test(normalizePath(record.file))) return false;
+  const added = record.added || [];
+  const externalLayerImport = /\b(?:from|import\s*\(|require\s*\()\s*['"][^'"]*(?:^|\/)(?:adapters|server|runtime)(?:\/|['"])/;
+  return added.some((line) => externalLayerImport.test(String(line)));
+}
+function domainInvariantAppliesToRecord(policy, record, rule = {}) {
+  const explicitPaths = rule.paths || rule.pathPatterns || [];
+  const explicitPathHit = pathMatches(record.file, explicitPaths);
+  if (!explicitPathHit) {
+    if (isDocumentationPath(record.file)) return false;
+    if (pathMatches(record.file, policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths)) return false;
+  }
+  return domainInvariantRecordMatches(record, rule);
 }
 function addReviewer(reviewerSkill, ruleId) {
   if (!reviewerSkill) return;
@@ -1778,9 +1814,7 @@ function checkDomainInvariants(policy, records, knownRisks, codeAuditBaseline) {
   const findings = [];
   for (const rule of policy.domainInvariants || []) {
     for (const record of records) {
-      const explicitPaths = rule.paths || rule.pathPatterns || [];
-      if (pathMatches(record.file, policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths) && !pathMatches(record.file, explicitPaths)) continue;
-      if (!recordMatches(record, rule)) continue;
+      if (!domainInvariantAppliesToRecord(policy, record, rule)) continue;
       const id = rule.id || 'domainInvariant';
       const severity = auditSeverity(policy, 'domainInvariant', id, rule.severity || 'warning');
       const mapping = policy.codeAuditPolicy?.domainInvariantMappings?.[id] || {};
@@ -2256,20 +2290,100 @@ function readRuleCalibrationTable() {
 function computeAuditRegressionSuite() {
   const ruleIds = new Set((report.ruleCalibrationTable?.rules || []).map((rule) => rule.ruleId));
   const hasRule = (ruleId) => ruleIds.has(ruleId);
+  const coreBoundaryRule = (activeAuditPolicy.domainInvariants || [])
+    .find((rule) => rule.id === 'core-adapter-boundary')
+    || { id: 'core-adapter-boundary', keywords: ['Core', 'Adapter', 'boundary'] };
+  const coreBoundaryActual = (record) => (
+    domainInvariantAppliesToRecord(activeAuditPolicy, record, coreBoundaryRule) ? 'detected' : 'none'
+  );
+  const prTypeBlockedActual = (paths, prTypeName) => {
+    const prTypePolicy = activeAuditPolicy.prTypes?.[prTypeName] || null;
+    const typeBlocked = [
+      ...(prTypeName === 'harness' ? (activeAuditPolicy.harnessPrBlockedPaths || []) : []),
+      ...(prTypePolicy?.blockedPaths || []),
+    ];
+    return paths.some((file) => pathMatches(file, typeBlocked)) ? 'detected' : 'none';
+  };
   const fixtures = [
     { ruleId: 'TEST_WEAKENING_ASSERTION_REMOVED', expected: 'blocking', actual: hasRule('TEST_WEAKENING_ASSERTION_REMOVED') ? 'blocking' : 'none' },
     { ruleId: 'DEPENDENCY_DIRECT_IMPORT_MISSING', expected: 'warning-or-better', actual: hasRule('DEPENDENCY_DIRECT_IMPORT_MISSING') ? 'detected' : 'none' },
     { ruleId: 'COVERAGE_INTENT_MISSING', expected: 'warning-or-better', actual: hasRule('COVERAGE_INTENT_MISSING') ? 'detected' : 'none' },
     { ruleId: 'SECURITY_SENSITIVE_CHANGE', expected: 'warning-or-better', actual: hasRule('SECURITY_SENSITIVE_CHANGE') ? 'detected' : 'none' },
+    {
+      ruleId: 'DOMAIN_INVARIANT_CORE_ADAPTER_PATH_ONLY_SAFE',
+      expected: 'none',
+      actual: coreBoundaryActual({
+        file: 'src/adapters/httpPostAdapter.js',
+        added: ['export const adapterStatus = "ok";'],
+        removed: [],
+      }),
+    },
+    {
+      ruleId: 'DOMAIN_INVARIANT_CORE_ADAPTER_DOCS_EXPLANATION_SAFE',
+      expected: 'none',
+      actual: coreBoundaryActual({
+        file: 'docs/iris/QUALITY_SCORE.md',
+        added: ['Core / Adapter boundary review remains required for source changes.'],
+        removed: [],
+      }),
+    },
+    {
+      ruleId: 'DOMAIN_INVARIANT_CORE_IMPORTS_ADAPTER_DETECTED',
+      expected: 'detected',
+      actual: coreBoundaryActual({
+        file: 'src/core/phases/phase04Action.js',
+        added: ['import { createAdapterPacket } from "../../adapters/adapterPackets.js";'],
+        removed: [],
+      }),
+    },
+    {
+      ruleId: 'DOMAIN_INVARIANT_BOUNDARY_WORDING_IN_SOURCE_DETECTED',
+      expected: 'detected',
+      actual: coreBoundaryActual({
+        file: 'src/runtime/irisRuntime.js',
+        added: ['Core Adapter boundary risk: runtime is forwarding unreviewed candidates.'],
+        removed: [],
+      }),
+    },
+    {
+      ruleId: 'PR_SCOPE_HARNESS_BLOCKED_PATHS_ACTIVE',
+      expected: 'detected',
+      actual: prTypeBlockedActual(['src/runtime/irisRuntime.js', 'scripts/run-tests.js'], 'harness'),
+    },
+    {
+      ruleId: 'PR_SCOPE_IMPLEMENTATION_NO_HARNESS_BLOCKED_MISAPPLY',
+      expected: 'none',
+      actual: prTypeBlockedActual(['src/runtime/irisRuntime.js', 'scripts/run-tests.js'], 'implementation'),
+    },
+    {
+      ruleId: 'PR_SCOPE_IMPLEMENTATION_REQUIRES_HUMAN_REVIEW',
+      expected: 'detected',
+      actual: activeAuditPolicy.prTypes?.implementation?.requiresHumanReview === true ? 'detected' : 'none',
+    },
   ];
-  const falseNegativeCount = fixtures.filter((fixture) => fixture.expected === 'blocking' ? fixture.actual !== 'blocking' : fixture.actual === 'none').length;
-  const falsePositiveCount = report.infoFindings.filter((item) => item.known === false && item.confidence === 'low').length;
+  const fixturePass = (fixture) => {
+    if (fixture.expected === 'none') return fixture.actual === 'none';
+    if (fixture.expected === 'blocking') return fixture.actual === 'blocking';
+    if (fixture.expected === 'warning-or-better') return fixture.actual !== 'none';
+    if (fixture.expected === 'detected') return fixture.actual !== 'none';
+    return fixture.actual === fixture.expected;
+  };
+  const failedFixtures = fixtures.filter((fixture) => !fixturePass(fixture));
+  const falseNegativeCount = failedFixtures.filter((fixture) => fixture.expected !== 'none').length;
+  const falsePositiveCount = report.infoFindings.filter((item) => item.known === false && item.confidence === 'low').length
+    + failedFixtures.filter((fixture) => fixture.expected === 'none').length;
+  if (failedFixtures.length) {
+    addFailure('auditRegression.failed', 'Audit regression fixture failed.', {
+      fixtures: failedFixtures.map((fixture) => fixture.ruleId).slice(0, 10),
+    });
+  }
   return {
-    status: falseNegativeCount ? 'warning' : 'pass',
+    status: failedFixtures.length ? 'fail' : 'pass',
     fixtures,
     totalFixtures: fixtures.length,
     falsePositiveCount,
     falseNegativeCount,
+    failedFixtures: failedFixtures.map((fixture) => fixture.ruleId),
     precisionLikeSummary: falsePositiveCount ? 'review possible low-confidence false positives' : 'no low-confidence false-positive signal in this report',
     recallLikeSummary: falseNegativeCount ? 'expected synthetic signal was not detected' : 'expected synthetic signals detected when present',
   };
@@ -4855,7 +4969,10 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
   const allowed = policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths;
   const blocked = policy.harnessPrBlockedPaths || [];
   const typeAllowed = prTypePolicy?.allowedPaths || (prTypeName === 'harness' ? allowed : []);
-  const typeBlocked = [...(blocked || []), ...(prTypePolicy?.blockedPaths || [])];
+  const typeBlocked = [
+    ...(prTypeName === 'harness' ? (blocked || []) : []),
+    ...(prTypePolicy?.blockedPaths || []),
+  ];
   const outOfScope = typeAllowed.length ? changed.filter((file) => !pathMatches(file, typeAllowed)) : [];
   const blockedHits = changed.filter((file) => pathMatches(file, typeBlocked));
   const packageChanges = changed.filter((file) => /(^|\/)package\.json$/.test(file));

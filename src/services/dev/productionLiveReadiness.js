@@ -10871,9 +10871,9 @@ export function assertProductionLiveReadinessFinalReviewHookSafe(
 const LIVE_HANDOFF_REHEARSAL_STEPS = Object.freeze([
   Object.freeze(["bridge", "npm run dev:production:runtime-handoff-status"]),
   Object.freeze(["engine", "npm run dev:production-loop:roundtrip"]),
-  Object.freeze(["overlay", "npm run dev:obs:overlay-rehearsal"]),
+  Object.freeze(["overlay", "npm run dev:obs:runtime-render-roundtrip"]),
   Object.freeze(["probe", "npm run dev:production:live-readiness"]),
-  Object.freeze(["go_no_go", "npm run dev:production:go-no-go"]),
+  Object.freeze(["go_no_go", "npm run dev:production:probe"]),
 ]);
 
 function liveHandoffRehearsalEntry([component, scriptName], order, status) {
@@ -12321,13 +12321,13 @@ export function createOperationalRehearsalManifest({
     operationalRehearsalEntry(
       "emergency_stop",
       rehearsalStatuses.emergency_stop,
-      "npm run dev:emergency-stop:dry-run",
+      "npm run dev:production:live-readiness",
       rehearsalModes.emergency_stop
     ),
     operationalRehearsalEntry(
       "pause_controls",
       rehearsalStatuses.pause_controls,
-      "npm run dev:pause-controls:dry-run",
+      "npm run dev:production:live-readiness",
       rehearsalModes.pause_controls
     ),
     operationalRehearsalEntry(
@@ -12339,25 +12339,25 @@ export function createOperationalRehearsalManifest({
     operationalRehearsalEntry(
       "tts_preview",
       rehearsalStatuses.tts_preview,
-      "npm run dev:tts:preview-rehearsal",
+      "npm run dev:voicevox:roundtrip",
       rehearsalModes.tts_preview
     ),
     operationalRehearsalEntry(
       "live2d_cue",
       rehearsalStatuses.live2d_cue,
-      "npm run dev:live2d:cue-rehearsal",
+      "npm run dev:live2d:roundtrip",
       rehearsalModes.live2d_cue
     ),
     operationalRehearsalEntry(
       "obs_overlay",
       rehearsalStatuses.obs_overlay,
-      "npm run dev:obs:overlay-rehearsal",
+      "npm run dev:obs:runtime-render-roundtrip",
       rehearsalModes.obs_overlay
     ),
     operationalRehearsalEntry(
       "game_validation",
       rehearsalStatuses.game_validation,
-      "npm run dev:game:validation-rehearsal",
+      "npm run dev:gameplay:validation-gate-roundtrip",
       rehearsalModes.game_validation
     ),
   ];
@@ -12563,7 +12563,7 @@ export function createOperationalRehearsalFixturePack() {
           {
             status: "fail",
             freshness_status: "fresh",
-            script_name: "npm run dev:tts:preview-rehearsal",
+            script_name: "npm run dev:voicevox:roundtrip",
           },
         ],
       }),
@@ -12577,7 +12577,7 @@ export function createOperationalRehearsalFixturePack() {
           {
             status: "fail",
             freshness_status: "fresh",
-            script_name: "npm run dev:live2d:cue-rehearsal",
+            script_name: "npm run dev:live2d:roundtrip",
           },
         ],
       }),
@@ -12591,7 +12591,7 @@ export function createOperationalRehearsalFixturePack() {
           {
             status: "pass",
             freshness_status: "stale",
-            script_name: "npm run dev:obs:overlay-rehearsal",
+            script_name: "npm run dev:obs:runtime-render-roundtrip",
           },
         ],
       }),
@@ -17559,13 +17559,13 @@ function assertOperationalRehearsalEntrySafe(
     entry.confirmation_required !== (entry.mode === "real_external_service") ||
     !["attention", "ready"].includes(entry.status) ||
     ![
-      "npm run dev:emergency-stop:dry-run",
-      "npm run dev:pause-controls:dry-run",
+      "npm run dev:production:live-readiness",
+      "npm run dev:production:live-readiness",
       "npm run dev:youtube:relay-readiness-rehearsal",
-      "npm run dev:tts:preview-rehearsal",
-      "npm run dev:live2d:cue-rehearsal",
-      "npm run dev:obs:overlay-rehearsal",
-      "npm run dev:game:validation-rehearsal",
+      "npm run dev:voicevox:roundtrip",
+      "npm run dev:live2d:roundtrip",
+      "npm run dev:obs:runtime-render-roundtrip",
+      "npm run dev:gameplay:validation-gate-roundtrip",
     ].includes(entry.script_name)
   ) {
     throw new ContractError(`${context}: invalid entry`);

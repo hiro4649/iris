@@ -2441,8 +2441,12 @@ function toDonationInput(raw, snippet) {
         details.author_details?.channel_id ??
         details.author_channel_id ??
         details.authorChannelId ??
+        raw.author?.channel_id ??
+        raw.author?.channelId ??
         raw.author_channel_id ??
         raw.authorChannelId ??
+        snippet.author?.channel_id ??
+        snippet.author?.channelId ??
         snippet.author_channel_id ??
         snippet.authorChannelId
     ) || "unknown",
@@ -2457,9 +2461,13 @@ function toDonationInput(raw, snippet) {
         details.displayName ??
         details.author_display_name ??
         details.authorDisplayName ??
+        raw.author?.display_name ??
+        raw.author?.displayName ??
         raw.display_name ??
         raw.author_display_name ??
         raw.authorDisplayName ??
+        snippet.author?.display_name ??
+        snippet.author?.displayName ??
         snippet.display_name ??
         snippet.author_display_name ??
         snippet.authorDisplayName ??
@@ -2794,8 +2802,11 @@ function normalizeSupportEventTypeAlias(value) {
     membershipgiftevent: "membershipGiftingEvent",
     membershipgift: "membershipGiftingEvent",
     membership_gift: "membershipGiftingEvent",
+    membership_gift_event: "membershipGiftingEvent",
     membershipgifting: "membershipGiftingEvent",
+    membership_gifting_event: "membershipGiftingEvent",
     giftmembershipevent: "membershipGiftingEvent",
+    gift_membership_event: "membershipGiftingEvent",
     giftmembershipsevent: "membershipGiftingEvent",
     giftedmembershipevent: "membershipGiftingEvent",
     giftmembershipreceived: "giftMembershipReceivedEvent",
@@ -2834,6 +2845,10 @@ function pickSupportDetails(snippet) {
     snippet.super_thanks_details,
     snippet.membershipGiftingDetails,
     snippet.membership_gifting_details,
+    snippet.membershipGiftDetails,
+    snippet.membership_gift_details,
+    snippet.giftMembershipDetails,
+    snippet.gift_membership_details,
     snippet.giftMembershipReceivedDetails,
     snippet.gift_membership_received_details,
     snippet.memberMilestoneChatDetails,

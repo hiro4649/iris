@@ -244,6 +244,7 @@ function isRenderedArtifactAvailable(summary, adapterKind) {
   if (
     ![
       "",
+      "accepted",
       "rendered",
       "displayed",
       "available",

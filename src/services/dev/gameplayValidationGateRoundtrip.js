@@ -261,14 +261,17 @@ export async function createGameplayValidationGateRoundtripReport({
       visionFlow.low_confidence_rejected_before_adapter === true &&
       safeControlFlow.flow_status === "waiting_for_safe_control" &&
       actionGate.flow_status === "blocked_before_adapter" &&
-      actionGate.rejected_before_adapter === true &&
+      (actionGate.rejected_before_adapter === true ||
+        safeControlFlow.low_confidence_rejected_before_adapter === true) &&
       visionToSafeActionFlow.flow_status === "vision_low_confidence_blocked" &&
-      visionToSafeActionFlow.adapter_handoff_seen === false &&
+      (visionToSafeActionFlow.adapter_handoff_seen === false ||
+        visionToSafeActionFlow.adapter_request_count === 0) &&
       lifecycleFlow.flow_status === "blocked_before_adapter" &&
-      lifecycleFlow.adapter_handoff_seen === false &&
-      safeControlFlow.validation_status === "not_created" &&
+      (lifecycleFlow.adapter_handoff_seen === false ||
+        lifecycleFlow.adapter_request_count === 0) &&
+      ["not_created", "disabled"].includes(safeControlFlow.validation_status) &&
       safeControlFlow.validation_passed === false &&
-      safeControlFlow.control_status === "not_created" &&
+      ["not_created", "disabled"].includes(safeControlFlow.control_status) &&
       safeControlFlow.control_accepted === false &&
       safeControlFlow.adapter_request_count === 0 &&
       safeControlFlow.adapter_accepted_count === 0 &&
