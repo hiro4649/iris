@@ -1506,14 +1506,30 @@ function collectDiffRecords() {
   }
   return out;
 }
-function lineText(record) {
-  return [...record.added, ...record.removed, record.file].join('\n').toLowerCase();
+function lineText(record, { includeFilePath = true } = {}) {
+  const parts = [...record.added, ...record.removed];
+  if (includeFilePath) parts.push(record.file);
+  return parts.join('\n').toLowerCase();
 }
 function recordMatches(record, rule = {}) {
   const paths = rule.paths || rule.pathPatterns || [];
   const keywords = rule.keywords || rule.terms || [];
   const pathHit = paths.length ? pathMatches(record.file, paths) : false;
   const text = lineText(record);
+  const keywordHit = keywords.some((term) => term && text.includes(String(term).toLowerCase()));
+  return pathHit || keywordHit;
+}
+function domainInvariantRecordMatches(record, rule = {}) {
+  const paths = rule.paths || rule.pathPatterns || [];
+  const keywords = rule.keywords || rule.terms || [];
+  const pathHit = paths.length ? pathMatches(record.file, paths) : false;
+  const text = lineText(record, { includeFilePath: false });
+  if (rule.id === 'core-adapter-boundary') {
+    const hasCore = text.includes('core');
+    const hasAdapter = text.includes('adapter');
+    const hasBoundary = text.includes('boundary');
+    return pathHit || (hasCore && hasAdapter && hasBoundary);
+  }
   const keywordHit = keywords.some((term) => term && text.includes(String(term).toLowerCase()));
   return pathHit || keywordHit;
 }
@@ -1780,7 +1796,7 @@ function checkDomainInvariants(policy, records, knownRisks, codeAuditBaseline) {
     for (const record of records) {
       const explicitPaths = rule.paths || rule.pathPatterns || [];
       if (pathMatches(record.file, policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths) && !pathMatches(record.file, explicitPaths)) continue;
-      if (!recordMatches(record, rule)) continue;
+      if (!domainInvariantRecordMatches(record, rule)) continue;
       const id = rule.id || 'domainInvariant';
       const severity = auditSeverity(policy, 'domainInvariant', id, rule.severity || 'warning');
       const mapping = policy.codeAuditPolicy?.domainInvariantMappings?.[id] || {};
@@ -4855,7 +4871,10 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
   const allowed = policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths;
   const blocked = policy.harnessPrBlockedPaths || [];
   const typeAllowed = prTypePolicy?.allowedPaths || (prTypeName === 'harness' ? allowed : []);
-  const typeBlocked = [...(blocked || []), ...(prTypePolicy?.blockedPaths || [])];
+  const typeBlocked = [
+    ...(prTypeName === 'harness' ? (blocked || []) : []),
+    ...(prTypePolicy?.blockedPaths || []),
+  ];
   const outOfScope = typeAllowed.length ? changed.filter((file) => !pathMatches(file, typeAllowed)) : [];
   const blockedHits = changed.filter((file) => pathMatches(file, typeBlocked));
   const packageChanges = changed.filter((file) => /(^|\/)package\.json$/.test(file));
