@@ -1,0 +1,133 @@
+{
+  "schema": "codex_project_registry_v1",
+  "project": "Codex development project acceptance",
+  "harnessVersion": "0.6.5",
+  "lastVerified": "2026-05-19",
+  "authorityPolicy": {
+    "irisSourceOfTruth": "repo-local IRIS_SPEC_AUTHORITY.md",
+    "deprecatedIrisAuthorityPath": "C:\\Users\\HIRO-001\\Documents\\IRIS_SPEC_AUTHORITY.md",
+    "deprecatedPathRestored": false,
+    "doubleAuthorityAllowed": false
+  },
+  "projects": [
+    {
+      "projectName": "IRIS source repair",
+      "path": "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-source-repair-worktree",
+      "status": "ready",
+      "branch": "codex/iris-source-repair",
+      "commit": "d81fb32",
+      "base": "3ccc3c2",
+      "mergeCommit": "a1c1507",
+      "verifyCommand": "npm test; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-local-quality-gate.mjs; CODEX_RUN_PROFILE_REQUIRED_CHECKS=1 node scripts/codex-local-quality-gate.mjs; CODEX_QUALITY_REPORT=json node scripts/codex-local-quality-gate.mjs; git diff --check; git diff --cached --check",
+      "testCommand": "npm test",
+      "qualityGateCommand": "node scripts/codex-local-quality-gate.mjs",
+      "mergeReady": true,
+      "riskLevel": "R3",
+      "lastVerified": "2026-05-19",
+      "blockingIssues": [],
+      "nextAction": "Merge first after remote quality-gate success and human review for R3/high-risk source scope. Do not add docs, evals, reports, env proposal, or .env.example changes to this branch."
+    },
+    {
+      "projectName": "IRIS harness docs",
+      "path": "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-harness-docs-worktree",
+      "status": "ready",
+      "branch": "codex/iris-harness-docs",
+      "commit": "76fe981",
+      "base": "d81fb32",
+      "mergeCommit": "3f9a3d4",
+      "verifyCommand": "npm test; node scripts/verify-iris.mjs; Git for Windows bash scripts/verify-iris.sh; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-local-quality-gate.mjs; CODEX_RUN_PROFILE_REQUIRED_CHECKS=1 node scripts/codex-local-quality-gate.mjs; CODEX_QUALITY_REPORT=json node scripts/codex-local-quality-gate.mjs; git diff --check; git diff --cached --check",
+      "testCommand": "npm test",
+      "qualityGateCommand": "node scripts/codex-local-quality-gate.mjs",
+      "mergeReady": true,
+      "riskLevel": "R3",
+      "lastVerified": "2026-05-19",
+      "blockingIssues": [],
+      "nextAction": "Merge second after IRIS source repair and remote quality-gate success. Use Git for Windows bash on Windows; PowerShell bash maps to WSL and may fail."
+    },
+    {
+      "projectName": "IRIS env policy proposal",
+      "path": "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-env-policy-proposal-worktree",
+      "status": "ready_human_review_required",
+      "branch": "codex/iris-env-policy-proposal",
+      "commit": "f0ef2b2",
+      "base": "76fe981",
+      "mergeCommit": "ab9ffec",
+      "verifyCommand": "npm test; node scripts/verify-iris.mjs; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-local-quality-gate.mjs; CODEX_RUN_PROFILE_REQUIRED_CHECKS=1 node scripts/codex-local-quality-gate.mjs; CODEX_QUALITY_REPORT=json node scripts/codex-local-quality-gate.mjs; git diff --check; git diff --cached --check",
+      "testCommand": "npm test",
+      "qualityGateCommand": "node scripts/codex-local-quality-gate.mjs",
+      "mergeReady": true,
+      "riskLevel": "R3",
+      "lastVerified": "2026-05-19",
+      "blockingIssues": [],
+      "nextAction": "Merge third only if the human accepts documenting env sample proposals without changing .env.example."
+    },
+    {
+      "projectName": "FUNKY",
+      "path": "C:\\Users\\HIRO-001\\Documents\\New project\\disco-funky-repair-pr",
+      "status": "local_ready",
+      "branch": "codex/funky-harness-dev-system",
+      "commit": "61a6491 plus staged harness candidate",
+      "base": "61a6491",
+      "verifyCommand": "Git for Windows bash scripts/verify-funky.sh; CODEX_QUALITY_REPORT=json node scripts/codex-local-quality-gate.mjs; git diff --check; git diff --cached --check",
+      "testCommand": "profile required checks run backend build/test, frontend build, contracts compile/test, and NFT compile/test",
+      "qualityGateCommand": "node scripts/codex-local-quality-gate.mjs",
+      "mergeReady": true,
+      "riskLevel": "R2",
+      "lastVerified": "2026-05-19",
+      "blockingIssues": [],
+      "nextAction": "Keep as local-ready candidate. Remote PR quality-gate and human review are still separate."
+    },
+    {
+      "projectName": "IRIS-live2d-renderer",
+      "path": "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-live2d-renderer-harness-v065",
+      "status": "local_ready",
+      "branch": "codex/update-live2d-harness-v065",
+      "commit": "e924f23 plus staged harness candidate",
+      "base": "e924f23",
+      "verifyCommand": "Git for Windows bash scripts/verify-iris-live2d-renderer.sh; npm test; CODEX_QUALITY_REPORT=json node scripts/codex-local-quality-gate.mjs; git diff --check; git diff --cached --check",
+      "testCommand": "npm test",
+      "qualityGateCommand": "node scripts/codex-local-quality-gate.mjs",
+      "mergeReady": true,
+      "riskLevel": "R3",
+      "lastVerified": "2026-05-19",
+      "blockingIssues": [],
+      "nextAction": "Keep as local-ready candidate with human review for R3/staged harness scope. Remote PR quality-gate remains separate."
+    },
+    {
+      "projectName": "Common harness candidate",
+      "path": "C:\\Users\\HIRO-001\\Documents\\Codex\\codex-quality-harness\\codex-quality-harness",
+      "status": "archive_candidate",
+      "branch": null,
+      "commit": null,
+      "base": null,
+      "verifyCommand": "not run while archived",
+      "testCommand": "not run while archived",
+      "qualityGateCommand": "not run while archived",
+      "mergeReady": null,
+      "riskLevel": null,
+      "lastVerified": "2026-05-19 inventory only",
+      "blockingIssues": [
+        "Not active for this acceptance pass."
+      ],
+      "nextAction": "Requires human approval before active project verification or packaging."
+    },
+    {
+      "projectName": "Old IRIS clone group",
+      "path": "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-clean-run-tests-audit; C:\\Users\\HIRO-001\\Documents\\Codex\\iris-clean-v040-check; C:\\Users\\HIRO-001\\Documents\\Codex\\iris-harness-v065-clean; C:\\Users\\HIRO-001\\Documents\\Codex\\iris-v065-clean-verify; C:\\Users\\HIRO-001\\Documents\\Codex\\IRIS_untracked_artifacts_handoff_20260519",
+      "status": "archive_candidate",
+      "branch": "mixed archived worktrees",
+      "commit": "mixed",
+      "base": null,
+      "verifyCommand": "not run while archived",
+      "testCommand": "not run while archived",
+      "qualityGateCommand": "not run while archived",
+      "mergeReady": null,
+      "riskLevel": null,
+      "lastVerified": "2026-05-19 inventory only",
+      "blockingIssues": [
+        "Archived worktrees contain old or dirty experiments and are not active acceptance targets."
+      ],
+      "nextAction": "Keep archived unless a human explicitly promotes one clone back to active."
+    }
+  ]
+}
