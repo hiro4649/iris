@@ -182,7 +182,7 @@ Current remote PR quality-gate state:
 - PR #8 `codex/iris-source-repair`: PASS on `d81fb32`, merged as `a1c1507`
 - PR #9 `codex/iris-harness-docs`: PASS on `76fe981`, merged as `3f9a3d4`
 - PR #10 `codex/iris-env-policy-proposal`: PASS on `f0ef2b2`, merged as `ab9ffec`
-- PR #11 `codex/final-codex-project-acceptance`: must pass after this report update
+- PR #11 `codex/final-codex-project-acceptance`: PASS on `c6c91de`, merged as `4886f68`
 
 ## Human Review Points
 
