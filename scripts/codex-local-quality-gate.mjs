@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.5
+// CODEX_QUALITY_HARNESS_FILE v0.6.6
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -10,7 +10,7 @@ const policyPath = path.join('docs', 'process', 'CODEX_QUALITY_GATE_POLICY.json'
 const knownRiskPath = path.join('docs', 'process', 'CODEX_KNOWN_RISKS.json');
 const codeAuditBaselinePath = path.join('docs', 'process', 'CODEX_CODE_AUDIT_BASELINE.json');
 const auditCalibrationLockPath = path.join('docs', 'process', 'CODEX_AUDIT_CALIBRATION_LOCK.json');
-const HARNESS_VERSION = '0.6.5';
+const HARNESS_VERSION = '0.6.6';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 const jsonMode = process.env.CODEX_QUALITY_REPORT === 'json';
 const defaultPolicy = {
@@ -111,6 +111,21 @@ const defaultPolicy = {
     riskyPackages: [],
   },
   securitySensitiveTerms: ['auth', 'authorization', 'permission', 'secret', 'credential', 'token', 'payment', 'persistence', 'migration', 'webhook', 'upload', 'runtime', 'adapter'],
+  manualConfirmationPolicy: {
+    requiredForRiskLevels: ['R3'],
+    allowedSources: ['githubReview', 'prBody', 'prComment', 'localFile'],
+    requireHeadSha: true,
+    requireRole: true,
+    requireReviewedItems: true,
+    requiredReviewedItems: [],
+    cannotOverride: [
+      'secretScanFailure',
+      'blockedPaths',
+      'highConfidenceSecret',
+      'implementationHarnessMixing',
+      'profileRequiredFailure',
+    ],
+  },
   coverageIntent: {
     enabled: true,
     implementationPaths: ['src/', 'lib/', 'app/'],
@@ -288,7 +303,8 @@ const report = {
   policySchema: { status: 'not_run', violations: [] },
   knownRisks: { status: 'not_run', count: 0, expired: [], invalid: [], matched: [] },
   postMerge: { status: 'not_run' },
-  manualMergePolicy: { status: 'manual_confirmation_required' },
+  manualMergePolicy: { status: 'not_evaluated' },
+  manualConfirmationStatus: { required: false, status: 'not_required', source: 'none', missingItems: [], cannotOverrideFailures: [] },
   branchCleanupAdvice: { status: 'not_run', deleteCandidates: [] },
   prSeparationStatus: { status: 'not_run', enabled: false },
   evidencePack: { status: 'not_run' },
@@ -566,7 +582,7 @@ function validatePolicySchema(policy) {
     'marker', 'profile', 'packageDirs', 'missingScript', 'allowedPaths', 'blockedPaths', 'highRiskPaths',
     'diffScope', 'riskKeywords', 'riskLevelBehavior', 'failOnNewWarnings', 'knownRiskExpiry',
     'knownRisks', 'harnessPrAllowedPaths', 'harnessPrBlockedPaths', 'harnessPrMode', 'prTypes', 'checks',
-    'reviewerSelection', 'testWeakening', 'domainInvariants', 'dependencyAudit', 'securitySensitiveTerms', 'coverageIntent', 'codeAuditPolicy',
+    'reviewerSelection', 'testWeakening', 'domainInvariants', 'dependencyAudit', 'securitySensitiveTerms', 'manualConfirmationPolicy', 'coverageIntent', 'codeAuditPolicy',
   ]);
   if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
     addPolicyViolation('policy.invalid', 'Quality gate policy must be a JSON object.');
@@ -621,6 +637,23 @@ function validatePolicySchema(policy) {
   }
   if (policy.securitySensitiveTerms !== undefined && (!Array.isArray(policy.securitySensitiveTerms) || policy.securitySensitiveTerms.some((term) => typeof term !== 'string'))) {
     addPolicyViolation('policy.securitySensitiveTerms.invalid', 'securitySensitiveTerms must be a string array.');
+  }
+  if (policy.manualConfirmationPolicy !== undefined) {
+    if (!policy.manualConfirmationPolicy || typeof policy.manualConfirmationPolicy !== 'object' || Array.isArray(policy.manualConfirmationPolicy)) {
+      addPolicyViolation('policy.manualConfirmationPolicy.invalid', 'manualConfirmationPolicy must be an object.');
+    } else {
+      for (const key of ['requiredForRiskLevels', 'allowedSources', 'requiredReviewedItems', 'cannotOverride']) {
+        const value = policy.manualConfirmationPolicy[key];
+        if (value !== undefined && (!Array.isArray(value) || value.some((item) => typeof item !== 'string'))) {
+          addPolicyViolation(`policy.manualConfirmationPolicy.${key}.invalid`, `manualConfirmationPolicy.${key} must be a string array.`);
+        }
+      }
+      for (const key of ['requireHeadSha', 'requireRole', 'requireReviewedItems']) {
+        if (policy.manualConfirmationPolicy[key] !== undefined && typeof policy.manualConfirmationPolicy[key] !== 'boolean') {
+          addPolicyViolation(`policy.manualConfirmationPolicy.${key}.invalid`, `manualConfirmationPolicy.${key} must be boolean.`);
+        }
+      }
+    }
   }
   for (const [name, value] of Object.entries({ testWeakening: policy.testWeakening, dependencyAudit: policy.dependencyAudit, coverageIntent: policy.coverageIntent })) {
     if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value))) {
@@ -748,6 +781,22 @@ function readPolicy() {
       securitySensitiveTerms: Array.isArray(policy.securitySensitiveTerms)
         ? [...new Set([...defaultPolicy.securitySensitiveTerms, ...policy.securitySensitiveTerms])]
         : defaultPolicy.securitySensitiveTerms,
+      manualConfirmationPolicy: {
+        ...defaultPolicy.manualConfirmationPolicy,
+        ...(policy.manualConfirmationPolicy || {}),
+        requiredForRiskLevels: Array.isArray(policy.manualConfirmationPolicy?.requiredForRiskLevels)
+          ? policy.manualConfirmationPolicy.requiredForRiskLevels
+          : defaultPolicy.manualConfirmationPolicy.requiredForRiskLevels,
+        allowedSources: Array.isArray(policy.manualConfirmationPolicy?.allowedSources)
+          ? policy.manualConfirmationPolicy.allowedSources
+          : defaultPolicy.manualConfirmationPolicy.allowedSources,
+        requiredReviewedItems: Array.isArray(policy.manualConfirmationPolicy?.requiredReviewedItems)
+          ? policy.manualConfirmationPolicy.requiredReviewedItems
+          : defaultPolicy.manualConfirmationPolicy.requiredReviewedItems,
+        cannotOverride: Array.isArray(policy.manualConfirmationPolicy?.cannotOverride)
+          ? policy.manualConfirmationPolicy.cannotOverride
+          : defaultPolicy.manualConfirmationPolicy.cannotOverride,
+      },
       coverageIntent: { ...defaultPolicy.coverageIntent, ...(policy.coverageIntent || {}) },
       codeAuditPolicy: {
         ...defaultPolicy.codeAuditPolicy,
@@ -2022,14 +2071,110 @@ function computePostMergeStatus(worktree) {
     recommendedAction: cleanMain && filesPresent ? 'run post-merge verifier for command checks' : 'confirm main is clean and synced before post-merge verification',
   };
 }
-function evaluateManualMergePolicy() {
+function activeManualConfirmationPolicy(policy = activeAuditPolicy || defaultPolicy) {
+  const configured = policy.manualConfirmationPolicy || {};
+  return {
+    ...defaultPolicy.manualConfirmationPolicy,
+    ...configured,
+    requiredForRiskLevels: Array.isArray(configured.requiredForRiskLevels) ? configured.requiredForRiskLevels : defaultPolicy.manualConfirmationPolicy.requiredForRiskLevels,
+    allowedSources: Array.isArray(configured.allowedSources) ? configured.allowedSources : defaultPolicy.manualConfirmationPolicy.allowedSources,
+    requiredReviewedItems: Array.isArray(configured.requiredReviewedItems) ? configured.requiredReviewedItems : defaultPolicy.manualConfirmationPolicy.requiredReviewedItems,
+    cannotOverride: Array.isArray(configured.cannotOverride) ? configured.cannotOverride : defaultPolicy.manualConfirmationPolicy.cannotOverride,
+  };
+}
+function manualConfirmationCannotOverrideFailures(policy = activeAuditPolicy || defaultPolicy) {
+  const configured = new Set(activeManualConfirmationPolicy(policy).cannotOverride || []);
+  const blockers = [];
+  if (configured.has('secretScanFailure') && report.secretScan?.status === 'fail') blockers.push('secretScanFailure');
+  if (configured.has('blockedPaths') && report.changedPathsSummary.blocked.length) blockers.push('blockedPaths');
+  const highConfidenceSecret = report.secretScan?.status === 'fail'
+    || allAuditFindings().some((finding) => finding.confidence === 'high' && /secret|credential|token/i.test(`${finding.ruleId || ''} ${finding.id || ''} ${finding.message || ''}`));
+  if (configured.has('highConfidenceSecret') && highConfidenceSecret) blockers.push('highConfidenceSecret');
+  if (configured.has('implementationHarnessMixing') && report.prSeparationStatus?.status === 'fail') blockers.push('implementationHarnessMixing');
+  if (configured.has('profileRequiredFailure') && report.profileRequiredChecks?.status === 'fail') blockers.push('profileRequiredFailure');
+  return [...new Set(blockers)].sort();
+}
+function manualConfirmationRequired(policy = activeAuditPolicy || defaultPolicy) {
+  const manualPolicy = activeManualConfirmationPolicy(policy);
+  return process.env.CODEX_MANUAL_CONFIRMATION_REQUIRED === '1'
+    || (manualPolicy.requiredForRiskLevels || []).includes(report.riskLevel)
+    || (report.humanReviewRequired === true && (manualPolicy.requiredForHumanReview === true));
+}
+function runManualConfirmationVerifier(policy = activeAuditPolicy || defaultPolicy) {
+  const manualPolicy = activeManualConfirmationPolicy(policy);
+  const required = manualConfirmationRequired(policy);
+  const cannotOverrideFailures = manualConfirmationCannotOverrideFailures(policy);
+  const base = {
+    required,
+    status: required ? 'manual_confirmation_required' : 'not_required',
+    source: 'none',
+    profile: report.profile,
+    riskLevel: report.riskLevel,
+    headSha: process.env.CODEX_PR_HEAD_SHA || process.env.CODEX_MANUAL_CONFIRMATION_HEAD_SHA || '',
+    headShaMatched: false,
+    stale: false,
+    missingItems: [],
+    cannotOverrideFailures,
+    recommendedAction: required ? 'record manual confirmation for current head' : 'manual confirmation not required',
+  };
+  if (!required) return base;
+  const verifier = path.join('scripts', 'codex-manual-confirmation-verify.mjs');
+  if (!fs.existsSync(verifier)) return { ...base, missingItems: ['verifierScript'], recommendedAction: 'install manual confirmation verifier' };
+  const env = {
+    ...process.env,
+    CODEX_MANUAL_CONFIRMATION_REPORT: 'json',
+    CODEX_MANUAL_CONFIRMATION_REQUIRED: '1',
+    CODEX_MANUAL_CONFIRMATION_PROFILE: report.profile,
+    CODEX_MANUAL_CONFIRMATION_RISK_LEVEL: report.riskLevel,
+    CODEX_MANUAL_CONFIRMATION_HEAD_SHA: base.headSha,
+    CODEX_MANUAL_CONFIRMATION_REQUIRED_ITEMS: JSON.stringify(manualPolicy.requiredReviewedItems || []),
+    CODEX_MANUAL_CONFIRMATION_CANNOT_OVERRIDE_FAILURES: JSON.stringify(cannotOverrideFailures),
+  };
+  const result = spawnSync(process.execPath, [verifier, '--json'], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  let parsed = null;
+  try { parsed = result.stdout ? JSON.parse(result.stdout) : null; } catch { parsed = null; }
+  if (!parsed || typeof parsed !== 'object') return { ...base, missingItems: ['verifierOutput'], recommendedAction: 'manual confirmation verifier did not return safe JSON' };
+  return {
+    ...base,
+    ...parsed,
+    required,
+    riskLevel: report.riskLevel,
+    profile: report.profile,
+    cannotOverrideFailures,
+    status: parsed.status === 'pass' && cannotOverrideFailures.length === 0 ? 'pass' : 'manual_confirmation_required',
+  };
+}
+function evaluateManualMergePolicy(policy = activeAuditPolicy || defaultPolicy) {
+  const manualStatus = report.manualConfirmationStatus || runManualConfirmationVerifier(policy);
+  if (!manualStatus.required) {
+    return {
+      status: 'not_required',
+      githubActions: 'not_required',
+      requiresPrBodyVerification: false,
+      requiresResidualRisk: false,
+      requiresMergeReview: report.humanReviewRequired === true,
+      recommendedAction: 'manual confirmation not required by policy',
+    };
+  }
+  if (manualStatus.status === 'pass' && !(manualStatus.cannotOverrideFailures || []).length) {
+    return {
+      status: 'pass',
+      githubActions: 'pass_or_current_head_confirmation_recorded',
+      requiresPrBodyVerification: true,
+      requiresResidualRisk: true,
+      requiresMergeReview: true,
+      source: manualStatus.source || 'unknown',
+      recommendedAction: 'manual confirmation accepted for current head',
+    };
+  }
   return {
     status: 'manual_confirmation_required',
     githubActions: 'manual_confirmation_required',
     requiresPrBodyVerification: true,
     requiresResidualRisk: true,
     requiresMergeReview: true,
-    recommendedAction: 'confirm quality-gate status and PR body before merge',
+    source: manualStatus.source || 'none',
+    recommendedAction: manualStatus.recommendedAction || 'confirm quality-gate status and PR body before merge',
   };
 }
 function computeReviewResultSchemaStatus() {
@@ -2484,7 +2629,7 @@ function computeOutputShapeStatus() {
     /\b(?:gh[pousr]_|sk-|AKIA)[A-Za-z0-9_-]{8,}\b/,
     /-----BEGIN [^-]+PRIVATE KEY-----/i,
   ];
-  const requiredFields = ['qualityReportSchemaVersion', 'codeAuditSchemaVersion', 'harnessVersion', 'profile', 'riskLevel', 'rootCauseGroups', 'blockingFindings', 'warningFindings', 'faultInjectionBenchmark', 'semanticImpact', 'testSufficiency', 'specTestMismatch', 'minimalPrPlan', 'ciRiskPrediction', 'decisionTrace', 'defectTaxonomy', 'ciParity', 'oracleLimits', 'auditGrade', 'oracleValidation', 'decisionSimulator', 'acceptanceCriteria', 'confusionRisk', 'temporalConsistency', 'deploymentBoundary', 'mutationBenchmark', 'adversarialPrSimulator', 'auditBypass', 'realWorldCanarySet', 'specBoundaryMutation', 'testAuditMutation', 'dependencyAdversarial', 'ciParityAdversarial', 'evidenceIntegrity', 'policyLint', 'auditEffectiveness', 'fixOutcome', 'postFixVerificationPlan', 'repairQuality', 'splitEffectiveness', 'noiseControl', 'auditLearningRecommendation', 'decisionRetrospective', 'rolloutScore', 'freshness', 'riskAcceptanceWorkflow', 'reviewerAssignmentQuality', 'verificationCompleteness', 'skippedCheckJustification', 'auditModeRecommendation', 'auditConflict', 'maturityScore'];
+  const requiredFields = ['qualityReportSchemaVersion', 'codeAuditSchemaVersion', 'harnessVersion', 'profile', 'riskLevel', 'manualConfirmationStatus', 'rootCauseGroups', 'blockingFindings', 'warningFindings', 'faultInjectionBenchmark', 'semanticImpact', 'testSufficiency', 'specTestMismatch', 'minimalPrPlan', 'ciRiskPrediction', 'decisionTrace', 'defectTaxonomy', 'ciParity', 'oracleLimits', 'auditGrade', 'oracleValidation', 'decisionSimulator', 'acceptanceCriteria', 'confusionRisk', 'temporalConsistency', 'deploymentBoundary', 'mutationBenchmark', 'adversarialPrSimulator', 'auditBypass', 'realWorldCanarySet', 'specBoundaryMutation', 'testAuditMutation', 'dependencyAdversarial', 'ciParityAdversarial', 'evidenceIntegrity', 'policyLint', 'auditEffectiveness', 'fixOutcome', 'postFixVerificationPlan', 'repairQuality', 'splitEffectiveness', 'noiseControl', 'auditLearningRecommendation', 'decisionRetrospective', 'rolloutScore', 'freshness', 'riskAcceptanceWorkflow', 'reviewerAssignmentQuality', 'verificationCompleteness', 'skippedCheckJustification', 'auditModeRecommendation', 'auditConflict', 'maturityScore'];
   const missing = requiredFields.filter((field) => report[field] === undefined);
   return {
     status: missing.length || forbidden.some((pattern) => pattern.test(serialized)) ? 'fail' : 'pass',
@@ -3254,7 +3399,7 @@ function computeAcceptanceCriteria() {
     ['secret scan PASS', report.secretScan?.status === 'pass'],
     ['no high confidence blocking finding', !report.blockingFindings.some((finding) => finding.confidence === 'high')],
     ['PR scope agreement satisfied', report.prScopeAgreement?.status === 'pass'],
-    ['manual confirmation recorded when required', !report.humanReviewRequired || process.env.CODEX_MANUAL_CONFIRMATION === '1'],
+    ['manual confirmation recorded when required', !report.manualConfirmationStatus?.required || report.manualConfirmationStatus?.status === 'pass'],
     ['known residual documented', !report.residualFailureGovernance?.mustMentionInPR || report.residualFailureGovernance?.knownResidualDocumented === true],
     ['JSON report secret-free', report.safeArtifactValidation?.secretFree !== false],
     ['worktree clean', report.worktreeStatus?.isDirty !== true],
@@ -4693,6 +4838,7 @@ function computeEvidenceSummary() {
       invalid: report.codeAuditBaseline?.invalid?.length || 0,
     },
     manualMergePolicy: report.manualMergePolicy?.status || 'unknown',
+    manualConfirmationStatus: report.manualConfirmationStatus || { required: false, status: 'not_required', source: 'none' },
     decisionMatrix: report.decisionMatrix,
     findingLifecycle: {
       status: report.findingLifecycle?.status || 'unknown',
@@ -5105,11 +5251,24 @@ function writeReport() {
   if (report.riskLevel === 'R3') addHumanReviewReason('riskLevel.R3');
   if (report.changedPathsSummary.blocked.length) addHumanReviewReason('diff.blockedPath');
   if (report.changedPathsSummary.highRisk.length) addHumanReviewReason('diff.highRiskPath');
-  if (report.manualMergePolicy.status === 'manual_confirmation_required') addHumanReviewReason('manualMergePolicy.confirmationRequired');
   if ((report.knownRisks.expired || []).length) addHumanReviewReason('knownRisk.expired');
   for (const finding of allAuditFindings()) {
     if (finding.priority === 'P0' || finding.priority === 'P1') addHumanReviewReason(`finding.${finding.priority}`);
   }
+  report.manualConfirmationStatus = runManualConfirmationVerifier(activeAuditPolicy);
+  report.manualMergePolicy = evaluateManualMergePolicy(activeAuditPolicy);
+  if (report.manualConfirmationStatus.required) addHumanReviewReason('manualConfirmation.required');
+  if (report.manualMergePolicy.status === 'manual_confirmation_required') {
+    addHumanReviewReason('manualMergePolicy.confirmationRequired');
+    addFailure('manualConfirmation.required', 'Manual confirmation is required for this risk level and current head.', {
+      missingItems: report.manualConfirmationStatus.missingItems || [],
+      cannotOverrideFailures: report.manualConfirmationStatus.cannotOverrideFailures || [],
+    });
+  }
+  report.mergeReady = failures.length === 0;
+  report.postMerge.mergeReady = report.mergeReady && report.postMerge.status === 'pass';
+  report.status = failures.length === 0 ? 'pass' : 'fail';
+  report.localGate.status = report.status;
   report.reviewResultSchemaStatus = computeReviewResultSchemaStatus();
   if (report.reviewResultSchemaStatus.status === 'fail') addHumanReviewReason('reviewResultSchema.failed');
   report.postMergeVerificationPlan = computePostMergeVerificationPlan();
@@ -5241,7 +5400,6 @@ const knownRisks = readKnownRisks(policy);
 const codeAuditBaseline = readCodeAuditBaseline(policy);
 report.worktreeStatus = computeWorktreeStatus();
 report.postMerge = computePostMergeStatus(report.worktreeStatus);
-report.manualMergePolicy = evaluateManualMergePolicy();
 for (const warning of report.worktreeStatus.warnings || []) addWarning({ ...warning, known: warningKnown(warning, knownRisks) });
 report.versionConsistency = computeVersionConsistency();
 if (report.versionConsistency.status === 'fail') {

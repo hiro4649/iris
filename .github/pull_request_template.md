@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.6.5 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.6.6 -->
 ## Summary
 
 ## Why this change is needed
@@ -22,6 +22,17 @@ Choose one: R1 low / R2 medium / R3 high
 ## AI review notes
 
 ## Human review focus
+
+## Manual confirmation
+
+- riskLevel:
+- headSha:
+- confirmedByRole:
+- reviewedItems:
+- qualityGateNotWeakened:
+- riskLevelNotLowered:
+- residualRisks:
+- manualBranchProtectionAcknowledged:
 
 ## Rollback plan
 

@@ -1,5 +1,5 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.6.5",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.6.6",
   "profile": "iris",
   "packageDirs": [
     "."
@@ -644,6 +644,28 @@
       "Is the remote quality evidence current?",
       "Should this PR be split before review?",
       "Does this preserve IRIS_SPEC_AUTHORITY.md boundary meaning?"
+    ]
+  },
+  "manualConfirmationPolicy": {
+    "requiredForRiskLevels": [
+      "R3"
+    ],
+    "allowedSources": [
+      "githubReview",
+      "prBody",
+      "prComment",
+      "localFile"
+    ],
+    "requireHeadSha": true,
+    "requireRole": true,
+    "requireReviewedItems": true,
+    "requiredReviewedItems": [],
+    "cannotOverride": [
+      "secretScanFailure",
+      "blockedPaths",
+      "highConfidenceSecret",
+      "implementationHarnessMixing",
+      "profileRequiredFailure"
     ]
   }
 }

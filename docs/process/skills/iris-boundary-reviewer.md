@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.6.5 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.6.6 -->
 # Skill: IRIS Boundary Reviewer
 
 Use for IRIS Phase, adapter, persistence, review path, or execution boundary changes.

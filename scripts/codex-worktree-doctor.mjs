@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.5
+// CODEX_QUALITY_HARNESS_FILE v0.6.6
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -80,8 +80,8 @@ const recommendedAction = cleanClone
         : 'continue with care')));
 
 const report = {
-  marker: 'CODEX_QUALITY_HARNESS_FILE v0.6.5',
-  harnessVersion: '0.6.5',
+  marker: 'CODEX_QUALITY_HARNESS_FILE v0.6.6',
+  harnessVersion: '0.6.6',
   status: warnings.length ? 'warning' : 'pass',
   currentBranch: branch,
   branch,

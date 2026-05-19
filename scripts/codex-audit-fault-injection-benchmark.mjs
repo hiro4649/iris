@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.5
+// CODEX_QUALITY_HARNESS_FILE v0.6.6
 import process from 'node:process';
 
 const scenarios = [

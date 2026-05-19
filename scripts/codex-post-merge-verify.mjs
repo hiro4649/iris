@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.5
+// CODEX_QUALITY_HARNESS_FILE v0.6.6
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
-const HARNESS_VERSION = '0.6.5';
+const HARNESS_VERSION = '0.6.6';
 
 function git(args) {
   try { return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return ''; }
@@ -70,6 +70,7 @@ console.log(`profile required: ${profileGate.status === 0 ? 'pass' : 'fail'}`);
 console.log(`known risk expiry: ${report?.knownRisks?.status || 'unknown'}`);
 console.log(`branch cleanup candidates: ${report?.branchCleanupAdvice?.deleteCandidates?.length || 0}`);
 console.log(`manual branch protection: ${report?.manualMergePolicy?.status || 'manual_confirmation_required'}`);
+console.log(`manual confirmation: ${report?.manualConfirmationStatus?.status || 'not_required'} required=${report?.manualConfirmationStatus?.required === true}`);
 console.log(`postMergeVerificationPlan: ${(report?.postMergeVerificationPlan || []).length}`);
 console.log('nextFiles: AGENTS.md, docs/process/CODEX_QUALITY_GATE_POLICY.json, docs/process/skills');
 for (const check of failed) console.log(`failed: ${check.id}`);
