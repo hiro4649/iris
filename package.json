@@ -10,6 +10,7 @@
     "dev:config:doctor": "node scripts/dev-config-doctor.js",
     "dev:env:example-check": "node scripts/dev-env-example-check.js",
     "dev:public-report-boundary-audit": "node scripts/dev-public-report-boundary-audit.js",
+    "dev:ai-transparency:public-summary": "node scripts/dev-ai-transparency-public-summary.js",
     "dev:engine:failure-roundtrip": "node scripts/dev-engine-failure-roundtrip.js",
     "dev:foundation:preflight": "node scripts/dev-foundation-preflight.js",
     "dev:foundation:launch-plan": "node scripts/dev-foundation-launch-plan.js",
