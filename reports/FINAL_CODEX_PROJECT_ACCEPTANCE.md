@@ -17,9 +17,9 @@ This is not a remote PR quality-gate result and does not replace human merge rev
 
 ## IRIS Merge Order
 
-1. `codex/iris-source-repair` at `62ad42d`
-2. `codex/iris-harness-docs` at `27a057f`
-3. `codex/iris-env-policy-proposal` at `e8c39ec`
+1. `codex/iris-source-repair` at `07948a6`
+2. `codex/iris-harness-docs` at `82b3174`
+3. `codex/iris-env-policy-proposal` at `794d7af`
 
 Do not change these fixed commits.
 
@@ -30,6 +30,7 @@ Purpose: repair runtime/test contract mismatches without docs, evals, reports, e
 Includes:
 - `scripts/run-scenario-suite.js`
 - `scripts/run-tests.js`
+- `scripts/codex-local-quality-gate.mjs`
 - `src/` runtime, adapter, server, dev readiness, memory, relationship, and stream repair files
 
 Excludes:
@@ -40,14 +41,15 @@ Excludes:
 - `scripts/verify-iris.*`
 - `.env.example`
 - `package.json`
-- quality gate policy
+- quality gate policy JSON
 
 Verification:
 - `npm test`: PASS, 454/454
 - secret scan: PASS
 - local quality gate: PASS
 - profile required checks: PASS
-- JSON quality report: `mergeReady=true`, `riskLevel=R1`
+- JSON quality report: `mergeReady=true`
+- remote PR quality-gate: PASS on `07948a6`
 - diff checks: PASS
 
 ## IRIS Harness Docs
@@ -81,6 +83,7 @@ Verification:
 - local quality gate: PASS
 - profile required checks: PASS
 - JSON quality report: `mergeReady=true`, `riskLevel=R1`
+- remote PR quality-gate: PASS on `82b3174`
 - diff checks: PASS
 
 Windows note: PowerShell `bash` resolves to WSL on this host and fails with a registration error.
@@ -107,6 +110,7 @@ Verification:
 - local quality gate: PASS
 - profile required checks: PASS
 - JSON quality report: `mergeReady=true`, `riskLevel=R1`
+- remote PR quality-gate: PASS on `794d7af`
 - diff checks: PASS
 
 Human review: required to decide whether the proposed env names should ever be added to `.env.example` in a separate env-policy PR.
@@ -170,6 +174,12 @@ Before merging each active branch:
 - confirm no `.env.example` appears in the env policy proposal
 - confirm no fixed IRIS branch was amended after this acceptance
 - keep the IRIS merge order unchanged
+
+Current remote PR quality-gate state:
+- PR #8 `codex/iris-source-repair`: PASS on `07948a6`
+- PR #9 `codex/iris-harness-docs`: PASS on `82b3174`
+- PR #10 `codex/iris-env-policy-proposal`: PASS on `794d7af`
+- PR #11 `codex/final-codex-project-acceptance`: must pass after this report update
 
 ## Human Review Points
 
