@@ -60,6 +60,7 @@
     "dev:live2d:roundtrip": "node scripts/dev-live2d-cue-engine-roundtrip.js",
     "dev:live2d:unsafe-roundtrip": "node scripts/dev-live2d-cue-engine-unsafe-roundtrip.js",
     "dev:memory:retention-archive-delete-guard": "node scripts/dev-memory-retention-archive-delete-guard.js",
+    "dev:memory:owner-scope-privacy-filter": "node scripts/dev-memory-owner-scope-privacy-filter.js",
     "dev:memory-vector:backend-evidence-boundary": "node scripts/dev-memory-vector-backend-evidence-boundary.js",
     "dev:memory-vector:bridge": "node scripts/dev-memory-vector-bridge.js",
     "dev:memory-vector:roundtrip": "node scripts/dev-memory-vector-roundtrip.js",
