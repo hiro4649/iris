@@ -92,6 +92,7 @@
     "dev:admin:safety-controls": "node scripts/dev-admin-safety-controls.js",
     "dev:persistence:failure-roundtrip": "node scripts/dev-persistence-failure-roundtrip.js",
     "dev:persistence:postgres-admin-save-preflight": "node scripts/dev-postgres-admin-save-preflight.js",
+    "dev:postgres:migration-backup-evidence-boundary": "node scripts/dev-postgres-migration-backup-evidence-boundary.js",
     "dev:persistence:postgres-operator-policy-write-plan": "node scripts/dev-postgres-operator-policy-write-plan.js",
     "dev:persistence:postgres-migration-plan": "node scripts/dev-postgres-persistence-migration-plan.js",
     "dev:persistence:postgres-migration-review-gate": "node scripts/dev-postgres-migration-review-gate.js",
