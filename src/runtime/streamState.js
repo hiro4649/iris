@@ -447,7 +447,8 @@ function sanitizeVisionMetadataSummary(metadata) {
     frame_id_available: frameId !== "",
     frame_reference_available: frameReferenceId !== "",
     frame_age_ms: safeNullableNumber(metadata.frame_age_ms),
-    raw_frame_available: Object.hasOwn(metadata, "raw_frame"),
+    raw_frame_available:
+      metadata.raw_frame_available === true || Object.hasOwn(metadata, "raw_frame"),
     raw_frame_policy: "raw_frame_not_passed_to_core",
     ui_focus_count: Array.isArray(metadata.ui_focus_areas) ? metadata.ui_focus_areas.length : 0,
     boundary_policy: {

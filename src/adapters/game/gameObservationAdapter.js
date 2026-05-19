@@ -148,7 +148,10 @@ function buildVisionMetadata(raw) {
       ? uiFocusAreas.map((item) => cleanText(item, 80)).filter(Boolean).slice(0, 8)
       : [],
     raw_frame_available:
-      Object.hasOwn(raw, "raw_frame") || Object.hasOwn(vision, "raw_frame"),
+      raw.raw_frame_available === true ||
+      vision.raw_frame_available === true ||
+      Object.hasOwn(raw, "raw_frame") ||
+      Object.hasOwn(vision, "raw_frame"),
     raw_frame_policy: "raw_frame_not_passed_to_core",
   };
 }

@@ -861,7 +861,14 @@ function safeSummary(value, maxLength = 160) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
-  return RAW_SOURCE_SUMMARY_PATTERN.test(text) ? "" : text;
+  if (
+    RAW_SOURCE_SUMMARY_PATTERN.test(text) ||
+    containsPrivateSignal(text) ||
+    /\b(?:endpoint|oauth|token|api[_-]?key|bearer)\b|https?:\/\//i.test(text)
+  ) {
+    return "";
+  }
+  return text;
 }
 
 function safePrimingSummary(value, maxLength = 120) {

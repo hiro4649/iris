@@ -189,6 +189,7 @@ const SUBTITLE_ADAPTER_PACKET_ALLOWED_FIELDS = new Set([
   "display_start_ms",
   "display_end_ms",
   "line_break_plan",
+  "readability_profile",
   "safe_area_policy",
   "boundary_policy",
   "adapter_validation_required",
@@ -1190,6 +1191,7 @@ export function createSubtitleAdapterPacket(
     display_start_ms: subtitleCue.display_start_ms,
     display_end_ms: subtitleCue.display_end_ms,
     line_break_plan: subtitleCue.line_break_plan,
+    readability_profile: subtitleCue.readability_profile ?? null,
     safe_area_policy: subtitleCue.safe_area_policy,
     boundary_policy: {
       subtitle_display_guidance_only: true,
@@ -1312,6 +1314,7 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
         display_start_ms: packet.display_start_ms,
         display_end_ms: packet.display_end_ms,
         line_break_plan: packet.line_break_plan,
+        readability_profile: packet.readability_profile ?? undefined,
         max_line_count: 2,
         safe_area_policy: packet.safe_area_policy,
         sync_source: "subtitle_adapter_packet",
@@ -1325,6 +1328,14 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
     }
     if (packet.speech_rate_profile) {
       assertSpeechRateProfileSafe(packet.speech_rate_profile, `${context} speech rate profile`);
+    }
+    if (packet.readability_profile) {
+      if (packet.readability_profile.safe_for_overlay !== true) {
+        throw new ContractError(`${context}: readability profile must be overlay safe`);
+      }
+      if (packet.readability_profile.chunk_count !== packet.line_break_plan?.length) {
+        throw new ContractError(`${context}: readability profile chunk count mismatch`);
+      }
     }
   }
 }

@@ -899,22 +899,7 @@ function summarizeNextStep({
 }
 
 function createGateSummary(liveReadiness) {
-  const gates = [
-    liveReadiness.configuration_gate,
-    liveReadiness.runtime_gate,
-    liveReadiness.store_gate,
-    liveReadiness.approved_record_gate,
-    liveReadiness.candidate_gate,
-    liveReadiness.relationship_gate,
-    liveReadiness.recall_gate,
-    liveReadiness.lifecycle_gate,
-  ];
-  const readyGateCount = gates.filter((gate) => gate.ready === true).length;
-  return {
-    schema: "iris_persistence_rehearsal_gate_summary_v1",
-    gate_count: gates.length,
-    ready_gate_count: readyGateCount,
-    attention_gate_count: gates.length - readyGateCount,
+  const gateReadiness = {
     configuration_gate_ready:
       liveReadiness.configuration_gate.gate_status === "ready" &&
       liveReadiness.configuration_gate.readiness_state === "ready",
@@ -944,6 +929,14 @@ function createGateSummary(liveReadiness) {
       liveReadiness.lifecycle_gate.gate_status === "ready" &&
       liveReadiness.lifecycle_gate.blocking_stage === "none" &&
       liveReadiness.lifecycle_gate.relationship_memory_complete === true,
+  };
+  const readyGateCount = Object.values(gateReadiness).filter(Boolean).length;
+  return {
+    schema: "iris_persistence_rehearsal_gate_summary_v1",
+    gate_count: Object.keys(gateReadiness).length,
+    ready_gate_count: readyGateCount,
+    attention_gate_count: Object.keys(gateReadiness).length - readyGateCount,
+    ...gateReadiness,
     configuration_gate_status: liveReadiness.configuration_gate.gate_status,
     runtime_gate_status: liveReadiness.runtime_gate.gate_status,
     store_gate_status: liveReadiness.store_gate.gate_status,

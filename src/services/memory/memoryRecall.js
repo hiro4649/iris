@@ -42,6 +42,7 @@ const MODERATION_RECALL_PRECHECK_STATUSES = new Set([
   "muted",
   "blocked",
   "bounded",
+  "unconfirmed",
 ]);
 
 const FORBIDDEN_RECALL_FIELDS = new Set([

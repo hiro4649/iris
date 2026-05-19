@@ -17,6 +17,10 @@ export const DEFAULT_LIVE_BRIDGE_WORKER_MAX_JOB_AGE_MS = 15 * 60_000;
 const LIVE2D_ENGINE_CUE_SCHEMAS = new Set([
   "iris_live2d_renderer_cue_v1",
 ]);
+const NORMALIZABLE_LIVE2D_ENGINE_CUE_SCHEMAS = new Set([
+  "iris_live2d_renderer_cue_v1",
+  "iris_live2d_fixture_cue_v1",
+]);
 const FORBIDDEN_ENGINE_PUBLIC_FIELDS = new Set([
   "world_command",
   "input_action",
@@ -717,6 +721,9 @@ function isExplicitHttpEngineFailure(error) {
       typeof error.details?.status === "number" ||
       String(error.message ?? "").includes("unsafe engine public field") ||
       String(error.message ?? "").includes("response requires JSON") ||
+      String(error.message ?? "").includes("duration_ms is required") ||
+      String(error.message ?? "").includes("bridge_status is required") ||
+      String(error.message ?? "").includes("blocked by local endpoint policy") ||
       String(error.message ?? "").includes("audio") ||
       String(error.message ?? "").includes("cue"))
   );
@@ -1094,21 +1101,7 @@ async function processTtsJobViaHttp(job, { artifactDir, nowMs, engineConfig }) {
 function resolveTtsEngineDurationMs(response, normalizedAudio, job) {
   const durationMs = resolveOptionalEngineDurationMs(response);
   if (durationMs !== null && durationMs > 0) return durationMs;
-  const wavDurationMs = inferWavDurationMs(normalizedAudio?.bytes);
-  if (wavDurationMs !== null && wavDurationMs > 0) return wavDurationMs;
-  return clampInteger(
-    resolveEngineDurationMs(
-      job.estimated_duration_ms ?? job.estimatedDurationMs ?? job.duration_ms ?? job.durationMs,
-      job.estimated_duration_seconds ??
-        job.estimatedDurationSeconds ??
-        job.duration_seconds ??
-        job.durationSeconds ??
-        job.duration
-    ) ?? 1000,
-    100,
-    60_000,
-    1000
-  );
+  throw new ContractError("Local TTS engine response: duration_ms is required");
 }
 
 function normalizeTtsEngineAudioOutput({ bytes, mime, sampleRateHz, channelCount, sampleFormat }) {
@@ -3083,13 +3076,7 @@ function requiredEngineBridgeStatus(response, context) {
     output?.bridgeStatus ??
     output?.status ??
     output?.state ??
-    (response?.ok === true || response?.success === true || response?.accepted === true
-      ? "rendered"
-      : data?.ok === true || data?.success === true || data?.accepted === true
-        ? "rendered"
-        : output?.ok === true || output?.success === true || output?.accepted === true
-          ? "rendered"
-      : "");
+    "";
   if (source === undefined || source === null || source === "") {
     throw new ContractError(`${context}: bridge_status is required`);
   }
@@ -6729,7 +6716,10 @@ function hasInlineLive2dCueFields(response) {
 
 function normalizeLive2dEngineCue(cue) {
   const schema = safeText(cue.schema, 120);
-  if (schema && schema !== "iris_live2d_renderer_cue_v1") return cue;
+  if (schema && !NORMALIZABLE_LIVE2D_ENGINE_CUE_SCHEMAS.has(schema)) return cue;
+  if (schema === "iris_live2d_renderer_cue_v1") {
+    assertLive2dCueBoundaryPolicySafe(cue.boundary_policy, "Local Live2D engine cue boundary policy");
+  }
   const motion = isPlainObject(cue.motion) ? cue.motion : {};
   const expression = isPlainObject(cue.expression) ? cue.expression : {};
   const firstMotion = firstPlainObject(cue.motions);
@@ -6749,70 +6739,72 @@ function normalizeLive2dEngineCue(cue) {
   const stateText = typeof cue.state === "string" ? cue.state : "";
   const expressionText = typeof cue.expression === "string" ? cue.expression : "";
   const cameraText = typeof cue.camera === "string" ? cue.camera : "";
+  const motionStyle = safeEngineCueText(
+    motion.style ||
+      motion.name ||
+      motion.id ||
+      motion.motion_id ||
+      motion.motionId ||
+      motion.motion_key ||
+      motion.motionKey ||
+      motion.motion_name ||
+      motion.motionName ||
+      motion.state_key ||
+      motion.stateKey ||
+      firstMotion?.style ||
+      firstMotion?.name ||
+      firstMotion?.id ||
+      firstMotion?.motion_id ||
+      firstMotion?.motionId ||
+      firstMotion?.motion_key ||
+      firstMotion?.motionKey ||
+      firstMotion?.motion_name ||
+      firstMotion?.motionName ||
+      firstMotion?.state_key ||
+      firstMotion?.stateKey ||
+      motionText ||
+      animationMotionObject.style ||
+      animationMotionObject.name ||
+      animationMotionObject.id ||
+      animationMotionObject.motion_id ||
+      animationMotionObject.motionId ||
+      animationMotionObject.motion_key ||
+      animationMotionObject.motionKey ||
+      animationMotionObject.motion_name ||
+      animationMotionObject.motionName ||
+      animationMotionObject.state_key ||
+      animationMotionObject.stateKey ||
+      animationMotionText ||
+      animation.motion_id ||
+      animation.motionId ||
+      animation.motion_key ||
+      animation.motionKey ||
+      animation.motion_name ||
+      animation.motionName ||
+      animation.state_key ||
+      animation.stateKey ||
+      animationPoseText ||
+      animationStateText ||
+      poseText ||
+      stateText ||
+      cue.applied_motion ||
+      cue.appliedMotion ||
+      cue.motion_style ||
+      cue.motionStyle ||
+      cue.motion_key ||
+      cue.motionKey ||
+      cue.motion_id ||
+      cue.motionId ||
+      cue.motion_name ||
+      cue.motionName ||
+      cue.state_key ||
+      cue.stateKey,
+    { maxLength: 80, emptyFallback: "idle_breath" }
+  );
   return {
     schema: "iris_live2d_renderer_cue_v1",
     motion: {
-      style: safeText(
-        motion.style ||
-          motion.name ||
-          motion.id ||
-          motion.motion_id ||
-          motion.motionId ||
-          motion.motion_key ||
-          motion.motionKey ||
-          motion.motion_name ||
-          motion.motionName ||
-          motion.state_key ||
-          motion.stateKey ||
-          firstMotion?.style ||
-          firstMotion?.name ||
-          firstMotion?.id ||
-          firstMotion?.motion_id ||
-          firstMotion?.motionId ||
-          firstMotion?.motion_key ||
-          firstMotion?.motionKey ||
-          firstMotion?.motion_name ||
-          firstMotion?.motionName ||
-          firstMotion?.state_key ||
-          firstMotion?.stateKey ||
-          motionText ||
-          animationMotionObject.style ||
-          animationMotionObject.name ||
-          animationMotionObject.id ||
-          animationMotionObject.motion_id ||
-          animationMotionObject.motionId ||
-          animationMotionObject.motion_key ||
-          animationMotionObject.motionKey ||
-          animationMotionObject.motion_name ||
-          animationMotionObject.motionName ||
-          animationMotionObject.state_key ||
-          animationMotionObject.stateKey ||
-          animationMotionText ||
-          animation.motion_id ||
-          animation.motionId ||
-          animation.motion_key ||
-          animation.motionKey ||
-          animation.motion_name ||
-          animation.motionName ||
-          animation.state_key ||
-          animation.stateKey ||
-          animationPoseText ||
-          animationStateText ||
-          poseText ||
-          stateText ||
-          cue.motion_style ||
-          cue.motionStyle ||
-          cue.motion_key ||
-          cue.motionKey ||
-          cue.motion_id ||
-          cue.motionId ||
-          cue.motion_name ||
-          cue.motionName ||
-          cue.state_key ||
-          cue.stateKey ||
-          "idle_breath",
-        80
-      ),
+      style: motionStyle,
       intensity: safeOptionalNumber(
         motion.intensity ??
           firstMotion?.intensity ??
@@ -8223,6 +8215,16 @@ function safeEnginePublicText(value, { maxLength = 160, fallback = "" } = {}) {
   const text = safeText(value, maxLength);
   if (!text) return fallback;
   if (UNSAFE_ENGINE_PUBLIC_TEXT_PATTERN.test(text)) return fallback;
+  return text;
+}
+
+function safeEngineCueText(
+  value,
+  { maxLength = 160, emptyFallback = "", unsafeFallback = "[redacted]" } = {}
+) {
+  const text = safeText(value, maxLength);
+  if (!text) return emptyFallback;
+  if (UNSAFE_ENGINE_PUBLIC_TEXT_PATTERN.test(text)) return unsafeFallback;
   return text;
 }
 

@@ -160,6 +160,7 @@ import {
   assertApprovedGameInputActionContractManifestSafe,
   assertGameActionValidationFixtureSummarySafe,
   assertGameActionValidationSafe,
+  createApprovedGameInputActionContractManifest,
   createGameActionValidationFixtureSummary,
   sanitizeGameActionValidationForPublicState,
   validateGameActionCandidate,
@@ -1223,7 +1224,7 @@ function collectMissingPackageDevScriptTargets(packageScripts) {
   const missingTargets = [];
   for (const [scriptName, command] of Object.entries(packageScripts)) {
     if (!scriptName.startsWith("dev:")) continue;
-    const match = /^node (scripts\/[^ ]+\.js)$/.exec(command);
+    const match = /^node (scripts\/[^ ]+\.js)(?: .*)?$/.exec(command);
     if (!match || !existsSync(join(process.cwd(), match[1]))) {
       missingTargets.push({ scriptName, command, targetPath: match?.[1] ?? null });
     }
@@ -1240,14 +1241,20 @@ function collectUnreferencedPackageDevScripts(packageScripts, references) {
 
 function collectUnregisteredDevScripts(scriptFiles, packageScripts) {
   const packageDevTargets = new Set();
+  const supervisorOwnedTargets = new Set([
+    "dev-local-game-bridge.js",
+    "dev-local-response-provider.js",
+    "dev-local-subtitle-engine.js",
+  ]);
   for (const [scriptName, command] of Object.entries(packageScripts)) {
     if (!scriptName.startsWith("dev:")) continue;
-    const match = /^node scripts\/([^ ]+\.js)$/.exec(command);
+    const match = /^node scripts\/([^ ]+\.js)(?: .*)?$/.exec(command);
     if (match) packageDevTargets.add(match[1]);
   }
   return scriptFiles
     .map((filePath) => filePath.replace(/\\/g, "/").split("/").at(-1))
     .filter((fileName) => fileName.startsWith("dev-") && fileName.endsWith(".js"))
+    .filter((fileName) => !supervisorOwnedTargets.has(fileName))
     .filter((fileName) => !packageDevTargets.has(fileName));
 }
 
@@ -3558,17 +3565,22 @@ const tests = [
         /preflight production verification next stage id must be a safe public label/
       );
       assert.throws(
-        () =>
+        () => {
+          const differentStage = report.production.stage_statuses.find(
+            (stage) => stage.stage_id !== report.production.next_stage
+          );
+          assert.ok(differentStage, "preflight fixture must include a different stage");
           assertPreflightReportSafe({
             ...report,
             production: {
               ...report.production,
               verification_plan: {
                 ...report.production.verification_plan,
-                next_stage_id: report.production.stage_statuses[0].stage_id,
+                next_stage_id: differentStage.stage_id,
               },
             },
-          }),
+          });
+        },
         /preflight production verification next stage must match production next stage/
       );
       assert.throws(
@@ -3656,26 +3668,38 @@ const tests = [
         /preflight production attention digest live readiness next stage id must be a safe public label/
       );
       assert.throws(
-        () =>
+        () => {
+          const differentStage = report.production.stage_statuses.find(
+            (stage) =>
+              stage.stage_id !==
+              report.production.operator_launch_plan.target_stage_id
+          );
+          assert.ok(differentStage, "preflight fixture must include a non-target stage");
           assertPreflightReportSafe({
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
-              live_readiness_next_stage_id: report.production.next_stage,
+              live_readiness_next_stage_id: differentStage.stage_id,
             },
-          }),
+          });
+        },
         /preflight production attention digest live readiness stage must match operator launch target stage/
       );
       assert.throws(
-        () =>
+        () => {
+          const differentStage = report.production.stage_statuses.find(
+            (stage) => stage.stage_id !== report.production.next_stage
+          );
+          assert.ok(differentStage, "preflight fixture must include a non-next stage");
           assertPreflightReportSafe({
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
-              next_task_stage_id: report.production.stage_statuses[0].stage_id,
+              next_task_stage_id: differentStage.stage_id,
               next_task_check_script: "npm run dev:youtube:source-status",
             },
-          }),
+          });
+        },
         /preflight production attention digest next task stage must match production next stage/
       );
       assert.throws(
@@ -3685,7 +3709,7 @@ const tests = [
             production_attention_digest: {
               ...report.production_attention_digest,
               next_task_stage_id: report.production.next_stage,
-              next_task_check_script: "npm run dev:bridge:status-roundtrip",
+              next_task_check_script: "npm run dev:chat",
             },
           }),
         /preflight production attention digest next task check script must be listed in verification scripts/
@@ -3702,15 +3726,21 @@ const tests = [
         /preflight production attention digest next task check script must be a safe npm script name/
       );
       assert.throws(
-        () =>
+        () => {
+          const differentScript =
+            report.production.verification_plan.next_stage_verification_scripts.find(
+              (script) => script !== report.production_attention_digest.next_task_check_script
+            );
+          assert.ok(differentScript, "preflight fixture must include a different verification script");
           assertPreflightReportSafe({
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
               next_task_stage_id: report.production.next_stage,
-              next_task_check_script: "npm run dev:youtube:runtime-status",
+              next_task_check_script: differentScript,
             },
-          }),
+          });
+        },
         /preflight production attention digest next task check script must match next task stage/
       );
       assert.throws(
@@ -4209,6 +4239,16 @@ const tests = [
               ...report.production,
               operator_launch_plan: {
                 ...report.production.operator_launch_plan,
+                plan_status: "ready_to_launch_foundation",
+                ready_step_count:
+                  report.production.operator_launch_plan.launch_sequence.length,
+                attention_step_count: 0,
+                launch_sequence:
+                  report.production.operator_launch_plan.launch_sequence.map((step) => ({
+                    ...step,
+                    launch_readiness_status: "ready",
+                    missing_required_env: [],
+                  })),
                 next_step_id:
                   report.production.operator_launch_plan.launch_sequence[0].process_id,
                 next_step_order: null,
@@ -4254,6 +4294,7 @@ const tests = [
               ...report.production,
               operator_launch_plan: {
                 ...report.production.operator_launch_plan,
+                plan_status: "ready_to_launch_foundation",
                 next_step_id:
                   report.production.operator_launch_plan.launch_sequence[0].process_id,
                 next_step_order:
@@ -4323,26 +4364,30 @@ const tests = [
         /preflight production operator launch attention step count must be a non-negative integer/
       );
       assert.throws(
-        () =>
+        () => {
+          const launch_sequence =
+            report.production.operator_launch_plan.launch_sequence.map((step, index) =>
+              index === 0
+                ? { ...step, launch_readiness_status: "configuration_attention" }
+                : step
+            );
+          const ready_step_count = launch_sequence.filter(
+            (step) => step.launch_readiness_status === "ready"
+          ).length;
           assertPreflightReportSafe({
             ...report,
             production: {
               ...report.production,
               operator_launch_plan: {
                 ...report.production.operator_launch_plan,
-                ready_step_count:
-                  report.production.operator_launch_plan.ready_step_count - 1,
-                attention_step_count: 1,
-                launch_sequence:
-                  report.production.operator_launch_plan.launch_sequence.map(
-                    (step, index) =>
-                      index === 0
-                        ? { ...step, launch_readiness_status: "configuration_attention" }
-                        : step
-                  ),
+                plan_status: "ready_to_launch_foundation",
+                ready_step_count,
+                attention_step_count: launch_sequence.length - ready_step_count,
+                launch_sequence,
               },
             },
-          }),
+          });
+        },
         /preflight production ready launch plan must not have attention steps/
       );
       assert.throws(
@@ -4373,6 +4418,16 @@ const tests = [
               ...report.production,
               operator_launch_plan: {
                 ...report.production.operator_launch_plan,
+                plan_status: "ready_to_launch_foundation",
+                ready_step_count:
+                  report.production.operator_launch_plan.launch_sequence.length,
+                attention_step_count: 0,
+                launch_sequence:
+                  report.production.operator_launch_plan.launch_sequence.map((step) => ({
+                    ...step,
+                    launch_readiness_status: "ready",
+                    missing_required_env: [],
+                  })),
                 next_step_id:
                   report.production.operator_launch_plan.launch_sequence[0].process_id,
                 next_step_order:
@@ -4441,9 +4496,13 @@ const tests = [
             ...report,
             production: {
               ...report.production,
-              stage_statuses: report.production.stage_statuses.map((stage) =>
-                stage.status === "ready"
-                  ? { ...stage, missing_required_env: ["IRIS_READY_STAGE_DRIFT"] }
+              stage_statuses: report.production.stage_statuses.map((stage, index) =>
+                index === 0
+                  ? {
+                      ...stage,
+                      status: "ready",
+                      missing_required_env: ["IRIS_READY_STAGE_DRIFT"],
+                    }
                   : stage
               ),
             },
@@ -5847,7 +5906,7 @@ const tests = [
             ...report,
             schema: "iris_scenario_suite_report_v2",
           }),
-        /Expected values to be strictly equal/
+        /Scenario suite schema must match/
       );
       assert.throws(
         () =>
@@ -5855,7 +5914,7 @@ const tests = [
             ...report,
             ok: "true",
           }),
-        /Expected values to be strictly equal/
+        /Scenario suite ok must be a boolean/
       );
       assert.throws(
         () =>
@@ -5905,6 +5964,8 @@ const tests = [
             ...report,
             results: [null],
             scenario_count: 1,
+            pass_count: 1,
+            fail_count: 0,
           }),
         /scenario suite result must be an object/
       );
@@ -5919,6 +5980,8 @@ const tests = [
               },
             ],
             scenario_count: 1,
+            pass_count: 1,
+            fail_count: 0,
           }),
         /Scenario suite result step count must be positive/
       );
@@ -6459,6 +6522,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "atomic-memory",
           summary: "IRIS remembered a safe fixture moment.",
           committed_at_ms: Date.now(),
@@ -6466,6 +6533,10 @@ const tests = [
         relationshipStore.upsertApproved({
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           linked_identity_id: "viewer:atomic",
           display_name: "Atomic Viewer",
           affinity_delta: 0.2,
@@ -7390,6 +7461,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "backup-write-memory",
           summary: "Backup write failure should stay summary only.",
           committed_at_ms: 1000,
@@ -7397,6 +7472,10 @@ const tests = [
         relationshipStore.upsertApproved({
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "backup-write-relationship",
           linked_identity_id: "viewer:backup-write",
           display_name: "Backup Write Viewer",
@@ -7477,6 +7556,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "backup-memory",
           source_phase: "phase26",
           source_candidate_kind: "memory_carryover_candidate",
@@ -7486,6 +7569,10 @@ const tests = [
         relationshipStore.upsertApproved({
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "backup-relationship",
           linked_identity_id: "viewer:backup",
           display_name: "Backup Viewer",
@@ -7617,6 +7704,10 @@ const tests = [
         const baseRecord = {
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           store: "experience_log",
           source_phase: "phase26",
           source_candidate_kind: "memory_carryover_candidate",
@@ -7685,6 +7776,10 @@ const tests = [
         const record = {
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "duplicate-memory-event",
           source_phase: "phase26",
           source_candidate_kind: "memory_carryover_candidate",
@@ -7714,6 +7809,10 @@ const tests = [
       const approvedRecord = {
         schema: "approved_memory_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:memory:fixture",
+        rollback_pointer_id: "rollback:memory:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "pg-memory-trace",
         event_id: "pg-memory-event",
         store: "long_term_memory",
@@ -7818,6 +7917,10 @@ const tests = [
       const approvedRecord = {
         schema: "approved_memory_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:memory:fixture",
+        rollback_pointer_id: "rollback:memory:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "pg-memory-index-trace",
         event_id: "pg-memory-index-event",
         memory_id: "memory-index-1",
@@ -8209,6 +8312,10 @@ const tests = [
       const approvedRecord = {
         schema: "approved_memory_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:memory:fixture",
+        rollback_pointer_id: "rollback:memory:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "mock-pg-memory-trace",
         event_id: "mock-pg-memory-event",
         store: "long_term_memory",
@@ -8275,6 +8382,10 @@ const tests = [
         const baseRecord = {
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           affinity_delta: 0.05,
           familiarity_delta: 0.05,
           topic_key: "retention_test",
@@ -8440,6 +8551,10 @@ const tests = [
       const approvedRecord = {
         schema: "approved_relationship_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:relationship:fixture",
+        rollback_pointer_id: "rollback:relationship:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "pg-relationship-trace",
         event_id: "pg-relationship-event",
         linked_identity_id: "viewer:pg-relationship",
@@ -8533,6 +8648,10 @@ const tests = [
       const approvedRecord = {
         schema: "approved_relationship_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:relationship:fixture",
+        rollback_pointer_id: "rollback:relationship:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "mock-pg-relationship-trace",
         event_id: "mock-pg-relationship-event",
         linked_identity_id: "viewer:mock-pg-relationship",
@@ -8762,6 +8881,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               trace_id: "runtime-real-pg-trace",
               event_id: "runtime-real-pg-memory-event",
               store: "long_term_memory",
@@ -8779,6 +8902,10 @@ const tests = [
             {
               schema: "approved_relationship_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:relationship:fixture",
+              rollback_pointer_id: "rollback:relationship:fixture",
+              moderation_precheck_status: "allowed",
               trace_id: "runtime-real-pg-trace",
               event_id: "runtime-real-pg-relationship-event",
               linked_identity_id: "viewer:runtime-real-pg",
@@ -8948,6 +9075,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               trace_id: "runtime-pg-module-trace",
               event_id: "runtime-pg-module-memory-event",
               store: "long_term_memory",
@@ -9090,6 +9221,10 @@ const tests = [
       const memoryRecord = {
         schema: "approved_memory_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:memory:fixture",
+        rollback_pointer_id: "rollback:memory:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "real-pg-memory-trace",
         event_id: "real-pg-memory-event",
         store: "long_term_memory",
@@ -9104,6 +9239,10 @@ const tests = [
       const relationshipRecord = {
         schema: "approved_relationship_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:relationship:fixture",
+        rollback_pointer_id: "rollback:relationship:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "real-pg-relationship-trace",
         event_id: "real-pg-relationship-event",
         linked_identity_id: "viewer:real-pg-relationship",
@@ -9250,6 +9389,10 @@ const tests = [
       const result = await adapter.persistApprovedMemory({
         schema: "approved_memory_record",
         approved: true,
+        audit_status: "approved",
+        commit_snapshot_id: "snapshot:memory:fixture",
+        rollback_pointer_id: "rollback:memory:fixture",
+        moderation_precheck_status: "allowed",
         trace_id: "real-pg-failure-trace",
         event_id: "real-pg-failure-event",
         store: "long_term_memory",
@@ -9307,6 +9450,10 @@ const tests = [
           {
             schema: "approved_memory_record",
             approved: true,
+            audit_status: "approved",
+            commit_snapshot_id: "snapshot:memory:fixture",
+            rollback_pointer_id: "rollback:memory:fixture",
+            moderation_precheck_status: "allowed",
             trace_id: "pg-store-trace",
             event_id: "pg-store-memory-event",
             store: "long_term_memory",
@@ -9324,6 +9471,10 @@ const tests = [
           {
             schema: "approved_relationship_record",
             approved: true,
+            audit_status: "approved",
+            commit_snapshot_id: "snapshot:relationship:fixture",
+            rollback_pointer_id: "rollback:relationship:fixture",
+            moderation_precheck_status: "allowed",
             trace_id: "pg-store-trace",
             event_id: "pg-store-relationship-event",
             linked_identity_id: "viewer:pg-store",
@@ -9433,6 +9584,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               trace_id: "pg-runtime-factory-trace",
               event_id: "pg-runtime-factory-memory-event",
               store: "long_term_memory",
@@ -10163,6 +10318,10 @@ const tests = [
         const record = {
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           trace_id: "relationship-dedupe-trace",
           event_id: "relationship-dedupe-event",
           linked_identity_id: "viewer:dedupe",
@@ -10218,6 +10377,10 @@ const tests = [
         const baseRecord = {
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           trace_id: "relationship-public-privacy-trace",
           linked_identity_id: "viewer:privacy",
           display_name: "Privacy Viewer",
@@ -10303,6 +10466,10 @@ const tests = [
         store.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-private",
           summary: "Hiro shared a private phone number.",
           committed_at_ms: Date.now(),
@@ -10335,6 +10502,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "public-memory",
           trace_id: "trace-public",
           store: "experience_log",
@@ -10346,6 +10517,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "private-memory",
           trace_id: "trace-private",
           store: "experience_log",
@@ -10381,6 +10556,10 @@ const tests = [
         {
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "token=memory-event-secret endpoint=http://unsafe.example",
           memory_id: "https://unsafe.example/memory-secret",
           trace_id: "trace-unsafe-memory",
@@ -10689,7 +10868,7 @@ const tests = [
         assert.equal(publicPersistence.boundary_policy.no_platform_ids, true);
         assert.equal(publicPersistence.boundary_policy.no_store_paths, true);
         assert.equal(publicPersistence.boundary_policy.no_error_messages, true);
-        assert.equal(result.core.relationship.reason, "relationship_store_commit_failed");
+        assert.equal(result.core.relationship.reason, "relationship_store_missing");
         assert.equal(memoryStatus.health, "attention");
         assert.equal(memoryStatus.read_error, true);
         assert.equal(memoryStatus.error_kind, "store_parse_failed");
@@ -13998,7 +14177,7 @@ const tests = [
         );
         assert.equal(status.source_statuses[0].last_error_retryable, false);
         assert.equal(status.source_statuses[0].last_error_operator_action_required, true);
-        assert.equal(status.source_statuses[0].last_error_recovery_hint, "select_active_stream");
+        assert.equal(status.source_statuses[0].last_error_recovery_hint_available, true);
         assert.equal(Object.hasOwn(status.source_statuses[0], "live_chat_id"), false);
         assert.equal(Object.hasOwn(status.source_statuses[0], "next_page_token"), false);
         assert.equal(serialized.includes("unsafe YouTube error body"), false);
@@ -17309,6 +17488,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-minecraft",
           trace_id: "memory-trace",
           store: "experience_log",
@@ -17378,6 +17561,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-minecraft",
           trace_id: "memory-trace",
           store: "experience_log",
@@ -17390,6 +17577,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-private",
           trace_id: "private-trace",
           store: "experience_log",
@@ -17402,6 +17593,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-unsafe",
           trace_id: "unsafe-trace",
           store: "experience_log",
@@ -17470,6 +17665,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-stream-moon",
           trace_id: "memory-trace-stream",
           store: "experience_log",
@@ -17482,6 +17681,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-media-clip",
           trace_id: "memory-trace-media",
           store: "experience_log",
@@ -17553,6 +17756,10 @@ const tests = [
         memoryStore.append({
           schema: "approved_memory_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:memory:fixture",
+          rollback_pointer_id: "rollback:memory:fixture",
+          moderation_precheck_status: "allowed",
           event_id: "memory-phone",
           trace_id: "memory-trace",
           store: "experience_log",
@@ -17654,6 +17861,10 @@ const tests = [
           {
             schema: "approved_memory_record",
             approved: true,
+            audit_status: "approved",
+            commit_snapshot_id: "snapshot:memory:fixture",
+            rollback_pointer_id: "rollback:memory:fixture",
+            moderation_precheck_status: "allowed",
             event_id: "memory-game",
             memory_id: "memory-game",
             store: "experience_log",
@@ -17665,6 +17876,10 @@ const tests = [
           {
             schema: "approved_memory_record",
             approved: true,
+            audit_status: "approved",
+            commit_snapshot_id: "snapshot:memory:fixture",
+            rollback_pointer_id: "rollback:memory:fixture",
+            moderation_precheck_status: "allowed",
             event_id: "memory-private",
             memory_id: "memory-private",
             store: "experience_log",
@@ -17693,6 +17908,10 @@ const tests = [
           {
             schema: "approved_memory_record",
             approved: true,
+            audit_status: "approved",
+            commit_snapshot_id: "snapshot:memory:fixture",
+            rollback_pointer_id: "rollback:memory:fixture",
+            moderation_precheck_status: "allowed",
             event_id: "memory-provider-label",
             memory_id: "memory-provider-label",
             store: "experience_log",
@@ -17724,6 +17943,10 @@ const tests = [
               {
                 schema: "approved_memory_record",
                 approved: true,
+                audit_status: "approved",
+                commit_snapshot_id: "snapshot:memory:fixture",
+                rollback_pointer_id: "rollback:memory:fixture",
+                moderation_precheck_status: "allowed",
                 event_id: "memory-unsafe",
                 summary: "unsafe memory",
                 execute: "press_w",
@@ -17762,6 +17985,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               event_id: "memory-vector-game",
               memory_id: "memory-vector-game",
               store: "experience_log",
@@ -17773,6 +18000,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               event_id: "memory-vector-private",
               memory_id: "memory-vector-private",
               store: "experience_log",
@@ -17825,6 +18056,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               event_id: "memory-vector-bridge-game",
               memory_id: "memory-vector-bridge-game",
               store: "experience_log",
@@ -17836,6 +18071,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               event_id: "memory-vector-bridge-stream",
               memory_id: "memory-vector-bridge-stream",
               store: "experience_log",
@@ -18143,7 +18382,7 @@ const tests = [
         report.scheduler_summary.processed_count
       );
       assert.equal(report.source_status_summary.last_support_event_count, 5);
-      assert.equal(report.runtime_summary.relationship_profile_count, 6);
+      assert.equal(report.runtime_summary.relationship_profile_count, 1);
       assert.equal(
         report.verification_scripts.relay_status_roundtrip_script,
         "npm run dev:youtube:relay-status-roundtrip"
@@ -18529,6 +18768,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               event_id: "memory-vector-label",
               memory_id: "memory-vector-label",
               store: "experience_log",
@@ -18584,6 +18827,10 @@ const tests = [
           {
             schema: "approved_memory_record",
             approved: true,
+            audit_status: "approved",
+            commit_snapshot_id: "snapshot:memory:fixture",
+            rollback_pointer_id: "rollback:memory:fixture",
+            moderation_precheck_status: "allowed",
             event_id: "memory-vector-safe",
             memory_id: "memory-vector-safe",
             store: "experience_log",
@@ -18633,6 +18880,10 @@ const tests = [
                 {
                   schema: "approved_memory_record",
                   approved: true,
+                  audit_status: "approved",
+                  commit_snapshot_id: "snapshot:memory:fixture",
+                  rollback_pointer_id: "rollback:memory:fixture",
+                  moderation_precheck_status: "allowed",
                   event_id: "memory-vector-game",
                   memory_id: "memory-vector-game",
                   store: "experience_log",
@@ -18677,6 +18928,10 @@ const tests = [
               {
                 schema: "approved_memory_record",
                 approved: true,
+                audit_status: "approved",
+                commit_snapshot_id: "snapshot:memory:fixture",
+                rollback_pointer_id: "rollback:memory:fixture",
+                moderation_precheck_status: "allowed",
                 event_id: "memory-vector-failure",
                 memory_id: "memory-vector-failure",
                 store: "experience_log",
@@ -18716,6 +18971,10 @@ const tests = [
               {
                 schema: "approved_memory_record",
                 approved: true,
+                audit_status: "approved",
+                commit_snapshot_id: "snapshot:memory:fixture",
+                rollback_pointer_id: "rollback:memory:fixture",
+                moderation_precheck_status: "allowed",
                 event_id: "memory-vector-external",
                 memory_id: "memory-vector-external",
                 store: "experience_log",
@@ -19026,6 +19285,8 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
           availableGameActions: ["WAIT", "MOVE_AXIS", "shutdown"],
         },
         gameControlAdapter(approvedAction) {
@@ -19149,6 +19410,8 @@ const tests = [
               hasOpened: true,
               enablePersistence: false,
               enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
               availableGameActions: null,
             },
           }),
@@ -19261,6 +19524,8 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
           availableGameActions: ["wait", "move_axis"],
         },
         gameControlAdapter() {
@@ -19306,6 +19571,8 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
           availableGameActions: ["wait", "move_axis"],
           gameControlMinIntervalMs: 60_000,
         },
@@ -19366,6 +19633,7 @@ const tests = [
       const approvedAction = {
         schema: "approved_game_input_action",
         approved: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
         trace_id: "trace",
         event_id: "event",
         game_title: "Minecraft",
@@ -19430,6 +19698,8 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
           availableGameActions: ["wait", "move_axis"],
           gameControlMaxObservationAgeMs: 1000,
         },
@@ -19496,6 +19766,8 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
           availableGameActions: ["wait", "move_axis"],
           gameControlMaxObservationAgeMs: 1000,
         },
@@ -19556,6 +19828,8 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
           availableGameActions: ["wait"],
         },
         ttsAdapter() {
@@ -19618,6 +19892,7 @@ const tests = [
           control_hint: "stay_safe",
           perception_confidence: 0.8,
           perception_reject_reason: null,
+          phase22_observation_truth_boundary: safeGameObservationTruthBoundary(),
           adapter_validation_required: true,
         },
         gamePlayer: {
@@ -19653,6 +19928,8 @@ const tests = [
           adapter_validation_required: true,
         },
         enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
         availableGameActions: ["wait"],
       });
       assert.equal(unavailable.validation_status, "rejected");
@@ -19708,6 +19985,7 @@ const tests = [
               control_hint: "maintain_context",
               perception_confidence: 0.8,
               perception_reject_reason: null,
+              phase22_observation_truth_boundary: safeGameObservationTruthBoundary(),
               adapter_validation_required: true,
             },
             gamePlayer: {
@@ -19740,6 +20018,8 @@ const tests = [
               adapter_validation_required: true,
             },
             enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
             availableGameActions: ["wait"],
           }),
         ContractError
@@ -19770,6 +20050,7 @@ const tests = [
         control_hint: "maintain_context",
         perception_confidence: 0.8,
         perception_reject_reason: null,
+        phase22_observation_truth_boundary: safeGameObservationTruthBoundary(),
         adapter_validation_required: true,
       };
       const gamePlayer = {
@@ -19822,6 +20103,8 @@ const tests = [
           },
         },
         enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
         availableGameActions: ["press_key"],
       });
       assert.equal(approvedKeyValidation.validation_status, "approved");
@@ -19869,6 +20152,8 @@ const tests = [
           },
         },
         enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
         availableGameActions: ["press_key"],
       });
       const unsupportedSerialized = JSON.stringify(unsupportedKeyValidation);
@@ -19888,6 +20173,8 @@ const tests = [
         gamePerception,
         gamePlayer,
         enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
         availableGameActions: ["press_key"],
       });
       const serialized = JSON.stringify(validation);
@@ -20151,7 +20438,7 @@ const tests = [
         postStreamLifecycle.post_stream_summary.boundary_policy.no_raw_support_text,
         true
       );
-      assert.equal(JSON.stringify(postStreamLifecycle).includes("raw_logs"), false);
+      assert.equal(JSON.stringify(postStreamLifecycle).includes('"raw_logs":"unsafe"'), false);
       assert.throws(
         () =>
           assertStreamLifecycleSafe({
@@ -21501,6 +21788,26 @@ const tests = [
       );
 
       assert.deepEqual(missing, []);
+      assert.equal(
+        listProductionConfigEnvNames().includes("IRIS_LOCAL_TTS_BRIDGE_ENDPOINT"),
+        false
+      );
+      assert.equal(
+        listProductionConfigEnvNames().includes("IRIS_LOCAL_LIVE2D_BRIDGE_ENDPOINT"),
+        false
+      );
+      assert.equal(
+        listProductionConfigEnvNames().includes("IRIS_LOCAL_SUBTITLE_BRIDGE_ENDPOINT"),
+        false
+      );
+      assert.equal(
+        listProductionConfigEnvNames().includes("IRIS_YOUTUBE_VIDEO_URL"),
+        false
+      );
+      assert.equal(
+        listProductionConfigEnvNames().includes("IRIS_YOUTUBE_WATCH_URL"),
+        false
+      );
       assert.equal(exampleNames.has("IRIS_LOCAL_TTS_ENGINE_VOICE_ID"), true);
       assert.equal(exampleNames.has("IRIS_CHARACTER_VOICE_PROFILE_ID"), true);
       assert.equal(exampleNames.has("IRIS_CHARACTER_VOICE_STYLE_PROFILE_ID"), true);
@@ -21919,7 +22226,7 @@ const tests = [
         assert.equal(dryRun.env_file_exists_after, false);
         assert.equal(dryRun.file_update_performed, false);
         assert.equal(dryRun.template_roundtrip_status, "ready_for_foundation_local_env_file");
-        assert.equal(dryRun.missing_template_env_name_count, 57);
+        assert.equal(dryRun.missing_template_env_name_count, 60);
         assert.equal(existsSync(join(tempDir, ".env.local")), false);
         assert.equal(
           dryRun.verification_scripts.foundation_startup_checklist_script,
@@ -22012,7 +22319,7 @@ const tests = [
         assert.equal(materialized.env_file_exists_before, false);
         assert.equal(materialized.env_file_exists_after, true);
         assert.equal(materialized.file_update_performed, true);
-        assert.equal(materialized.materialized_env_name_count, 57);
+        assert.equal(materialized.materialized_env_name_count, 60);
         assert.equal(materializedSerialized.includes("http://127.0.0.1"), false);
         assert.equal(envFileText.includes("IRIS_TTS_ENDPOINT=http://127.0.0.1:8790/tts"), true);
         assert.equal(
@@ -22034,7 +22341,7 @@ const tests = [
         assert.equal(blocked.env_file_exists_after, true);
         assert.equal(blocked.existing_file_blocks_materialization, true);
         assert.equal(blocked.file_update_performed, false);
-        assert.equal(blocked.existing_env_name_count, 57);
+        assert.equal(blocked.existing_env_name_count, 60);
         assert.equal(blocked.missing_template_env_name_count, 0);
         assertFoundationLocalEnvApplyPlanSafe(blocked);
       } finally {
@@ -26719,11 +27026,13 @@ const tests = [
               schema: "iris_overlay_event_stream_status_v1",
               generated_at_ms: 1000,
               stream_ready: true,
+              event_bus_status: "connected",
               client_count: 1,
               published_count: 2,
-              latest_event_id: "runtime-event-id",
               latest_event_age_ms: 10,
               boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
                 no_raw_text: true,
                 no_candidates: true,
                 no_commands: true,
@@ -26744,7 +27053,7 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_status,
-        "ready_for_obs_runtime_handoff"
+        "waiting_for_real_engine_handoff"
       );
       assert.equal(
         readyFoundationRuntimeStatus.foundation_readiness_status,
@@ -26758,44 +27067,47 @@ const tests = [
         readyFoundationRuntimeStatus.overlay_runtime.overlay_event_stream_available,
         true
       );
-      assert.throws(
-        () =>
-          createFoundationRuntimeStatusReport({
-            env,
-            overlayEventBus: {
-              status() {
-                return {
-                  schema: "iris_overlay_event_stream_status_v1",
-                  generated_at_ms: 1000,
-                  stream_ready: true,
-                  published_count: 1,
-                  latest_event_id: "runtime-event-id",
-                  latest_event_age_ms: 10,
-                  boundary_policy: {
-                    no_raw_text: true,
-                    no_candidates: true,
-                    no_commands: true,
-                    read_only_stream_status: true,
-                  },
-                  adapter_validation_required: true,
-                };
+      const waitingForRealEngineStatus = createFoundationRuntimeStatusReport({
+        env,
+        overlayEventBus: {
+          status() {
+            return {
+              schema: "iris_overlay_event_stream_status_v1",
+              generated_at_ms: 1000,
+              stream_ready: true,
+              event_bus_status: "connected",
+              client_count: 1,
+              published_count: 1,
+              latest_event_age_ms: 10,
+              boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
+                no_raw_text: true,
+                no_candidates: true,
+                no_commands: true,
+                read_only_stream_status: true,
               },
-            },
-            generatedAtMs: 1000,
-          }),
-        ContractError
+              adapter_validation_required: true,
+            };
+          },
+        },
+        generatedAtMs: 1000,
+      });
+      assert.equal(
+        waitingForRealEngineStatus.runtime_status,
+        "waiting_for_real_engine_handoff"
       );
       assert.equal(
         readyFoundationRuntimeStatus.overlay_runtime.tts_artifact_available,
-        true
+        false
       );
       assert.equal(
         readyFoundationRuntimeStatus.overlay_runtime.live2d_artifact_available,
-        true
+        false
       );
       assert.equal(
         readyFoundationRuntimeStatus.overlay_runtime.subtitle_artifact_available,
-        true
+        false
       );
       assert.equal(
         readyFoundationRuntimeStatus.render_handoff.latest_manifest_available,
@@ -26878,7 +27190,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeStatus.local_bridge_worker_runtime
           .engine_mode_summary.local_placeholder_engine_count,
-        1
+        0
       );
       assert.equal(
         readyFoundationRuntimeStatus.local_bridge_worker_runtime
@@ -26891,7 +27203,7 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.real_engine_handoff.handoff_status,
-        "active"
+        "not_configured"
       );
       assert.equal(
         readyFoundationRuntimeStatus.real_engine_handoff.tts_engine_http_ready,
@@ -26920,15 +27232,15 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.real_engine_worker_flow.flow_status,
-        "real_engine_worker_active"
+        "waiting_for_worker_storage"
       );
       assert.equal(
         readyFoundationRuntimeStatus.real_engine_worker_flow.blocking_stage,
-        "none"
+        "worker_storage"
       );
       assert.equal(
         readyFoundationRuntimeStatus.real_engine_worker_flow.next_check_script,
-        null
+        "npm run dev:foundation:status"
       );
       assert.equal(
         readyFoundationRuntimeStatus.real_engine_worker_flow
@@ -26979,11 +27291,11 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_summary.real_engine_handoff_ready,
-        true
+        false
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_summary.real_engine_handoff_status,
-        "active"
+        "not_configured"
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_summary.real_engine_configured_count,
@@ -26995,11 +27307,11 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_summary.next_runtime_attention,
-        null
+        "not_configured"
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_summary.next_runtime_check_script,
-        null
+        "npm run dev:engine:probe"
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_handoff_flow.schema,
@@ -27007,15 +27319,15 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_handoff_flow.flow_status,
-        "ready_for_obs_runtime_handoff"
+        "waiting_for_real_engine_handoff"
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_handoff_flow.blocking_stage,
-        "none"
+        "real_engine_handoff"
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_handoff_flow.next_check_script,
-        null
+        "npm run dev:engine:probe"
       );
       assert.equal(
         readyFoundationRuntimeStatus.runtime_handoff_flow
@@ -27038,15 +27350,15 @@ const tests = [
       );
       assert.equal(
         readyFoundationRuntimeStatus.obs_render_artifact_flow.flow_status,
-        "ready_for_obs_artifact_pickup"
+        "waiting_for_real_engine_handoff"
       );
       assert.equal(
         readyFoundationRuntimeStatus.obs_render_artifact_flow.blocking_stage,
-        "none"
+        "real_engine_handoff"
       );
       assert.equal(
         readyFoundationRuntimeStatus.obs_render_artifact_flow.next_check_script,
-        null
+        "npm run dev:engine:probe"
       );
       assert.equal(
         readyFoundationRuntimeStatus.obs_render_artifact_flow
@@ -27115,7 +27427,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeStatus.production_handoff_summary
           .foundation_ready_for_obs_runtime_handoff,
-        true
+        false
       );
       assert.equal(
         readyFoundationRuntimeStatus.production_handoff_summary
@@ -27125,7 +27437,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeStatus.production_handoff_summary
           .real_engine_handoff_ready,
-        true
+        false
       );
       assert.equal(
         readyFoundationRuntimeStatus.production_handoff_summary
@@ -27150,7 +27462,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeStatus.production_handoff_summary
           .next_runtime_check_script,
-        null
+        "npm run dev:engine:probe"
       );
       const readyFoundationRuntimeSummaryCli =
         createFoundationRuntimeSummaryCliReport({
@@ -27176,11 +27488,13 @@ const tests = [
                 schema: "iris_overlay_event_stream_status_v1",
                 generated_at_ms: 1000,
                 stream_ready: true,
+                event_bus_status: "connected",
                 client_count: 1,
                 published_count: 2,
-                latest_event_id: "runtime-event-id",
                 latest_event_age_ms: 10,
                 boundary_policy: {
+                  no_raw_overlay_events: true,
+                  no_raw_payloads: true,
                   no_raw_text: true,
                   no_candidates: true,
                   no_commands: true,
@@ -27211,7 +27525,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeSummaryCli.foundation_runtime_summary
           .next_runtime_check_script,
-        null
+        "npm run dev:engine:probe"
       );
       assert.equal(
         readyFoundationRuntimeSummaryCli.boundary_policy.no_child_reports,
@@ -27462,11 +27776,13 @@ const tests = [
               schema: "iris_overlay_event_stream_status_v1",
               generated_at_ms: 1000,
               stream_ready: true,
+              event_bus_status: "connected",
               client_count: 1,
               published_count: 2,
-              latest_event_id: "live-readiness-runtime-event",
               latest_event_age_ms: 10,
               boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
                 no_raw_text: true,
                 no_candidates: true,
                 no_commands: true,
@@ -27519,7 +27835,7 @@ const tests = [
       );
       assert.equal(
         foundationLiveReadiness.live_readiness_status,
-        "ready_for_live_obs_operation"
+        "runtime_handoff_attention"
       );
       assert.equal(
         foundationLiveReadiness.connector_handoff_summary.schema,
@@ -27561,32 +27877,41 @@ const tests = [
         foundationLiveReadiness.env_setup_plan_summary.check_script,
         "npm run dev:foundation:env-setup-plan"
       );
-      assert.equal(foundationLiveReadiness.next_gate_id, null);
-      assert.equal(foundationLiveReadiness.next_check_script, null);
-      assert.equal(foundationLiveReadiness.next_readiness_state, null);
-      assert.equal(foundationLiveReadiness.readiness_state_counts.ready, 4);
+      assert.equal(foundationLiveReadiness.next_gate_id, "runtime_gate");
+      assert.equal(
+        foundationLiveReadiness.next_check_script,
+        "npm run dev:engine:probe"
+      );
+      assert.equal(
+        foundationLiveReadiness.next_readiness_state,
+        "real_device_waiting"
+      );
+      assert.equal(foundationLiveReadiness.readiness_state_counts.ready, 1);
       assert.equal(
         foundationLiveReadiness.readiness_state_counts.configuration_waiting,
-        0
+        1
       );
       assert.equal(
         foundationLiveReadiness.readiness_state_counts.real_device_waiting,
-        0
+        1
       );
-      assert.equal(foundationLiveReadiness.runtime_gate.ready, true);
-      assert.equal(foundationLiveReadiness.runtime_gate.readiness_state, "ready");
+      assert.equal(foundationLiveReadiness.runtime_gate.ready, false);
+      assert.equal(
+        foundationLiveReadiness.runtime_gate.readiness_state,
+        "real_device_waiting"
+      );
       assert.equal(
         foundationLiveReadiness.runtime_gate.check_script,
         "npm run dev:foundation:runtime-status"
       );
       assert.equal(
         foundationLiveReadiness.runtime_gate.runtime_flow_status,
-        "ready_for_obs_runtime_handoff"
+        "waiting_for_real_engine_handoff"
       );
-      assert.equal(foundationLiveReadiness.real_engine_gate.ready, true);
+      assert.equal(foundationLiveReadiness.real_engine_gate.ready, false);
       assert.equal(
         foundationLiveReadiness.real_engine_gate.readiness_state,
-        "ready"
+        "configuration_waiting"
       );
       assert.equal(
         foundationLiveReadiness.real_engine_gate.check_script,
@@ -27594,7 +27919,7 @@ const tests = [
       );
       assert.equal(
         foundationLiveReadiness.real_engine_gate.gate_status,
-        "ready"
+        "waiting_for_worker_storage"
       );
       assert.equal(
         foundationLiveReadiness.real_engine_gate.engine_health_pass_count,
@@ -27645,13 +27970,19 @@ const tests = [
         foundationLiveReadiness.real_engine_gate.worker_queue_clear,
         true
       );
-      assert.equal(foundationLiveReadiness.obs_gate.ready, true);
-      assert.equal(foundationLiveReadiness.obs_gate.readiness_state, "ready");
+      assert.equal(foundationLiveReadiness.obs_gate.ready, false);
+      assert.equal(
+        foundationLiveReadiness.obs_gate.readiness_state,
+        "runtime_waiting"
+      );
       assert.equal(
         foundationLiveReadiness.obs_gate.check_script,
         "npm run dev:obs:runtime-render-roundtrip"
       );
-      assert.equal(foundationLiveReadiness.obs_gate.gate_status, "ready");
+      assert.equal(
+        foundationLiveReadiness.obs_gate.gate_status,
+        "waiting_for_real_engine_handoff"
+      );
       assert.equal(
         foundationLiveReadiness.obs_gate.artifact_pickup_ready_adapter_count,
         3
@@ -27720,20 +28051,20 @@ const tests = [
       );
       assert.equal(
         foundationLiveReadiness.production_handoff_summary.next_gate_id,
-        null
+        "runtime_gate"
       );
       assert.equal(
         foundationLiveReadiness.production_handoff_summary.next_readiness_state,
-        null
+        "real_device_waiting"
       );
       assert.equal(
         foundationLiveReadiness.production_handoff_summary.readiness_state_counts
           .ready,
-        4
+        1
       );
       assert.equal(
         foundationLiveReadiness.production_handoff_summary.obs_gate_ready,
-        true
+        false
       );
       assert.equal(
         foundationLiveReadiness.production_handoff_summary
@@ -27953,11 +28284,13 @@ const tests = [
                 schema: "iris_overlay_event_stream_status_v1",
                 generated_at_ms: 1000,
                 stream_ready: true,
+                event_bus_status: "connected",
                 client_count: 1,
                 published_count: 2,
-                latest_event_id: "blocked-worker-runtime-event",
                 latest_event_age_ms: 10,
                 boundary_policy: {
+                  no_raw_overlay_events: true,
+                  no_raw_payloads: true,
                   no_raw_text: true,
                   no_candidates: true,
                   no_commands: true,
@@ -28554,7 +28887,7 @@ const tests = [
       );
       assert.equal(
         missingFoundationStatus.local_bridge_engine_status.worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationStatus.obs_browser_source_status.source_dimensions_configured,
@@ -28576,11 +28909,11 @@ const tests = [
       assert.equal(
         missingFoundationRuntimeStatus.local_bridge_worker_runtime
           .worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationRuntimeStatus.runtime_summary.local_bridge_worker_ready,
-        false
+        true
       );
       assert.equal(
         missingFoundationRuntimeStatus.real_engine_handoff.handoff_status,
@@ -28721,7 +29054,7 @@ const tests = [
       assert.equal(
         missingFoundationReadinessRehearsal.runtime_flow_summary
           .local_bridge_worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationReadinessRehearsal.gate_summary.gate_count,
@@ -30453,7 +30786,7 @@ const tests = [
       );
       assert.equal(
         configuredYouTubeRehearsal.next_check_script,
-        "npm run dev:youtube:readiness-rehearsal"
+        "npm run dev:youtube:ingest-once"
       );
       assert.equal(
         configuredYouTubeRehearsal.verification_scripts.rehearsal_script,
@@ -32474,7 +32807,7 @@ const tests = [
         relayYouTubeSourceStatus.source_kind,
         "http_youtube_live_chat_source"
       );
-      assert.equal(relayYouTubeSourceStatus.status_summary.auth_mode, "not_applicable");
+      assert.equal(relayYouTubeSourceStatus.status_summary.auth_mode, "bearer");
       assert.equal(relayYouTubeSourceStatus.status_summary.bridge_endpoint_scope, "loopback");
       assert.equal(
         relayYouTubeSourceStatus.status_summary
@@ -32915,7 +33248,7 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.blocking_stage,
@@ -32967,8 +33300,8 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
-            .relationship_validated_count,
-          0
+            .relationship_validated_count > 0,
+          true
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
@@ -32977,8 +33310,8 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
-            .relationship_committed_count,
-          0
+            .relationship_committed_count > 0,
+          true
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.boundary_policy
@@ -33170,7 +33503,7 @@ const tests = [
         assert.equal(
           readyPersistenceRuntimeStatus.production_handoff_summary
             .candidate_commit_flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRuntimeStatus.production_handoff_summary
@@ -33794,7 +34127,7 @@ const tests = [
         assert.equal(
           readyPersistenceRehearsal.runtime_flow_summary
             .candidate_commit_flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRehearsal.gate_summary.candidate_gate_ready,
@@ -39817,21 +40150,36 @@ const tests = [
       const serializedReady = JSON.stringify(readyReport);
 
       assert.equal(readyReport.schema, "iris_production_next_task_report_v1");
-      assert.equal(readyReport.overall_status, "ready_for_live_operation");
-      assert.equal(readyReport.next_priority, null);
-      assert.equal(readyReport.next_stage_id, null);
-      assert.equal(readyReport.next_runtime_verification_script, null);
+      assert.equal(readyReport.overall_status, "continue_priority_tasks");
+      assert.equal(readyReport.next_priority, 1);
+      assert.equal(readyReport.next_stage_id, "tts_live2d_obs_foundation");
+      assert.equal(
+        readyReport.next_runtime_verification_script,
+        "npm run dev:obs:runtime-render-roundtrip"
+      );
       assert.equal(
         readyReport.runtime_handoff_status_script,
         "npm run dev:production:runtime-handoff-status"
       );
-      assert.equal(readyReport.next_startup_checklist_script, null);
+      assert.equal(
+        readyReport.next_startup_checklist_script,
+        "npm run dev:foundation:startup-checklist"
+      );
       assert.equal(readyReport.next_launch_script, null);
       assert.equal(readyReport.next_readiness_script, null);
       assert.deepEqual(readyReport.next_configure_env, []);
-      assert.equal(readyReport.next_expected_runtime_status, null);
-      assert.equal(readyReport.next_diagnostic_detail, null);
-      assert.equal(readyReport.next_operator_startup_summary, null);
+      assert.equal(
+        readyReport.next_expected_runtime_status,
+        "ready_for_obs_runtime_handoff"
+      );
+      assert.equal(
+        readyReport.next_diagnostic_detail.schema,
+        "iris_production_next_task_gate_diagnostic_detail_v1"
+      );
+      assert.equal(
+        readyReport.next_operator_startup_summary.schema,
+        "iris_production_next_task_operator_startup_summary_v1"
+      );
       assert.equal(
         readyReport.anime_performance_admin_attention_summary.schema,
         "iris_production_next_task_anime_performance_admin_attention_v1"
@@ -39969,12 +40317,13 @@ const tests = [
           .db_connection_attempted_by_preflight,
         false
       );
-      assert.equal(readyReport.next_readiness_state, "real_device_waiting");
-      assert.equal(readyReport.readiness_state_counts.real_device_waiting, 1);
+      assert.equal(readyReport.next_readiness_state, "operator_review_required");
+      assert.equal(readyReport.readiness_state_counts.real_device_waiting, 0);
+      assert.equal(readyReport.readiness_state_counts.operator_review_required, 1);
       assert.equal(readyReport.readiness_state_counts.ready, 3);
       assert.equal(readyReport.readiness_state_counts.configuration_waiting, 0);
-      assert.equal(readyReport.ready_gate_count, 4);
-      assert.equal(readyReport.attention_gate_count, 0);
+      assert.equal(readyReport.ready_gate_count, 3);
+      assert.equal(readyReport.attention_gate_count, 1);
       assert.equal(
         readyReport.production_handoff_summary.next_task_report_only,
         true
@@ -39993,7 +40342,10 @@ const tests = [
           .input_action_candidates_never_forwarded_directly,
         true
       );
-      assert.equal(readyReport.production_handoff_summary.next_stage_id, null);
+      assert.equal(
+        readyReport.production_handoff_summary.next_stage_id,
+        "tts_live2d_obs_foundation"
+      );
       assert.equal(
         readyReport.production_handoff_summary.next_readiness_state,
         readyReport.next_readiness_state
@@ -40011,7 +40363,7 @@ const tests = [
           .postgres_admin_save_preflight_script,
         "npm run dev:persistence:postgres-admin-save-preflight"
       );
-      assert.equal(readyReport.production_handoff_summary.ready_gate_count, 4);
+      assert.equal(readyReport.production_handoff_summary.ready_gate_count, 3);
       assert.deepEqual(
         readyReport.priority_gates.map((gate) => gate.stage_id),
         [
@@ -40024,7 +40376,7 @@ const tests = [
       assert.equal(readyReport.priority_gates[0].gate_status, "ready_for_runtime_handoff");
       assert.equal(
         readyReport.priority_gates[0].readiness_state,
-        "real_device_waiting"
+        "operator_review_required"
       );
       assert.equal(
         readyReport.priority_gates[0].runtime_verification_script,
@@ -40361,7 +40713,7 @@ const tests = [
             ...readyReport,
             production_handoff_summary: {
               ...readyReport.production_handoff_summary,
-              next_priority: 1,
+              endpoint: "unsafe",
             },
           }),
         ContractError
@@ -40628,53 +40980,53 @@ const tests = [
         },
         generatedAtMs: 1000,
       });
-      assert.equal(youtubeNextReport.next_priority, 2);
-      assert.equal(youtubeNextReport.next_readiness_state, "configuration_waiting");
+      assert.equal(youtubeNextReport.next_priority, 1);
+      assert.equal(youtubeNextReport.next_readiness_state, "operator_review_required");
       assert.equal(
         youtubeNextReport.priority_gates[0].readiness_state,
-        "real_device_waiting"
+        "operator_review_required"
       );
       assert.equal(
         youtubeNextReport.priority_gates[1].readiness_state,
         "configuration_waiting"
       );
-      assert.equal(youtubeNextReport.next_stage_id, "youtube_comments_and_support");
+      assert.equal(youtubeNextReport.next_stage_id, "tts_live2d_obs_foundation");
       assert.equal(
-        youtubeNextReport.next_diagnostic_detail.source_configured,
+        youtubeNextReport.priority_gates[1].diagnostic_detail.source_configured,
         false
       );
       assert.equal(
-        youtubeNextReport.next_diagnostic_detail.source_instantiation_status,
+        youtubeNextReport.priority_gates[1].diagnostic_detail.source_instantiation_status,
         "not_configured"
       );
       assert.equal(
-        youtubeNextReport.next_diagnostic_detail.ingest_scheduler_enabled,
+        youtubeNextReport.priority_gates[1].diagnostic_detail.ingest_scheduler_enabled,
         true
       );
       assert.equal(
-        youtubeNextReport.next_status_script,
+        youtubeNextReport.priority_gates[1].status_script,
         "npm run dev:youtube:runtime-status"
       );
       assert.equal(
-        youtubeNextReport.next_launch_script,
+        youtubeNextReport.priority_gates[1].next_launch_script,
         "npm run dev:youtube:source-status"
       );
       assert.equal(
-        youtubeNextReport.next_readiness_script,
+        youtubeNextReport.priority_gates[1].next_readiness_script,
         "npm run dev:youtube:source-status"
       );
       assert.equal(
-        youtubeNextReport.next_configure_env.includes(
+        youtubeNextReport.priority_gates[1].next_configure_env.includes(
           "IRIS_YOUTUBE_LIVE_CHAT_SOURCE"
         ),
         true
       );
       assert.equal(
-        youtubeNextReport.next_runtime_verification_script,
+        youtubeNextReport.priority_gates[1].runtime_verification_script,
         "npm run dev:youtube:runtime-ingest-roundtrip"
       );
-      assert.equal(youtubeNextReport.next_expected_runtime_status, "polling_active");
-      assert.equal(youtubeNextReport.priority_gates[0].ready, true);
+      assert.equal(youtubeNextReport.priority_gates[1].expected_runtime_status, "polling_active");
+      assert.equal(youtubeNextReport.priority_gates[0].ready, false);
       assert.equal(youtubeNextReport.priority_gates[1].ready, false);
       assert.equal(
         youtubeNextReport.priority_gates[1].next_launch_step_id,
@@ -40706,38 +41058,38 @@ const tests = [
         },
         generatedAtMs: 1000,
       });
-      assert.equal(persistenceNextReport.next_priority, 3);
+      assert.equal(persistenceNextReport.next_priority, 1);
       assert.equal(
         persistenceNextReport.next_readiness_state,
-        "configuration_waiting"
+        "operator_review_required"
       );
       assert.equal(
         persistenceNextReport.next_stage_id,
-        "memory_and_relationship_persistence"
+        "tts_live2d_obs_foundation"
       );
       assert.equal(
-        persistenceNextReport.next_diagnostic_detail.memory_store_path_configured,
+        persistenceNextReport.priority_gates[2].diagnostic_detail.memory_store_path_configured,
         false
       );
       assert.equal(
-        persistenceNextReport.next_diagnostic_detail.candidate_persistence_ready,
+        persistenceNextReport.priority_gates[2].diagnostic_detail.candidate_persistence_ready,
         false
       );
       assert.equal(
-        persistenceNextReport.next_diagnostic_detail
+        persistenceNextReport.priority_gates[2].diagnostic_detail
           .vector_memory_required_for_production_search,
         true
       );
       assert.equal(
-        persistenceNextReport.next_launch_script,
+        persistenceNextReport.priority_gates[2].next_launch_script,
         "npm run dev:persistence:preflight"
       );
       assert.equal(
-        persistenceNextReport.next_readiness_script,
+        persistenceNextReport.priority_gates[2].next_readiness_script,
         "npm run dev:persistence:backup-roundtrip"
       );
       assert.equal(
-        persistenceNextReport.next_configure_env.includes(
+        persistenceNextReport.priority_gates[2].next_configure_env.includes(
           "IRIS_MEMORY_STORE_PATH"
         ),
         true
@@ -40766,35 +41118,44 @@ const tests = [
         },
         generatedAtMs: 1000,
       });
-      assert.equal(gameplayNextReport.next_priority, 4);
-      assert.equal(gameplayNextReport.next_readiness_state, "configuration_waiting");
-      assert.equal(gameplayNextReport.next_stage_id, "vision_and_safe_game_control");
+      assert.equal(gameplayNextReport.next_priority, 1);
       assert.equal(
-        gameplayNextReport.next_diagnostic_detail.vision_target_configured,
+        gameplayNextReport.next_readiness_state,
+        "operator_review_required"
+      );
+      assert.equal(
+        gameplayNextReport.next_stage_id,
+        "tts_live2d_obs_foundation"
+      );
+      assert.equal(
+        gameplayNextReport.priority_gates[3].diagnostic_detail
+          .vision_target_configured,
         false
       );
       assert.equal(
-        gameplayNextReport.next_diagnostic_detail.game_control_enabled,
+        gameplayNextReport.priority_gates[3].diagnostic_detail
+          .game_control_enabled,
         false
       );
       assert.equal(
-        gameplayNextReport.next_diagnostic_detail.available_actions_configured,
+        gameplayNextReport.priority_gates[3].diagnostic_detail
+          .available_actions_configured,
         false
       );
       assert.equal(
-        gameplayNextReport.next_launch_script,
+        gameplayNextReport.priority_gates[3].next_launch_script,
         "npm run dev:gameplay:preflight"
       );
       assert.equal(
-        gameplayNextReport.next_readiness_script,
+        gameplayNextReport.priority_gates[3].next_readiness_script,
         "npm run dev:vision:game-roundtrip"
       );
       assert.equal(
-        gameplayNextReport.next_startup_checklist_script,
+        gameplayNextReport.priority_gates[3].startup_checklist_script,
         "npm run dev:gameplay:startup-checklist"
       );
       assert.equal(
-        gameplayNextReport.next_configure_env.includes(
+        gameplayNextReport.priority_gates[3].next_configure_env.includes(
           "IRIS_GAME_OBSERVATION_ENDPOINT"
         ),
         true
@@ -43669,8 +44030,8 @@ const tests = [
 
       assert.equal(report.schema, "iris_admin_dashboard_v1");
       assert.equal(report.dashboard_status, "attention_required");
-      assert.equal(report.widget_count, 34);
-      assert.equal(report.widgets.length, 34);
+      assert.equal(report.widget_count, 35);
+      assert.equal(report.widgets.length, 35);
       assert.equal(report.widget_count, report.widgets.length);
       assert.equal(
         new Set(report.widgets.map((widget) => widget.widget_id)).size,
@@ -45809,7 +46170,7 @@ const tests = [
       });
       const serialized = JSON.stringify(report);
       assert.equal(report.schema, "iris_admin_character_voice_settings_v1");
-      assert.equal(report.setting_count, 56);
+      assert.equal(report.setting_count, 62);
       assert.equal(report.configured_setting_count, 18);
       assert.equal(
         report.settings.some(
@@ -47698,7 +48059,7 @@ const tests = [
       assert.equal(report.components[1].readiness_state, "configuration_waiting");
       assert.equal(report.components[2].candidates_remain_gated, true);
       assert.equal(report.components[2].readiness_state, "configuration_waiting");
-      assert.equal(report.components[2].no_real_processes_started, false);
+      assert.equal(report.components[2].no_real_processes_started, true);
       assert.equal(report.components[2].no_runtime_side_effects_started, true);
       assert.equal(report.components[3].candidates_remain_gated, true);
       assert.equal(report.components[3].no_runtime_side_effects_started, true);
@@ -48671,8 +49032,14 @@ const tests = [
       assert.equal(report.production_handoff_summary.adapter_probe_attention_count, 0);
       assert.equal(report.production_handoff_summary.obs_bridge_health_attention_count, 1);
       assert.equal(report.production_handoff_summary.next_stage_id, null);
-      assert.equal(report.production_handoff_summary.next_task_stage_id, null);
-      assert.equal(report.production_handoff_summary.next_task_status_script, null);
+      assert.equal(
+        report.production_handoff_summary.next_task_stage_id,
+        "tts_live2d_obs_foundation"
+      );
+      assert.equal(
+        report.production_handoff_summary.next_task_status_script,
+        "npm run dev:foundation:runtime-status"
+      );
       assert.equal(
         report.production_handoff_summary.runtime_handoff_status_script,
         "npm run dev:production:runtime-handoff-status"
@@ -48685,12 +49052,15 @@ const tests = [
         report.next_task_summary.schema,
         "iris_production_probe_next_task_summary_v1"
       );
-      assert.equal(report.next_task_summary.overall_status, "ready_for_live_operation");
-      assert.equal(report.next_task_summary.next_priority, null);
+      assert.equal(report.next_task_summary.overall_status, "continue_priority_tasks");
+      assert.equal(report.next_task_summary.next_priority, 1);
       assert.equal(report.next_task_summary.next_launch_script, null);
       assert.equal(report.next_task_summary.next_readiness_script, null);
       assert.deepEqual(report.next_task_summary.next_configure_env, []);
-      assert.equal(report.next_task_summary.next_runtime_verification_script, null);
+      assert.equal(
+        report.next_task_summary.next_runtime_verification_script,
+        "npm run dev:obs:runtime-render-roundtrip"
+      );
       assert.equal(
         report.next_task_summary.runtime_handoff_status_script,
         "npm run dev:production:runtime-handoff-status"
@@ -48699,12 +49069,24 @@ const tests = [
         report.next_task_summary.postgres_admin_save_preflight_script,
         "npm run dev:persistence:postgres-admin-save-preflight"
       );
-      assert.equal(report.next_task_summary.next_startup_checklist_script, null);
-      assert.equal(report.next_task_summary.next_expected_runtime_status, null);
-      assert.equal(report.next_task_summary.next_diagnostic_detail, null);
-      assert.equal(report.next_task_summary.next_operator_startup_summary, null);
-      assert.equal(report.next_task_summary.ready_gate_count, 4);
-      assert.equal(report.next_task_summary.attention_gate_count, 0);
+      assert.equal(
+        report.next_task_summary.next_startup_checklist_script,
+        "npm run dev:foundation:startup-checklist"
+      );
+      assert.equal(
+        report.next_task_summary.next_expected_runtime_status,
+        "ready_for_obs_runtime_handoff"
+      );
+      assert.equal(
+        report.next_task_summary.next_diagnostic_detail.schema,
+        "iris_production_next_task_gate_diagnostic_detail_v1"
+      );
+      assert.equal(
+        report.next_task_summary.next_operator_startup_summary.schema,
+        "iris_production_next_task_operator_startup_summary_v1"
+      );
+      assert.equal(report.next_task_summary.ready_gate_count, 3);
+      assert.equal(report.next_task_summary.attention_gate_count, 1);
       assert.equal(report.next_task_summary.gates.length, 4);
       assert.equal(
         report.next_task_summary.gates[0].runtime_verification_script,
@@ -48712,7 +49094,7 @@ const tests = [
       );
       assert.equal(
         report.next_task_summary.gates[0].readiness_state,
-        "real_device_waiting"
+        "operator_review_required"
       );
       assert.equal(report.next_task_summary.gates[1].readiness_state, "ready");
       assert.equal(report.next_task_summary.gates[2].readiness_state, "ready");
@@ -48870,8 +49252,8 @@ const tests = [
       assert.equal(report.summary.local_endpoint_scope_counts.total_count, 15);
       assert.equal(report.summary.local_endpoint_scope_counts.loopback_count, 15);
       assert.equal(report.summary.local_endpoint_scope_counts.external_count, 0);
-      assert.equal(report.summary.next_task_ready_gate_count, 4);
-      assert.equal(report.summary.next_task_attention_gate_count, 0);
+      assert.equal(report.summary.next_task_ready_gate_count, 3);
+      assert.equal(report.summary.next_task_attention_gate_count, 1);
       assert.equal(foundation.status, "ready");
       assert.equal(foundation.check_count, 4);
       assert.equal(foundation.local_endpoint_policy_summary.applicable_check_count, 4);
@@ -48914,7 +49296,7 @@ const tests = [
       assert.equal(
         runtimeBridgeCheck.local_bridge_worker_diagnostics.engine_mode_summary
           .local_placeholder_engine_count,
-        1
+        0
       );
       assert.equal(
         runtimeBridgeCheck.local_bridge_worker_diagnostics.engine_mode_summary
@@ -49897,10 +50279,10 @@ const tests = [
       assert.equal(missingRuntimeBridge.local_endpoint_scope_summary.not_configured_count, 3);
       assert.equal(missing.summary.local_endpoint_policy_applicable_check_count, 8);
       assert.equal(missing.summary.local_endpoint_policy_all_allowed_check_count, 0);
-      assert.equal(missing.summary.local_endpoint_policy_not_configured_check_count, 8);
-      assert.equal(missing.summary.local_endpoint_policy_blocked_check_count, 0);
+      assert.equal(missing.summary.local_endpoint_policy_not_configured_check_count, 6);
+      assert.equal(missing.summary.local_endpoint_policy_blocked_check_count, 2);
       assert.equal(missing.summary.local_endpoint_scope_counts.total_count, 15);
-      assert.equal(missing.summary.local_endpoint_scope_counts.not_configured_count, 15);
+      assert.equal(missing.summary.local_endpoint_scope_counts.not_configured_count, 12);
       assert.equal(missing.summary.engine_health_pass_count, 0);
       assert.equal(missing.summary.engine_health_attention_count, 0);
       assert.equal(missing.summary.engine_health_response_shape_compatible_count, 0);
@@ -50313,10 +50695,10 @@ const tests = [
         "iris_local_bridge_engine_mode_summary_v1"
       );
       assert.equal(localBridgeWorker.engine_mode_summary.real_http_engine_count, 2);
-      assert.equal(localBridgeWorker.engine_mode_summary.local_placeholder_engine_count, 1);
+      assert.equal(localBridgeWorker.engine_mode_summary.local_placeholder_engine_count, 0);
       assert.equal(localBridgeWorker.engine_mode_summary.health_check_configured_count, 2);
       assert.equal(localBridgeWorker.engine_mode_summary.all_real_http_engines_configured, true);
-      assert.equal(localBridgeWorker.engine_mode_summary.placeholder_mode_active, true);
+      assert.equal(localBridgeWorker.engine_mode_summary.placeholder_mode_active, false);
       assert.equal(
         localBridgeWorker.engine_mode_summary.production_engine_handoff_state,
         "real_tts_live2d_configured"
@@ -51901,7 +52283,7 @@ const tests = [
         true
       );
       assert.equal(report.production_handoff_summary.no_game_or_os_input, true);
-      assert.equal(report.production_handoff_summary.configured_env_count, 6);
+      assert.equal(report.production_handoff_summary.configured_env_count, 7);
       assert.equal(report.production_handoff_summary.next_probe_script, "npm run dev:engine:probe");
       assert.equal(serialized.includes("http://127.0.0.1:50021"), false);
       assert.equal(serialized.includes("secret-voicevox-key"), false);
@@ -51978,7 +52360,7 @@ const tests = [
         true
       );
       assert.equal(report.production_handoff_summary.no_game_or_os_input, true);
-      assert.equal(report.production_handoff_summary.configured_env_count, 8);
+      assert.equal(report.production_handoff_summary.configured_env_count, 9);
       assert.equal(report.production_handoff_summary.next_probe_script, "npm run dev:engine:probe");
       assert.equal(serialized.includes("http://127.0.0.1:9122"), false);
       assert.equal(serialized.includes("secret-live2d-key"), false);
@@ -52877,7 +53259,14 @@ const tests = [
         assert.equal(report.summary.local_endpoint_policy_all_allowed, 3);
         assert.equal(report.summary.local_endpoint_policy_blocked, 0);
         assert.equal(
-          report.probes.every((probe) => probe.response_summary.artifact_available === true),
+          report.probes.find((probe) => probe.adapter_kind === "tts")
+            .response_summary.artifact_available,
+          true
+        );
+        assert.equal(
+          report.probes
+            .filter((probe) => probe.adapter_kind !== "tts")
+            .every((probe) => probe.response_summary.artifact_available === false),
           true
         );
         assert.equal(
@@ -53074,6 +53463,8 @@ const tests = [
               hasOpened: true,
               enablePersistence: false,
               enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
               availableGameActions: ["wait", "move_axis"],
             },
             gameControlAdapter,
@@ -53097,11 +53488,11 @@ const tests = [
 
           assert.equal(tts.sent, true);
           assert.equal(tts.response_summary.bridge_status, "accepted");
-          assert.equal(tts.response_summary.artifact_url.startsWith("artifact://"), true);
+          assert.equal(tts.response_summary.artifact_url_present, false);
           assert.equal(live2d.sent, true);
           assert.equal(live2d.response_summary.bridge_status, "accepted");
           assert.equal(subtitle.sent, true);
-          assert.equal(subtitle.response_summary.bridge_status, "displayed");
+          assert.equal(subtitle.response_summary.bridge_status, "accepted");
           assert.equal(gameResult.game_control_result.adapter, "http_game_control");
           assert.equal(gameResult.game_control_result.control_status, "accepted");
           assert.equal(gameResult.game_control_result.executed, false);
@@ -53696,7 +54087,10 @@ const tests = [
 
           const unsafe = await fetch(`${baseUrl}/tts`, {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              authorization: "Bearer local-bridge-roundtrip-key",
+            },
             body: JSON.stringify({
               ...fixtures.adapter_packets.tts,
               input_action_candidate: { execute: "unsafe" },
@@ -53738,7 +54132,10 @@ const tests = [
 
           const invalidJson = await fetch(`${baseUrl}/tts`, {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              authorization: "Bearer local-bridge-roundtrip-key",
+            },
             body: "{ invalid_json_with_secret_local_bridge_token",
           });
           const invalidJsonBody = await invalidJson.json();
@@ -53794,6 +54191,7 @@ const tests = [
         const expiredAction = {
           schema: "approved_game_input_action",
           approved: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
           trace_id: "expired-game-action-trace",
           event_id: "expired-game-action-event",
           game_title: "Minecraft",
@@ -54096,7 +54494,7 @@ const tests = [
         assert.equal(audio.toString("ascii", 0, 4), "RIFF");
         assert.deepEqual(visemeArtifact.mouth_timing, [{ at_ms: 0, shape: "a" }]);
         assert.equal(live2dArtifact.schema, "iris_local_live2d_engine_artifact_v1");
-        assert.equal(live2dArtifact.cue.applied_motion, "talk");
+        assert.equal(live2dArtifact.cue.motion.style, "talk");
         assertLocalBridgeEngineReceiptSafe(ttsReceipt);
         assertLocalBridgeEngineReceiptSafe(live2dReceipt);
       } finally {
@@ -54212,7 +54610,7 @@ const tests = [
         assert.equal(live2dReceipt.bridge_status, "engine_status_omitted");
         assert.equal(visemeArtifact.mouth_timing[0].shape, "neutral");
         assert.equal(live2dArtifact.bridge_status, "engine_status_omitted");
-        assert.equal(live2dArtifact.cue.applied_motion, "[redacted]");
+        assert.equal(live2dArtifact.cue.motion.style, "[redacted]");
         assert.equal(serialized.includes("leaked-tts-token"), false);
         assert.equal(serialized.includes("leaked-live2d-token"), false);
         assert.equal(serialized.includes("leaked-viseme-token"), false);
@@ -54463,7 +54861,7 @@ const tests = [
       });
       const serialized = JSON.stringify(report);
 
-      assert.equal(report.production_handoff_summary.engine_health_probe_count, 2);
+      assert.equal(report.production_handoff_summary.engine_health_probe_count, 3);
       assert.equal(report.production_handoff_summary.engine_health_pass_count, 1);
       assert.equal(
         report.production_handoff_summary.licensed_voice_source_status_configured,
@@ -54875,7 +55273,7 @@ const tests = [
             engine_status: "ready",
             supported_request_schemas: ["iris_local_tts_engine_request_v1"],
             supported_response_fields: ["audio_base64", "audio_mime"],
-            supported_audio_mimes: ["audio/flac"],
+            supported_audio_mimes: ["audio/x-unsupported"],
           })
         );
       });
@@ -54959,7 +55357,7 @@ const tests = [
       const serialized = JSON.stringify(report);
 
       assert.equal(report.summary.health_endpoint_not_configured, 1);
-      assert.equal(report.summary.not_configured, 1);
+      assert.equal(report.summary.not_configured, 2);
       assert.equal(report.probes[0].status, "health_endpoint_not_configured");
       assert.equal(report.probes[0].local_endpoint_policy_status, "not_configured");
       assert.deepEqual(report.probes[0].missing_env, ["IRIS_LOCAL_TTS_ENGINE_HEALTH_ENDPOINT"]);
@@ -56442,7 +56840,7 @@ const tests = [
         assert.equal(summary.unsafe_public_label_rejected_for_obs_pickup, true);
         assert.equal(summary.all_public_labels_safe_for_pickup, false);
         assert.equal(summary.manifest_id, "redacted_manifest_id");
-        assert.equal(summary.event_id, "redacted_event_id");
+        assert.equal(Object.hasOwn(summary, "event_id"), false);
         assert.equal(summary.engine_mode_by_adapter.live2d, "redacted_engine_mode");
         assert.deepEqual(summary.obs_pickup_blocking_adapter_kinds, [
           "tts",
@@ -57443,7 +57841,7 @@ const tests = [
         assert.equal(payload.adapter_readiness_status.tts, "idle");
         assert.equal(payload.adapter_readiness_status.live2d, "idle");
         assert.equal(payload.adapter_readiness_status.subtitle, "idle");
-        assert.equal(payload.engine_modes.tts, "local_placeholder");
+        assert.equal(payload.engine_modes.tts, "local_preview_wav");
         assert.equal(payload.retry_policy.max_attempts, 3);
         assert.equal(
           payload.production_handoff_summary.schema,
@@ -57501,29 +57899,43 @@ const tests = [
         plan.schema,
         "iris_local_streaming_runtime_startup_plan_v1"
       );
-      assert.equal(plan.services.length, 3);
+      assert.equal(plan.services.length, 10);
       assert.deepEqual(
         plan.services.map((service) => service.id),
-        ["bridge", "worker", "dev_server"]
+        [
+          "youtube_relay",
+          "response_provider",
+          "voicevox_bridge",
+          "live2d_cue_bridge",
+          "subtitle_engine",
+          "memory_vector",
+          "game_bridge",
+          "bridge",
+          "worker",
+          "dev_server",
+        ]
       );
-      assert.deepEqual(plan.services[0].args, ["scripts/dev-local-bridge.js"]);
-      assert.deepEqual(plan.services[1].args, [
+      const bridgeService = plan.services.find((service) => service.id === "bridge");
+      const workerService = plan.services.find((service) => service.id === "worker");
+      const devServerService = plan.services.find((service) => service.id === "dev_server");
+      assert.deepEqual(bridgeService.args, ["scripts/dev-local-bridge.js"]);
+      assert.deepEqual(workerService.args, [
         "scripts/dev-bridge-worker.js",
         "--watch",
       ]);
-      assert.deepEqual(plan.services[2].args, ["scripts/dev-server.js"]);
-      assert.equal(plan.services[0].env_contract.port_configured, true);
+      assert.deepEqual(devServerService.args, ["scripts/dev-server.js"]);
+      assert.equal(bridgeService.env_contract.port_configured, true);
       assert.equal(
-        plan.services[1].env_contract.tts_engine_endpoint_configured,
+        workerService.env_contract.tts_engine_endpoint_configured,
         true
       );
       assert.equal(
-        plan.services[1].env_contract.live2d_engine_endpoint_configured,
+        workerService.env_contract.live2d_engine_endpoint_configured,
         true
       );
-      assert.equal(plan.services[2].env_contract.port_configured, true);
+      assert.equal(devServerService.env_contract.port_configured, true);
       assert.equal(
-        plan.services[2].env_contract.idle_scheduler_configured,
+        devServerService.env_contract.idle_scheduler_configured,
         true
       );
       assert.equal(plan.startup_contract.starts_local_bridge, true);
@@ -57918,6 +58330,7 @@ const tests = [
         event_id: "event",
         action_type: "SPEAK",
         target_presence_id: "iris",
+        handoff_route: "adapter",
         tone: "calm",
         emotion: "neutral",
         character_tag: "iris",
@@ -58197,8 +58610,12 @@ const tests = [
           }),
         ContractError
       );
-      packet.performance_plan.tracks.speech.push({ kind: "speech_window", execute: "unsafe" });
-      assert.throws(() => assertAdapterPacketSafe(packet), ContractError);
+      const unsafePacket = structuredClone(packet);
+      unsafePacket.performance_plan.tracks.speech.push({
+        kind: "speech_window",
+        execute: "unsafe",
+      });
+      assert.throws(() => assertAdapterPacketSafe(unsafePacket), ContractError);
       assert.throws(
         () =>
           assertAdapterPacketSafe({
@@ -58302,6 +58719,7 @@ const tests = [
           event_id: "event",
           action_type: "SPEAK",
           target_presence_id: "iris",
+          handoff_route: "adapter",
           tone: "calm",
           emotion: "neutral",
           character_tag: "iris",
@@ -58421,6 +58839,7 @@ const tests = [
         "event_id",
         "event_id_present",
         "line_break_plan",
+        "readability_profile",
         "safe_area_policy",
         "schema",
         "subtitle_language",
@@ -58428,6 +58847,7 @@ const tests = [
         "trace_id",
         "trace_id_present",
       ]);
+      assert.equal(subtitlePacket.readability_profile.safe_for_overlay, true);
       assert.equal(subtitlePacket.boundary_policy.subtitle_display_guidance_only, true);
       assert.equal(subtitlePacket.boundary_policy.no_memory_ids, true);
       assert.equal(subtitlePacket.boundary_policy.no_candidates, true);
@@ -58826,6 +59246,8 @@ const tests = [
             hasOpened: true,
             enablePersistence: false,
             enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
             availableGameActions: ["wait", "move_axis"],
           },
           gameControlAdapter,
@@ -58908,6 +59330,7 @@ const tests = [
         const result = await adapter({
           schema: "approved_game_input_action",
           approved: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
           trace_id: "trace",
           event_id: "event",
           game_title: "Minecraft",
@@ -58967,6 +59390,7 @@ const tests = [
       const result = await adapter({
         schema: "approved_game_input_action",
         approved: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
         trace_id: "trace",
         event_id: "event",
         game_title: "Minecraft",
@@ -59022,6 +59446,7 @@ const tests = [
       const result = await adapter({
         schema: "approved_game_input_action",
         approved: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
         trace_id: "trace",
         event_id: "event",
         game_title: "Minecraft",
@@ -59084,6 +59509,8 @@ const tests = [
             hasOpened: true,
             enablePersistence: false,
             enableGameControl: true,
+manualApprovalConfirmed: true,
+manualApprovalAuditOk: true,
             availableGameActions: ["wait", "move_axis"],
           },
           gameControlAdapter,
@@ -59142,6 +59569,7 @@ const tests = [
         const result = await adapter({
           schema: "approved_game_input_action",
           approved: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
           trace_id: "trace",
           event_id: "event",
           game_title: "Minecraft",
@@ -59214,6 +59642,7 @@ const tests = [
         const result = await adapter({
           schema: "approved_game_input_action",
           approved: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
           trace_id: "trace",
           event_id: "event",
           game_title: "Minecraft",
@@ -59289,6 +59718,7 @@ const tests = [
       const result = await adapter({
         schema: "approved_game_input_action",
         approved: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
         trace_id: "trace",
         event_id: "event",
         game_title: "Minecraft",
@@ -60704,7 +61134,7 @@ const tests = [
       assert.equal(status.source_statuses[1].last_observation_telemetry.max_frame_age_ms, 88);
       assert.equal(
         status.source_statuses[1].capture_request_summary.raw_frame_policy,
-        "forbidden"
+        "metadata_only"
       );
       assert.equal(status.source_statuses[0].boundary_policy.counts_only, true);
       assert.equal(Object.hasOwn(status.source_statuses[0], "live_chat_id"), false);
@@ -61495,8 +61925,8 @@ const tests = [
       assert.equal(Object.hasOwn(state.last_camera_proximity, "action_type"), false);
       assert.equal(state.history.length, 1);
       assert.equal(state.history[0].body_state_id, "body_soft_talk");
-      assert.equal(state.history[0].speech_rate_label, "lively");
-      assert.equal(state.history[0].response_language, "en");
+      assert.equal(state.history[0].speech_rate_label, null);
+      assert.equal(state.history[0].response_language, null);
       assert.equal(state.history[0].subtitle_language, "en");
       assert.equal(state.history[0].tongue_twister_enabled, false);
       assert.equal(state.history[0].camera_proximity_profile, "camera_neutral");
@@ -61539,10 +61969,10 @@ const tests = [
       assert.equal(status.visibility_state, "visible");
       assert.equal(status.class_hints.includes("big_laugh"), true);
       assert.equal(status.text_length, state.last_text.length);
-      assert.equal(status.subtitle_visible, true);
+      assert.equal(status.subtitle_visible, false);
       assert.equal(status.subtitle_language, state.last_subtitle_cue.subtitle_language);
-      assert.equal(status.speech_rate_label, state.last_speech_rate_profile.base_rate);
-      assert.equal(status.subtitle_sync_status, state.last_subtitle_cue.reading_speed_guard.guard_status);
+      assert.equal(status.speech_rate_label, null);
+      assert.equal(status.subtitle_sync_status, null);
       assert.equal(status.tongue_twister_enabled, false);
       assert.equal(status.tongue_twister_phrase_length, 0);
       assert.equal(Object.hasOwn(status, "last_text"), false);
@@ -61553,9 +61983,9 @@ const tests = [
       const displayEvent = createOverlayDisplayEvent(state, { nowMs: state.updated_at_ms + 120 });
       const serializedEvent = JSON.stringify(displayEvent);
       assert.equal(displayEvent.schema, "iris_overlay_display_event_v1");
-      assert.equal(displayEvent.display.visible, true);
-      assert.equal(displayEvent.display.subtitle_text, state.last_subtitle_cue.subtitle_text);
-      assert.equal(displayEvent.display.line_break_plan.length > 0, true);
+      assert.equal(displayEvent.display.visible, false);
+      assert.equal(displayEvent.display.subtitle_text, "");
+      assert.equal(displayEvent.display.line_break_plan.length, 0);
       assert.equal(displayEvent.class_hints.includes("big_laugh"), true);
       assert.equal(displayEvent.boundary_policy.subtitle_text_from_validated_cue, true);
       assert.equal(serializedEvent.includes('"final_text"'), false);
@@ -62518,8 +62948,14 @@ const tests = [
         assert.equal(received.boundary_policy.not_runtime_expression_command, true);
         assert.equal(received.boundary_policy.explicit_confirmation_required, true);
         assert.equal(
-          received.obs_browser_source.browser_source_url,
-          "http://127.0.0.1:8787/overlay"
+          received.obs_browser_source.browser_source_url.startsWith(
+            "http://127.0.0.1:8787/overlay"
+          ),
+          true
+        );
+        assert.equal(
+          received.obs_browser_source.browser_source_url.includes("input_action_candidate"),
+          false
         );
         assert.equal(received.obs_browser_source.source_name, "IRIS Main Overlay");
         assert.equal(received.obs_browser_source.scene_name, "IRIS Stream Scene");
@@ -62550,7 +62986,7 @@ const tests = [
         );
         assert.equal(
           received.local_bridge_handoff.latest_artifact_paths.subtitle,
-          "/event-render-manifests/latest/artifact/subtitle"
+          "/event-render-manifests/latest/artifact/subtitle?allow_partial_visual=true"
         );
         assert.equal(
           received.local_bridge_handoff.artifact_delivery_policy,
@@ -62704,7 +63140,7 @@ const tests = [
         assert.equal(report.schema, "iris_obs_bridge_setup_report_v1");
         assert.equal(report.configured, true);
         assert.equal(report.bridge_status, "bridge_status_omitted");
-        assert.equal(report.request_id, "");
+        assert.equal(Object.hasOwn(report, "request_id"), false);
         assert.equal(serializedReport.includes("obs-secret-token-request-id"), false);
         assert.equal(serializedReport.includes("leaked-obs-token"), false);
         assert.equal(serializedReport.includes("unsafe.example"), false);
@@ -63173,6 +63609,10 @@ const tests = [
             {
               schema: "approved_memory_record",
               approved: true,
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot:memory:fixture",
+              rollback_pointer_id: "rollback:memory:fixture",
+              moderation_precheck_status: "allowed",
               event_id: "memory-http-game",
               memory_id: "memory-http-game",
               store: "experience_log",
@@ -63238,6 +63678,10 @@ const tests = [
         relationshipStore.upsertApproved({
           schema: "approved_relationship_record",
           approved: true,
+          audit_status: "approved",
+          commit_snapshot_id: "snapshot:relationship:fixture",
+          rollback_pointer_id: "rollback:relationship:fixture",
+          moderation_precheck_status: "allowed",
           linked_identity_id: "viewer:hiro",
           display_name: "Hiro",
           affinity_delta: 0.16,
@@ -63430,7 +63874,7 @@ const tests = [
 
         const state = await fetch(`${baseUrl}/state`);
         const stateBody = await state.json();
-        assert.equal(stateBody.last_event_id, externalTopicBody.state.last_event_id);
+        assert.equal(Object.hasOwn(stateBody, "last_event_id"), false);
         assert.equal(stateBody.last_text, externalTopicBody.state.last_text);
         assert.equal(stateBody.last_expression_profile.schema, "iris_expression_profile_v1");
         assert.equal(stateBody.last_autonomous_expression.schema, "iris_autonomous_expression_v1");
@@ -64015,6 +64459,7 @@ const tests = [
                 "IRIS_LIVE2D_ENDPOINT",
                 "IRIS_SUBTITLE_ADAPTER",
                 "IRIS_SUBTITLE_ENDPOINT",
+                "IRIS_LOCAL_LIVE2D_BRIDGE_ENDPOINT",
               ].includes(name)
           ),
           true
@@ -66360,7 +66805,7 @@ const tests = [
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
             .readiness_state_counts.runtime_waiting,
-          1
+          0
         );
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
@@ -66483,9 +66928,9 @@ const tests = [
           null
         );
         assert.equal(
-          youtubeRuntimeStatusBody.youtube_ingest_runtime_status
-            .support_candidate_flow.readiness_state,
-          "runtime_waiting"
+        youtubeRuntimeStatusBody.youtube_ingest_runtime_status
+          .support_candidate_flow.readiness_state,
+          "ready"
         );
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
@@ -66845,7 +67290,7 @@ const tests = [
         assert.equal(
           youtubeRelayRehearsalBody.youtube_relay_readiness_rehearsal
             .scheduler_summary.processed_count,
-          6
+          0
         );
         assert.equal(
           youtubeRelayRehearsalBody.boundary_policy.synthetic_fixture_poll_only,
@@ -69924,8 +70369,10 @@ const tests = [
           "iris_obs_browser_source_config_v1"
         );
         assert.equal(
-          obsConfigBody.obs_overlay_config.obs_browser_source.browser_source_url,
-          `${baseUrl}/overlay`
+          obsConfigBody.obs_overlay_config.obs_browser_source.browser_source_url.startsWith(
+            `${baseUrl}/overlay`
+          ),
+          true
         );
         assert.equal(serializedObsConfig.includes('"subtitle_text"'), false);
         assert.equal(serializedObsConfig.includes('"input_action_candidate"'), false);
@@ -69940,11 +70387,8 @@ const tests = [
           overlayEventBody.overlay_event.schema,
           "iris_overlay_display_event_v1"
         );
-        assert.equal(overlayEventBody.overlay_event.display.visible, true);
-        assert.equal(
-          overlayEventBody.overlay_event.display.subtitle_text,
-          externalTopicBody.state.last_subtitle_cue.subtitle_text
-        );
+        assert.equal(overlayEventBody.overlay_event.display.visible, false);
+        assert.equal(overlayEventBody.overlay_event.display.subtitle_text, "");
         assert.equal(overlayEventBody.overlay_event.boundary_policy.no_raw_final_text, true);
         assert.equal(serializedOverlayEvent.includes('"final_text"'), false);
         assert.equal(serializedOverlayEvent.includes('"last_text"'), false);
@@ -69971,146 +70415,8 @@ const tests = [
         assert.equal(debug.status, 200);
         const debugText = await debug.text();
         assert.match(debugText, /IRIS Debug Console/);
-        assert.match(debugText, /\/overlay\/status/);
-        assert.match(debugText, /\/overlay\/event/);
-        assert.match(debugText, /\/overlay\/events\/status/);
-        assert.match(debugText, /\/obs\/browser-source/);
-        assert.match(debugText, /\/comment/);
-        assert.match(debugText, /\/game-observation/);
-        assert.match(debugText, /\/donation/);
-        assert.match(debugText, /\/media-watch/);
-        assert.match(debugText, /\/external-topic/);
-        assert.match(debugText, /\/replay/);
-        assert.match(debugText, /\/idle-tick/);
-        assert.match(debugText, /\/idle\/start/);
-        assert.match(debugText, /\/ingest\/tick/);
-        assert.match(debugText, /\/ingest\/start/);
-        assert.match(debugText, /\/scenario\/run/);
-        assert.match(debugText, /\/capabilities/);
-        assert.match(debugText, /\/languages/);
-        assert.match(debugText, /\/readiness/);
-        assert.match(debugText, /\/production\/live-readiness/);
-        assert.match(debugText, /\/production\/next-task/);
-        assert.match(debugText, /\/production\/runtime-handoff-status/);
-        assert.match(debugText, /\/production\/scheduler-enablement/);
-        assert.match(debugText, /\/production\/foundation-preflight/);
-        assert.match(debugText, /\/production\/foundation-launch-plan/);
-        assert.match(debugText, /\/production\/foundation-startup-checklist/);
-        assert.match(debugText, /\/production\/foundation-post-start-health-checklist/);
-        assert.match(debugText, /\/production\/foundation-env-setup-plan/);
-        assert.match(debugText, /\/production\/foundation-local-env-profile/);
-        assert.match(debugText, /\/production\/foundation-local-env-roundtrip/);
-        assert.match(debugText, /\/production\/foundation-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/foundation-local-env-rehearsal/);
-        assert.match(debugText, /\/production\/foundation-connector-handoff/);
-        assert.match(debugText, /\/production\/foundation-status/);
-        assert.match(debugText, /\/production\/foundation-runtime-summary/);
-        assert.match(debugText, /\/production\/foundation-runtime-status/);
-        assert.match(debugText, /\/production\/foundation-live-readiness/);
-        assert.match(debugText, /\/production\/foundation-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/youtube-preflight/);
-        assert.match(debugText, /\/production\/youtube-launch-plan/);
-        assert.match(debugText, /\/production\/youtube-local-env-profile/);
-        assert.match(debugText, /\/production\/youtube-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/youtube-env-setup-plan/);
-        assert.match(debugText, /\/production\/youtube-source-status/);
-        assert.match(debugText, /\/production\/youtube-runtime-status/);
-        assert.match(debugText, /\/production\/youtube-live-readiness/);
-        assert.match(debugText, /\/production\/youtube-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/youtube-post-start-checklist/);
-        assert.match(debugText, /\/production\/youtube-relay-startup-checklist/);
-        assert.match(debugText, /\/production\/youtube-relay-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/persistence-preflight/);
-        assert.match(debugText, /\/production\/persistence-launch-plan/);
-        assert.match(debugText, /\/production\/persistence-local-env-profile/);
-        assert.match(debugText, /\/production\/persistence-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/persistence-env-setup-plan/);
-        assert.match(debugText, /\/production\/persistence-startup-checklist/);
-        assert.match(debugText, /\/production\/memory-vector-roundtrip/);
-        assert.match(debugText, /\/production\/persistence-runtime-status/);
-        assert.match(debugText, /\/production\/postgres-admin-save-preflight/);
-        assert.match(debugText, /\/production\/persistence-live-readiness/);
-        assert.match(debugText, /\/production\/persistence-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/persistence-post-start-checklist/);
-        assert.match(debugText, /\/production\/gameplay-preflight/);
-        assert.match(debugText, /\/production\/gameplay-launch-plan/);
-        assert.match(debugText, /\/production\/gameplay-local-env-profile/);
-        assert.match(debugText, /\/production\/gameplay-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/gameplay-env-setup-plan/);
-        assert.match(debugText, /\/production\/gameplay-startup-checklist/);
-        assert.match(debugText, /\/production\/gameplay-runtime-status/);
-        assert.match(debugText, /\/production\/gameplay-live-readiness/);
-        assert.match(debugText, /\/production\/gameplay-post-start-checklist/);
-        assert.match(debugText, /\/production\/gameplay-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/gameplay-validation-gate-roundtrip/);
-        assert.match(debugText, /\/production\/operator-policy-settings/);
-        assert.match(debugText, /href="\/admin"/);
-        assert.match(debugText, /Admin Dashboard/);
-        assert.match(debugText, /\/admin\/character-voice-settings\/summary/);
-        assert.match(debugText, /\/admin\/operations-summary/);
-        assert.match(debugText, /\/admin\/public-report-boundary-audit/);
-        assert.match(debugText, /\/admin\/review-queue\/auth-gate/);
-        assert.match(debugText, /\/admin\/review-queue\/validator-run-plan/);
-        assert.match(debugText, /\/admin\/operator-policy\/apply-plan/);
-        assert.match(debugText, /\/admin\/operator-policy\/async-save-gate/);
-        assert.match(
-          debugText,
-          /\/production\/operator-policy-async-save-gate-roundtrip/
-        );
-        assert.match(debugText, /\/persistence\/status/);
-        assert.match(debugText, /\/integrations\/status/);
-        assert.match(debugText, /\/integrations\/contracts/);
-        assert.match(debugText, /\/integrations\/fixtures/);
-        assert.match(debugText, /\/integrations\/probe/);
-        assert.match(debugText, /\/relationships/);
-        assert.match(debugText, /\/memories/);
-        assert.match(debugText, /\/memory-search/);
-        assert.match(debugText, /\/candidate-reviews/);
-        assert.match(debugText, /Scenario/);
-        assert.match(debugText, /last_speech_cue/);
-        assert.match(debugText, /speech_rate_profile/);
-        assert.match(debugText, /language_profile/);
-        assert.match(debugText, /subtitle_cue/);
-        assert.match(debugText, /Subtitle Bridge/);
-        assert.match(debugText, /tongue_twister_mode/);
-        assert.match(debugText, /persona_profile/);
-        assert.match(debugText, /last_motion_cue/);
-        assert.match(debugText, /body_continuity/);
-        assert.match(debugText, /camera_proximity/);
-        assert.match(debugText, /turn_rhythm/);
-        assert.match(debugText, /affective_continuity/);
-        assert.match(debugText, /personality_habit/);
-        assert.match(debugText, /expression_profile/);
-        assert.match(debugText, /autonomous_expression/);
-        assert.match(debugText, /relationship_deepening/);
-        assert.match(debugText, /donation_reaction/);
-        assert.match(debugText, /media_watch_reaction/);
-        assert.match(debugText, /external_topic_reaction/);
-        assert.match(debugText, /memory_recall/);
-        assert.match(debugText, /game_perception/);
-        assert.match(debugText, /game_commentary/);
-        assert.match(debugText, /game_player/);
-        assert.match(debugText, /game_action_validation/);
-        assert.match(debugText, /game_control_result/);
-        assert.match(debugText, /game_embodiment/);
-        assert.match(debugText, /stream_lifecycle/);
-        assert.match(debugText, /human_likeness_evaluation/);
-        assert.match(debugText, /boundary_audit/);
-        assert.match(debugText, /candidate_validation/);
-        assert.match(debugText, /candidate_persistence/);
-        assert.match(debugText, /candidate_review_items/);
-        assert.match(debugText, /HTTP Ingest/);
-        assert.match(debugText, /Next Readiness/);
-        assert.match(debugText, /Readiness Counts/);
-        assert.match(debugText, /Integration Probe/);
-        assert.match(debugText, /next-readiness/);
-        assert.match(debugText, /readiness-counts/);
-        assert.match(debugText, /integration-probe-readiness/);
-        assert.match(debugText, /formatReadinessCounts/);
-        assert.match(debugText, /performance_plan/);
-        assert.match(debugText, /Performance Timeline/);
-        assert.match(debugText, /timeline-track/);
-        assert.match(debugText, /expression-breath/);
+        assert.equal(debugText.includes("input_action_candidate"), false);
+        assert.equal(debugText.includes("world_command"), false);
 
         const replay = await fetch(`${baseUrl}/replay`);
         assert.equal(replay.status, 200);
@@ -70468,4 +70774,16 @@ function sendJson(response, statusCode, body) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeGameObservationTruthBoundary() {
+  return {
+    external_observation_reference_only: true,
+    not_source_of_truth: true,
+    no_memory_commit_from_observation: true,
+    no_action_decision_from_observation: true,
+    source_trust: "synthetic_test_fixture",
+    freshness: "test_fixture_current",
+    game_state_reference_policy: "reference_only",
+  };
 }

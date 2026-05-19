@@ -40470,7 +40470,18 @@ function isHttpAdapterResponseAccepted({ parsed, bridgeStatus }) {
 }
 
 function isAcceptedBridgeStatus(bridgeStatus) {
-  return ["accepted", "queued", "enqueued", "job_queued"].includes(
+  return [
+    "accepted",
+    "queued",
+    "enqueued",
+    "job_queued",
+    "displayed",
+    "rendered",
+    "ok",
+    "success",
+    "succeeded",
+    "done",
+  ].includes(
     String(bridgeStatus ?? "")
       .trim()
       .toLowerCase()

@@ -330,17 +330,19 @@ function adapterBridgeStatus(env, config) {
     return localIntegration(config.integration, adapter, [config.adapterEnv]);
   }
 
-  const bridgeHost = env.IRIS_LOCAL_BRIDGE_HOST || "127.0.0.1";
-  const bridgePort = env.IRIS_LOCAL_BRIDGE_PORT || "8790";
-  const localBridgeUrl = `http://${bridgeHost}:${bridgePort}`;
+  const localBridgeUrl = env.IRIS_LOCAL_BRIDGE_ENDPOINT
+    ? String(env.IRIS_LOCAL_BRIDGE_ENDPOINT).replace(/\/+$/u, "")
+    : env.IRIS_LOCAL_BRIDGE_HOST && env.IRIS_LOCAL_BRIDGE_PORT
+      ? `http://${env.IRIS_LOCAL_BRIDGE_HOST}:${env.IRIS_LOCAL_BRIDGE_PORT}`
+      : "";
   const inferredEndpoint =
-    config.integration === "tts_bridge"
+    localBridgeUrl && config.integration === "tts_bridge"
       ? `${localBridgeUrl}/tts`
-      : config.integration === "live2d_bridge"
+      : localBridgeUrl && config.integration === "live2d_bridge"
         ? `${localBridgeUrl}/live2d`
-        : config.integration === "subtitle_bridge"
+        : localBridgeUrl && config.integration === "subtitle_bridge"
           ? `${localBridgeUrl}/subtitle`
-          : env[config.requiredEndpointEnv];
+          : "";
   const endpointEnv = env[config.requiredEndpointEnv]
     ? config.requiredEndpointEnv
     : config.endpointAliasEnv;
