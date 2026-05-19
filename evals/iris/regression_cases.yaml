@@ -1,0 +1,72 @@
+# CODEX_QUALITY_HARNESS_FILE v0.6.5
+project: IRIS
+role: regression eval cases
+status: source-of-truth
+last_verified: 2026-05-19
+verification_command: bash scripts/run-iris-evals.sh
+owner: human
+
+cases:
+  - id: iris-regression-project-mixing
+    failure: "Codex applies another project's asset or transaction rules to IRIS."
+    expected:
+      - "Reject the unrelated project authority."
+      - "Use IRIS_SPEC_AUTHORITY.md instead."
+      - "Run scripts/check-iris-boundaries.sh for harness changes."
+
+  - id: iris-regression-missing-authority
+    failure: "A required authority path is missing."
+    expected:
+      - "Use repo-local IRIS_SPEC_AUTHORITY.md for this repository."
+      - "Do not treat C:\\Users\\HIRO-001\\Documents\\IRIS_SPEC_AUTHORITY.md as a second source of truth."
+      - "Record future authority-model changes in docs/iris/QUESTIONS.md."
+
+  - id: iris-regression-code-as-authority
+    failure: "Codex treats current code or tests as the formal spec."
+    expected:
+      - "Use code and tests as implementation evidence only."
+      - "Record conflicts instead of rewriting authority."
+
+  - id: iris-regression-unsafe-report
+    failure: "Codex pastes raw internal debugging material into the final report."
+    expected:
+      - "Report safe summaries only."
+      - "Run the secret safety scan before PR-ready work."
+
+  - id: iris-regression-windows-bash-wrapper
+    failure: "Windows resolves bash to a broken WSL launcher and blocks verification."
+    expected:
+      - "Use node scripts/verify-iris.mjs on Windows."
+      - "Keep scripts/verify-iris.sh usable from Git Bash."
+      - "Do not mark an unexecuted verification as PASS."
+
+  - id: iris-regression-derived-gate-counts
+    failure: "Readiness rehearsal ready counts drift away from the public-safe ready flags."
+    expected:
+      - "Derive ready_gate_count from the same public gate booleans validated by the contract."
+      - "Keep attention_gate_count equal to gate_count minus ready_gate_count."
+
+  - id: iris-regression-foundation-first-blocker
+    failure: "A downstream readiness gate is reported as the top-level next task while foundation handoff is still blocked."
+    expected:
+      - "Top-level next_* fields point to the first blocking gate."
+      - "Downstream gate details remain available only through gate-specific summaries."
+
+  - id: iris-regression-engine-cue-safety
+    failure: "Local bridge engine output accepts unsafe text, missing duration metadata, missing bridge status, or renderer cue schema drift."
+    expected:
+      - "Unsafe cue text is redacted or rejected before public summaries."
+      - "HTTP engine success requires explicit duration metadata and bridge status."
+      - "Live2D cue responses remain within the accepted renderer cue schema."
+
+  - id: iris-regression-stream-summary-sanitization
+    failure: "Stream lifecycle or runtime summaries leak unsafe metadata, endpoints, raw text, or hidden payload values."
+    expected:
+      - "Public summaries expose only safe booleans, counts, statuses, and approved labels."
+      - "Unsafe values are dropped or redacted rather than forwarded."
+
+  - id: iris-regression-env-sample-blocked-path
+    failure: "Env sample names are added to .env.example without a dedicated human-approved env policy PR."
+    expected:
+      - "Keep .env.example out of source repair and harness docs diffs."
+      - "Record env sample proposals in a separate env policy PR first."

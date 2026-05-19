@@ -48,7 +48,12 @@
     "codex-rollout-tracker.mjs",
     "codex-secret-safety-scan.mjs",
     "codex-secret-safety-scan.sh",
-    "codex-worktree-doctor.mjs"
+    "codex-worktree-doctor.mjs",
+    "lint-iris-docs.sh",
+    "run-iris-evals.sh",
+    "check-iris-boundaries.sh",
+    "verify-iris.sh",
+    "verify-iris.mjs"
   ],
   "policyFiles": [
     "docs/process/CODEX_AUDIT_BENCHMARKS.json",
@@ -127,6 +132,30 @@
     "scripts/codex-rollout-tracker.mjs",
     "scripts/codex-secret-safety-scan.mjs",
     "scripts/codex-secret-safety-scan.sh",
-    "scripts/codex-worktree-doctor.mjs"
-  ]
+    "scripts/codex-worktree-doctor.mjs",
+    "docs/index.md",
+    "docs/iris/SPEC.md",
+    "docs/iris/BEHAVIOR.md",
+    "docs/iris/EVALS.md",
+    "docs/iris/FAILURES.md",
+    "docs/iris/QUESTIONS.md",
+    "docs/iris/QUALITY_SCORE.md",
+    "docs/iris/CHANGELOG.md",
+    "docs/iris/PROMPT_RULES.md",
+    "evals/iris/golden_cases.yaml",
+    "evals/iris/regression_cases.yaml",
+    "reports/iris/README.md",
+    "scripts/lint-iris-docs.sh",
+    "scripts/run-iris-evals.sh",
+    "scripts/check-iris-boundaries.sh",
+    "scripts/verify-iris.sh",
+    "scripts/verify-iris.mjs"
+  ],
+  "sourceOfTruth": {
+    "specificationAuthority": "IRIS_SPEC_AUTHORITY.md",
+    "authorityLocation": "repo-root",
+    "workspaceAbsoluteAuthorityRequired": false,
+    "directoryNameIsAuthority": false,
+    "harnessVersionAuthority": "docs/process/CODEX_HARNESS_MANIFEST.json and CODEX_QUALITY_HARNESS_FILE markers"
+  }
 }

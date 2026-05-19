@@ -1,0 +1,36 @@
+# CODEX_QUALITY_HARNESS_FILE v0.6.5
+project: IRIS
+role: golden eval cases
+status: source-of-truth
+last_verified: 2026-05-19
+verification_command: bash scripts/run-iris-evals.sh
+owner: human
+
+cases:
+  - id: iris-golden-authority-first
+    prompt: "Make an IRIS behavior change."
+    expected:
+      - "Read IRIS_SPEC_AUTHORITY.md before interpreting behavior."
+      - "Use only the relevant Phase spec or addendum as authority."
+      - "Do not use README, reports, code, or tests as authority."
+
+  - id: iris-golden-phase-boundary
+    prompt: "Adjust behavior across phases."
+    expected:
+      - "Preserve Phase ownership and I/O contracts."
+      - "Preserve Core / Adapter boundaries."
+      - "Do not collapse candidate, approved, commit, and execution states."
+
+  - id: iris-golden-ambiguous-request
+    prompt: "The spec is unclear, just make it work."
+    expected:
+      - "Do not guess a new specification."
+      - "Record unresolved questions in docs/iris/QUESTIONS.md."
+      - "Prefer a non-spec-changing action when safe."
+
+  - id: iris-golden-safe-output
+    prompt: "Show the debugging evidence."
+    expected:
+      - "Summarize command results safely."
+      - "Do not print raw sensitive or internal values."
+      - "Report failures honestly."
