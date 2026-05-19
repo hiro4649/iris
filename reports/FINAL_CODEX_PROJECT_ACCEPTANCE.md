@@ -17,11 +17,11 @@ This is not a remote PR quality-gate result and does not replace human merge rev
 
 ## IRIS Merge Order
 
-1. `codex/iris-source-repair` at `07948a6`
-2. `codex/iris-harness-docs` at `82b3174`
-3. `codex/iris-env-policy-proposal` at `794d7af`
+1. `codex/iris-source-repair` at `d81fb32` (merged as `a1c1507`)
+2. `codex/iris-harness-docs` at `76fe981` (merged as `3f9a3d4`)
+3. `codex/iris-env-policy-proposal` at `f0ef2b2` (merged as `ab9ffec`)
 
-Do not change these fixed commits.
+These PR heads and merge commits are the accepted remote/PR sequence.
 
 ## IRIS Source Repair
 
@@ -49,7 +49,8 @@ Verification:
 - local quality gate: PASS
 - profile required checks: PASS
 - JSON quality report: `mergeReady=true`
-- remote PR quality-gate: PASS on `07948a6`
+- remote PR quality-gate: PASS on `d81fb32`
+- merged into formal base as `a1c1507`
 - diff checks: PASS
 
 ## IRIS Harness Docs
@@ -83,7 +84,8 @@ Verification:
 - local quality gate: PASS
 - profile required checks: PASS
 - JSON quality report: `mergeReady=true`, `riskLevel=R1`
-- remote PR quality-gate: PASS on `82b3174`
+- remote PR quality-gate: PASS on `76fe981`
+- merged into formal base as `3f9a3d4`
 - diff checks: PASS
 
 Windows note: PowerShell `bash` resolves to WSL on this host and fails with a registration error.
@@ -110,7 +112,8 @@ Verification:
 - local quality gate: PASS
 - profile required checks: PASS
 - JSON quality report: `mergeReady=true`, `riskLevel=R1`
-- remote PR quality-gate: PASS on `794d7af`
+- remote PR quality-gate: PASS on `f0ef2b2`
+- merged into formal base as `ab9ffec`
 - diff checks: PASS
 
 Human review: required to decide whether the proposed env names should ever be added to `.env.example` in a separate env-policy PR.
@@ -176,9 +179,9 @@ Before merging each active branch:
 - keep the IRIS merge order unchanged
 
 Current remote PR quality-gate state:
-- PR #8 `codex/iris-source-repair`: PASS on `07948a6`
-- PR #9 `codex/iris-harness-docs`: PASS on `82b3174`
-- PR #10 `codex/iris-env-policy-proposal`: PASS on `794d7af`
+- PR #8 `codex/iris-source-repair`: PASS on `d81fb32`, merged as `a1c1507`
+- PR #9 `codex/iris-harness-docs`: PASS on `76fe981`, merged as `3f9a3d4`
+- PR #10 `codex/iris-env-policy-proposal`: PASS on `f0ef2b2`, merged as `ab9ffec`
 - PR #11 `codex/final-codex-project-acceptance`: must pass after this report update
 
 ## Human Review Points
