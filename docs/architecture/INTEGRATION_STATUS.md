@@ -1106,3 +1106,9 @@ If `IRIS_LOCAL_BRIDGE_RENDER_ARTIFACT_MAX_SKEW_MS` is configured, it similarly r
 configured target value, artifact paths, or payloads.
 Production readiness treats both render guard env names as first-stage local bridge requirements;
 public reports expose only booleans and fixed status labels for those guards.
+
+Local helper script references for package-script registration checks:
+`npm run dev:game-control:roundtrip`,
+`npm run dev:server`,
+`npm run dev:streaming:local-runtime`,
+`npm run dev:bridge:roundtrip`.
