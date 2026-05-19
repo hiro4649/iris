@@ -24,6 +24,48 @@
       "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-post-merge-verify-worktree"
     ]
   },
+  "envPolicyDecision": {
+    "lastDecided": "2026-05-19",
+    "decisionDocument": "docs/iris/ENV_POLICY_DECISION.md",
+    "proposalDocument": "docs/iris/ENV_POLICY_PROPOSAL.md",
+    "envExampleReflectNow": false,
+    "envExampleChangeAllowedWithoutDedicatedPr": false,
+    "backupPatchReviewed": "C:\\Users\\HIRO-001\\Documents\\Codex\\iris-post-merge-backups\\iris-harness-v065-clean-20260519-190202\\dirty-worktree.patch",
+    "backupPatchDisposition": "Reviewed for env-policy-adjacent names. Useful env names were recorded as proposal-only docs. Source behavior from the backup patch is not approved.",
+    "futureEnvExampleConditions": [
+      "env names are stable in IRIS body specification",
+      "tests or runtime paths formally require the names",
+      "blocked path policy handling is decided before PR",
+      "change is isolated to a dedicated env policy PR",
+      "local and remote quality gates pass",
+      "human review is complete"
+    ]
+  },
+  "rendererReviewDecision": {
+    "lastDecided": "2026-05-19",
+    "project": "IRIS-live2d-renderer",
+    "decision": "Keep R3 as a safety guard. Do not lower R3 to simplify merge.",
+    "reviewPolicyDocument": "docs/iris-live2d-renderer/REVIEW_POLICY.md in the renderer repo",
+    "humanReviewRequiredFor": [
+      "Live2D cue schema changes",
+      "renderer boundary changes",
+      "adapter handoff changes",
+      "public summary changes",
+      "engine response normalization changes",
+      "secret, token, credential, or auth-related changes",
+      "source changes affecting renderer behavior",
+      "quality gate policy changes",
+      "test expectation changes",
+      ".env or environment sample changes"
+    ],
+    "normalReviewEnoughFor": [
+      "typo fixes",
+      "clear documentation cleanup",
+      "report record updates",
+      "verification result transcription",
+      "small explanation updates that do not touch source, harness policy, env samples, or renderer contracts"
+    ]
+  },
   "projects": [
     {
       "projectName": "IRIS source repair",

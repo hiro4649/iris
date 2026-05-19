@@ -137,6 +137,7 @@
     "docs/iris/SPEC.md",
     "docs/iris/BEHAVIOR.md",
     "docs/iris/EVALS.md",
+    "docs/iris/ENV_POLICY_DECISION.md",
     "docs/iris/FAILURES.md",
     "docs/iris/QUESTIONS.md",
     "docs/iris/QUALITY_SCORE.md",

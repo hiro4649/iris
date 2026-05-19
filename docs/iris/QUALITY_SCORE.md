@@ -14,7 +14,7 @@ Target: 100/100 Codex development environment.
 
 ## Current Score
 
-Score: 88/100 pending PR separation and high-risk source review.
+Score: 100/100 for the local Codex development environment after PR #8-#11 merge and post-merge closure.
 
 ## Dimensions
 
@@ -27,19 +27,20 @@ Score: 88/100 pending PR separation and high-risk source review.
 | Regression tests | Pass | Static regression evals exist, and `npm test` passed on 2026-05-19. |
 | Prompt stability | Improved | `docs/iris/PROMPT_RULES.md` defines Codex behavior. |
 | FUNKY separation | Improved | Boundary script and regression case check separation. |
-| Implementation alignment | Partial | Runtime/test mismatches were repaired, but the current diff is broad and still fails PR separation. |
+| Implementation alignment | Pass | Runtime/test mismatches were repaired and merged through separated PRs. |
 | Windows verification entry | Improved | `node scripts/verify-iris.mjs` avoids the Windows WSL `bash` launcher. |
-| Unverified risk | Open | `.env.example` blocked path was removed from the diff, but local quality gate still fails on mixed scope and high-risk source changes. |
+| Unverified risk | Tracked | Env sample reflection is intentionally deferred to `docs/iris/ENV_POLICY_DECISION.md`. |
 
 ## Latest Local Gate State
 
 - `npm test`: PASS, 454 tests.
-- `.env.example`: no content diff; proposed env names are reserved for a separate env policy PR.
-- Blocked path: resolved locally after restoring `.env.example`, `package.json`, quality gate policy, and local gate script.
-- Mixed scope: still present because source repair and harness docs remain in one working tree.
-- High-risk source changes: still present and must be isolated in the source repair PR.
-- `mergeReady`: false.
-- `riskLevel`: R3.
+- `.env.example`: unchanged.
+- Blocked path: resolved.
+- Mixed scope: resolved by PR split and merge.
+- High-risk source changes: reviewed and merged in source repair PR.
+- `mergeReady`: true.
+- `riskLevel`: R1 in the clean post-merge worktree.
+- Env policy: do not reflect proposed names into `.env.example` now.
 
 ## Conditions For 100/100
 

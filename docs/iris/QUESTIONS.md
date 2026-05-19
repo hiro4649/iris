@@ -76,11 +76,12 @@ These require source-repair PR treatment because reverting them blindly can rein
 
 ## Q-006 Env Sample Approval
 
-Current human decision: do not include `.env.example` changes in this repair.
+Current human decision: do not include `.env.example` changes now.
+This decision is recorded in `docs/iris/ENV_POLICY_DECISION.md`.
 
 Proposed env names are reserved for a separate env policy PR.
 
-Human decision needed: approve a future env-only policy PR, or reject the proposed env names permanently.
+Future human decision needed: approve a dedicated env policy PR, or reject the proposed env names permanently.
 
 ## Q-005 Directory Rename Timing
 

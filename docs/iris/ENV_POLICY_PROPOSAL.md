@@ -24,11 +24,14 @@ These env names were considered for future sample coverage:
 - `IRIS_LOCAL_SUBTITLE_BRIDGE_ENDPOINT`
 - `IRIS_YOUTUBE_VIDEO_URL`
 - `IRIS_YOUTUBE_WATCH_URL`
+- `IRIS_LOCAL_TTS_ENGINE_HEALTH_ENDPOINT`
+- `IRIS_LOCAL_LIVE2D_ENGINE_HEALTH_ENDPOINT`
 
 ## Why They May Be Needed
 
 - Bridge endpoint env names can make local TTS, Live2D, and subtitle bridge setup more discoverable.
 - YouTube URL aliases can document operator-friendly input forms while keeping live IDs and URLs out of safe reports.
+- Engine health endpoint names can document a future separation between engine endpoint configuration and read-only health checks.
 
 ## Risk
 
@@ -40,6 +43,13 @@ These env names were considered for future sample coverage:
 
 Document env-name proposals in IRIS docs until a human approves an env policy PR.
 Do not add these names back to `.env.example` in a source repair or harness docs PR.
+
+## Backup Patch Review
+
+The post-merge dirty worktree backup was reviewed on 2026-05-19.
+The first five env names above were already represented here.
+The two engine health endpoint names were added from the backup as proposal-only names.
+No source behavior from the backup patch is approved by this proposal.
 
 ## Human Approval Needed
 

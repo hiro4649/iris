@@ -19,7 +19,8 @@ owner: human
 5. `docs/iris/EVALS.md`
 6. `docs/iris/FAILURES.md`
 7. `docs/iris/QUALITY_SCORE.md`
-8. `docs/iris/QUESTIONS.md`
+8. `docs/iris/ENV_POLICY_DECISION.md`
+9. `docs/iris/QUESTIONS.md`
 
 `IRIS_SPEC_AUTHORITY.md` at the repository root is the formal IRIS specification authority.
 The workspace-level path `C:\Users\HIRO-001\Documents\IRIS_SPEC_AUTHORITY.md` is not authoritative for this repository.
