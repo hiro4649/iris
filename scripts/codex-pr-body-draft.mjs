@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.5
+// CODEX_QUALITY_HARNESS_FILE v0.6.6
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -77,6 +77,7 @@ const evidence = report.evidencePack || {};
 const worktree = report.worktreeStatus || {};
 const decision = report.decisionMatrix || {};
 const residual = report.residualTestStatus || {};
+const manual = report.manualConfirmationStatus || evidence.manualConfirmationStatus || { required: false, status: 'not_required' };
 const draft = [
   'Change summary',
   `Codex quality harness ${report.harnessVersion || 'unknown'} update.`,
@@ -185,6 +186,18 @@ const draft = [
   `profile required checks: ${report.profileRequiredChecks?.status || 'unknown'}`,
   `JSON report mergeReady: ${report.mergeReady === true ? 'true' : 'false'}`,
   'GitHub Actions quality-gate: PASS / manual confirmation required',
+  '',
+  'Manual confirmation',
+  `- required: ${manual.required === true ? 'yes' : 'no'}`,
+  `- status: ${manual.status || 'unknown'}`,
+  `- riskLevel: ${report.riskLevel || 'unknown'}`,
+  `- headSha: ${manual.headSha || '<current-pr-head-sha>'}`,
+  '- confirmedByRole: <role only>',
+  '- reviewedItems:',
+  '- qualityGateNotWeakened: true / false',
+  '- riskLevelNotLowered: true / false',
+  '- residualRisks:',
+  '- manualBranchProtectionAcknowledged: true / false',
   '',
   'Confirmed',
   `changed paths count: ${changed.count || 0}`,

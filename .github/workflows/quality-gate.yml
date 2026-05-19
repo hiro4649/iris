@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.6.5
+# CODEX_QUALITY_HARNESS_FILE v0.6.6
 name: quality-gate
 
 on:
@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
+  issues: read
 
 jobs:
   quality-gate:
@@ -48,4 +50,11 @@ jobs:
           CODEX_REQUIRE_NPM: "1"
           CODEX_RUN_PROFILE_REQUIRED_CHECKS: "1"
           CODEX_QUALITY_REPORT: "json"
+          CODEX_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          CODEX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CODEX_PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          CODEX_EVENT_NAME: ${{ github.event_name }}
+          CODEX_REPOSITORY: ${{ github.repository }}
+          CODEX_GITHUB_API_AVAILABLE: "1"
+          CODEX_GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/codex-local-quality-gate.mjs

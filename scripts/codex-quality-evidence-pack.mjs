@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.5
+// CODEX_QUALITY_HARNESS_FILE v0.6.6
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -222,6 +222,7 @@ function safePack(report, exitCode) {
     suppressionStatus: report?.suppressionStatus?.status || 'unknown',
     remediationChecklist: report?.remediationChecklist || [],
     manualMergePolicy: report?.manualMergePolicy?.status || 'manual_confirmation_required',
+    manualConfirmationStatus: report?.manualConfirmationStatus || { required: false, status: 'not_required', source: 'none', headShaMatched: false, stale: false, missingItems: [], cannotOverrideFailures: [] },
     postMergePlan: report?.postMergeVerificationPlan || [],
     skippedChecks: (report?.skippedChecks || []).map((item) => ({ name: item.name, reason: item.reason })),
     residualRisks: (report?.warnings || []).map((item) => ({ id: item.id, path: item.path, known: item.known === true })),
@@ -377,5 +378,6 @@ console.log(`codeAuditBaseline: ${pack.codeAuditBaseline.status} applied=${pack.
 console.log(`suppressionStatus: ${pack.suppressionStatus}`);
 console.log(`remediationChecklist: ${pack.remediationChecklist.length}`);
 console.log(`manualMergePolicy: ${pack.manualMergePolicy}`);
+console.log(`manualConfirmationStatus: ${pack.manualConfirmationStatus.status || 'unknown'} required=${pack.manualConfirmationStatus.required === true}`);
 console.log(`recommendedAction: ${pack.recommendedAction}`);
 process.exit(exitCode === 0 ? 0 : 1);
