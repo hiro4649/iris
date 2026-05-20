@@ -330,21 +330,10 @@ function adapterBridgeStatus(env, config) {
     return localIntegration(config.integration, adapter, [config.adapterEnv]);
   }
 
-  const bridgeHost = env.IRIS_LOCAL_BRIDGE_HOST || "127.0.0.1";
-  const bridgePort = env.IRIS_LOCAL_BRIDGE_PORT || "8790";
-  const localBridgeUrl = `http://${bridgeHost}:${bridgePort}`;
-  const inferredEndpoint =
-    config.integration === "tts_bridge"
-      ? `${localBridgeUrl}/tts`
-      : config.integration === "live2d_bridge"
-        ? `${localBridgeUrl}/live2d`
-        : config.integration === "subtitle_bridge"
-          ? `${localBridgeUrl}/subtitle`
-          : env[config.requiredEndpointEnv];
   const endpointEnv = env[config.requiredEndpointEnv]
     ? config.requiredEndpointEnv
     : config.endpointAliasEnv;
-  const endpoint = env[endpointEnv] || inferredEndpoint;
+  const endpoint = env[endpointEnv] || "";
   return withLocalEndpointPolicy(
     bridgeIntegration(env, config.integration, adapter, {
       requiredEndpointEnv: endpointEnv,
@@ -589,7 +578,7 @@ function summarizeLocalBridgeEngineModeReadiness({
   const modes = [ttsEngineMode, live2dEngineMode, subtitleEngineMode];
   const realHttpEngineCount = modes.filter((mode) => mode === "http").length;
   const localPlaceholderEngineCount = modes.filter((mode) =>
-    mode === "local_placeholder"
+    mode === "local_placeholder" || mode === "local_vtt"
   ).length;
   return {
     schema: "iris_local_bridge_engine_mode_summary_v1",
