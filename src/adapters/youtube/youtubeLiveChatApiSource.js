@@ -2393,6 +2393,7 @@ function toDonationInput(raw, snippet) {
         : snippet.author_details && typeof snippet.author_details === "object"
           ? snippet.author_details
         : {};
+  const author = raw.author && typeof raw.author === "object" ? raw.author : {};
   const details = pickSupportDetails(snippet);
   const eventType = supportEventType(snippet);
   return {
@@ -2435,6 +2436,8 @@ function toDonationInput(raw, snippet) {
     author_channel_id: safeOptionalText(
       authorDetails.channelId ??
         authorDetails.channel_id ??
+        author.channelId ??
+        author.channel_id ??
         details.authorDetails?.channelId ??
         details.authorDetails?.channel_id ??
         details.author_details?.channelId ??
@@ -2449,6 +2452,9 @@ function toDonationInput(raw, snippet) {
     display_name: safeText(
       authorDetails.displayName ??
         authorDetails.display_name ??
+        author.displayName ??
+        author.display_name ??
+        author.name ??
         details.authorDetails?.displayName ??
         details.authorDetails?.display_name ??
         details.author_details?.displayName ??
@@ -2751,7 +2757,16 @@ function supportEventType(snippet) {
     return "superStickerEvent";
   }
   if (hasObjectValue(snippet.superThanksDetails) || hasObjectValue(snippet.super_thanks_details)) return "superThanksEvent";
-  if (hasObjectValue(snippet.membershipGiftingDetails) || hasObjectValue(snippet.membership_gifting_details)) {
+  if (
+    hasObjectValue(snippet.membershipGiftingDetails) ||
+    hasObjectValue(snippet.membership_gifting_details) ||
+    hasObjectValue(snippet.membershipGiftDetails) ||
+    hasObjectValue(snippet.membership_gift_details) ||
+    hasObjectValue(snippet.giftMembershipDetails) ||
+    hasObjectValue(snippet.gift_membership_details) ||
+    hasObjectValue(snippet.giftDetails) ||
+    hasObjectValue(snippet.gift_details)
+  ) {
     return "membershipGiftingEvent";
   }
   if (hasObjectValue(snippet.giftMembershipReceivedDetails) || hasObjectValue(snippet.gift_membership_received_details)) {
@@ -2794,9 +2809,12 @@ function normalizeSupportEventTypeAlias(value) {
     membershipgiftevent: "membershipGiftingEvent",
     membershipgift: "membershipGiftingEvent",
     membership_gift: "membershipGiftingEvent",
+    membershipgiftdetails: "membershipGiftingEvent",
     membershipgifting: "membershipGiftingEvent",
     giftmembershipevent: "membershipGiftingEvent",
     giftmembershipsevent: "membershipGiftingEvent",
+    giftmembership: "membershipGiftingEvent",
+    giftmemberships: "membershipGiftingEvent",
     giftedmembershipevent: "membershipGiftingEvent",
     giftmembershipreceived: "giftMembershipReceivedEvent",
     giftmembershipreceivedevent: "giftMembershipReceivedEvent",
@@ -2834,6 +2852,12 @@ function pickSupportDetails(snippet) {
     snippet.super_thanks_details,
     snippet.membershipGiftingDetails,
     snippet.membership_gifting_details,
+    snippet.membershipGiftDetails,
+    snippet.membership_gift_details,
+    snippet.giftMembershipDetails,
+    snippet.gift_membership_details,
+    snippet.giftDetails,
+    snippet.gift_details,
     snippet.giftMembershipReceivedDetails,
     snippet.gift_membership_received_details,
     snippet.memberMilestoneChatDetails,

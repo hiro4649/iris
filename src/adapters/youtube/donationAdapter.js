@@ -480,11 +480,13 @@ function safeModerationPrecheckStatus(value) {
 }
 
 function selectAmountTierInput(raw) {
+  const explicitTier = raw.amount_tier ?? raw.amountTier;
+  if (explicitTier !== undefined && explicitTier !== null && explicitTier !== "") return explicitTier;
+  const amountMicros = raw.amount_micros ?? raw.amountMicros;
+  if (amountMicros !== undefined && amountMicros !== null && amountMicros !== "") {
+    return normalizeMicrosForTier(amountMicros);
+  }
   return (
-    raw.amount_tier ??
-    raw.amountTier ??
-    raw.amount_micros ??
-    raw.amountMicros ??
     raw.amount_display_string ??
     raw.amountDisplayString ??
     raw.amount_string ??
@@ -504,6 +506,12 @@ function selectAmountTierInput(raw) {
     raw.amount ??
     "unknown"
   );
+}
+
+function normalizeMicrosForTier(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return numeric / 1_000_000;
 }
 
 function assertDonationEventInputSafe(raw) {
