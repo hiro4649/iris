@@ -160,6 +160,7 @@ import {
   assertApprovedGameInputActionContractManifestSafe,
   assertGameActionValidationFixtureSummarySafe,
   assertGameActionValidationSafe,
+  createApprovedGameInputActionContractManifest,
   createGameActionValidationFixtureSummary,
   sanitizeGameActionValidationForPublicState,
   validateGameActionCandidate,
@@ -1250,6 +1251,30 @@ function collectUnregisteredDevScripts(scriptFiles, packageScripts) {
     .filter((fileName) => fileName.startsWith("dev-") && fileName.endsWith(".js"))
     .filter((fileName) => !packageDevTargets.has(fileName));
 }
+
+const APPROVED_MANUAL_GAME_CONTROL_GATE = {
+  gameControlMode: "manual_approval",
+  manualApprovalConfirmed: true,
+  manualApprovalAuditOk: true,
+};
+
+const READY_APPROVED_SAFE_ADAPTER_GATE = {
+  gameControlMode: "approved_safe_adapter",
+  approvedSafeAdapterConfirmation: true,
+  approvedSafeAdapterReady: true,
+  approvedSafeAdapterAuditOk: true,
+  approvedSafeAdapterCooldownOk: true,
+};
+
+const SAFE_GAME_OBSERVATION_TRUTH_BOUNDARY = {
+  external_observation_reference_only: true,
+  not_source_of_truth: true,
+  no_memory_commit_from_observation: true,
+  no_action_decision_from_observation: true,
+  source_trust: "fixture_reference",
+  freshness: "fixture_fresh",
+  game_state_reference_policy: "reference_only",
+};
 
 const tests = [
   [
@@ -18369,7 +18394,11 @@ const tests = [
     "gameplay validation gate roundtrip blocks low confidence before adapter",
     async () => {
       const report = await createGameplayValidationGateRoundtripReport({
-        baseEnv: {},
+        baseEnv: {
+          IRIS_GAME_CONTROL_MODE: "manual_approval",
+          IRIS_GAME_CONTROL_MANUAL_APPROVAL_CONFIRMED: "true",
+          IRIS_GAME_CONTROL_MANUAL_APPROVAL_AUDIT_OK: "true",
+        },
         nowMs: () => 3000,
       });
       const serialized = JSON.stringify(report);
@@ -19026,6 +19055,7 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+          ...APPROVED_MANUAL_GAME_CONTROL_GATE,
           availableGameActions: ["WAIT", "MOVE_AXIS", "shutdown"],
         },
         gameControlAdapter(approvedAction) {
@@ -19261,6 +19291,7 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+          ...APPROVED_MANUAL_GAME_CONTROL_GATE,
           availableGameActions: ["wait", "move_axis"],
         },
         gameControlAdapter() {
@@ -19298,6 +19329,114 @@ const tests = [
     },
   ],
   [
+    "game action validator blocks adapter handoff without manual approval gate",
+    async () => {
+      let sentApprovedActionCount = 0;
+      const runtime = createIrisRuntime({
+        runtimeConfig: {
+          hasOpened: true,
+          enablePersistence: false,
+          enableGameControl: true,
+          availableGameActions: ["wait", "move_axis"],
+        },
+        gameControlAdapter(approvedAction) {
+          sentApprovedActionCount += 1;
+          return sendApprovedGameActionToMockAdapter(approvedAction);
+        },
+        ttsAdapter() {
+          return { spoken: true };
+        },
+        live2dAdapter() {
+          return { sent: true };
+        },
+        logger: { log() {} },
+      });
+      const result = await runtime.processEvent(
+        normalizeGameObservation({
+          game_title: "Minecraft",
+          scene_summary: "The player is at one heart near lava",
+          detected_events: ["low health", "lava nearby"],
+          player_state: "one heart",
+          screen_confidence: 0.9,
+          frame_age_ms: 120,
+        })
+      );
+
+      assert.equal(result.game_player.input_action_candidate.action_kind, "move_axis");
+      assert.equal(result.game_action_validation.validation_status, "disabled");
+      assert.equal(result.game_action_validation.approved_game_input_action, null);
+      assert.equal(
+        result.game_action_validation.game_control_mode_policy.manual_approval_confirmed,
+        false
+      );
+      assert.equal(
+        result.game_action_validation.game_control_mode_policy.mode_switch_allowed,
+        false
+      );
+      assert.equal(result.game_control_result.control_status, "disabled");
+      assert.equal(sentApprovedActionCount, 0);
+      assertGameActionValidationSafe(result.game_action_validation);
+      assertGameControlResultSafe(result.game_control_result);
+    },
+  ],
+  [
+    "game action validator blocks approved-safe-adapter handoff until readiness gate passes",
+    async () => {
+      let sentApprovedActionCount = 0;
+      const runtime = createIrisRuntime({
+        runtimeConfig: {
+          hasOpened: true,
+          enablePersistence: false,
+          enableGameControl: true,
+          ...READY_APPROVED_SAFE_ADAPTER_GATE,
+          approvedSafeAdapterReady: false,
+          availableGameActions: ["wait", "move_axis"],
+        },
+        gameControlAdapter(approvedAction) {
+          sentApprovedActionCount += 1;
+          return sendApprovedGameActionToMockAdapter(approvedAction);
+        },
+        ttsAdapter() {
+          return { spoken: true };
+        },
+        live2dAdapter() {
+          return { sent: true };
+        },
+        logger: { log() {} },
+      });
+      const result = await runtime.processEvent(
+        normalizeGameObservation({
+          game_title: "Minecraft",
+          scene_summary: "The player is at one heart near lava",
+          detected_events: ["low health", "lava nearby"],
+          player_state: "one heart",
+          screen_confidence: 0.9,
+          frame_age_ms: 120,
+        })
+      );
+
+      assert.equal(result.game_player.input_action_candidate.action_kind, "move_axis");
+      assert.equal(result.game_action_validation.validation_status, "disabled");
+      assert.equal(result.game_action_validation.approved_game_input_action, null);
+      assert.equal(
+        result.game_action_validation.game_control_mode_policy.mode,
+        "approved_safe_adapter"
+      );
+      assert.equal(
+        result.game_action_validation.game_control_mode_policy.approved_safe_adapter_ready,
+        false
+      );
+      assert.equal(
+        result.game_action_validation.game_control_mode_policy.mode_switch_allowed,
+        false
+      );
+      assert.equal(result.game_control_result.control_status, "disabled");
+      assert.equal(sentApprovedActionCount, 0);
+      assertGameActionValidationSafe(result.game_action_validation);
+      assertGameControlResultSafe(result.game_control_result);
+    },
+  ],
+  [
     "game action validator rate-limits approved actions before control adapter",
     async () => {
       let sentApprovedActionCount = 0;
@@ -19306,6 +19445,7 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+          ...APPROVED_MANUAL_GAME_CONTROL_GATE,
           availableGameActions: ["wait", "move_axis"],
           gameControlMinIntervalMs: 60_000,
         },
@@ -19392,6 +19532,7 @@ const tests = [
           adapter_must_reject_after_expiry: true,
         },
         adapter_validation_required: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
       };
 
       assert.throws(() => assertApprovedGameInputActionSafe(approvedAction), ContractError);
@@ -19430,6 +19571,7 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+          ...APPROVED_MANUAL_GAME_CONTROL_GATE,
           availableGameActions: ["wait", "move_axis"],
           gameControlMaxObservationAgeMs: 1000,
         },
@@ -19496,6 +19638,7 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+          ...APPROVED_MANUAL_GAME_CONTROL_GATE,
           availableGameActions: ["wait", "move_axis"],
           gameControlMaxObservationAgeMs: 1000,
         },
@@ -19556,7 +19699,11 @@ const tests = [
           hasOpened: true,
           enablePersistence: false,
           enableGameControl: true,
+          ...APPROVED_MANUAL_GAME_CONTROL_GATE,
           availableGameActions: ["wait"],
+        },
+        gameControlAdapter(approvedAction) {
+          return sendApprovedGameActionToMockAdapter(approvedAction);
         },
         ttsAdapter() {
           return { spoken: true };
@@ -19618,6 +19765,7 @@ const tests = [
           control_hint: "stay_safe",
           perception_confidence: 0.8,
           perception_reject_reason: null,
+          phase22_observation_truth_boundary: { ...SAFE_GAME_OBSERVATION_TRUTH_BOUNDARY },
           adapter_validation_required: true,
         },
         gamePlayer: {
@@ -19653,6 +19801,7 @@ const tests = [
           adapter_validation_required: true,
         },
         enableGameControl: true,
+        ...APPROVED_MANUAL_GAME_CONTROL_GATE,
         availableGameActions: ["wait"],
       });
       assert.equal(unavailable.validation_status, "rejected");
@@ -19708,6 +19857,7 @@ const tests = [
               control_hint: "maintain_context",
               perception_confidence: 0.8,
               perception_reject_reason: null,
+              phase22_observation_truth_boundary: { ...SAFE_GAME_OBSERVATION_TRUTH_BOUNDARY },
               adapter_validation_required: true,
             },
             gamePlayer: {
@@ -19740,6 +19890,7 @@ const tests = [
               adapter_validation_required: true,
             },
             enableGameControl: true,
+            ...APPROVED_MANUAL_GAME_CONTROL_GATE,
             availableGameActions: ["wait"],
           }),
         ContractError
@@ -19770,6 +19921,7 @@ const tests = [
         control_hint: "maintain_context",
         perception_confidence: 0.8,
         perception_reject_reason: null,
+        phase22_observation_truth_boundary: { ...SAFE_GAME_OBSERVATION_TRUTH_BOUNDARY },
         adapter_validation_required: true,
       };
       const gamePlayer = {
@@ -19822,6 +19974,7 @@ const tests = [
           },
         },
         enableGameControl: true,
+        ...APPROVED_MANUAL_GAME_CONTROL_GATE,
         availableGameActions: ["press_key"],
       });
       assert.equal(approvedKeyValidation.validation_status, "approved");
@@ -19869,6 +20022,7 @@ const tests = [
           },
         },
         enableGameControl: true,
+        ...APPROVED_MANUAL_GAME_CONTROL_GATE,
         availableGameActions: ["press_key"],
       });
       const unsupportedSerialized = JSON.stringify(unsupportedKeyValidation);
@@ -19888,6 +20042,7 @@ const tests = [
         gamePerception,
         gamePlayer,
         enableGameControl: true,
+        ...APPROVED_MANUAL_GAME_CONTROL_GATE,
         availableGameActions: ["press_key"],
       });
       const serialized = JSON.stringify(validation);
@@ -53074,6 +53229,7 @@ const tests = [
               hasOpened: true,
               enablePersistence: false,
               enableGameControl: true,
+              ...APPROVED_MANUAL_GAME_CONTROL_GATE,
               availableGameActions: ["wait", "move_axis"],
             },
             gameControlAdapter,
@@ -53820,6 +53976,7 @@ const tests = [
             adapter_must_reject_after_expiry: true,
           },
           adapter_validation_required: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
         };
         assertApprovedGameInputActionSafe(expiredAction);
 
@@ -58826,6 +58983,7 @@ const tests = [
             hasOpened: true,
             enablePersistence: false,
             enableGameControl: true,
+            ...APPROVED_MANUAL_GAME_CONTROL_GATE,
             availableGameActions: ["wait", "move_axis"],
           },
           gameControlAdapter,
@@ -58929,6 +59087,7 @@ const tests = [
           },
           approved_at_ms: Date.now(),
           adapter_validation_required: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
         });
         const serialized = JSON.stringify(result);
 
@@ -58988,6 +59147,7 @@ const tests = [
         },
         approved_at_ms: Date.now(),
         adapter_validation_required: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
       });
       const serialized = JSON.stringify(result);
       const status = adapter.status();
@@ -59048,6 +59208,7 @@ const tests = [
           adapter_must_reject_after_expiry: true,
         },
         adapter_validation_required: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
       });
       const status = adapter.status();
       const serialized = JSON.stringify({ result, status });
@@ -59084,6 +59245,7 @@ const tests = [
             hasOpened: true,
             enablePersistence: false,
             enableGameControl: true,
+            ...APPROVED_MANUAL_GAME_CONTROL_GATE,
             availableGameActions: ["wait", "move_axis"],
           },
           gameControlAdapter,
@@ -59163,6 +59325,7 @@ const tests = [
           },
           approved_at_ms: Date.now(),
           adapter_validation_required: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
         });
         const serialized = JSON.stringify(result);
 
@@ -59235,6 +59398,7 @@ const tests = [
           },
           approved_at_ms: Date.now(),
           adapter_validation_required: true,
+          contract_manifest: createApprovedGameInputActionContractManifest(),
         });
         const serialized = JSON.stringify(result);
 
@@ -59310,6 +59474,7 @@ const tests = [
         },
         approved_at_ms: Date.now(),
         adapter_validation_required: true,
+        contract_manifest: createApprovedGameInputActionContractManifest(),
       });
 
       assert.equal(requestCount, 1);

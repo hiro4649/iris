@@ -495,6 +495,23 @@ function safeMemorySearch(memorySearchAdapter, records, { query, limit }) {
   }
 }
 
+function runtimeGameControlMode(runtimeConfig) {
+  const mode =
+    runtimeConfig?.gameControlMode ??
+    runtimeConfig?.environment?.IRIS_GAME_CONTROL_MODE;
+  return typeof mode === "string" ? mode : undefined;
+}
+
+function runtimeConfigFlag(runtimeConfig, fieldName, envName) {
+  if (runtimeConfig?.[fieldName] === true) {
+    return true;
+  }
+  if (runtimeConfig?.[fieldName] === false) {
+    return false;
+  }
+  return runtimeConfig?.environment?.[envName] === "true";
+}
+
 async function processEvent(
   event,
   {
@@ -633,6 +650,38 @@ async function processEvent(
     enableGameControl:
       runtimeConfig.enableGameControl === true &&
       runtimeConfig.gameActionApprovalPaused !== true,
+    gameControlMode: runtimeGameControlMode(runtimeConfig),
+    manualApprovalConfirmed: runtimeConfigFlag(
+      runtimeConfig,
+      "manualApprovalConfirmed",
+      "IRIS_GAME_CONTROL_MANUAL_APPROVAL_CONFIRMED"
+    ),
+    manualApprovalAuditOk: runtimeConfigFlag(
+      runtimeConfig,
+      "manualApprovalAuditOk",
+      "IRIS_GAME_CONTROL_MANUAL_APPROVAL_AUDIT_OK"
+    ),
+    approvedSafeAdapterConfirmation:
+      runtimeConfigFlag(
+        runtimeConfig,
+        "approvedSafeAdapterConfirmation",
+        "IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_CONFIRMATION"
+      ),
+    approvedSafeAdapterReady: runtimeConfigFlag(
+      runtimeConfig,
+      "approvedSafeAdapterReady",
+      "IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_READY"
+    ),
+    approvedSafeAdapterAuditOk: runtimeConfigFlag(
+      runtimeConfig,
+      "approvedSafeAdapterAuditOk",
+      "IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_AUDIT_OK"
+    ),
+    approvedSafeAdapterCooldownOk: runtimeConfigFlag(
+      runtimeConfig,
+      "approvedSafeAdapterCooldownOk",
+      "IRIS_GAME_CONTROL_APPROVED_SAFE_ADAPTER_COOLDOWN_OK"
+    ),
     availableGameActions: runtimeConfig.availableGameActions ?? [],
     lastApprovedActionAtMs: runtimeConfig.lastApprovedGameActionAtMs ?? null,
     minActionIntervalMs: runtimeConfig.gameControlMinIntervalMs ?? 0,
