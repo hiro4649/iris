@@ -62829,9 +62829,19 @@ const tests = [
         assert.equal(received.confirmation_required, true);
         assert.equal(received.boundary_policy.not_runtime_expression_command, true);
         assert.equal(received.boundary_policy.explicit_confirmation_required, true);
+        const browserSourceUrl = new URL(
+          received.obs_browser_source.browser_source_url
+        );
         assert.equal(
-          received.obs_browser_source.browser_source_url,
+          browserSourceUrl.origin + browserSourceUrl.pathname,
           "http://127.0.0.1:8787/overlay"
+        );
+        assert.equal(browserSourceUrl.searchParams.get("event_stream"), "/overlay/events");
+        assert.equal(browserSourceUrl.searchParams.get("event_bootstrap"), "/overlay/event");
+        assert.equal(browserSourceUrl.searchParams.get("state"), "/state");
+        assert.equal(
+          browserSourceUrl.searchParams.get("manifest"),
+          "/event-render-manifests/latest"
         );
         assert.equal(received.obs_browser_source.source_name, "IRIS Main Overlay");
         assert.equal(received.obs_browser_source.scene_name, "IRIS Stream Scene");
@@ -62862,7 +62872,7 @@ const tests = [
         );
         assert.equal(
           received.local_bridge_handoff.latest_artifact_paths.subtitle,
-          "/event-render-manifests/latest/artifact/subtitle"
+          "/event-render-manifests/latest/artifact/subtitle?allow_partial_visual=true"
         );
         assert.equal(
           received.local_bridge_handoff.artifact_delivery_policy,
@@ -63016,7 +63026,8 @@ const tests = [
         assert.equal(report.schema, "iris_obs_bridge_setup_report_v1");
         assert.equal(report.configured, true);
         assert.equal(report.bridge_status, "bridge_status_omitted");
-        assert.equal(report.request_id, "");
+        assert.equal(Object.hasOwn(report, "request_id"), false);
+        assert.equal(report.request_id_present, true);
         assert.equal(serializedReport.includes("obs-secret-token-request-id"), false);
         assert.equal(serializedReport.includes("leaked-obs-token"), false);
         assert.equal(serializedReport.includes("unsafe.example"), false);
