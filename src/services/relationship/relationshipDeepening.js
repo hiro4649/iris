@@ -486,8 +486,19 @@ function relationshipDeltaSource({ phase01, phase05, profile }) {
       ? "membership_support_event"
       : "thoughtful_support_message";
   }
+  const signalSource = relationshipSignalDeltaSource(
+    phase05?.relationship_candidate?.relationship_signal
+  );
+  if (signalSource) return signalSource;
   const candidateKind = phase05?.relationship_candidate?.candidate_kind;
   if (candidateKind) return normalizeRelationshipDeltaSource(candidateKind);
+  return null;
+}
+
+function relationshipSignalDeltaSource(value) {
+  const signal = normalizeRelationshipDeltaSource(value);
+  if (signal === "warm_interaction") return "healthy_comment_participation";
+  if (signal === "boundary_needed") return "boundary_violation";
   return null;
 }
 
