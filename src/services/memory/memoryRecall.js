@@ -37,6 +37,8 @@ const MODERATION_RECALL_OVERRIDE_STATUSES = new Set([
 ]);
 const MODERATION_RECALL_PRECHECK_STATUSES = new Set([
   "allowed",
+  "unconfirmed",
+  "unknown",
   "watch",
   "limited",
   "muted",
