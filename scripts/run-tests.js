@@ -54031,9 +54031,19 @@ const tests = [
               bridge_status: "rendered",
               duration_ms: 1234,
               cue: {
-                schema: "iris_live2d_fixture_cue_v1",
-                applied_motion: body.motion_style,
-                expression_profile_id: body.expression_profile_id,
+                schema: "iris_live2d_renderer_cue_v1",
+                motion: { style: body.motion_style },
+                expression: { profile_id: body.expression_profile_id },
+                timing: { total_duration_ms: 1234 },
+                boundary_policy: {
+                  renderer_cue_only: true,
+                  no_text_payloads: true,
+                  no_candidates: true,
+                  no_commands: true,
+                  no_endpoint_values: true,
+                  no_secret_values: true,
+                },
+                adapter_validation_required: true,
               },
             })
           );
@@ -54246,7 +54256,7 @@ const tests = [
         assert.equal(audio.toString("ascii", 0, 4), "RIFF");
         assert.deepEqual(visemeArtifact.mouth_timing, [{ at_ms: 0, shape: "a" }]);
         assert.equal(live2dArtifact.schema, "iris_local_live2d_engine_artifact_v1");
-        assert.equal(live2dArtifact.cue.applied_motion, "talk");
+        assert.equal(live2dArtifact.cue.motion.style, "talk");
         assertLocalBridgeEngineReceiptSafe(ttsReceipt);
         assertLocalBridgeEngineReceiptSafe(live2dReceipt);
       } finally {
@@ -54289,10 +54299,22 @@ const tests = [
                 "rendered token=leaked-live2d-token endpoint=http://unsafe.example/live2d",
               duration_ms: 1234,
               cue: {
-                schema: "iris_live2d_fixture_cue_v1",
-                applied_motion:
-                  "motion token=leaked-motion-token endpoint=http://unsafe.example/motion",
-                expression_profile_id: body.expression_profile_id,
+                schema: "iris_live2d_renderer_cue_v1",
+                motion: {
+                  style:
+                    "motion token=leaked-motion-token endpoint=http://unsafe.example/motion",
+                },
+                expression: { profile_id: body.expression_profile_id },
+                timing: { total_duration_ms: 1234 },
+                boundary_policy: {
+                  renderer_cue_only: true,
+                  no_text_payloads: true,
+                  no_candidates: true,
+                  no_commands: true,
+                  no_endpoint_values: true,
+                  no_secret_values: true,
+                },
+                adapter_validation_required: true,
               },
             })
           );
@@ -54362,7 +54384,7 @@ const tests = [
         assert.equal(live2dReceipt.bridge_status, "engine_status_omitted");
         assert.equal(visemeArtifact.mouth_timing[0].shape, "neutral");
         assert.equal(live2dArtifact.bridge_status, "engine_status_omitted");
-        assert.equal(live2dArtifact.cue.applied_motion, "[redacted]");
+        assert.equal(live2dArtifact.cue.motion.style, "[redacted]");
         assert.equal(serialized.includes("leaked-tts-token"), false);
         assert.equal(serialized.includes("leaked-live2d-token"), false);
         assert.equal(serialized.includes("leaked-viseme-token"), false);
@@ -57593,7 +57615,7 @@ const tests = [
         assert.equal(payload.adapter_readiness_status.tts, "idle");
         assert.equal(payload.adapter_readiness_status.live2d, "idle");
         assert.equal(payload.adapter_readiness_status.subtitle, "idle");
-        assert.equal(payload.engine_modes.tts, "local_placeholder");
+        assert.equal(payload.engine_modes.tts, "local_preview_wav");
         assert.equal(payload.retry_policy.max_attempts, 3);
         assert.equal(
           payload.production_handoff_summary.schema,

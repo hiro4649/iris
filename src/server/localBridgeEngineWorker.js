@@ -711,14 +711,19 @@ function isStrictHttpEngine(engineConfig, adapterKind) {
 }
 
 function isExplicitHttpEngineFailure(error) {
+  const message = String(error.message ?? "");
   return (
     error instanceof ContractError &&
-    (String(error.message ?? "").includes("bridge_status reported failure") ||
+    (message.includes("bridge_status reported failure") ||
       typeof error.details?.status === "number" ||
-      String(error.message ?? "").includes("unsafe engine public field") ||
-      String(error.message ?? "").includes("response requires JSON") ||
-      String(error.message ?? "").includes("audio") ||
-      String(error.message ?? "").includes("cue"))
+      message.includes("local endpoint policy") ||
+      message.includes("bridge_status is required") ||
+      message.includes("duration_ms is required") ||
+      message.includes("boundary required") ||
+      message.includes("unsafe engine public field") ||
+      message.includes("response requires JSON") ||
+      message.includes("audio") ||
+      message.includes("cue"))
   );
 }
 
@@ -823,6 +828,7 @@ async function processTtsJobViaHttp(job, { artifactDir, nowMs, engineConfig }) {
   const visemeName = `${safeFileName(job.job_id)}.visemes.json`;
   const artifactPath = join(kindDir, audioName);
   const bridgeStatus = requiredEngineBridgeStatus(response, "Local TTS engine response");
+  const durationMs = resolveTtsEngineDurationMs(response, normalizedAudio);
   const responseData = responseDataObject(response);
   const responseDataAudio = responsePayloadObject(responseData.audio ?? responseData.audio_url ?? responseData.audioUrl ?? responseData.audioURL);
   const responseOutput = responseOutputObject(response);
@@ -1084,31 +1090,19 @@ async function processTtsJobViaHttp(job, { artifactDir, nowMs, engineConfig }) {
     extra: {
       engine_mode: "http",
       bridge_status: bridgeStatus,
-      duration_ms: resolveTtsEngineDurationMs(response, normalizedAudio, job),
+      duration_ms: durationMs,
       sample_rate_hz: normalizedAudio.sampleRateHz,
       auxiliary_artifact_path: `tts/${visemeName}`,
     },
   });
 }
 
-function resolveTtsEngineDurationMs(response, normalizedAudio, job) {
+function resolveTtsEngineDurationMs(response, normalizedAudio) {
   const durationMs = resolveOptionalEngineDurationMs(response);
   if (durationMs !== null && durationMs > 0) return durationMs;
   const wavDurationMs = inferWavDurationMs(normalizedAudio?.bytes);
   if (wavDurationMs !== null && wavDurationMs > 0) return wavDurationMs;
-  return clampInteger(
-    resolveEngineDurationMs(
-      job.estimated_duration_ms ?? job.estimatedDurationMs ?? job.duration_ms ?? job.durationMs,
-      job.estimated_duration_seconds ??
-        job.estimatedDurationSeconds ??
-        job.duration_seconds ??
-        job.durationSeconds ??
-        job.duration
-    ) ?? 1000,
-    100,
-    60_000,
-    1000
-  );
+  throw new ContractError("Local TTS engine response: duration_ms is required");
 }
 
 function normalizeTtsEngineAudioOutput({ bytes, mime, sampleRateHz, channelCount, sampleFormat }) {
@@ -6943,15 +6937,33 @@ function normalizeLive2dEngineCue(cue) {
         timing.transition_seconds ?? timing.transitionSeconds
       ),
     },
-    boundary_policy: {
+    boundary_policy: normalizeLive2dCueBoundaryPolicy(cue.boundary_policy),
+    adapter_validation_required:
+      cue.adapter_validation_required === undefined ? true : cue.adapter_validation_required,
+  };
+}
+
+function normalizeLive2dCueBoundaryPolicy(policy) {
+  if (!isPlainObject(policy)) {
+    return {
       renderer_cue_only: true,
       no_text_payloads: true,
       no_candidates: true,
       no_commands: true,
       no_endpoint_values: true,
       no_secret_values: true,
-    },
-    adapter_validation_required: true,
+    };
+  }
+  return {
+    renderer_cue_only:
+      "renderer_cue_only" in policy ? policy.renderer_cue_only : true,
+    no_text_payloads:
+      "no_text_payloads" in policy ? policy.no_text_payloads : true,
+    no_candidates: "no_candidates" in policy ? policy.no_candidates : true,
+    no_commands: "no_commands" in policy ? policy.no_commands : true,
+    no_endpoint_values:
+      "no_endpoint_values" in policy ? policy.no_endpoint_values : true,
+    no_secret_values: "no_secret_values" in policy ? policy.no_secret_values : true,
   };
 }
 
