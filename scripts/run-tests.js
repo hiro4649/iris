@@ -53079,12 +53079,33 @@ const tests = [
             authorization: request.headers.authorization ?? "",
             body: JSON.parse(raw),
           });
+          const adapterKind = request.url.includes("live2d")
+            ? "live2d"
+            : request.url.includes("subtitle")
+              ? "subtitle"
+              : "tts";
+          const artifactByKind = {
+            tts: {
+              bridge_status: "accepted",
+              artifact_url: "artifact://fixture/tts_audio",
+              artifact_kind: "audio_wav",
+            },
+            live2d: {
+              bridge_status: "rendered",
+              artifact_url: "artifact://fixture/live2d_cue",
+              artifact_kind: "live2d_cue_json",
+            },
+            subtitle: {
+              bridge_status: "displayed",
+              artifact_url: "artifact://fixture/subtitle_cue",
+              artifact_kind: "subtitle_vtt",
+            },
+          };
           response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
           response.end(
             JSON.stringify({
               request_id: `probe-${received.length}`,
-              bridge_status: "accepted",
-              audio_url: "http://127.0.0.1:9999/artifact.wav",
+              ...artifactByKind[adapterKind],
               duration_ms: 1234,
               sample_rate_hz: 48000,
               visemes: [{ at_ms: 0 }, { at_ms: 120 }],
@@ -58168,9 +58189,16 @@ const tests = [
   [
     "adapter action envelope guard rejects upstream reaction context and task candidates",
     () => {
+      const handoffIssuedAtMs = Date.now();
       const approvedActionEnvelope = {
+        schema: "iris_adapter_approved_action_envelope_v1",
         trace_id: "trace",
         event_id: "event",
+        handoff_route: "adapter",
+        handoff_timestamp_status: "fresh",
+        handoff_issued_at_ms: handoffIssuedAtMs,
+        handoff_expires_at_ms: handoffIssuedAtMs + 10000,
+        handoff_max_age_ms: 10000,
         action_type: "SPEAK",
         target_presence_id: "iris",
         tone: "calm",
@@ -58551,10 +58579,27 @@ const tests = [
         ContractError
       );
 
+      const live2dPerformancePlan = {
+        ...performancePlan,
+        tracks: {
+          speech: [],
+          mouth: [],
+          breath: [],
+          expression: [],
+          motion: [],
+        },
+      };
+      const live2dHandoffIssuedAtMs = Date.now();
       const live2dPacket = createLive2dAdapterPacket(
         {
+          schema: "iris_adapter_approved_action_envelope_v1",
           trace_id: "trace",
           event_id: "event",
+          handoff_route: "adapter",
+          handoff_timestamp_status: "fresh",
+          handoff_issued_at_ms: live2dHandoffIssuedAtMs,
+          handoff_expires_at_ms: live2dHandoffIssuedAtMs + 10000,
+          handoff_max_age_ms: 10000,
           action_type: "SPEAK",
           target_presence_id: "iris",
           tone: "calm",
@@ -58577,7 +58622,7 @@ const tests = [
             gesture_hint: "small_hand",
             adapter_validation_required: true,
           },
-          performancePlan,
+          performancePlan: live2dPerformancePlan,
         }
       );
       const live2dPreview = createLive2dFixtureCuePreview(live2dPacket);
@@ -58666,6 +58711,7 @@ const tests = [
           script_direction: "ltr",
           adapter_validation_required: true,
         },
+        performancePlan: live2dPerformancePlan,
       });
       assert.deepEqual(Object.keys(subtitlePacket).sort(), [
         "adapter_kind",
@@ -58676,8 +58722,10 @@ const tests = [
         "event_id",
         "event_id_present",
         "line_break_plan",
+        "readability_profile",
         "safe_area_policy",
         "schema",
+        "script_direction",
         "subtitle_language",
         "subtitle_text",
         "trace_id",
@@ -58764,7 +58812,7 @@ const tests = [
         assert.equal(state.history[0].tts_bridge_status, "accepted");
         const overlayStatus = createOverlayStatus(state, { nowMs: state.updated_at_ms + 100 });
         assert.equal(overlayStatus.tts_bridge_status, "accepted");
-        assert.equal(overlayStatus.tts_artifact_available, true);
+        assert.equal(overlayStatus.tts_artifact_available, false);
         assert.equal(overlayStatus.tts_duration_ms, 1840);
         assert.equal(received.length, 1);
         assert.equal(received[0].schema, "iris_adapter_packet_v1");

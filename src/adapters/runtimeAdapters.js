@@ -296,12 +296,13 @@ export function createLiveChatSourceFromEnv(env) {
     env.IRIS_YOUTUBE_LIVE_CHAT_SOURCE ?? env.YOUTUBE_LIVE_CHAT_SOURCE
   );
   const videoId = resolveYouTubeVideoIdFromEnv(env);
-  const hasExplicitRelayEndpoint = resolveYouTubeRelayEndpointFromEnv(env) !== "";
+  const hasExplicitRelayEndpoint =
+    optionalEnvValue(resolveYouTubeRelayEndpointFromEnv(env)) !== undefined;
   const hasExplicitRelayBridge =
-    localLoopbackEndpoint({
+    optionalEnvValue(localLoopbackEndpoint({
       host: env.IRIS_YOUTUBE_RELAY_HOST ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_HOST,
       port: env.IRIS_YOUTUBE_RELAY_PORT ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_PORT,
-    }) !== "";
+    })) !== undefined;
   const hasRelaySourceSelected = source === "http";
   const hasRelayUpstream = (
     optionalEnvValue(env.IRIS_YOUTUBE_RELAY_UPSTREAM_ENDPOINT) ||
@@ -768,8 +769,7 @@ function localBridgeAdapterEndpoint(env, adapterKind) {
       host: env.IRIS_LOCAL_BRIDGE_HOST,
       port: env.IRIS_LOCAL_BRIDGE_PORT,
     }) ??
-    requiredLocalRuntimeEndpoint(env, { port: 8790 }) ??
-    "http://127.0.0.1:8790";
+    requiredLocalRuntimeEndpoint(env, { port: 8790 });
   if (!base) return undefined;
   return `${base.replace(/\/+$/u, "")}/${adapterKind}`;
 }
@@ -816,8 +816,7 @@ function localYouTubeRelayEndpoint(env) {
       host: env.IRIS_YOUTUBE_RELAY_HOST ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_HOST,
       port: env.IRIS_YOUTUBE_RELAY_PORT ?? env.IRIS_YOUTUBE_RELAY_BRIDGE_PORT,
     }) ??
-    (relaySourceSelected || relayUpstreamConfigured ? "http://127.0.0.1:9111" : undefined) ??
-    requiredLocalRuntimeEndpoint(env, { port: 9111 });
+    (relaySourceSelected || relayUpstreamConfigured ? "http://127.0.0.1:9111" : undefined);
   if (!base) return undefined;
   return `${base.replace(/\/+$/u, "")}/youtube/live-chat`;
 }
