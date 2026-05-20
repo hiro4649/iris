@@ -1,0 +1,57 @@
+# IRIS Feature Registry
+
+Status: feature governance registry
+Authority: subordinate to `IRIS_SPEC_AUTHORITY.md`, Phase00, numbered Phase specs, and active cross-phase addenda.
+
+This registry records the safe status of major IRIS features. It is not implementation evidence and does not make blocked or planned features production ready.
+
+Allowed status values:
+
+- `planned`
+- `spec_only`
+- `implemented`
+- `partially_implemented`
+- `blocked`
+- `deprecated`
+
+## Update Rule
+
+Future PRs must update this registry and the relevant spec when they change memory schema, avatar response contract, public JSON, Admin ordinary view, adapter packet, source boundary, readiness classification, production blocker, eval runner, skill policy, Curator plan, growth report plan, trace optimizer plan, Hermes-style expansion plan, or Codex harness behavior.
+
+## Registry
+
+| feature_id | feature_name | status | spec_file | implementation_files | eval_files | public_surface | internal_only_fields | approval_required | blocked_reason | last_verified_command |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| IRIS-SPEC-001 | Parent character OS spec | implemented | `docs/iris/IRIS_SPEC.md` | docs only | `scripts/lint-iris-docs.mjs` | safe spec summary | Phase authority conflicts | R3 for authority-adjacent changes | none | `node scripts/lint-iris-docs.mjs --iris-spec-only` |
+| IRIS-SPEC-002 | System map governance | spec_only | `docs/iris/IRIS_SYSTEM_MAP.md` | docs only | `scripts/lint-iris-docs.mjs` | safe area map | raw paths with secrets, raw payloads | R3 if boundary scope changes | spec map only, no runtime proof | `node scripts/lint-iris-docs.mjs` |
+| IRIS-SPEC-003 | Feature registry governance | spec_only | `docs/iris/IRIS_FEATURE_REGISTRY.md` | docs only | `scripts/lint-iris-docs.mjs` | feature status table | hidden implementation details, raw logs | R3 if status changes production meaning | registry only, no runtime proof | `node scripts/lint-iris-docs.mjs` |
+| IRIS-SOUL-001 | IRIS identity / SOUL governance | spec_only | `docs/iris/IRIS_SOUL.md` | response planning candidates | future character evals | safe personality style | private reasoning, `inner_intent` | yes | broad real-response quality eval missing | `node scripts/lint-iris-docs.mjs` |
+| IRIS-MEM-001 | IRIS three-tier memory policy | partially_implemented | `docs/iris/IRIS_MEMORY_POLICY.md` | `src/services/memory/irisMemoryRecordContract.js` | `scripts/run-iris-evals.mjs` | safe memory summary | raw memory, candidates, hidden scores | yes | runtime recall enforcement incomplete | `node scripts/run-iris-evals.mjs` |
+| IRIS-MEM-002 | Memory candidate review boundary | blocked | `IRIS_SPEC_AUTHORITY.md` | memory candidate modules | `scripts/run-tests.js` | safe review status | raw candidate, commit payload | yes | memory/candidate residual failure remains | `node scripts/run-tests.js` |
+| IRIS-AVA-001 | Avatar response public projection | partially_implemented | `docs/iris/IRIS_AVATAR_BEHAVIOR_MAP.md` | `src/services/avatar/irisAvatarResponseContract.js` | `scripts/run-iris-evals.mjs` | speech and safe visible labels | `inner_intent`, raw renderer payload | yes | full adapter proof incomplete | `node scripts/run-iris-evals.mjs` |
+| IRIS-PUB-001 | Public safe output contract | partially_implemented | `docs/iris/IRIS_SPEC.md` | public projection and report modules | `scripts/run-tests.js` | status, count, safe labels | secret, endpoint, token, raw payload, command | yes | D3, D4, and scenario residual failures remain | `node scripts/run-tests.js` |
+| IRIS-ADM-001 | Admin ordinary safe view | blocked | `IRIS_SPEC_AUTHORITY.md` | admin/operator modules | `scripts/run-tests.js` | safe setting labels and counts | endpoint values, raw payloads, raw jobs | yes | PR-F3 admin/operator work unapproved | `node scripts/run-tests.js` |
+| IRIS-RUN-001 | Runtime bridge worker health | implemented | `IRIS_SPEC_AUTHORITY.md` | `src/server/localBridgeEngineWorker.js` | `scripts/run-tests.js` | safe worker/engine status | raw bridge payload, raw path, raw diagnostic | yes | residual runtime/admin categories remain outside worker scope | `node scripts/run-tests.js` |
+| IRIS-RUN-002 | Local bridge server readiness | implemented | `IRIS_SPEC_AUTHORITY.md` | `src/server/localBridgeServer.js`, `src/services/dev/integrationStatus.js` | `scripts/run-tests.js` | safe bridge status and artifact label | raw adapter packet, endpoint, token | yes | residual runtime/admin categories remain outside bridge server scope | `node scripts/run-tests.js` |
+| IRIS-RUN-003 | Runtime bridge admin/operator summary | blocked | `IRIS_SPEC_AUTHORITY.md` | admin/operator and OBS setup modules | `scripts/run-tests.js` | safe operator labels | raw OBS payload, endpoint, runtime payload | yes | PR-F3 remains unapproved | `node scripts/run-tests.js` |
+| IRIS-ADP-001 | Adapter packet sanitizer and allowlist | implemented | `IRIS_SPEC_AUTHORITY.md` | `src/adapters/adapterPackets.js`, `src/adapters/httpPostAdapter.js`, `src/adapters/runtimeAdapters.js` | `scripts/run-tests.js` | safe adapter result | raw adapter packet, candidate, command, `world_command` | yes | source-specific residuals remain outside common sanitizer | `node scripts/run-tests.js` |
+| IRIS-SRC-YT-001 | YouTube source boundary | implemented | `docs/iris/IRIS_SYSTEM_MAP.md` | `src/adapters/youtube/*`, `src/runtime/httpIngestScheduler.js` | `scripts/run-tests.js` | safe source status, counts, safe error code | OAuth token, API key, endpoint, raw comment, raw support message | yes | relay rehearsal residual remains outside source normalization | `node scripts/run-tests.js` |
+| IRIS-SRC-GAME-001 | Game source boundary | blocked | `docs/iris/IRIS_SYSTEM_MAP.md` | game source and observation modules | `scripts/run-tests.js` | safe observation summary | raw frame, raw vision payload, raw bridge response | yes | PR-C4b not started | `node scripts/run-tests.js` |
+| IRIS-SRC-OBS-001 | OBS source and setup boundary | blocked | `docs/iris/IRIS_SYSTEM_MAP.md` | OBS bridge/setup modules | `scripts/run-tests.js` | safe setup status | OBS endpoint, raw acknowledgement, runtime payload | yes | PR-F3 or source-specific cleanup unapproved | `node scripts/run-tests.js` |
+| IRIS-SRC-TTS-001 | TTS adapter boundary | partially_implemented | `docs/iris/IRIS_SYSTEM_MAP.md` | TTS adapter modules | `scripts/run-tests.js` | safe voice source status | raw voice sample, endpoint, token | yes | real engine proof remains blocked | `node scripts/run-tests.js` |
+| IRIS-SRC-LIVE2D-001 | Live2D adapter boundary | partially_implemented | `docs/iris/IRIS_SYSTEM_MAP.md` | Live2D adapter modules | `scripts/run-tests.js` | safe renderer status | model path, motion path, raw renderer payload | yes | real renderer proof remains blocked | `node scripts/run-tests.js` |
+| IRIS-SRC-DB-001 | DB persistence boundary | blocked | `IRIS_SPEC_AUTHORITY.md` | DB persistence modules | future DB evals | safe persistence status | raw SQL, credentials, private viewer data | yes | production DB evidence missing | `not_run` |
+| IRIS-READY-001 | Readiness safe summary | partially_implemented | `docs/iris/IRIS_RELEASE_GATE.md`, `docs/iris/IRIS_RUNTIME_OPERATION_RUNBOOK.md` | production readiness and config doctor modules | `scripts/run-tests.js` | blocked/attention/runtime_waiting labels | env values, endpoints, raw diagnostics | yes | env owner and runbook residuals remain | `node scripts/run-tests.js` |
+| IRIS-READY-002 | Priority1 real residency proof | blocked | `docs/iris/IRIS_RELEASE_GATE.md` | worker, engine, OBS, TTS, Live2D, DB, YouTube, Game operations | production verification commands | safe go/no-go status | secrets, endpoints, raw service payloads | human approval required | real worker/engine/OBS/TTS/Live2D/DB/YouTube/Game proof missing | `not_run` |
+| IRIS-EVAL-001 | IRIS contract eval runner | implemented | `docs/iris/IRIS_EVALS.md` | `scripts/run-iris-evals.mjs` | `scripts/run-iris-evals.mjs` | pass/fail count | raw internal samples | yes for eval contract changes | minimum eval only | `node scripts/run-iris-evals.mjs` |
+| IRIS-EVAL-002 | Full regression suite | partially_implemented | `docs/iris/IRIS_KNOWN_RESIDUAL_TEST_FAILURES.md` | `scripts/run-tests.js` | `scripts/run-tests.js` | safe failing test summary | raw logs, secrets, endpoints | yes | full npm test has residual failures | `node scripts/run-tests.js` |
+| IRIS-SKILL-001 | IRIS skill self-improvement | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future skill modules | future skill evals | safe skill status | raw prompt, private trace, unsafe command | human approval required | no implementation or eval proof | `not_run` |
+| IRIS-SKILL-002 | IRIS skill Curator | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future Curator modules | future Curator evals | safe curation status | raw traces, private prompts, unreviewed suggestions | human approval required | no implementation, no production proof | `not_run` |
+| IRIS-GROW-001 | IRIS scheduled growth review | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future growth review modules | future growth evals | safe growth status | raw user data, raw trace, private scores | human approval required | no implementation, no growth report proof | `not_run` |
+| IRIS-GROW-002 | IRIS trace-based optimizer | spec_only | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future optimizer modules | future optimizer evals | safe optimization status | raw trace, dataset path, model internals | human approval required | design only; no runtime implementation | `not_run` |
+| IRIS-GROW-003 | Hermes-style performance expansion | spec_only | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future expansion modules | future expansion evals | safe capability status | raw trace, private data, unreviewed generated plan | human approval required | concept recorded only; priority1 blockers remain | `not_run` |
+| IRIS-ROLE-001 | IRIS specialist profile roles | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future role/profile modules | future profile evals | safe role label | hidden reviewer notes, private policy state | human approval required | no implementation or authority addendum | `not_run` |
+| CODEX-MEM-001 | Codex failure memory | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future Codex memory modules | future harness evals | safe failure summary | raw logs, secrets, endpoint values | human approval required | no implementation; memory safety review required | `not_run` |
+| CODEX-PR-001 | Codex PR split advisor | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future advisor modules | future harness evals | safe scope recommendation | raw diff, raw logs, private connector data | human approval required | no implementation; governance only | `not_run` |
+| CODEX-R3-001 | Codex R3 packet generator | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future R3 generator modules | future harness evals | safe confirmation packet draft | private review text, raw logs, unsafe scope | human approval required | no implementation; must not spoof approval | `not_run` |
+| CODEX-HARNESS-001 | Codex quality harness behavior | implemented | `docs/process/CODEX_HARNESS_MANIFEST.json` | `scripts/codex-*` | `scripts/codex-local-quality-gate.mjs` | safe gate status | raw logs, secrets, token values | yes | harness changes are separate PR scope | `node scripts/codex-local-quality-gate.mjs` |
