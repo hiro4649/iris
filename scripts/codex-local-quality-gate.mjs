@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.7
+// CODEX_QUALITY_HARNESS_FILE v0.6.8
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -10,7 +10,7 @@ const policyPath = path.join('docs', 'process', 'CODEX_QUALITY_GATE_POLICY.json'
 const knownRiskPath = path.join('docs', 'process', 'CODEX_KNOWN_RISKS.json');
 const codeAuditBaselinePath = path.join('docs', 'process', 'CODEX_CODE_AUDIT_BASELINE.json');
 const auditCalibrationLockPath = path.join('docs', 'process', 'CODEX_AUDIT_CALIBRATION_LOCK.json');
-const HARNESS_VERSION = '0.6.7';
+const HARNESS_VERSION = '0.6.8';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 const jsonMode = process.env.CODEX_QUALITY_REPORT === 'json';
 const defaultPolicy = {
@@ -24,6 +24,24 @@ const defaultPolicy = {
   harnessPrBlockedPaths: [],
   implementationCompanionTestPaths: [],
   testFixtureCompanionPaths: [],
+  fixtureContractRepairPaths: [],
+  fixtureContractRepairRules: {
+    allowApprovedFixtureContractRepair: true,
+    forbidTestWeakening: true,
+    forbidSkipTodoOnly: true,
+    forbidNegativeCaseWeakening: true,
+    requireManualConfirmation: true,
+    requireSafeSummary: true,
+    requiredManualConfirmationItems: [
+      'validator non-weakening',
+      'negative cases maintained',
+      'fixture repair only',
+      'raw memory not exposed',
+      'safe summary maintained',
+      'full run residual failures are not treated as PASS',
+      'non-overridable failures are not overridden',
+    ],
+  },
   harnessPrMode: 'fail',
   prTypes: {
     harness: {
@@ -68,6 +86,17 @@ const defaultPolicy = {
       allowPackageChanges: false,
       allowLockfileChanges: false,
       allowImplementationChanges: false,
+    },
+    'fixture-contract-repair': {
+      allowedPaths: [],
+      blockedPaths: [],
+      requiredReviewers: ['test-coverage-reviewer'],
+      requiredReviewerSkills: ['test-coverage-reviewer'],
+      requiresHumanReview: true,
+      allowPackageChanges: false,
+      allowLockfileChanges: false,
+      allowImplementationChanges: false,
+      highRiskPaths: [],
     },
     security: {
       allowedPaths: [],
@@ -586,7 +615,7 @@ function validatePolicySchema(policy) {
   const knownFields = new Set([
     'marker', 'profile', 'packageDirs', 'missingScript', 'allowedPaths', 'blockedPaths', 'highRiskPaths',
     'diffScope', 'riskKeywords', 'riskLevelBehavior', 'failOnNewWarnings', 'knownRiskExpiry',
-    'knownRisks', 'harnessPrAllowedPaths', 'harnessPrBlockedPaths', 'implementationCompanionTestPaths', 'testFixtureCompanionPaths', 'harnessPrMode', 'prTypes', 'prTypePolicies', 'checks',
+    'knownRisks', 'harnessPrAllowedPaths', 'harnessPrBlockedPaths', 'implementationCompanionTestPaths', 'testFixtureCompanionPaths', 'fixtureContractRepairPaths', 'fixtureContractRepairRules', 'harnessPrMode', 'prTypes', 'prTypePolicies', 'checks',
     'reviewerSelection', 'testWeakening', 'domainInvariants', 'dependencyAudit', 'securitySensitiveTerms', 'manualConfirmationPolicy', 'coverageIntent', 'codeAuditPolicy',
   ]);
   if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
@@ -607,6 +636,23 @@ function validatePolicySchema(policy) {
   validateStringArray(policy, 'harnessPrBlockedPaths');
   validateStringArray(policy, 'implementationCompanionTestPaths');
   validateStringArray(policy, 'testFixtureCompanionPaths');
+  validateStringArray(policy, 'fixtureContractRepairPaths');
+  if (policy.fixtureContractRepairRules !== undefined) {
+    if (!policy.fixtureContractRepairRules || typeof policy.fixtureContractRepairRules !== 'object' || Array.isArray(policy.fixtureContractRepairRules)) {
+      addPolicyViolation('policy.fixtureContractRepairRules.invalid', 'fixtureContractRepairRules must be an object.');
+    } else {
+      for (const key of ['allowApprovedFixtureContractRepair', 'forbidTestWeakening', 'forbidSkipTodoOnly', 'forbidNegativeCaseWeakening', 'requireManualConfirmation', 'requireSafeSummary']) {
+        if (policy.fixtureContractRepairRules[key] !== undefined && typeof policy.fixtureContractRepairRules[key] !== 'boolean') {
+          addPolicyViolation(`policy.fixtureContractRepairRules.${key}.invalid`, `fixtureContractRepairRules.${key} must be boolean.`);
+        }
+      }
+      if (policy.fixtureContractRepairRules.requiredManualConfirmationItems !== undefined
+        && (!Array.isArray(policy.fixtureContractRepairRules.requiredManualConfirmationItems)
+          || policy.fixtureContractRepairRules.requiredManualConfirmationItems.some((item) => typeof item !== 'string'))) {
+        addPolicyViolation('policy.fixtureContractRepairRules.requiredManualConfirmationItems.invalid', 'fixtureContractRepairRules.requiredManualConfirmationItems must be a string array.');
+      }
+    }
+  }
   if (policy.harnessPrMode !== undefined && !['fail', 'warn'].includes(policy.harnessPrMode)) {
     addPolicyViolation('policy.harnessPrMode.invalid', 'harnessPrMode must be fail or warn.');
   }
@@ -786,6 +832,16 @@ function readPolicy() {
         rules: [...(defaultPolicy.reviewerSelection.rules || []), ...(policy.reviewerSelection?.rules || [])],
       },
       testWeakening: { ...defaultPolicy.testWeakening, ...(policy.testWeakening || {}) },
+      fixtureContractRepairPaths: Array.isArray(policy.fixtureContractRepairPaths)
+        ? policy.fixtureContractRepairPaths
+        : defaultPolicy.fixtureContractRepairPaths,
+      fixtureContractRepairRules: {
+        ...defaultPolicy.fixtureContractRepairRules,
+        ...(policy.fixtureContractRepairRules || {}),
+        requiredManualConfirmationItems: Array.isArray(policy.fixtureContractRepairRules?.requiredManualConfirmationItems)
+          ? policy.fixtureContractRepairRules.requiredManualConfirmationItems
+          : defaultPolicy.fixtureContractRepairRules.requiredManualConfirmationItems,
+      },
       domainInvariants: Array.isArray(policy.domainInvariants) ? policy.domainInvariants : defaultPolicy.domainInvariants,
       dependencyAudit: { ...defaultPolicy.dependencyAudit, ...(policy.dependencyAudit || {}) },
       securitySensitiveTerms: Array.isArray(policy.securitySensitiveTerms)
@@ -1784,7 +1840,10 @@ function selectReviewers(policy, records) {
   for (const skill of prTypePolicy?.requiredReviewerSkills || []) addReviewer(skill, `prType.${report.prType}`);
 }
 function testPathPatterns(policy) {
-  return policy.testWeakening?.testPaths || defaultPolicy.testWeakening.testPaths;
+  return [
+    ...(policy.testWeakening?.testPaths || defaultPolicy.testWeakening.testPaths),
+    ...(policy.fixtureContractRepairPaths || []),
+  ];
 }
 function detectTestWeakening(policy, records, knownRisks, codeAuditBaseline) {
   const findings = [];
@@ -1803,7 +1862,16 @@ function detectTestWeakening(policy, records, knownRisks, codeAuditBaseline) {
     const removedAssertions = removedNonComment.filter((line) => removedAssertion.test(line)).length;
     const addFinding = (id) => {
       const fullId = `testWeakening.${id}`;
-      const severity = auditSeverity(policy, 'testWeakening', id, id === 'assertionRemoved' ? 'blocking' : 'warning');
+      const fixtureRepairStrict = report.prType === 'fixture-contract-repair'
+        && policy.fixtureContractRepairRules?.forbidTestWeakening !== false;
+      const fixtureRepairBlocking = fixtureRepairStrict
+        && (id === 'assertionRemoved'
+          || (id === 'skipTodoOnlyAdded' && policy.fixtureContractRepairRules?.forbidSkipTodoOnly !== false)
+          || (['errorPathRemoved', 'boundaryCoverageRemoved', 'regressionCoverageRemoved'].includes(id) && policy.fixtureContractRepairRules?.forbidNegativeCaseWeakening !== false)
+          || id === 'expectationRelaxed');
+      const severity = fixtureRepairBlocking
+        ? 'blocking'
+        : auditSeverity(policy, 'testWeakening', id, id === 'assertionRemoved' ? 'blocking' : 'warning');
       findings.push({ id, ruleId: ruleIdFrom(fullId), path: record.file, severity, confidence: defaultConfidence(fullId, severity) });
     };
     if (removedAssertions > addedAssertions) addFinding('assertionRemoved');
@@ -2083,12 +2151,16 @@ function computePostMergeStatus(worktree) {
 }
 function activeManualConfirmationPolicy(policy = activeAuditPolicy || defaultPolicy) {
   const configured = policy.manualConfirmationPolicy || {};
+  const fixtureRequiredItems = report.prType === 'fixture-contract-repair'
+    ? (policy.fixtureContractRepairRules?.requiredManualConfirmationItems || defaultPolicy.fixtureContractRepairRules.requiredManualConfirmationItems)
+    : [];
+  const configuredItems = Array.isArray(configured.requiredReviewedItems) ? configured.requiredReviewedItems : defaultPolicy.manualConfirmationPolicy.requiredReviewedItems;
   return {
     ...defaultPolicy.manualConfirmationPolicy,
     ...configured,
     requiredForRiskLevels: Array.isArray(configured.requiredForRiskLevels) ? configured.requiredForRiskLevels : defaultPolicy.manualConfirmationPolicy.requiredForRiskLevels,
     allowedSources: Array.isArray(configured.allowedSources) ? configured.allowedSources : defaultPolicy.manualConfirmationPolicy.allowedSources,
-    requiredReviewedItems: Array.isArray(configured.requiredReviewedItems) ? configured.requiredReviewedItems : defaultPolicy.manualConfirmationPolicy.requiredReviewedItems,
+    requiredReviewedItems: [...new Set([...configuredItems, ...fixtureRequiredItems])],
     cannotOverride: Array.isArray(configured.cannotOverride) ? configured.cannotOverride : defaultPolicy.manualConfirmationPolicy.cannotOverride,
   };
 }
@@ -2252,6 +2324,8 @@ function inferPrType(policy, changed = changedPathList()) {
   const docsOnly = paths.length > 0 && paths.every((file) => /^docs\//.test(file) || /^[^/]+\.(md|txt)$/.test(file));
   const testPaths = policy.coverageIntent?.testPaths || defaultPolicy.coverageIntent.testPaths;
   const testOnly = paths.length > 0 && paths.every((file) => pathMatches(file, testPaths));
+  const fixtureRepairPaths = policy.fixtureContractRepairPaths || defaultPolicy.fixtureContractRepairPaths;
+  const fixtureContractRepairOnly = paths.length > 0 && fixtureRepairPaths.length > 0 && paths.every((file) => pathMatches(file, fixtureRepairPaths));
   const dependencyOnly = paths.length > 0 && paths.every(dependencyPath);
   const harnessOnly = paths.length > 0 && paths.every((file) => pathMatches(file, harnessPaths));
   const packageTouched = paths.some(packagePath);
@@ -2272,6 +2346,9 @@ function inferPrType(policy, changed = changedPathList()) {
   } else if (docsOnly) {
     inferredType = 'docs-only';
     reasons.push('all changed paths are documentation paths');
+  } else if (fixtureContractRepairOnly) {
+    inferredType = 'fixture-contract-repair';
+    reasons.push('all changed paths match fixture contract repair paths');
   } else if (testOnly) {
     inferredType = 'test-only';
     reasons.push('all changed paths are test paths');
@@ -5039,7 +5116,10 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
   const enabled = Boolean(prTypePolicy);
   const harnessAllowed = policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths;
   const harnessBlocked = prTypeName === 'harness' ? (policy.harnessPrBlockedPaths || []) : [];
-  const typeAllowed = prTypePolicy?.allowedPaths || (prTypeName === 'harness' ? harnessAllowed : []);
+  const fixtureRepairPaths = policy.fixtureContractRepairPaths || defaultPolicy.fixtureContractRepairPaths;
+  const typeAllowed = prTypePolicy?.allowedPaths?.length
+    ? prTypePolicy.allowedPaths
+    : (prTypeName === 'harness' ? harnessAllowed : (prTypeName === 'fixture-contract-repair' ? fixtureRepairPaths : []));
   const typeBlocked = [...harnessBlocked, ...(prTypePolicy?.blockedPaths || [])];
   const outOfScope = typeAllowed.length ? changed.filter((file) => !pathMatches(file, typeAllowed)) : [];
   const blockedHits = changed.filter((file) => pathMatches(file, typeBlocked));
@@ -5047,7 +5127,10 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
   const lockfileChanges = changed.filter((file) => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(file));
   const harnessFileChanges = changed.filter((file) => pathMatches(file, harnessAllowed));
   const dependencyFiles = new Set([...packageChanges, ...lockfileChanges]);
-  const testPatterns = policy.coverageIntent?.testPaths || defaultPolicy.coverageIntent.testPaths;
+  const testPatterns = [
+    ...(policy.coverageIntent?.testPaths || defaultPolicy.coverageIntent.testPaths),
+    ...fixtureRepairPaths,
+  ];
   const companionTestPaths = prTypeName === 'implementation'
     ? [
         ...(policy.implementationCompanionTestPaths || []),
@@ -5089,6 +5172,15 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
       id: 'prType.companionTestFixture',
       message: 'Implementation PR includes companion test fixture changes; verify tests were strengthened or metadata-only.',
       known: warningKnown({ id: 'prType.companionTestFixture' }, knownRisks),
+    });
+  }
+  if (prTypeName === 'fixture-contract-repair') {
+    bumpRisk(prTypePolicy?.riskLevel || 'R3');
+    addHumanReviewReason('prType.fixtureContractRepair');
+    addWarning({
+      id: 'prType.fixtureContractRepair',
+      message: 'Fixture contract repair PR requires R3 manual review and must not weaken validators or negative cases.',
+      known: warningKnown({ id: 'prType.fixtureContractRepair' }, knownRisks),
     });
   }
   if (!enabled && prTypeName !== 'unknown') addWarning({ id: 'prType.policyMissing', message: 'Inferred PR type has no explicit policy.' });
