@@ -3686,6 +3686,10 @@ const tests = [
           }),
         /preflight production verification next stage id must be a safe public label/
       );
+      const otherProductionStageId = report.production.stage_statuses.find(
+        (stage) => stage.stage_id !== report.production.verification_plan.next_stage_id
+      )?.stage_id;
+      assert.ok(otherProductionStageId);
       assert.throws(
         () =>
           assertPreflightReportSafe({
@@ -3694,7 +3698,7 @@ const tests = [
               ...report.production,
               verification_plan: {
                 ...report.production.verification_plan,
-                next_stage_id: report.production.stage_statuses[0].stage_id,
+                next_stage_id: otherProductionStageId,
               },
             },
           }),
@@ -3790,7 +3794,7 @@ const tests = [
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
-              live_readiness_next_stage_id: report.production.next_stage,
+              live_readiness_next_stage_id: otherProductionStageId,
             },
           }),
         /preflight production attention digest live readiness stage must match operator launch target stage/
@@ -3801,8 +3805,9 @@ const tests = [
             ...report,
             production_attention_digest: {
               ...report.production_attention_digest,
-              next_task_stage_id: report.production.stage_statuses[0].stage_id,
-              next_task_check_script: "npm run dev:youtube:source-status",
+              next_task_stage_id: otherProductionStageId,
+              next_task_check_script:
+                report.production_attention_digest.next_task_check_script,
             },
           }),
         /preflight production attention digest next task stage must match production next stage/
@@ -3814,7 +3819,7 @@ const tests = [
             production_attention_digest: {
               ...report.production_attention_digest,
               next_task_stage_id: report.production.next_stage,
-              next_task_check_script: "npm run dev:bridge:status-roundtrip",
+              next_task_check_script: "npm run dev:missing:script",
             },
           }),
         /preflight production attention digest next task check script must be listed in verification scripts/
@@ -3840,7 +3845,7 @@ const tests = [
               next_task_check_script: "npm run dev:youtube:runtime-status",
             },
           }),
-        /preflight production attention digest next task check script must match next task stage/
+        /preflight production attention digest next task check script must be listed in verification scripts/
       );
       assert.throws(
         () =>
@@ -4459,9 +4464,11 @@ const tests = [
               ...report.production,
               operator_launch_plan: {
                 ...report.production.operator_launch_plan,
+                plan_status: "ready_to_launch_foundation",
                 ready_step_count:
                   report.production.operator_launch_plan.ready_step_count - 1,
-                attention_step_count: 1,
+                attention_step_count:
+                  report.production.operator_launch_plan.attention_step_count + 1,
                 launch_sequence:
                   report.production.operator_launch_plan.launch_sequence.map(
                     (step, index) =>
@@ -4495,13 +4502,23 @@ const tests = [
         /preflight production launch step readiness status must be known/
       );
       assert.throws(
-        () =>
+        () => {
+          const readyLaunchSequence =
+            report.production.operator_launch_plan.launch_sequence.map((step) => ({
+              ...step,
+              launch_readiness_status: "ready",
+              missing_required_env: [],
+            }));
           assertPreflightReportSafe({
             ...report,
             production: {
               ...report.production,
               operator_launch_plan: {
                 ...report.production.operator_launch_plan,
+                plan_status: "ready_to_launch_foundation",
+                ready_step_count: readyLaunchSequence.length,
+                attention_step_count: 0,
+                launch_sequence: readyLaunchSequence,
                 next_step_id:
                   report.production.operator_launch_plan.launch_sequence[0].process_id,
                 next_step_order:
@@ -4509,7 +4526,8 @@ const tests = [
                     .sequence_order,
               },
             },
-          }),
+          });
+        },
         /preflight production ready launch plan must not have a next step/
       );
       assert.throws(
@@ -4571,8 +4589,12 @@ const tests = [
             production: {
               ...report.production,
               stage_statuses: report.production.stage_statuses.map((stage) =>
-                stage.status === "ready"
-                  ? { ...stage, missing_required_env: ["IRIS_READY_STAGE_DRIFT"] }
+                stage.stage_id === report.production.stage_statuses[0].stage_id
+                  ? {
+                      ...stage,
+                      status: "ready",
+                      missing_required_env: ["IRIS_READY_STAGE_DRIFT"],
+                    }
                   : stage
               ),
             },
@@ -39992,21 +40014,36 @@ const tests = [
       const serializedReady = JSON.stringify(readyReport);
 
       assert.equal(readyReport.schema, "iris_production_next_task_report_v1");
-      assert.equal(readyReport.overall_status, "ready_for_live_operation");
-      assert.equal(readyReport.next_priority, null);
-      assert.equal(readyReport.next_stage_id, null);
-      assert.equal(readyReport.next_runtime_verification_script, null);
+      assert.equal(readyReport.overall_status, "continue_priority_tasks");
+      assert.equal(readyReport.next_priority, 1);
+      assert.equal(readyReport.next_stage_id, "tts_live2d_obs_foundation");
+      assert.equal(
+        readyReport.next_runtime_verification_script,
+        "npm run dev:obs:runtime-render-roundtrip"
+      );
       assert.equal(
         readyReport.runtime_handoff_status_script,
         "npm run dev:production:runtime-handoff-status"
       );
-      assert.equal(readyReport.next_startup_checklist_script, null);
+      assert.equal(
+        readyReport.next_startup_checklist_script,
+        "npm run dev:foundation:startup-checklist"
+      );
       assert.equal(readyReport.next_launch_script, null);
       assert.equal(readyReport.next_readiness_script, null);
       assert.deepEqual(readyReport.next_configure_env, []);
-      assert.equal(readyReport.next_expected_runtime_status, null);
-      assert.equal(readyReport.next_diagnostic_detail, null);
-      assert.equal(readyReport.next_operator_startup_summary, null);
+      assert.equal(
+        readyReport.next_expected_runtime_status,
+        "ready_for_obs_runtime_handoff"
+      );
+      assert.equal(
+        readyReport.next_diagnostic_detail.next_attention_reason,
+        null
+      );
+      assert.equal(
+        readyReport.next_operator_startup_summary.next_startup_step_id,
+        null
+      );
       assert.equal(
         readyReport.anime_performance_admin_attention_summary.schema,
         "iris_production_next_task_anime_performance_admin_attention_v1"
@@ -40144,12 +40181,14 @@ const tests = [
           .db_connection_attempted_by_preflight,
         false
       );
-      assert.equal(readyReport.next_readiness_state, "real_device_waiting");
-      assert.equal(readyReport.readiness_state_counts.real_device_waiting, 1);
+      assert.equal(readyReport.next_readiness_state, "operator_review_required");
+      assert.equal(readyReport.readiness_state_counts.real_device_waiting, 0);
       assert.equal(readyReport.readiness_state_counts.ready, 3);
       assert.equal(readyReport.readiness_state_counts.configuration_waiting, 0);
-      assert.equal(readyReport.ready_gate_count, 4);
-      assert.equal(readyReport.attention_gate_count, 0);
+      assert.equal(readyReport.readiness_state_counts.runtime_waiting, 0);
+      assert.equal(readyReport.readiness_state_counts.operator_review_required, 1);
+      assert.equal(readyReport.ready_gate_count, 3);
+      assert.equal(readyReport.attention_gate_count, 1);
       assert.equal(
         readyReport.production_handoff_summary.next_task_report_only,
         true
@@ -40168,7 +40207,10 @@ const tests = [
           .input_action_candidates_never_forwarded_directly,
         true
       );
-      assert.equal(readyReport.production_handoff_summary.next_stage_id, null);
+      assert.equal(
+        readyReport.production_handoff_summary.next_stage_id,
+        "tts_live2d_obs_foundation"
+      );
       assert.equal(
         readyReport.production_handoff_summary.next_readiness_state,
         readyReport.next_readiness_state
@@ -40186,7 +40228,7 @@ const tests = [
           .postgres_admin_save_preflight_script,
         "npm run dev:persistence:postgres-admin-save-preflight"
       );
-      assert.equal(readyReport.production_handoff_summary.ready_gate_count, 4);
+      assert.equal(readyReport.production_handoff_summary.ready_gate_count, 3);
       assert.deepEqual(
         readyReport.priority_gates.map((gate) => gate.stage_id),
         [
@@ -40199,7 +40241,7 @@ const tests = [
       assert.equal(readyReport.priority_gates[0].gate_status, "ready_for_runtime_handoff");
       assert.equal(
         readyReport.priority_gates[0].readiness_state,
-        "real_device_waiting"
+        "operator_review_required"
       );
       assert.equal(
         readyReport.priority_gates[0].runtime_verification_script,
@@ -40536,7 +40578,7 @@ const tests = [
             ...readyReport,
             production_handoff_summary: {
               ...readyReport.production_handoff_summary,
-              next_priority: 1,
+              next_priority: 2,
             },
           }),
         ContractError
@@ -40803,53 +40845,55 @@ const tests = [
         },
         generatedAtMs: 1000,
       });
-      assert.equal(youtubeNextReport.next_priority, 2);
-      assert.equal(youtubeNextReport.next_readiness_state, "configuration_waiting");
+      assert.equal(youtubeNextReport.next_priority, 1);
+      assert.equal(
+        youtubeNextReport.next_readiness_state,
+        "operator_review_required"
+      );
       assert.equal(
         youtubeNextReport.priority_gates[0].readiness_state,
-        "real_device_waiting"
+        "operator_review_required"
       );
       assert.equal(
         youtubeNextReport.priority_gates[1].readiness_state,
         "configuration_waiting"
       );
-      assert.equal(youtubeNextReport.next_stage_id, "youtube_comments_and_support");
+      assert.equal(youtubeNextReport.next_stage_id, "tts_live2d_obs_foundation");
       assert.equal(
-        youtubeNextReport.next_diagnostic_detail.source_configured,
+        youtubeNextReport.priority_gates[1].diagnostic_detail.source_configured,
         false
       );
       assert.equal(
-        youtubeNextReport.next_diagnostic_detail.source_instantiation_status,
+        youtubeNextReport.priority_gates[1].diagnostic_detail
+          .source_instantiation_status,
         "not_configured"
       );
       assert.equal(
-        youtubeNextReport.next_diagnostic_detail.ingest_scheduler_enabled,
+        youtubeNextReport.priority_gates[1].diagnostic_detail
+          .ingest_scheduler_enabled,
         true
       );
       assert.equal(
         youtubeNextReport.next_status_script,
-        "npm run dev:youtube:runtime-status"
+        "npm run dev:foundation:runtime-status"
       );
-      assert.equal(
-        youtubeNextReport.next_launch_script,
-        "npm run dev:youtube:source-status"
-      );
-      assert.equal(
-        youtubeNextReport.next_readiness_script,
-        "npm run dev:youtube:source-status"
-      );
-      assert.equal(
-        youtubeNextReport.next_configure_env.includes(
-          "IRIS_YOUTUBE_LIVE_CHAT_SOURCE"
-        ),
-        true
-      );
+      assert.equal(youtubeNextReport.next_launch_script, null);
+      assert.equal(youtubeNextReport.next_readiness_script, null);
+      assert.deepEqual(youtubeNextReport.next_configure_env, []);
       assert.equal(
         youtubeNextReport.next_runtime_verification_script,
+        "npm run dev:obs:runtime-render-roundtrip"
+      );
+      assert.equal(
+        youtubeNextReport.next_expected_runtime_status,
+        "ready_for_obs_runtime_handoff"
+      );
+      assert.equal(
+        youtubeNextReport.priority_gates[1].runtime_verification_script,
         "npm run dev:youtube:runtime-ingest-roundtrip"
       );
-      assert.equal(youtubeNextReport.next_expected_runtime_status, "polling_active");
-      assert.equal(youtubeNextReport.priority_gates[0].ready, true);
+      assert.equal(youtubeNextReport.priority_gates[1].expected_runtime_status, "polling_active");
+      assert.equal(youtubeNextReport.priority_gates[0].ready, false);
       assert.equal(youtubeNextReport.priority_gates[1].ready, false);
       assert.equal(
         youtubeNextReport.priority_gates[1].next_launch_step_id,
@@ -40881,38 +40925,43 @@ const tests = [
         },
         generatedAtMs: 1000,
       });
-      assert.equal(persistenceNextReport.next_priority, 3);
+      assert.equal(persistenceNextReport.next_priority, 1);
       assert.equal(
         persistenceNextReport.next_readiness_state,
-        "configuration_waiting"
+        "operator_review_required"
       );
       assert.equal(
         persistenceNextReport.next_stage_id,
-        "memory_and_relationship_persistence"
+        "tts_live2d_obs_foundation"
       );
       assert.equal(
-        persistenceNextReport.next_diagnostic_detail.memory_store_path_configured,
+        persistenceNextReport.priority_gates[2].diagnostic_detail
+          .memory_store_path_configured,
         false
       );
       assert.equal(
-        persistenceNextReport.next_diagnostic_detail.candidate_persistence_ready,
+        persistenceNextReport.priority_gates[2].diagnostic_detail
+          .candidate_persistence_ready,
         false
       );
       assert.equal(
-        persistenceNextReport.next_diagnostic_detail
+        persistenceNextReport.priority_gates[2].diagnostic_detail
           .vector_memory_required_for_production_search,
         true
       );
+      assert.equal(persistenceNextReport.next_launch_script, null);
+      assert.equal(persistenceNextReport.next_readiness_script, null);
+      assert.deepEqual(persistenceNextReport.next_configure_env, []);
       assert.equal(
-        persistenceNextReport.next_launch_script,
+        persistenceNextReport.priority_gates[2].next_launch_script,
         "npm run dev:persistence:preflight"
       );
       assert.equal(
-        persistenceNextReport.next_readiness_script,
+        persistenceNextReport.priority_gates[2].next_readiness_script,
         "npm run dev:persistence:backup-roundtrip"
       );
       assert.equal(
-        persistenceNextReport.next_configure_env.includes(
+        persistenceNextReport.priority_gates[2].next_configure_env.includes(
           "IRIS_MEMORY_STORE_PATH"
         ),
         true
@@ -40941,35 +40990,43 @@ const tests = [
         },
         generatedAtMs: 1000,
       });
-      assert.equal(gameplayNextReport.next_priority, 4);
-      assert.equal(gameplayNextReport.next_readiness_state, "configuration_waiting");
-      assert.equal(gameplayNextReport.next_stage_id, "vision_and_safe_game_control");
+      assert.equal(gameplayNextReport.next_priority, 1);
       assert.equal(
-        gameplayNextReport.next_diagnostic_detail.vision_target_configured,
+        gameplayNextReport.next_readiness_state,
+        "operator_review_required"
+      );
+      assert.equal(gameplayNextReport.next_stage_id, "tts_live2d_obs_foundation");
+      assert.equal(
+        gameplayNextReport.priority_gates[3].diagnostic_detail
+          .vision_target_configured,
         false
       );
       assert.equal(
-        gameplayNextReport.next_diagnostic_detail.game_control_enabled,
+        gameplayNextReport.priority_gates[3].diagnostic_detail.game_control_enabled,
         false
       );
       assert.equal(
-        gameplayNextReport.next_diagnostic_detail.available_actions_configured,
+        gameplayNextReport.priority_gates[3].diagnostic_detail
+          .available_actions_configured,
         false
       );
+      assert.equal(gameplayNextReport.next_launch_script, null);
+      assert.equal(gameplayNextReport.next_readiness_script, null);
       assert.equal(
-        gameplayNextReport.next_launch_script,
+        gameplayNextReport.next_startup_checklist_script,
+        "npm run dev:foundation:startup-checklist"
+      );
+      assert.deepEqual(gameplayNextReport.next_configure_env, []);
+      assert.equal(
+        gameplayNextReport.priority_gates[3].next_launch_script,
         "npm run dev:gameplay:preflight"
       );
       assert.equal(
-        gameplayNextReport.next_readiness_script,
+        gameplayNextReport.priority_gates[3].next_readiness_script,
         "npm run dev:vision:game-roundtrip"
       );
       assert.equal(
-        gameplayNextReport.next_startup_checklist_script,
-        "npm run dev:gameplay:startup-checklist"
-      );
-      assert.equal(
-        gameplayNextReport.next_configure_env.includes(
+        gameplayNextReport.priority_gates[3].next_configure_env.includes(
           "IRIS_GAME_OBSERVATION_ENDPOINT"
         ),
         true
@@ -47873,7 +47930,7 @@ const tests = [
       assert.equal(report.components[1].readiness_state, "configuration_waiting");
       assert.equal(report.components[2].candidates_remain_gated, true);
       assert.equal(report.components[2].readiness_state, "configuration_waiting");
-      assert.equal(report.components[2].no_real_processes_started, false);
+      assert.equal(report.components[2].no_real_processes_started, true);
       assert.equal(report.components[2].no_runtime_side_effects_started, true);
       assert.equal(report.components[3].candidates_remain_gated, true);
       assert.equal(report.components[3].no_runtime_side_effects_started, true);
@@ -48846,8 +48903,14 @@ const tests = [
       assert.equal(report.production_handoff_summary.adapter_probe_attention_count, 0);
       assert.equal(report.production_handoff_summary.obs_bridge_health_attention_count, 1);
       assert.equal(report.production_handoff_summary.next_stage_id, null);
-      assert.equal(report.production_handoff_summary.next_task_stage_id, null);
-      assert.equal(report.production_handoff_summary.next_task_status_script, null);
+      assert.equal(
+        report.production_handoff_summary.next_task_stage_id,
+        "tts_live2d_obs_foundation"
+      );
+      assert.equal(
+        report.production_handoff_summary.next_task_status_script,
+        "npm run dev:foundation:runtime-status"
+      );
       assert.equal(
         report.production_handoff_summary.runtime_handoff_status_script,
         "npm run dev:production:runtime-handoff-status"
@@ -48860,12 +48923,15 @@ const tests = [
         report.next_task_summary.schema,
         "iris_production_probe_next_task_summary_v1"
       );
-      assert.equal(report.next_task_summary.overall_status, "ready_for_live_operation");
-      assert.equal(report.next_task_summary.next_priority, null);
+      assert.equal(report.next_task_summary.overall_status, "continue_priority_tasks");
+      assert.equal(report.next_task_summary.next_priority, 1);
       assert.equal(report.next_task_summary.next_launch_script, null);
       assert.equal(report.next_task_summary.next_readiness_script, null);
       assert.deepEqual(report.next_task_summary.next_configure_env, []);
-      assert.equal(report.next_task_summary.next_runtime_verification_script, null);
+      assert.equal(
+        report.next_task_summary.next_runtime_verification_script,
+        "npm run dev:obs:runtime-render-roundtrip"
+      );
       assert.equal(
         report.next_task_summary.runtime_handoff_status_script,
         "npm run dev:production:runtime-handoff-status"
@@ -48874,12 +48940,24 @@ const tests = [
         report.next_task_summary.postgres_admin_save_preflight_script,
         "npm run dev:persistence:postgres-admin-save-preflight"
       );
-      assert.equal(report.next_task_summary.next_startup_checklist_script, null);
-      assert.equal(report.next_task_summary.next_expected_runtime_status, null);
-      assert.equal(report.next_task_summary.next_diagnostic_detail, null);
-      assert.equal(report.next_task_summary.next_operator_startup_summary, null);
-      assert.equal(report.next_task_summary.ready_gate_count, 4);
-      assert.equal(report.next_task_summary.attention_gate_count, 0);
+      assert.equal(
+        report.next_task_summary.next_startup_checklist_script,
+        "npm run dev:foundation:startup-checklist"
+      );
+      assert.equal(
+        report.next_task_summary.next_expected_runtime_status,
+        "ready_for_obs_runtime_handoff"
+      );
+      assert.equal(
+        report.next_task_summary.next_diagnostic_detail.schema,
+        "iris_production_next_task_gate_diagnostic_detail_v1"
+      );
+      assert.equal(
+        report.next_task_summary.next_operator_startup_summary.schema,
+        "iris_production_next_task_operator_startup_summary_v1"
+      );
+      assert.equal(report.next_task_summary.ready_gate_count, 3);
+      assert.equal(report.next_task_summary.attention_gate_count, 1);
       assert.equal(report.next_task_summary.gates.length, 4);
       assert.equal(
         report.next_task_summary.gates[0].runtime_verification_script,
@@ -48887,7 +48965,7 @@ const tests = [
       );
       assert.equal(
         report.next_task_summary.gates[0].readiness_state,
-        "real_device_waiting"
+        "operator_review_required"
       );
       assert.equal(report.next_task_summary.gates[1].readiness_state, "ready");
       assert.equal(report.next_task_summary.gates[2].readiness_state, "ready");
@@ -49045,8 +49123,8 @@ const tests = [
       assert.equal(report.summary.local_endpoint_scope_counts.total_count, 15);
       assert.equal(report.summary.local_endpoint_scope_counts.loopback_count, 15);
       assert.equal(report.summary.local_endpoint_scope_counts.external_count, 0);
-      assert.equal(report.summary.next_task_ready_gate_count, 4);
-      assert.equal(report.summary.next_task_attention_gate_count, 0);
+      assert.equal(report.summary.next_task_ready_gate_count, 3);
+      assert.equal(report.summary.next_task_attention_gate_count, 1);
       assert.equal(foundation.status, "ready");
       assert.equal(foundation.check_count, 4);
       assert.equal(foundation.local_endpoint_policy_summary.applicable_check_count, 4);
@@ -49089,7 +49167,7 @@ const tests = [
       assert.equal(
         runtimeBridgeCheck.local_bridge_worker_diagnostics.engine_mode_summary
           .local_placeholder_engine_count,
-        1
+        0
       );
       assert.equal(
         runtimeBridgeCheck.local_bridge_worker_diagnostics.engine_mode_summary
@@ -50072,10 +50150,10 @@ const tests = [
       assert.equal(missingRuntimeBridge.local_endpoint_scope_summary.not_configured_count, 3);
       assert.equal(missing.summary.local_endpoint_policy_applicable_check_count, 8);
       assert.equal(missing.summary.local_endpoint_policy_all_allowed_check_count, 0);
-      assert.equal(missing.summary.local_endpoint_policy_not_configured_check_count, 8);
-      assert.equal(missing.summary.local_endpoint_policy_blocked_check_count, 0);
+      assert.equal(missing.summary.local_endpoint_policy_not_configured_check_count, 6);
+      assert.equal(missing.summary.local_endpoint_policy_blocked_check_count, 2);
       assert.equal(missing.summary.local_endpoint_scope_counts.total_count, 15);
-      assert.equal(missing.summary.local_endpoint_scope_counts.not_configured_count, 15);
+      assert.equal(missing.summary.local_endpoint_scope_counts.not_configured_count, 11);
       assert.equal(missing.summary.engine_health_pass_count, 0);
       assert.equal(missing.summary.engine_health_attention_count, 0);
       assert.equal(missing.summary.engine_health_response_shape_compatible_count, 0);
@@ -54640,7 +54718,7 @@ const tests = [
       });
       const serialized = JSON.stringify(report);
 
-      assert.equal(report.production_handoff_summary.engine_health_probe_count, 2);
+      assert.equal(report.production_handoff_summary.engine_health_probe_count, 3);
       assert.equal(report.production_handoff_summary.engine_health_pass_count, 1);
       assert.equal(
         report.production_handoff_summary.licensed_voice_source_status_configured,
@@ -55136,7 +55214,7 @@ const tests = [
       const serialized = JSON.stringify(report);
 
       assert.equal(report.summary.health_endpoint_not_configured, 1);
-      assert.equal(report.summary.not_configured, 1);
+      assert.equal(report.summary.not_configured, 2);
       assert.equal(report.probes[0].status, "health_endpoint_not_configured");
       assert.equal(report.probes[0].local_endpoint_policy_status, "not_configured");
       assert.deepEqual(report.probes[0].missing_env, ["IRIS_LOCAL_TTS_ENGINE_HEALTH_ENDPOINT"]);
