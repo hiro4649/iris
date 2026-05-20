@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.7
+// CODEX_QUALITY_HARNESS_FILE v0.6.8
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
-const HARNESS_VERSION = '0.6.7';
+const HARNESS_VERSION = '0.6.8';
 
 function git(args) {
   try { return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return ''; }

@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.6.7 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.6.8 -->
 # Skill: Implementation Reviewer
 
 Review the code for minimality, correctness, and maintainability.
