@@ -52155,7 +52155,7 @@ const tests = [
         true
       );
       assert.equal(report.production_handoff_summary.no_game_or_os_input, true);
-      assert.equal(report.production_handoff_summary.configured_env_count, 6);
+      assert.equal(report.production_handoff_summary.configured_env_count, 7);
       assert.equal(report.production_handoff_summary.next_probe_script, "npm run dev:engine:probe");
       assert.equal(serialized.includes("http://127.0.0.1:50021"), false);
       assert.equal(serialized.includes("secret-voicevox-key"), false);
@@ -52232,7 +52232,7 @@ const tests = [
         true
       );
       assert.equal(report.production_handoff_summary.no_game_or_os_input, true);
-      assert.equal(report.production_handoff_summary.configured_env_count, 8);
+      assert.equal(report.production_handoff_summary.configured_env_count, 9);
       assert.equal(report.production_handoff_summary.next_probe_script, "npm run dev:engine:probe");
       assert.equal(serialized.includes("http://127.0.0.1:9122"), false);
       assert.equal(serialized.includes("secret-live2d-key"), false);
@@ -57778,38 +57778,81 @@ const tests = [
         plan.schema,
         "iris_local_streaming_runtime_startup_plan_v1"
       );
-      assert.equal(plan.services.length, 3);
+      assert.equal(plan.services.length, 10);
       assert.deepEqual(
         plan.services.map((service) => service.id),
-        ["bridge", "worker", "dev_server"]
+        [
+          "youtube_relay",
+          "response_provider",
+          "voicevox_bridge",
+          "live2d_cue_bridge",
+          "subtitle_engine",
+          "memory_vector",
+          "game_bridge",
+          "bridge",
+          "worker",
+          "dev_server",
+        ]
       );
-      assert.deepEqual(plan.services[0].args, ["scripts/dev-local-bridge.js"]);
-      assert.deepEqual(plan.services[1].args, [
+      const serviceById = Object.fromEntries(
+        plan.services.map((service) => [service.id, service])
+      );
+      assert.deepEqual(serviceById.bridge.args, ["scripts/dev-local-bridge.js"]);
+      assert.deepEqual(serviceById.worker.args, [
         "scripts/dev-bridge-worker.js",
         "--watch",
       ]);
-      assert.deepEqual(plan.services[2].args, ["scripts/dev-server.js"]);
-      assert.equal(plan.services[0].env_contract.port_configured, true);
+      assert.deepEqual(serviceById.dev_server.args, ["scripts/dev-server.js"]);
+      assert.deepEqual(serviceById.voicevox_bridge.args, [
+        "scripts/dev-voicevox-tts-engine-bridge.js",
+      ]);
+      assert.deepEqual(serviceById.live2d_cue_bridge.args, [
+        "scripts/dev-live2d-cue-engine-bridge.js",
+      ]);
+      assert.deepEqual(serviceById.subtitle_engine.args, [
+        "scripts/dev-local-subtitle-engine.js",
+      ]);
+      assert.equal(serviceById.bridge.env_contract.port_configured, true);
       assert.equal(
-        plan.services[1].env_contract.tts_engine_endpoint_configured,
+        serviceById.worker.env_contract.tts_engine_endpoint_configured,
         true
       );
       assert.equal(
-        plan.services[1].env_contract.live2d_engine_endpoint_configured,
+        serviceById.worker.env_contract.live2d_engine_endpoint_configured,
         true
       );
-      assert.equal(plan.services[2].env_contract.port_configured, true);
+      assert.equal(serviceById.voicevox_bridge.env_contract.enabled, true);
       assert.equal(
-        plan.services[2].env_contract.idle_scheduler_configured,
+        serviceById.live2d_cue_bridge.env_contract.enabled,
+        true
+      );
+      assert.equal(serviceById.subtitle_engine.env_contract.enabled, true);
+      assert.equal(serviceById.dev_server.env_contract.port_configured, true);
+      assert.equal(
+        serviceById.dev_server.env_contract.idle_scheduler_configured,
         true
       );
       assert.equal(plan.startup_contract.starts_local_bridge, true);
+      assert.equal(
+        plan.startup_contract.starts_voicevox_bridge_when_configured,
+        true
+      );
+      assert.equal(
+        plan.startup_contract.starts_live2d_cue_bridge_when_configured,
+        true
+      );
+      assert.equal(
+        plan.startup_contract.starts_youtube_relay_when_configured,
+        true
+      );
       assert.equal(plan.startup_contract.starts_worker_watch_loop, true);
       assert.equal(plan.startup_contract.starts_http_overlay_runtime, true);
       assert.equal(
         plan.startup_contract.stops_all_services_when_one_exits,
         true
       );
+      assert.equal(JSON.stringify(plan).includes("http://127.0.0.1:50021"), false);
+      assert.equal(JSON.stringify(plan).includes("http://127.0.0.1:3900"), false);
     },
   ],
   [
