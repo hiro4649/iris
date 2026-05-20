@@ -58,7 +58,6 @@ const ENGINE_HEALTH_CONFIGS = [
         "audio/mpeg",
         "audio/mp4",
         "audio/aac",
-        "audio/flac",
         "audio/ogg",
         "audio/webm",
       ],
