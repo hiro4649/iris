@@ -13,6 +13,12 @@ const FORBIDDEN_GAME_COMMAND_FIELDS = [
   "memory_write",
   "direct_memory_write",
   "commit_memory",
+  "raw_response",
+  "raw_api_response",
+  "raw_vision_response",
+  "raw_game_payload",
+  "raw_source_payload",
+  "raw_screenshot",
   "raw_frame",
   "raw_image",
   "image_base64",
@@ -20,6 +26,7 @@ const FORBIDDEN_GAME_COMMAND_FIELDS = [
   "frame_pixels",
   "pixel_data",
   "ocr_raw_text",
+  "raw_ocr_text",
   "endpoint",
   "url",
   "api_key",
@@ -148,7 +155,12 @@ function buildVisionMetadata(raw) {
       ? uiFocusAreas.map((item) => cleanText(item, 80)).filter(Boolean).slice(0, 8)
       : [],
     raw_frame_available:
-      Object.hasOwn(raw, "raw_frame") || Object.hasOwn(vision, "raw_frame"),
+      raw.raw_frame_available === true ||
+      raw.rawFrameAvailable === true ||
+      vision.raw_frame_available === true ||
+      vision.rawFrameAvailable === true ||
+      frame.raw_frame_available === true ||
+      frame.rawFrameAvailable === true,
     raw_frame_policy: "raw_frame_not_passed_to_core",
   };
 }
