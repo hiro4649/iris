@@ -1,6 +1,6 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.6.7",
-  "harnessVersion": "0.6.7",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.6.8",
+  "harnessVersion": "0.6.8",
   "profile": "iris",
   "scriptNames": [
     "codex-adversarial-pr-simulator.mjs",

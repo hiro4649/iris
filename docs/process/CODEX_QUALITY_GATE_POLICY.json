@@ -1,5 +1,5 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.6.7",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.6.8",
   "profile": "iris",
   "packageDirs": [
     "."
@@ -229,6 +229,42 @@
       "companionTestPaths": [],
       "testFixtureCompanionPaths": [],
       "highRiskPaths": []
+    },
+    "fixture-contract-repair": {
+      "allowedPaths": [
+        "scripts/run-tests.js"
+      ],
+      "blockedPaths": [
+        "src/",
+        "test/",
+        "docs/specs/",
+        "IRIS_SPEC_AUTHORITY.md",
+        "package.json",
+        "package-lock.json",
+        "AGENTS.md",
+        ".github/",
+        "docs/process/",
+        "scripts/codex-*"
+      ],
+      "requiredChecks": [],
+      "requiredReviewerSkills": [
+        "test-coverage-reviewer",
+        "iris-boundary-reviewer"
+      ],
+      "requiredReviewers": [
+        "test-coverage-reviewer",
+        "iris-boundary-reviewer"
+      ],
+      "requiresHumanReview": true,
+      "riskLevel": "R3",
+      "allowPackageChanges": false,
+      "allowLockfileChanges": false,
+      "allowImplementationChanges": false,
+      "companionTestPaths": [],
+      "testFixtureCompanionPaths": [],
+      "highRiskPaths": [
+        "scripts/run-tests.js"
+      ]
     }
   },
   "reviewerSelection": {
@@ -692,5 +728,25 @@
     ]
   },
   "implementationCompanionTestPaths": [],
-  "testFixtureCompanionPaths": []
+  "testFixtureCompanionPaths": [],
+  "fixtureContractRepairPaths": [
+    "scripts/run-tests.js"
+  ],
+  "fixtureContractRepairRules": {
+    "allowApprovedFixtureContractRepair": true,
+    "forbidTestWeakening": true,
+    "forbidSkipTodoOnly": true,
+    "forbidNegativeCaseWeakening": true,
+    "requireManualConfirmation": true,
+    "requireSafeSummary": true,
+    "requiredManualConfirmationItems": [
+      "validator non-weakening",
+      "negative cases maintained",
+      "fixture repair only",
+      "raw memory not exposed",
+      "safe summary maintained",
+      "full run residual failures are not treated as PASS",
+      "non-overridable failures are not overridden"
+    ]
+  }
 }
