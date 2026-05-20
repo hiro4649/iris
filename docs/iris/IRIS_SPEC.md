@@ -20,6 +20,8 @@ IRIS is not a generic chatbot. IRIS is an AI character OS with:
 `IRIS_MEMORY_POLICY.md` defines memory status and natural-use rules.
 `IRIS_AVATAR_BEHAVIOR_MAP.md` defines avatar behavior fields and public projection rules.
 `IRIS_EVALS.md` defines the evaluation axes.
+`IRIS_SYSTEM_MAP.md` maps the major IRIS areas, public/internal boundaries, blocked items, and related evals.
+`IRIS_FEATURE_REGISTRY.md` records feature status and the spec/update rule for future PRs.
 `IRIS_100_POINT_SCORECARD.md` reports current readiness without production-ready sweetening.
 
 ## Source Of Truth
@@ -92,3 +94,25 @@ IRIS evaluation covers:
 - avatar consistency
 
 Improvement records must say what exists, what is partial, and what is missing. Missing Curator, growth report, real-response evals, and production proof must not be described as implemented.
+
+## Specification Governance
+
+Future PRs must update the relevant IRIS specification and `IRIS_FEATURE_REGISTRY.md` when they change any of the following:
+
+- memory schema
+- avatar response contract
+- public JSON
+- Admin ordinary view
+- adapter packet
+- source boundary
+- readiness classification
+- production blocker
+- eval runner
+- skill policy
+- Curator plan
+- growth report plan
+- trace optimizer plan
+- Hermes-style expansion plan
+- Codex harness behavior
+
+`docs/iris/*` documents are IRIS Character OS foundation specifications. They remain subordinate to `IRIS_SPEC_AUTHORITY.md`, Phase00, numbered Phase specifications, and active cross-phase addenda. They must not supersede those authorities or treat External Observation as truth.
