@@ -1281,6 +1281,18 @@ function collectNpmDevScriptReferences(paths) {
   return references;
 }
 
+function collectPackageDevScriptTargetReferences(paths) {
+  const scriptTargetPattern = /["'`](scripts\/(dev-[^"'`\r\n]+\.js))["'`]/gi;
+  const targets = new Set();
+  for (const filePath of paths) {
+    const source = readFileSync(filePath, "utf8").replace(/\\/g, "/");
+    for (const match of source.matchAll(scriptTargetPattern)) {
+      targets.add(match[2]);
+    }
+  }
+  return targets;
+}
+
 function collectUnsafeNpmDevCommandStrings(paths) {
   const safeCommandPattern =
     /^(npm run dev(?::[a-z0-9_-]+)+(?: -- --[a-z0-9:_-]+(?: --[a-z0-9:_-]+)*)?|npm test)$/i;
@@ -1307,7 +1319,7 @@ function collectMissingPackageDevScriptTargets(packageScripts) {
   const missingTargets = [];
   for (const [scriptName, command] of Object.entries(packageScripts)) {
     if (!scriptName.startsWith("dev:")) continue;
-    const match = /^node (scripts\/[^ ]+\.js)$/.exec(command);
+    const match = /^node (scripts\/[^ ]+\.js)(?: .*)?$/.exec(command);
     if (!match || !existsSync(join(process.cwd(), match[1]))) {
       missingTargets.push({ scriptName, command, targetPath: match?.[1] ?? null });
     }
@@ -1315,18 +1327,27 @@ function collectMissingPackageDevScriptTargets(packageScripts) {
   return missingTargets;
 }
 
-function collectUnreferencedPackageDevScripts(packageScripts, references) {
+function collectUnreferencedPackageDevScripts(
+  packageScripts,
+  references,
+  targetReferences = new Set()
+) {
   const referencedScripts = new Set(references.map((reference) => reference.scriptName));
-  return Object.keys(packageScripts)
-    .filter((scriptName) => scriptName.startsWith("dev:"))
-    .filter((scriptName) => !referencedScripts.has(scriptName));
+  return Object.entries(packageScripts)
+    .filter(([scriptName]) => scriptName.startsWith("dev:"))
+    .filter(([scriptName, command]) => {
+      if (referencedScripts.has(scriptName)) return false;
+      const match = /^node scripts\/([^ ]+\.js)(?: .*)?$/.exec(command);
+      return !(match && targetReferences.has(match[1]));
+    })
+    .map(([scriptName]) => scriptName);
 }
 
 function collectUnregisteredDevScripts(scriptFiles, packageScripts) {
   const packageDevTargets = new Set();
   for (const [scriptName, command] of Object.entries(packageScripts)) {
     if (!scriptName.startsWith("dev:")) continue;
-    const match = /^node scripts\/([^ ]+\.js)$/.exec(command);
+    const match = /^node scripts\/([^ ]+\.js)(?: .*)?$/.exec(command);
     if (match) packageDevTargets.add(match[1]);
   }
   return scriptFiles
@@ -24744,6 +24765,8 @@ const tests = [
         ),
       ];
       const scriptReferences = collectNpmDevScriptReferences(scriptReferenceFiles);
+      const packageDevTargetReferences =
+        collectPackageDevScriptTargetReferences(scriptReferenceFiles);
       const lowOutputDevelopmentCommands = [
         "npm run dev:admin:operations-summary",
         "npm run dev:production:attention-digest",
@@ -24833,7 +24856,11 @@ const tests = [
       );
       assert.deepEqual(missingScriptReferences, []);
       assert.deepEqual(
-        collectUnreferencedPackageDevScripts(packageJson.scripts, scriptReferences),
+        collectUnreferencedPackageDevScripts(
+          packageJson.scripts,
+          scriptReferences,
+          packageDevTargetReferences
+        ),
         []
       );
       assert.deepEqual(collectUnsafeNpmDevCommandStrings(scriptReferenceFiles), []);
