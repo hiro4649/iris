@@ -190,6 +190,8 @@ const SUBTITLE_ADAPTER_PACKET_ALLOWED_FIELDS = new Set([
   "display_end_ms",
   "line_break_plan",
   "safe_area_policy",
+  "readability_profile",
+  "script_direction",
   "boundary_policy",
   "adapter_validation_required",
 ]);
@@ -1191,6 +1193,8 @@ export function createSubtitleAdapterPacket(
     display_end_ms: subtitleCue.display_end_ms,
     line_break_plan: subtitleCue.line_break_plan,
     safe_area_policy: subtitleCue.safe_area_policy,
+    readability_profile: subtitleCue.readability_profile ?? null,
+    script_direction: subtitleCue.script_direction,
     boundary_policy: {
       subtitle_display_guidance_only: true,
       no_memory_ids: true,
@@ -1314,6 +1318,7 @@ export function assertAdapterPacketSafe(packet, context = "adapter packet") {
         line_break_plan: packet.line_break_plan,
         max_line_count: 2,
         safe_area_policy: packet.safe_area_policy,
+        readability_profile: packet.readability_profile,
         sync_source: "subtitle_adapter_packet",
         script_direction: inferSubtitlePacketScriptDirection(packet),
         adapter_validation_required: true,
