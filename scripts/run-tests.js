@@ -10743,7 +10743,15 @@ const tests = [
         assert.equal(publicPersistence.boundary_policy.no_platform_ids, true);
         assert.equal(publicPersistence.boundary_policy.no_store_paths, true);
         assert.equal(publicPersistence.boundary_policy.no_error_messages, true);
-        assert.equal(result.core.relationship.reason, "relationship_store_commit_failed");
+        assert.equal(result.core.relationship.reason, "relationship_store_missing");
+        assert.ok(
+          result.candidate_persistence.relationship_results.some(
+            (item) =>
+              item.committed === false &&
+              item.reason === "relationship_store_commit_failed" &&
+              item.error_kind === "store_contract_failed"
+          )
+        );
         assert.equal(memoryStatus.health, "attention");
         assert.equal(memoryStatus.read_error, true);
         assert.equal(memoryStatus.error_kind, "store_parse_failed");
