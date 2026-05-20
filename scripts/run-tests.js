@@ -16198,21 +16198,17 @@ const tests = [
           },
           logger: { log() {} },
         });
+        const allowedRelationshipComment = (text) => ({
+          ...normalizeYouTubeComment({
+            text,
+            author_channel_id: "viewer-20",
+            display_name: "Hiro",
+          }),
+          moderation_relationship_status: "allowed",
+        });
 
-        await runtime.processEvent(
-          normalizeYouTubeComment({
-            text: "IRIS, hello",
-            author_channel_id: "viewer-20",
-            display_name: "Hiro",
-          })
-        );
-        const second = await runtime.processEvent(
-          normalizeYouTubeComment({
-            text: "IRIS, funny lol",
-            author_channel_id: "viewer-20",
-            display_name: "Hiro",
-          })
-        );
+        await runtime.processEvent(allowedRelationshipComment("IRIS, hello"));
+        const second = await runtime.processEvent(allowedRelationshipComment("IRIS, funny lol"));
 
         const relationshipDeepening = second.relationship_deepening;
         const candidate = relationshipDeepening.relationship_update_candidate;
