@@ -44,6 +44,12 @@ const FORBIDDEN_VISION_BRIDGE_FIELDS = new Set([
   "secret",
   "password",
   "authorization",
+  "raw_response",
+  "raw_api_response",
+  "raw_vision_response",
+  "raw_game_payload",
+  "raw_source_payload",
+  "raw_screenshot",
   "raw_frame",
   "raw_image",
   "image_base64",
@@ -51,6 +57,7 @@ const FORBIDDEN_VISION_BRIDGE_FIELDS = new Set([
   "frame_pixels",
   "pixel_data",
   "ocr_raw_text",
+  "raw_ocr_text",
 ]);
 const GAME_OBSERVATION_READINESS_STATUSES = new Set([
   "idle",
@@ -711,7 +718,13 @@ function toGameObservationInput(raw) {
       vision.focus_areas,
       frame.ui_focus_areas,
     ]),
-    raw_frame_available: Object.hasOwn(raw, "raw_frame"),
+    raw_frame_available:
+      raw.raw_frame_available === true ||
+      raw.rawFrameAvailable === true ||
+      vision.raw_frame_available === true ||
+      vision.rawFrameAvailable === true ||
+      frame.raw_frame_available === true ||
+      frame.rawFrameAvailable === true,
   };
   if (!observation.trace_id) delete observation.trace_id;
   if (!observation.event_id) delete observation.event_id;

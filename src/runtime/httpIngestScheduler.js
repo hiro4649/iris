@@ -1889,13 +1889,31 @@ function summarizeCaptureRequest(summary) {
 
 function safeRawFramePolicy(value) {
   const text = safeOptionalText(value, 80);
+  if (
+    [
+      "forbidden",
+      "do_not_return_raw_frame_to_core",
+      "raw_frame_not_passed_to_core",
+    ].includes(text)
+  ) {
+    return "forbidden";
+  }
   if (["metadata_only", "redacted", "disabled"].includes(text)) return text;
   return text ? "metadata_only" : null;
 }
 
 function safeCaptureRequestKind(value) {
   const text = safeOptionalText(value, 80);
-  if (["screen_observation", "capture_observation", "vision_context"].includes(text)) return text;
+  if (
+    [
+      "screen_observation",
+      "screen_observation_summary",
+      "capture_observation",
+      "vision_context",
+    ].includes(text)
+  ) {
+    return text;
+  }
   return text ? "unknown" : null;
 }
 
