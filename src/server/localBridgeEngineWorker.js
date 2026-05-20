@@ -715,6 +715,9 @@ function isExplicitHttpEngineFailure(error) {
     error instanceof ContractError &&
     (String(error.message ?? "").includes("bridge_status reported failure") ||
       typeof error.details?.status === "number" ||
+      String(error.message ?? "").includes("local endpoint policy") ||
+      String(error.message ?? "").includes("bridge_status is required") ||
+      String(error.message ?? "").includes("duration_ms is required") ||
       String(error.message ?? "").includes("unsafe engine public field") ||
       String(error.message ?? "").includes("response requires JSON") ||
       String(error.message ?? "").includes("audio") ||
@@ -1084,31 +1087,19 @@ async function processTtsJobViaHttp(job, { artifactDir, nowMs, engineConfig }) {
     extra: {
       engine_mode: "http",
       bridge_status: bridgeStatus,
-      duration_ms: resolveTtsEngineDurationMs(response, normalizedAudio, job),
+      duration_ms: resolveTtsEngineDurationMs(response, normalizedAudio),
       sample_rate_hz: normalizedAudio.sampleRateHz,
       auxiliary_artifact_path: `tts/${visemeName}`,
     },
   });
 }
 
-function resolveTtsEngineDurationMs(response, normalizedAudio, job) {
+function resolveTtsEngineDurationMs(response, normalizedAudio) {
   const durationMs = resolveOptionalEngineDurationMs(response);
   if (durationMs !== null && durationMs > 0) return durationMs;
   const wavDurationMs = inferWavDurationMs(normalizedAudio?.bytes);
   if (wavDurationMs !== null && wavDurationMs > 0) return wavDurationMs;
-  return clampInteger(
-    resolveEngineDurationMs(
-      job.estimated_duration_ms ?? job.estimatedDurationMs ?? job.duration_ms ?? job.durationMs,
-      job.estimated_duration_seconds ??
-        job.estimatedDurationSeconds ??
-        job.duration_seconds ??
-        job.durationSeconds ??
-        job.duration
-    ) ?? 1000,
-    100,
-    60_000,
-    1000
-  );
+  throw new ContractError("Local TTS engine response: duration_ms is required");
 }
 
 function normalizeTtsEngineAudioOutput({ bytes, mime, sampleRateHz, channelCount, sampleFormat }) {
@@ -3746,10 +3737,17 @@ function summarizeEventRenderManifest(manifest) {
 
 function summarizeEngineModes(engineConfig) {
   return {
-    tts: engineConfig.tts.mode,
-    live2d: engineConfig.live2d.mode,
-    subtitle: engineConfig.subtitle.mode,
+    tts: summarizePublicEngineMode(engineConfig.tts.mode),
+    live2d: summarizePublicEngineMode(engineConfig.live2d.mode),
+    subtitle: summarizePublicEngineMode(engineConfig.subtitle.mode),
   };
+}
+
+function summarizePublicEngineMode(mode) {
+  if (mode === "local_preview_wav" || mode === "local_live2d_cue_artifact") {
+    return "local_placeholder";
+  }
+  return mode;
 }
 
 function summarizeEnginePreferencesConfigured(engineConfig) {
@@ -6729,7 +6727,13 @@ function hasInlineLive2dCueFields(response) {
 
 function normalizeLive2dEngineCue(cue) {
   const schema = safeText(cue.schema, 120);
-  if (schema && schema !== "iris_live2d_renderer_cue_v1") return cue;
+  if (schema === "iris_live2d_renderer_cue_v1") return cue;
+  if (
+    schema &&
+    schema !== "iris_live2d_fixture_cue_v1"
+  ) {
+    return cue;
+  }
   const motion = isPlainObject(cue.motion) ? cue.motion : {};
   const expression = isPlainObject(cue.expression) ? cue.expression : {};
   const firstMotion = firstPlainObject(cue.motions);
@@ -6952,6 +6956,18 @@ function normalizeLive2dEngineCue(cue) {
       no_secret_values: true,
     },
     adapter_validation_required: true,
+    ...(schema === "iris_live2d_fixture_cue_v1"
+      ? {
+          applied_motion: safeText(
+            cue.applied_motion ?? cue.appliedMotion ?? cue.motion_style ?? cue.motionStyle,
+            80
+          ),
+          expression_profile_id: safeText(
+            cue.expression_profile_id ?? cue.expressionProfileId,
+            120
+          ),
+        }
+      : {}),
   };
 }
 
