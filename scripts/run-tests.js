@@ -18214,7 +18214,11 @@ const tests = [
         report.scheduler_summary.processed_count
       );
       assert.equal(report.source_status_summary.last_support_event_count, 5);
-      assert.equal(report.runtime_summary.relationship_profile_count, 6);
+      assert.equal(
+        report.runtime_summary.relationship_profile_count,
+        report.source_status_summary.last_comment_count
+      );
+      assert.equal(report.runtime_summary.relationship_profile_count, 1);
       assert.equal(
         report.verification_scripts.relay_status_roundtrip_script,
         "npm run dev:youtube:relay-status-roundtrip"
