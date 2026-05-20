@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.6.6 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.6.7 -->
 # Skill: Spec Reviewer
 
 Review whether the proposed change solves the right problem.

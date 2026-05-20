@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.6
+// CODEX_QUALITY_HARNESS_FILE v0.6.7
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -10,7 +10,7 @@ const policyPath = path.join('docs', 'process', 'CODEX_QUALITY_GATE_POLICY.json'
 const knownRiskPath = path.join('docs', 'process', 'CODEX_KNOWN_RISKS.json');
 const codeAuditBaselinePath = path.join('docs', 'process', 'CODEX_CODE_AUDIT_BASELINE.json');
 const auditCalibrationLockPath = path.join('docs', 'process', 'CODEX_AUDIT_CALIBRATION_LOCK.json');
-const HARNESS_VERSION = '0.6.6';
+const HARNESS_VERSION = '0.6.7';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 const jsonMode = process.env.CODEX_QUALITY_REPORT === 'json';
 const defaultPolicy = {
@@ -22,6 +22,8 @@ const defaultPolicy = {
   highRiskPaths: [],
   harnessPrAllowedPaths: ['AGENTS.md', '.github/', 'docs/process/', 'scripts/codex-*'],
   harnessPrBlockedPaths: [],
+  implementationCompanionTestPaths: [],
+  testFixtureCompanionPaths: [],
   harnessPrMode: 'fail',
   prTypes: {
     harness: {
@@ -35,6 +37,9 @@ const defaultPolicy = {
     implementation: {
       allowedPaths: [],
       blockedPaths: [],
+      companionTestPaths: [],
+      testFixtureCompanionPaths: [],
+      highRiskPaths: [],
       requiresHumanReview: false,
       allowPackageChanges: true,
       allowLockfileChanges: true,
@@ -581,7 +586,7 @@ function validatePolicySchema(policy) {
   const knownFields = new Set([
     'marker', 'profile', 'packageDirs', 'missingScript', 'allowedPaths', 'blockedPaths', 'highRiskPaths',
     'diffScope', 'riskKeywords', 'riskLevelBehavior', 'failOnNewWarnings', 'knownRiskExpiry',
-    'knownRisks', 'harnessPrAllowedPaths', 'harnessPrBlockedPaths', 'harnessPrMode', 'prTypes', 'checks',
+    'knownRisks', 'harnessPrAllowedPaths', 'harnessPrBlockedPaths', 'implementationCompanionTestPaths', 'testFixtureCompanionPaths', 'harnessPrMode', 'prTypes', 'prTypePolicies', 'checks',
     'reviewerSelection', 'testWeakening', 'domainInvariants', 'dependencyAudit', 'securitySensitiveTerms', 'manualConfirmationPolicy', 'coverageIntent', 'codeAuditPolicy',
   ]);
   if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
@@ -600,28 +605,32 @@ function validatePolicySchema(policy) {
   validateStringArray(policy, 'highRiskPaths');
   validateStringArray(policy, 'harnessPrAllowedPaths');
   validateStringArray(policy, 'harnessPrBlockedPaths');
+  validateStringArray(policy, 'implementationCompanionTestPaths');
+  validateStringArray(policy, 'testFixtureCompanionPaths');
   if (policy.harnessPrMode !== undefined && !['fail', 'warn'].includes(policy.harnessPrMode)) {
     addPolicyViolation('policy.harnessPrMode.invalid', 'harnessPrMode must be fail or warn.');
   }
-  if (policy.prTypes !== undefined) {
-    if (!policy.prTypes || typeof policy.prTypes !== 'object' || Array.isArray(policy.prTypes)) {
-      addPolicyViolation('policy.prTypes.invalid', 'prTypes must be an object.');
-    } else {
-      for (const [name, prType] of Object.entries(policy.prTypes)) {
+  for (const policyField of ['prTypes', 'prTypePolicies']) {
+    if (policy[policyField] !== undefined) {
+      if (!policy[policyField] || typeof policy[policyField] !== 'object' || Array.isArray(policy[policyField])) {
+        addPolicyViolation(`policy.${policyField}.invalid`, `${policyField} must be an object.`);
+      } else {
+        for (const [name, prType] of Object.entries(policy[policyField])) {
         if (!prType || typeof prType !== 'object' || Array.isArray(prType)) {
-          addPolicyViolation('policy.prTypes.itemInvalid', `prTypes.${name} must be an object.`);
+          addPolicyViolation(`policy.${policyField}.itemInvalid`, `${policyField}.${name} must be an object.`);
           continue;
         }
-        for (const key of ['allowedPaths', 'blockedPaths', 'requiredChecks', 'requiredReviewerSkills']) {
+        for (const key of ['allowedPaths', 'blockedPaths', 'requiredChecks', 'requiredReviewerSkills', 'companionTestPaths', 'testFixtureCompanionPaths', 'highRiskPaths', 'requiredReviewers']) {
           if (prType[key] !== undefined && (!Array.isArray(prType[key]) || prType[key].some((item) => typeof item !== 'string'))) {
-            addPolicyViolation('policy.prTypes.arrayInvalid', `prTypes.${name}.${key} must be a string array.`);
+            addPolicyViolation(`policy.${policyField}.arrayInvalid`, `${policyField}.${name}.${key} must be a string array.`);
           }
         }
         for (const key of ['requiresHumanReview', 'allowPackageChanges', 'allowLockfileChanges', 'allowImplementationChanges']) {
           if (prType[key] !== undefined && typeof prType[key] !== 'boolean') {
-            addPolicyViolation('policy.prTypes.booleanInvalid', `prTypes.${name}.${key} must be boolean.`);
+            addPolicyViolation(`policy.${policyField}.booleanInvalid`, `${policyField}.${name}.${key} must be boolean.`);
           }
         }
+      }
       }
     }
   }
@@ -762,6 +771,7 @@ function readPolicy() {
   try {
     const policy = readJsonFile(policyPath);
     validatePolicySchema(policy);
+    const configuredPrTypes = { ...(policy.prTypes || {}), ...(policy.prTypePolicies || {}) };
     return {
       ...defaultPolicy,
       ...policy,
@@ -769,7 +779,7 @@ function readPolicy() {
       riskKeywords: Array.isArray(policy.riskKeywords)
         ? { ...defaultPolicy.riskKeywords, R2: [...defaultPolicy.riskKeywords.R2, ...policy.riskKeywords] }
         : { ...defaultPolicy.riskKeywords, ...(policy.riskKeywords || {}) },
-      prTypes: { ...defaultPolicy.prTypes, ...(policy.prTypes || {}) },
+      prTypes: { ...defaultPolicy.prTypes, ...configuredPrTypes },
       reviewerSelection: {
         ...defaultPolicy.reviewerSelection,
         ...(policy.reviewerSelection || {}),
@@ -2176,6 +2186,35 @@ function evaluateManualMergePolicy(policy = activeAuditPolicy || defaultPolicy) 
     source: manualStatus.source || 'none',
     recommendedAction: manualStatus.recommendedAction || 'confirm quality-gate status and PR body before merge',
   };
+}
+function manualConfirmationCanSatisfyFinding(finding) {
+  if (!finding || finding.recommendedFixType !== 'human_review_required') return false;
+  return String(finding.id || '').startsWith('domainInvariant.');
+}
+function applyManualConfirmationToReviewFindings() {
+  if (report.manualConfirmationStatus?.status !== 'pass') return;
+  if ((report.manualConfirmationStatus?.cannotOverrideFailures || []).length) return;
+  const satisfiedIds = new Set();
+  const remainingBlocking = [];
+  for (const finding of report.blockingFindings) {
+    if (!manualConfirmationCanSatisfyFinding(finding)) {
+      remainingBlocking.push(finding);
+      continue;
+    }
+    satisfiedIds.add(finding.id);
+    report.warningFindings.push({
+      ...finding,
+      originalSeverity: finding.severity,
+      severity: 'warning',
+      manualConfirmationSatisfied: true,
+      whyHumanReviewRequired: 'manual confirmation recorded for current head',
+    });
+  }
+  if (!satisfiedIds.size) return;
+  report.blockingFindings = remainingBlocking;
+  for (let i = failures.length - 1; i >= 0; i--) {
+    if (satisfiedIds.has(failures[i]?.id)) failures.splice(i, 1);
+  }
 }
 function computeReviewResultSchemaStatus() {
   const schemaPath = path.join('docs', 'process', 'CODEX_REVIEW_RESULT_SCHEMA.json');
@@ -4998,25 +5037,34 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
   report.prType = prTypeName;
   const prTypePolicy = policy.prTypes?.[prTypeName] || null;
   const enabled = Boolean(prTypePolicy);
-  const allowed = policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths;
-  const blocked = policy.harnessPrBlockedPaths || [];
-  const typeAllowed = prTypePolicy?.allowedPaths || (prTypeName === 'harness' ? allowed : []);
-  const typeBlocked = [...(blocked || []), ...(prTypePolicy?.blockedPaths || [])];
+  const harnessAllowed = policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths;
+  const harnessBlocked = prTypeName === 'harness' ? (policy.harnessPrBlockedPaths || []) : [];
+  const typeAllowed = prTypePolicy?.allowedPaths || (prTypeName === 'harness' ? harnessAllowed : []);
+  const typeBlocked = [...harnessBlocked, ...(prTypePolicy?.blockedPaths || [])];
   const outOfScope = typeAllowed.length ? changed.filter((file) => !pathMatches(file, typeAllowed)) : [];
   const blockedHits = changed.filter((file) => pathMatches(file, typeBlocked));
   const packageChanges = changed.filter((file) => /(^|\/)package\.json$/.test(file));
   const lockfileChanges = changed.filter((file) => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(file));
-  const harnessFileChanges = changed.filter((file) => pathMatches(file, defaultPolicy.harnessPrAllowedPaths));
+  const harnessFileChanges = changed.filter((file) => pathMatches(file, harnessAllowed));
   const dependencyFiles = new Set([...packageChanges, ...lockfileChanges]);
   const testPatterns = policy.coverageIntent?.testPaths || defaultPolicy.coverageIntent.testPaths;
-  const implementationLike = changed.filter((file) => !pathMatches(file, defaultPolicy.harnessPrAllowedPaths) && !/^docs\//.test(file) && !pathMatches(file, testPatterns) && !dependencyFiles.has(file));
+  const companionTestPaths = prTypeName === 'implementation'
+    ? [
+        ...(policy.implementationCompanionTestPaths || []),
+        ...(policy.testFixtureCompanionPaths || []),
+        ...(prTypePolicy?.companionTestPaths || []),
+        ...(prTypePolicy?.testFixtureCompanionPaths || []),
+      ]
+    : [];
+  const companionTestChanges = changed.filter((file) => pathMatches(file, companionTestPaths));
+  const implementationLike = changed.filter((file) => !pathMatches(file, harnessAllowed) && !/^docs\//.test(file) && !pathMatches(file, testPatterns) && !dependencyFiles.has(file));
   const extraIssues = [];
   if (prTypePolicy) {
     if (prTypePolicy.allowPackageChanges === false && packageChanges.length) extraIssues.push({ id: 'prType.packageChange', paths: packageChanges });
     if (prTypePolicy.allowLockfileChanges === false && lockfileChanges.length) extraIssues.push({ id: 'prType.lockfileChange', paths: lockfileChanges });
     if (prTypePolicy.allowImplementationChanges === false && implementationLike.length) extraIssues.push({ id: 'prType.implementationChange', paths: implementationLike });
     if (prTypeName === 'dependency' && packageChanges.length && !lockfileChanges.length) extraIssues.push({ id: 'prType.dependencyLockfileMissing', paths: packageChanges });
-    if (prTypeName === 'implementation' && harnessFileChanges.length) extraIssues.push({ id: 'prType.harnessFilesMixed', paths: harnessFileChanges, warningOnly: true });
+    if (prTypeName === 'implementation' && harnessFileChanges.length) extraIssues.push({ id: 'prType.harnessFilesMixed', paths: harnessFileChanges });
   }
   const status = blockedHits.length || outOfScope.length ? 'fail' : 'pass';
   report.prSeparationStatus = {
@@ -5028,10 +5076,21 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
     allowedOnly: outOfScope.length === 0 && blockedHits.length === 0 && extraIssues.length === 0,
     outOfScope,
     blocked: blockedHits,
+    companionTestPaths,
+    companionTestChanges,
     packageChanges,
     lockfileChanges,
     issues: extraIssues,
   };
+  if (prTypeName === 'implementation' && companionTestChanges.length) {
+    bumpRisk('R3');
+    addHumanReviewReason('prType.companionTestFixture');
+    addWarning({
+      id: 'prType.companionTestFixture',
+      message: 'Implementation PR includes companion test fixture changes; verify tests were strengthened or metadata-only.',
+      known: warningKnown({ id: 'prType.companionTestFixture' }, knownRisks),
+    });
+  }
   if (!enabled && prTypeName !== 'unknown') addWarning({ id: 'prType.policyMissing', message: 'Inferred PR type has no explicit policy.' });
   if (prTypePolicy?.requiresHumanReview === true) addHumanReviewReason('prType.requiresHumanReview');
   if (!enabled) return;
@@ -5046,11 +5105,6 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
     else addWarning({ ...item, known: warningKnown(item, knownRisks) });
   }
   for (const issue of extraIssues) {
-    if (issue.id === 'prType.harnessFilesMixed') {
-      addWarning({ id: issue.id, message: 'Implementation PR includes harness files.', known: warningKnown({ id: issue.id }, knownRisks) });
-      addHumanReviewReason(issue.id);
-      continue;
-    }
     if (issue.id === 'prType.dependencyLockfileMissing') {
       addWarning({ id: issue.id, message: 'Dependency PR changed package metadata without a lockfile change.', known: warningKnown({ id: issue.id }, knownRisks) });
       addHumanReviewReason(issue.id);
@@ -5228,18 +5282,6 @@ function writeReport() {
   report.ruleTraceability = computeRuleTraceability();
   report.explainabilityCompression = computeExplainabilityCompression();
   report.noRegressionStatus = computeNoRegressionStatus();
-  report.codeAudit = {
-    status: report.blockingFindings.length ? 'blocking' : (report.warningFindings.length ? 'warning' : (report.infoFindings.length ? 'info' : 'pass')),
-    blocking: report.blockingFindings.length,
-    warning: report.warningFindings.length,
-    info: report.infoFindings.length,
-    rootCauseGroups: report.rootCauseGroups.length,
-    fixImpact: report.fixImpact,
-  };
-  report.mergeReady = failures.length === 0;
-  report.postMerge.mergeReady = report.mergeReady && report.postMerge.status === 'pass';
-  report.status = failures.length === 0 ? 'pass' : 'fail';
-  report.localGate.status = report.status;
   report.policyViolationsStatus = report.policyViolations.some((violation) => violation.level === 'fail') ? 'fail' : (report.policyViolations.length ? 'warning' : 'pass');
   report.policySchema = {
     status: report.policyViolationsStatus,
@@ -5256,6 +5298,15 @@ function writeReport() {
     if (finding.priority === 'P0' || finding.priority === 'P1') addHumanReviewReason(`finding.${finding.priority}`);
   }
   report.manualConfirmationStatus = runManualConfirmationVerifier(activeAuditPolicy);
+  applyManualConfirmationToReviewFindings();
+  report.codeAudit = {
+    status: report.blockingFindings.length ? 'blocking' : (report.warningFindings.length ? 'warning' : (report.infoFindings.length ? 'info' : 'pass')),
+    blocking: report.blockingFindings.length,
+    warning: report.warningFindings.length,
+    info: report.infoFindings.length,
+    rootCauseGroups: report.rootCauseGroups.length,
+    fixImpact: report.fixImpact,
+  };
   report.manualMergePolicy = evaluateManualMergePolicy(activeAuditPolicy);
   if (report.manualConfirmationStatus.required) addHumanReviewReason('manualConfirmation.required');
   if (report.manualMergePolicy.status === 'manual_confirmation_required') {
