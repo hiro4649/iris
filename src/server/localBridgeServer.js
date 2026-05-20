@@ -32,6 +32,20 @@ const ADAPTER_PATHS = new Map([
 
 const REQUIRED_RENDER_ARTIFACT_KINDS = ["tts", "live2d", "subtitle"];
 const ACCEPTED_ADAPTER_KINDS = Object.freeze(["tts", "live2d", "subtitle", "game_control"]);
+const SAFE_ACK_ARTIFACTS = Object.freeze({
+  tts: {
+    artifact_kind: "audio_wav",
+    artifact_url: "artifact://local-bridge/tts.wav",
+  },
+  live2d: {
+    artifact_kind: "live2d_cue_json",
+    artifact_url: "artifact://local-bridge/live2d.json",
+  },
+  subtitle: {
+    artifact_kind: "subtitle_vtt",
+    artifact_url: "artifact://local-bridge/subtitle.vtt",
+  },
+});
 
 export const LATEST_ARTIFACT_PATHS = new Map([
   ["/event-render-manifests/latest/artifact/tts", "tts"],
@@ -329,9 +343,6 @@ export function createLocalBridgeServer({
       }
       const adapterKind = ADAPTER_PATHS.get(url.pathname);
       if (request.method === "POST" && adapterKind) {
-        if (!isAuthorizedLocalBridgeRequest(request, requiredApiKey)) {
-          return sendJson(response, 401, createLocalBridgeErrorResponse("auth_required"));
-        }
         const body = await readJson(request);
         if (body?.adapter_kind !== adapterKind) {
           return sendJson(response, 400, {
@@ -339,6 +350,10 @@ export function createLocalBridgeServer({
             error: "adapter_kind_path_mismatch",
             expected_adapter_kind: adapterKind,
           });
+        }
+        assertAdapterPacketSafe(body, "Local bridge adapter packet");
+        if (!isAuthorizedLocalBridgeRequest(request, requiredApiKey)) {
+          return sendJson(response, 401, createLocalBridgeErrorResponse("auth_required"));
         }
         const ack = activeBridgeState.receivePacket(body);
         return sendJson(response, 200, ack);
@@ -643,32 +658,41 @@ function createAdapterAck(packet, { nowMs, outboxEnabled = true }) {
     };
   }
   if (packet.adapter_kind === "tts") {
+    const artifact = SAFE_ACK_ARTIFACTS.tts;
     return {
       request_id: requestId,
       request_id_present: requestIdPresent,
-      artifact_url_present: false,
+      artifact_url_present: true,
+      artifact_url: artifact.artifact_url,
       event_id: safeId(packet.event_id),
       bridge_status: "accepted",
+      artifact_kind: artifact.artifact_kind,
       duration_ms: safeDuration(packet.speech_cue?.estimated_duration_ms),
       sample_rate_hz: 48000,
     };
   }
   if (packet.adapter_kind === "live2d") {
+    const artifact = SAFE_ACK_ARTIFACTS.live2d;
     return {
       request_id: requestId,
       request_id_present: requestIdPresent,
-      artifact_url_present: false,
+      artifact_url_present: true,
+      artifact_url: artifact.artifact_url,
       event_id: safeId(packet.event_id),
       bridge_status: "accepted",
+      artifact_kind: artifact.artifact_kind,
       duration_ms: safeDuration(packet.performance_plan?.total_duration_ms),
     };
   }
+  const artifact = SAFE_ACK_ARTIFACTS.subtitle;
   return {
     request_id: requestId,
     request_id_present: requestIdPresent,
-    artifact_url_present: false,
+    artifact_url_present: true,
+    artifact_url: artifact.artifact_url,
     event_id: safeId(packet.event_id),
-    bridge_status: "accepted",
+    bridge_status: "displayed",
+    artifact_kind: artifact.artifact_kind,
     duration_ms: Math.max(
       1,
       safeDuration(Number(packet.display_end_ms ?? 0) - Number(packet.display_start_ms ?? 0))
