@@ -1132,6 +1132,89 @@ function createReadyGameplayLiveReadinessFixture(env, generatedAtMs = 2000) {
   };
 }
 
+function createApprovedMemoryRecordFixture(overrides = {}) {
+  const eventId = String(
+    overrides.event_id ?? overrides.memory_id ?? "memory-fixture-event"
+  );
+  const committedAtMs = overrides.committed_at_ms ?? 1000;
+  return {
+    schema: "approved_memory_record",
+    approved: true,
+    trace_id: overrides.trace_id ?? `${eventId}:trace`,
+    event_id: eventId,
+    memory_id: overrides.memory_id ?? eventId,
+    store: "long_term_memory",
+    summary: "Approved memory fixture safe summary.",
+    memory_type: "stream_experience",
+    owner_scope: "viewer",
+    source_phase: "phase26",
+    source_candidate_kind: "memory_carryover_candidate",
+    audit_status: "approved",
+    commit_snapshot_id: `commit-snapshot:${eventId}`,
+    rollback_pointer_id: `rollback-pointer:${eventId}`,
+    moderation_precheck_status: "allowed",
+    committed_at_ms: committedAtMs,
+    ...overrides,
+  };
+}
+
+function createStableFixtureIdPart(value, fallback) {
+  const text = String(value ?? fallback ?? "").trim().toLowerCase();
+  const normalized = text
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+  return normalized || String(fallback ?? "fixture");
+}
+
+function createStableFixtureHash(value) {
+  const text = String(value ?? "");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function createApprovedRelationshipRecordFixture(overrides = {}) {
+  const linkedIdentityId = String(
+    overrides.linked_identity_id ?? "viewer:relationship-fixture"
+  );
+  const committedAtMs = overrides.committed_at_ms ?? 1000;
+  const eventId = String(
+    overrides.event_id ??
+      [
+        "relationship",
+        createStableFixtureIdPart(linkedIdentityId, "viewer"),
+        createStableFixtureIdPart(overrides.topic_key, "topic"),
+        createStableFixtureIdPart(committedAtMs, "1000"),
+        createStableFixtureHash(overrides.summary ?? overrides.display_name ?? ""),
+      ].join(":")
+  );
+  return {
+    schema: "approved_relationship_record",
+    approved: true,
+    trace_id: overrides.trace_id ?? `${eventId}:trace`,
+    event_id: eventId,
+    linked_identity_id: linkedIdentityId,
+    display_name: "Relationship Fixture",
+    store: "relationship_memory",
+    affinity_delta: 0.05,
+    familiarity_delta: 0.05,
+    topic_key: "relationship_fixture",
+    summary: "Approved relationship fixture safe summary.",
+    source_phase: "phase20",
+    source_candidate_kind: "relationship_deepening",
+    audit_status: "approved",
+    commit_snapshot_id: `commit-snapshot:${eventId}`,
+    rollback_pointer_id: `rollback-pointer:${eventId}`,
+    moderation_precheck_status: "allowed",
+    committed_at_ms: committedAtMs,
+    ...overrides,
+  };
+}
+
 function createSafeReviewItem({
   reviewId,
   itemKind,
@@ -6481,23 +6564,19 @@ const tests = [
           join(relationshipDir, "relationship.json")
         );
 
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "atomic-memory",
           summary: "IRIS remembered a safe fixture moment.",
           committed_at_ms: Date.now(),
-        });
-        relationshipStore.upsertApproved({
-          schema: "approved_relationship_record",
-          approved: true,
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           linked_identity_id: "viewer:atomic",
           display_name: "Atomic Viewer",
           affinity_delta: 0.2,
           familiarity_delta: 0.2,
           summary: "Atomic viewer shared a safe fixture moment.",
           committed_at_ms: Date.now(),
-        });
+        }));
 
         assert.equal(memoryStore.list().length, 1);
         assert.equal(relationshipStore.getProfile("viewer:atomic").interaction_count, 1);
@@ -7412,16 +7491,12 @@ const tests = [
         const memoryStore = createJsonMemoryStore(memoryPath);
         const relationshipStore = createJsonRelationshipStore(relationshipPath);
 
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "backup-write-memory",
           summary: "Backup write failure should stay summary only.",
           committed_at_ms: 1000,
-        });
-        relationshipStore.upsertApproved({
-          schema: "approved_relationship_record",
-          approved: true,
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           event_id: "backup-write-relationship",
           linked_identity_id: "viewer:backup-write",
           display_name: "Backup Write Viewer",
@@ -7430,7 +7505,7 @@ const tests = [
           topic_key: "backup_write",
           summary: "Backup write relationship failure should stay summary only.",
           committed_at_ms: 1000,
-        });
+        }));
 
         const memoryStatus = memoryStore.status();
         const relationshipStatus = relationshipStore.status();
@@ -7499,18 +7574,14 @@ const tests = [
         const memoryStore = createJsonMemoryStore(memoryPath);
         const relationshipStore = createJsonRelationshipStore(relationshipPath);
 
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "backup-memory",
           source_phase: "phase26",
           source_candidate_kind: "memory_carryover_candidate",
           summary: "Backup recovery should keep this safe fixture moment.",
           committed_at_ms: 1000,
-        });
-        relationshipStore.upsertApproved({
-          schema: "approved_relationship_record",
-          approved: true,
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           event_id: "backup-relationship",
           linked_identity_id: "viewer:backup",
           display_name: "Backup Viewer",
@@ -7519,7 +7590,7 @@ const tests = [
           topic_key: "backup_recovery",
           summary: "Backup viewer shared a recoverable fixture moment.",
           committed_at_ms: 1000,
-        });
+        }));
 
         assert.equal(existsSync(`${memoryPath}.bak`), true);
         assert.equal(existsSync(`${relationshipPath}.bak`), true);
@@ -7640,48 +7711,46 @@ const tests = [
           maxRecords: 3,
         });
         const baseRecord = {
-          schema: "approved_memory_record",
-          approved: true,
           store: "experience_log",
           source_phase: "phase26",
           source_candidate_kind: "memory_carryover_candidate",
         };
 
-        store.append({
+        store.append(createApprovedMemoryRecordFixture({
           ...baseRecord,
           memory_id: "memory:1",
           event_id: "event-1",
           summary: "First version should be replaced.",
           committed_at_ms: 1000,
-        });
-        store.append({
+        }));
+        store.append(createApprovedMemoryRecordFixture({
           ...baseRecord,
           memory_id: "memory:2",
           event_id: "event-2",
           summary: "Second memory may be retained briefly.",
           committed_at_ms: 2000,
-        });
-        store.append({
+        }));
+        store.append(createApprovedMemoryRecordFixture({
           ...baseRecord,
           memory_id: "memory:1",
           event_id: "event-1b",
           summary: "Updated memory one is retained.",
           committed_at_ms: 3000,
-        });
-        store.append({
+        }));
+        store.append(createApprovedMemoryRecordFixture({
           ...baseRecord,
           memory_id: "memory:3",
           event_id: "event-3",
           summary: "Third memory is retained.",
           committed_at_ms: 4000,
-        });
-        store.append({
+        }));
+        store.append(createApprovedMemoryRecordFixture({
           ...baseRecord,
           memory_id: "memory:4",
           event_id: "event-4",
           summary: "Fourth memory pushes the oldest out.",
           committed_at_ms: 5000,
-        });
+        }));
 
         const records = store.list();
         const status = store.status();
@@ -7707,15 +7776,13 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-duplicate-"));
       try {
         const store = createJsonMemoryStore(join(tempDir, "memory.json"));
-        const record = {
-          schema: "approved_memory_record",
-          approved: true,
+        const record = createApprovedMemoryRecordFixture({
           event_id: "duplicate-memory-event",
           source_phase: "phase26",
           source_candidate_kind: "memory_carryover_candidate",
           summary: "Duplicate memory should be committed only once.",
           committed_at_ms: 1000,
-        };
+        });
         const first = commitApprovedMemoryRecord(store, record);
         const duplicate = commitApprovedMemoryRecord(store, {
           ...record,
@@ -7736,9 +7803,7 @@ const tests = [
   [
     "PostgreSQL memory write plan accepts only approved records without public values",
     async () => {
-      const approvedRecord = {
-        schema: "approved_memory_record",
-        approved: true,
+      const approvedRecord = createApprovedMemoryRecordFixture({
         trace_id: "pg-memory-trace",
         event_id: "pg-memory-event",
         store: "long_term_memory",
@@ -7749,7 +7814,7 @@ const tests = [
         source_phase: "phase26",
         source_candidate_kind: "memory_carryover",
         committed_at_ms: 1000,
-      };
+      });
       const plan = createPostgresMemoryWritePlan(approvedRecord, {
         generatedAtMs: 1000,
       });
@@ -7840,9 +7905,7 @@ const tests = [
   [
     "PostgreSQL memory summary index allows only safe summary fields",
     async () => {
-      const approvedRecord = {
-        schema: "approved_memory_record",
-        approved: true,
+      const approvedRecord = createApprovedMemoryRecordFixture({
         trace_id: "pg-memory-index-trace",
         event_id: "pg-memory-index-event",
         memory_id: "memory-index-1",
@@ -7853,7 +7916,7 @@ const tests = [
         source_phase: "phase26",
         source_candidate_kind: "memory_carryover",
         committed_at_ms: 1000,
-      };
+      });
       const entry = createPostgresMemorySummaryIndexEntry(approvedRecord);
       const serialized = JSON.stringify(entry);
 
@@ -8231,9 +8294,7 @@ const tests = [
       const adapter = createMockPostgresPersistenceAdapter({
         generatedAtMs: () => 1000,
       });
-      const approvedRecord = {
-        schema: "approved_memory_record",
-        approved: true,
+      const approvedRecord = createApprovedMemoryRecordFixture({
         trace_id: "mock-pg-memory-trace",
         event_id: "mock-pg-memory-event",
         store: "long_term_memory",
@@ -8244,7 +8305,7 @@ const tests = [
         source_phase: "phase26",
         source_candidate_kind: "memory_carryover",
         committed_at_ms: 1000,
-      };
+      });
       const first = adapter.persistApprovedMemory(approvedRecord);
       const duplicate = adapter.persistApprovedMemory({
         ...approvedRecord,
@@ -8298,48 +8359,46 @@ const tests = [
           recentSummaryLimit: 2,
         });
         const baseRecord = {
-          schema: "approved_relationship_record",
-          approved: true,
           affinity_delta: 0.05,
           familiarity_delta: 0.05,
           topic_key: "retention_test",
         };
 
-        relationshipStore.upsertApproved({
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           linked_identity_id: "viewer:old",
           display_name: "Old Viewer",
           summary: "Old viewer first interaction.",
           committed_at_ms: 1000,
-        });
-        relationshipStore.upsertApproved({
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           linked_identity_id: "viewer:kept",
           display_name: "Kept Viewer",
           summary: "Kept viewer first interaction.",
           committed_at_ms: 2000,
-        });
-        relationshipStore.upsertApproved({
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           linked_identity_id: "viewer:kept",
           display_name: "Kept Viewer",
           summary: "Kept viewer second interaction.",
           committed_at_ms: 3000,
-        });
-        relationshipStore.upsertApproved({
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           linked_identity_id: "viewer:kept",
           display_name: "Kept Viewer",
           summary: "Kept viewer third interaction.",
           committed_at_ms: 4000,
-        });
-        relationshipStore.upsertApproved({
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           linked_identity_id: "viewer:new",
           display_name: "New Viewer",
           summary: "New viewer interaction.",
           committed_at_ms: 5000,
-        });
+        }));
 
         const profiles = relationshipStore.listProfiles();
         const keptProfile = relationshipStore.getProfile("viewer:kept");
@@ -8462,9 +8521,7 @@ const tests = [
   [
     "PostgreSQL relationship write plan keeps relationship stages private and values hidden",
     async () => {
-      const approvedRecord = {
-        schema: "approved_relationship_record",
-        approved: true,
+      const approvedRecord = createApprovedRelationshipRecordFixture({
         trace_id: "pg-relationship-trace",
         event_id: "pg-relationship-event",
         linked_identity_id: "viewer:pg-relationship",
@@ -8478,7 +8535,7 @@ const tests = [
         source_phase: "phase20",
         source_candidate_kind: "relationship_deepening",
         committed_at_ms: 1000,
-      };
+      });
       const plan = createPostgresRelationshipWritePlan(approvedRecord, {
         generatedAtMs: 1000,
       });
@@ -8555,9 +8612,7 @@ const tests = [
       const adapter = createMockPostgresPersistenceAdapter({
         generatedAtMs: () => 1000,
       });
-      const approvedRecord = {
-        schema: "approved_relationship_record",
-        approved: true,
+      const approvedRecord = createApprovedRelationshipRecordFixture({
         trace_id: "mock-pg-relationship-trace",
         event_id: "mock-pg-relationship-event",
         linked_identity_id: "viewer:mock-pg-relationship",
@@ -8571,7 +8626,7 @@ const tests = [
         source_phase: "phase20",
         source_candidate_kind: "relationship_deepening",
         committed_at_ms: 1000,
-      };
+      });
       const first = adapter.persistApprovedRelationship(approvedRecord);
       const duplicate = adapter.persistApprovedRelationship({
         ...approvedRecord,
@@ -8784,9 +8839,7 @@ const tests = [
           internal_profile: true,
           validation_status: "validated",
           approved_memory_records: [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               trace_id: "runtime-real-pg-trace",
               event_id: "runtime-real-pg-memory-event",
               store: "long_term_memory",
@@ -8798,12 +8851,10 @@ const tests = [
               source_phase: "phase26",
               source_candidate_kind: "memory_carryover",
               committed_at_ms: 1000,
-            },
+            }),
           ],
           approved_relationship_records: [
-            {
-              schema: "approved_relationship_record",
-              approved: true,
+            createApprovedRelationshipRecordFixture({
               trace_id: "runtime-real-pg-trace",
               event_id: "runtime-real-pg-relationship-event",
               linked_identity_id: "viewer:runtime-real-pg",
@@ -8817,7 +8868,7 @@ const tests = [
               source_phase: "phase20",
               source_candidate_kind: "relationship_deepening",
               committed_at_ms: 1000,
-            },
+            }),
           ],
           rejected_candidates: [],
           boundary_policy: {
@@ -8970,9 +9021,7 @@ const tests = [
           internal_profile: true,
           validation_status: "validated",
           approved_memory_records: [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               trace_id: "runtime-pg-module-trace",
               event_id: "runtime-pg-module-memory-event",
               store: "long_term_memory",
@@ -8984,7 +9033,7 @@ const tests = [
               source_phase: "phase26",
               source_candidate_kind: "memory_carryover",
               committed_at_ms: 1000,
-            },
+            }),
           ],
           approved_relationship_records: [],
           rejected_candidates: [],
@@ -9112,9 +9161,7 @@ const tests = [
           },
         },
       });
-      const memoryRecord = {
-        schema: "approved_memory_record",
-        approved: true,
+      const memoryRecord = createApprovedMemoryRecordFixture({
         trace_id: "real-pg-memory-trace",
         event_id: "real-pg-memory-event",
         store: "long_term_memory",
@@ -9125,10 +9172,8 @@ const tests = [
         source_phase: "phase26",
         source_candidate_kind: "memory_carryover",
         committed_at_ms: 1000,
-      };
-      const relationshipRecord = {
-        schema: "approved_relationship_record",
-        approved: true,
+      });
+      const relationshipRecord = createApprovedRelationshipRecordFixture({
         trace_id: "real-pg-relationship-trace",
         event_id: "real-pg-relationship-event",
         linked_identity_id: "viewer:real-pg-relationship",
@@ -9142,7 +9187,7 @@ const tests = [
         source_phase: "phase20",
         source_candidate_kind: "relationship_deepening",
         committed_at_ms: 1000,
-      };
+      });
       const operatorPolicyRecord = createApprovedOperatorPolicyRecord({
         settingId: "donation_amount_proportional_formula",
         settingGroup: "relationship_delta",
@@ -9272,9 +9317,7 @@ const tests = [
           },
         },
       });
-      const result = await adapter.persistApprovedMemory({
-        schema: "approved_memory_record",
-        approved: true,
+      const result = await adapter.persistApprovedMemory(createApprovedMemoryRecordFixture({
         trace_id: "real-pg-failure-trace",
         event_id: "real-pg-failure-event",
         store: "long_term_memory",
@@ -9284,7 +9327,7 @@ const tests = [
         source_phase: "phase26",
         source_candidate_kind: "memory_carryover",
         committed_at_ms: 1000,
-      });
+      }));
       const status = adapter.status();
       const serialized = JSON.stringify({ result, status });
 
@@ -9329,9 +9372,7 @@ const tests = [
         internal_profile: true,
         validation_status: "validated",
         approved_memory_records: [
-          {
-            schema: "approved_memory_record",
-            approved: true,
+          createApprovedMemoryRecordFixture({
             trace_id: "pg-store-trace",
             event_id: "pg-store-memory-event",
             store: "long_term_memory",
@@ -9343,12 +9384,10 @@ const tests = [
             source_phase: "phase26",
             source_candidate_kind: "memory_carryover",
             committed_at_ms: 1000,
-          },
+          }),
         ],
         approved_relationship_records: [
-          {
-            schema: "approved_relationship_record",
-            approved: true,
+          createApprovedRelationshipRecordFixture({
             trace_id: "pg-store-trace",
             event_id: "pg-store-relationship-event",
             linked_identity_id: "viewer:pg-store",
@@ -9362,7 +9401,7 @@ const tests = [
             source_phase: "phase20",
             source_candidate_kind: "relationship_deepening",
             committed_at_ms: 1000,
-          },
+          }),
         ],
         rejected_candidates: [],
         boundary_policy: {
@@ -9455,9 +9494,7 @@ const tests = [
           internal_profile: true,
           validation_status: "validated",
           approved_memory_records: [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               trace_id: "pg-runtime-factory-trace",
               event_id: "pg-runtime-factory-memory-event",
               store: "long_term_memory",
@@ -9469,7 +9506,7 @@ const tests = [
               source_phase: "phase26",
               source_candidate_kind: "memory_carryover",
               committed_at_ms: 1000,
-            },
+            }),
           ],
           approved_relationship_records: [],
           rejected_candidates: [],
@@ -9904,7 +9941,9 @@ const tests = [
     "PostgreSQL relationship aggregate updates only from approved records",
     async () => {
       const approvedGuard = createPostgresRelationshipAggregateSchemaGuard({
-        approvedRecord: { schema: "approved_relationship_record", approved: true },
+        approvedRecord: createApprovedRelationshipRecordFixture({
+          event_id: "relationship-aggregate-approved",
+        }),
       });
       assert.equal(approvedGuard.aggregate_update_status, "approved_record_ready");
       assert.equal(approvedGuard.aggregate_update_allowed, true);
@@ -9941,7 +9980,9 @@ const tests = [
     "PostgreSQL relationship event ledger appends only approved records",
     async () => {
       const approvedBoundary = createPostgresRelationshipEventLedgerBoundary({
-        approvedRecord: { schema: "approved_relationship_record", approved: true },
+        approvedRecord: createApprovedRelationshipRecordFixture({
+          event_id: "relationship-ledger-approved",
+        }),
       });
       assert.equal(approvedBoundary.ledger_append_status, "approved_record_ready");
       assert.equal(approvedBoundary.record_kind, "approved_relationship");
@@ -10185,9 +10226,7 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-relationship-dedupe-"));
       try {
         const relationshipStore = createJsonRelationshipStore(join(tempDir, "relationships.json"));
-        const record = {
-          schema: "approved_relationship_record",
-          approved: true,
+        const record = createApprovedRelationshipRecordFixture({
           trace_id: "relationship-dedupe-trace",
           event_id: "relationship-dedupe-event",
           linked_identity_id: "viewer:dedupe",
@@ -10200,7 +10239,7 @@ const tests = [
           source_phase: "phase20",
           source_candidate_kind: "relationship_deepening",
           committed_at_ms: 1000,
-        };
+        });
 
         const first = commitApprovedRelationshipRecord(relationshipStore, record);
         const duplicate = commitApprovedRelationshipRecord(relationshipStore, {
@@ -10241,8 +10280,6 @@ const tests = [
       try {
         const relationshipStore = createJsonRelationshipStore(join(tempDir, "relationships.json"));
         const baseRecord = {
-          schema: "approved_relationship_record",
-          approved: true,
           trace_id: "relationship-public-privacy-trace",
           linked_identity_id: "viewer:privacy",
           display_name: "Privacy Viewer",
@@ -10254,25 +10291,25 @@ const tests = [
           source_candidate_kind: "relationship_deepening",
           committed_at_ms: 1000,
         };
-        relationshipStore.upsertApproved({
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           event_id: "relationship-public-safe",
           summary: "Shared a public meme during the stream.",
-        });
-        relationshipStore.upsertApproved({
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           event_id: "relationship-public-private",
           summary: "Shared a private phone number.",
           committed_at_ms: 2000,
-        });
-        relationshipStore.upsertApproved({
+        }));
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           ...baseRecord,
           event_id: "relationship-public-unsafe",
           display_name: "token=relationship-name-secret endpoint=http://unsafe.example",
           summary:
             "token=relationship-summary-secret endpoint=http://unsafe.example input_action_candidate",
           committed_at_ms: 3000,
-        });
+        }));
         const profile = relationshipStore.getProfile("viewer:privacy");
         const publicProfile = sanitizeRelationshipProfilesForPublicState([profile])[0];
         const serialized = JSON.stringify(publicProfile);
@@ -10325,13 +10362,11 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-prompt-"));
       try {
         const store = createJsonMemoryStore(join(tempDir, "memory.json"));
-        store.append({
-          schema: "approved_memory_record",
-          approved: true,
+        store.append(createApprovedMemoryRecordFixture({
           event_id: "memory-private",
           summary: "Hiro shared a private phone number.",
           committed_at_ms: Date.now(),
-        });
+        }));
         let seenRecentMemorySummary = null;
         await runCommentPipeline(normalizeYouTubeComment({ text: "IRIS, hello" }), {
           hasOpened: true,
@@ -10357,9 +10392,7 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-public-"));
       try {
         const memoryStore = createJsonMemoryStore(join(tempDir, "memory.json"));
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "public-memory",
           trace_id: "trace-public",
           store: "experience_log",
@@ -10367,16 +10400,14 @@ const tests = [
           memory_type: "game_experience",
           owner_scope: "shared_stream",
           committed_at_ms: Date.now(),
-        });
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        }));
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "private-memory",
           trace_id: "trace-private",
           store: "experience_log",
           summary: "viewer shared password 1234",
           committed_at_ms: Date.now(),
-        });
+        }));
         const runtime = createIrisRuntime({
           runtimeConfig: { hasOpened: true, memoryStore },
           ttsAdapter() {
@@ -10403,9 +10434,7 @@ const tests = [
     "approved memory public summaries redact unsafe metadata labels",
     async () => {
       const records = sanitizeApprovedMemoryRecordsForPublicState([
-        {
-          schema: "approved_memory_record",
-          approved: true,
+        createApprovedMemoryRecordFixture({
           event_id: "token=memory-event-secret endpoint=http://unsafe.example",
           memory_id: "https://unsafe.example/memory-secret",
           trace_id: "trace-unsafe-memory",
@@ -10418,7 +10447,7 @@ const tests = [
           source_phase: "endpoint=http://unsafe.example/phase",
           source_candidate_kind: "input_action_candidate",
           committed_at_ms: 1200,
-        },
+        }),
       ]);
       const serialized = JSON.stringify(records);
 
@@ -17331,15 +17360,13 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-recall-"));
       try {
         const memoryStore = createJsonMemoryStore(join(tempDir, "memory.json"));
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-minecraft",
           trace_id: "memory-trace",
           store: "experience_log",
           summary: "Hiro liked Minecraft building last stream.",
           committed_at_ms: Date.now(),
-        });
+        }));
         const memoryRecallHistory = createMemoryRecallHistory();
         const runtime = createIrisRuntime({
           runtimeConfig: {
@@ -17400,9 +17427,7 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-prompt-"));
       try {
         const memoryStore = createJsonMemoryStore(join(tempDir, "memory.json"));
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-minecraft",
           trace_id: "memory-trace",
           store: "experience_log",
@@ -17411,10 +17436,8 @@ const tests = [
           memory_type: "game_experience",
           owner_scope: "shared_stream",
           committed_at_ms: Date.now(),
-        });
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        }));
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-private",
           trace_id: "private-trace",
           store: "experience_log",
@@ -17423,10 +17446,8 @@ const tests = [
           memory_type: "relationship",
           owner_scope: "user",
           committed_at_ms: Date.now(),
-        });
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        }));
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-unsafe",
           trace_id: "unsafe-trace",
           store: "experience_log",
@@ -17436,7 +17457,7 @@ const tests = [
           memory_type: "game_experience",
           owner_scope: "shared_stream",
           committed_at_ms: Date.now(),
-        });
+        }));
 
         const promptSummary = createApprovedMemoryPromptSummary({
           memoryStore,
@@ -17492,9 +17513,7 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-stream-media-"));
       try {
         const memoryStore = createJsonMemoryStore(join(tempDir, "memory.json"));
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-stream-moon",
           trace_id: "memory-trace-stream",
           store: "experience_log",
@@ -17503,10 +17522,8 @@ const tests = [
           memory_type: "stream_experience",
           owner_scope: "shared_stream",
           committed_at_ms: Date.now(),
-        });
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        }));
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-media-clip",
           trace_id: "memory-trace-media",
           store: "experience_log",
@@ -17515,7 +17532,7 @@ const tests = [
           memory_type: "media_watch_experience",
           owner_scope: "shared_stream",
           committed_at_ms: Date.now(),
-        });
+        }));
         const runtime = createIrisRuntime({
           runtimeConfig: { hasOpened: true, enablePersistence: false, memoryStore },
           ttsAdapter() {
@@ -17575,15 +17592,13 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-memory-sensitive-"));
       try {
         const memoryStore = createJsonMemoryStore(join(tempDir, "memory.json"));
-        memoryStore.append({
-          schema: "approved_memory_record",
-          approved: true,
+        memoryStore.append(createApprovedMemoryRecordFixture({
           event_id: "memory-phone",
           trace_id: "memory-trace",
           store: "experience_log",
           summary: "Hiro shared a phone number in private.",
           committed_at_ms: Date.now(),
-        });
+        }));
         const runtime = createIrisRuntime({
           runtimeConfig: { hasOpened: true, enablePersistence: false, memoryStore },
           ttsAdapter() {
@@ -17676,9 +17691,7 @@ const tests = [
       const nowMs = Date.now();
       const result = searchApprovedMemoryRecords(
         [
-          {
-            schema: "approved_memory_record",
-            approved: true,
+          createApprovedMemoryRecordFixture({
             event_id: "memory-game",
             memory_id: "memory-game",
             store: "experience_log",
@@ -17686,10 +17699,8 @@ const tests = [
             memory_type: "game_experience",
             owner_scope: "shared_stream",
             committed_at_ms: nowMs,
-          },
-          {
-            schema: "approved_memory_record",
-            approved: true,
+          }),
+          createApprovedMemoryRecordFixture({
             event_id: "memory-private",
             memory_id: "memory-private",
             store: "experience_log",
@@ -17697,7 +17708,7 @@ const tests = [
             memory_type: "episodic",
             owner_scope: "user",
             committed_at_ms: nowMs,
-          },
+          }),
         ],
         { query: "Minecraft lava game", limit: 5, nowMs }
       );
@@ -17715,9 +17726,7 @@ const tests = [
 
       const unsafeProviderResult = searchApprovedMemoryRecords(
         [
-          {
-            schema: "approved_memory_record",
-            approved: true,
+          createApprovedMemoryRecordFixture({
             event_id: "memory-provider-label",
             memory_id: "memory-provider-label",
             store: "experience_log",
@@ -17725,7 +17734,7 @@ const tests = [
             memory_type: "game_experience",
             owner_scope: "shared_stream",
             committed_at_ms: nowMs,
-          },
+          }),
         ],
         {
           query: "game",
@@ -17746,13 +17755,11 @@ const tests = [
         () =>
           searchApprovedMemoryRecords(
             [
-              {
-                schema: "approved_memory_record",
-                approved: true,
+              createApprovedMemoryRecordFixture({
                 event_id: "memory-unsafe",
                 summary: "unsafe memory",
                 execute: "press_w",
-              },
+              }),
             ],
             { query: "unsafe" }
           ),
@@ -17784,9 +17791,7 @@ const tests = [
         });
         const result = await adapter(
           [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               event_id: "memory-vector-game",
               memory_id: "memory-vector-game",
               store: "experience_log",
@@ -17794,16 +17799,14 @@ const tests = [
               memory_type: "game_experience",
               owner_scope: "shared_stream",
               committed_at_ms: Date.now(),
-            },
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            }),
+            createApprovedMemoryRecordFixture({
               event_id: "memory-vector-private",
               memory_id: "memory-vector-private",
               store: "experience_log",
               summary: "Hiro shared a private address.",
               committed_at_ms: Date.now(),
-            },
+            }),
           ],
           { query: "Minecraft lava", limit: 3 }
         );
@@ -17847,9 +17850,7 @@ const tests = [
         });
         const result = await adapter(
           [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               event_id: "memory-vector-bridge-game",
               memory_id: "memory-vector-bridge-game",
               store: "experience_log",
@@ -17857,10 +17858,8 @@ const tests = [
               memory_type: "game_experience",
               owner_scope: "shared_stream",
               committed_at_ms: 1000,
-            },
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            }),
+            createApprovedMemoryRecordFixture({
               event_id: "memory-vector-bridge-stream",
               memory_id: "memory-vector-bridge-stream",
               store: "experience_log",
@@ -17868,7 +17867,7 @@ const tests = [
               memory_type: "stream_experience",
               owner_scope: "shared_stream",
               committed_at_ms: 1000,
-            },
+            }),
           ],
           { query: "Minecraft game", limit: 2, nowMs: 2000 }
         );
@@ -18555,9 +18554,7 @@ const tests = [
         });
         const result = await adapter(
           [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               event_id: "memory-vector-label",
               memory_id: "memory-vector-label",
               store: "experience_log",
@@ -18565,7 +18562,7 @@ const tests = [
               memory_type: "stream_experience",
               owner_scope: "shared_stream",
               committed_at_ms: Date.now(),
-            },
+            }),
           ],
           { query: "stream", limit: 3 }
         );
@@ -18610,9 +18607,7 @@ const tests = [
       });
       const result = await adapter(
         [
-          {
-            schema: "approved_memory_record",
-            approved: true,
+          createApprovedMemoryRecordFixture({
             event_id: "memory-vector-safe",
             memory_id: "memory-vector-safe",
             store: "experience_log",
@@ -18620,7 +18615,7 @@ const tests = [
             memory_type: "game_experience",
             owner_scope: "shared_stream",
             committed_at_ms: Date.now(),
-          },
+          }),
         ],
         { query: "safe game", limit: "not-a-number" }
       );
@@ -18659,16 +18654,14 @@ const tests = [
           () =>
             adapter(
               [
-                {
-                  schema: "approved_memory_record",
-                  approved: true,
+                createApprovedMemoryRecordFixture({
                   event_id: "memory-vector-game",
                   memory_id: "memory-vector-game",
                   store: "experience_log",
                   summary: "Hiro and IRIS survived a Minecraft lava escape.",
                   memory_type: "game_experience",
                   committed_at_ms: Date.now(),
-                },
+                }),
               ],
               { query: "Minecraft" }
             ),
@@ -18703,16 +18696,14 @@ const tests = [
         () =>
           adapter(
             [
-              {
-                schema: "approved_memory_record",
-                approved: true,
+              createApprovedMemoryRecordFixture({
                 event_id: "memory-vector-failure",
                 memory_id: "memory-vector-failure",
                 store: "experience_log",
                 summary: "IRIS remembered a private failure fixture.",
                 memory_type: "game_experience",
                 committed_at_ms: Date.now(),
-              },
+              }),
             ],
             { query: "failure" }
           ),
@@ -18742,9 +18733,7 @@ const tests = [
         () =>
           adapter(
             [
-              {
-                schema: "approved_memory_record",
-                approved: true,
+              createApprovedMemoryRecordFixture({
                 event_id: "memory-vector-external",
                 memory_id: "memory-vector-external",
                 store: "experience_log",
@@ -18752,7 +18741,7 @@ const tests = [
                 memory_type: "stream_experience",
                 owner_scope: "shared_stream",
                 committed_at_ms: Date.now(),
-              },
+              }),
             ],
             { query: "stream" }
           ),
@@ -63335,9 +63324,7 @@ const tests = [
       const memoryStore = {
         list() {
           return [
-            {
-              schema: "approved_memory_record",
-              approved: true,
+            createApprovedMemoryRecordFixture({
               event_id: "memory-http-game",
               memory_id: "memory-http-game",
               store: "experience_log",
@@ -63345,7 +63332,7 @@ const tests = [
               memory_type: "game_experience",
               owner_scope: "shared_stream",
               committed_at_ms: Date.now(),
-            },
+            }),
           ];
         },
       };
@@ -63400,16 +63387,14 @@ const tests = [
       const tempDir = mkdtempSync(join(tmpdir(), "iris-http-relationships-"));
       try {
         const relationshipStore = createJsonRelationshipStore(join(tempDir, "relationships.json"));
-        relationshipStore.upsertApproved({
-          schema: "approved_relationship_record",
-          approved: true,
+        relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
           linked_identity_id: "viewer:hiro",
           display_name: "Hiro",
           affinity_delta: 0.16,
           familiarity_delta: 0.14,
           summary: "Hiro and IRIS practiced a Minecraft bridge route.",
           committed_at_ms: Date.now(),
-        });
+        }));
         const runtime = createIrisRuntime({
           runtimeConfig: { hasOpened: true, relationshipStore },
           ttsAdapter() {
