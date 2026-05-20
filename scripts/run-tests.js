@@ -43905,8 +43905,8 @@ const tests = [
 
       assert.equal(report.schema, "iris_admin_dashboard_v1");
       assert.equal(report.dashboard_status, "attention_required");
-      assert.equal(report.widget_count, 34);
-      assert.equal(report.widgets.length, 34);
+      assert.equal(report.widget_count, 35);
+      assert.equal(report.widgets.length, 35);
       assert.equal(report.widget_count, report.widgets.length);
       assert.equal(
         new Set(report.widgets.map((widget) => widget.widget_id)).size,
@@ -46045,7 +46045,7 @@ const tests = [
       });
       const serialized = JSON.stringify(report);
       assert.equal(report.schema, "iris_admin_character_voice_settings_v1");
-      assert.equal(report.setting_count, 56);
+      assert.equal(report.setting_count, 62);
       assert.equal(report.configured_setting_count, 18);
       assert.equal(
         report.settings.some(
@@ -46078,19 +46078,16 @@ const tests = [
         true
       );
       assert.equal(report.voice_source_summary.safe_source_status_label, "licensed");
-      assert.equal(report.voice_source_summary.voice_license_use_category_count, 4);
+      assert.equal(report.voice_source_summary.env_name_count, 18);
+      assert.equal(report.voice_source_summary.configured_env_count, 8);
+      assert.equal(report.voice_source_summary.missing_env_count, 10);
+      assert.equal(report.voice_source_summary.configured_env_names.length, 8);
+      assert.equal(report.voice_source_summary.missing_env_names.length, 10);
       assert.equal(
-        report.voice_source_summary.voice_license_use_category_configured_count,
-        4
+        report.voice_source_summary.fallback_voice_handoff_status,
+        "licensed_handoff"
       );
-      assert.equal(
-        report.voice_source_summary.voice_license_use_category_missing_count,
-        0
-      );
-      assert.equal(
-        report.voice_source_summary.character_voice_profile_configured,
-        true
-      );
+      assert.equal(report.voice_source_summary.fallback_voice_policy_label, "licensed");
       assert.equal(report.boundary_policy.no_setting_values, true);
       assert.equal(report.boundary_policy.no_phase00_canonical_enum_changes, true);
       assert.equal(serialized.includes("IRIS private display"), false);
@@ -49171,7 +49168,7 @@ const tests = [
       assert.equal(
         runtimeBridgeCheck.local_bridge_worker_diagnostics.engine_mode_summary
           .local_placeholder_engine_count,
-        0
+        1
       );
       assert.equal(
         runtimeBridgeCheck.local_bridge_worker_diagnostics.engine_mode_summary
