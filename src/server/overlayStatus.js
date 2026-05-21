@@ -63,7 +63,8 @@ export function createOverlayStatus(state, { nowMs = Date.now() } = {}) {
   const lastText = safeVisibleTextField(state?.last_text);
   const hasLastText = lastText != null;
   const subtitleText = safeVisibleTextField(state?.last_subtitle_cue?.subtitle_text);
-  const subtitleVisible = subtitleText != null;
+  const subtitleVisible =
+    subtitleText != null || safeBooleanField(state?.last_subtitle_cue?.subtitle_enabled);
   const visibleText = hasLastText ? lastText : subtitleVisible ? subtitleText : null;
   const visible =
     hasLastText ||
@@ -101,11 +102,19 @@ export function createOverlayStatus(state, { nowMs = Date.now() } = {}) {
     vision_raw_frame_available: safeBooleanField(
       state?.last_vision_metadata_summary?.raw_frame_available
     ),
-    speech_rate_label: safeStringField(state?.last_speech_rate_profile?.base_rate),
-    speech_rate_repair_status: safeStringField(
-      state?.last_speech_rate_profile?.slow_speech_guard?.guard_status
+    speech_rate_label: safeStringField(
+      state?.last_speech_rate_profile?.speech_rate_label ??
+        state?.last_speech_rate_profile?.base_rate
     ),
-    subtitle_sync_status: safeStringField(state?.last_subtitle_cue?.reading_speed_guard?.guard_status),
+    speech_rate_repair_status: safeStringField(
+      state?.last_speech_rate_profile?.speech_rate_repair_status ??
+        state?.last_speech_rate_profile?.slow_speech_guard_status ??
+        state?.last_speech_rate_profile?.slow_speech_guard?.guard_status
+    ),
+    subtitle_sync_status: safeStringField(
+      state?.last_subtitle_cue?.reading_speed_guard_status ??
+        state?.last_subtitle_cue?.reading_speed_guard?.guard_status
+    ),
     tongue_twister_enabled: tongueTwisterEnabled,
     tongue_twister_language: tongueTwisterEnabled ? safeStringField(tongueTwisterMode.language) : null,
     tongue_twister_phrase_length: tongueTwisterEnabled
