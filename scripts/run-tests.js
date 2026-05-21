@@ -27152,7 +27152,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeStatus.local_bridge_worker_runtime
           .engine_mode_summary.local_placeholder_engine_count,
-        1
+        0
       );
       assert.equal(
         readyFoundationRuntimeStatus.local_bridge_worker_runtime
@@ -28828,7 +28828,7 @@ const tests = [
       );
       assert.equal(
         missingFoundationStatus.local_bridge_engine_status.worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationStatus.obs_browser_source_status.source_dimensions_configured,
@@ -28850,11 +28850,11 @@ const tests = [
       assert.equal(
         missingFoundationRuntimeStatus.local_bridge_worker_runtime
           .worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationRuntimeStatus.runtime_summary.local_bridge_worker_ready,
-        false
+        true
       );
       assert.equal(
         missingFoundationRuntimeStatus.real_engine_handoff.handoff_status,
@@ -28995,7 +28995,7 @@ const tests = [
       assert.equal(
         missingFoundationReadinessRehearsal.runtime_flow_summary
           .local_bridge_worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationReadinessRehearsal.gate_summary.gate_count,
