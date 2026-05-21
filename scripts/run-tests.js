@@ -22187,7 +22187,7 @@ const tests = [
         assert.equal(dryRun.env_file_exists_after, false);
         assert.equal(dryRun.file_update_performed, false);
         assert.equal(dryRun.template_roundtrip_status, "ready_for_foundation_local_env_file");
-        assert.equal(dryRun.missing_template_env_name_count, 57);
+        assert.equal(dryRun.missing_template_env_name_count, 60);
         assert.equal(existsSync(join(tempDir, ".env.local")), false);
         assert.equal(
           dryRun.verification_scripts.foundation_startup_checklist_script,
@@ -22280,7 +22280,7 @@ const tests = [
         assert.equal(materialized.env_file_exists_before, false);
         assert.equal(materialized.env_file_exists_after, true);
         assert.equal(materialized.file_update_performed, true);
-        assert.equal(materialized.materialized_env_name_count, 57);
+        assert.equal(materialized.materialized_env_name_count, 60);
         assert.equal(materializedSerialized.includes("http://127.0.0.1"), false);
         assert.equal(envFileText.includes("IRIS_TTS_ENDPOINT=http://127.0.0.1:8790/tts"), true);
         assert.equal(
@@ -22302,7 +22302,7 @@ const tests = [
         assert.equal(blocked.env_file_exists_after, true);
         assert.equal(blocked.existing_file_blocks_materialization, true);
         assert.equal(blocked.file_update_performed, false);
-        assert.equal(blocked.existing_env_name_count, 57);
+        assert.equal(blocked.existing_env_name_count, 60);
         assert.equal(blocked.missing_template_env_name_count, 0);
         assertFoundationLocalEnvApplyPlanSafe(blocked);
       } finally {
