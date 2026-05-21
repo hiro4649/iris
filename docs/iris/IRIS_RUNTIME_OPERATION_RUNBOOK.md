@@ -13,6 +13,8 @@ Use a clean clone or an explicit PR branch. Do not use a dirty worktree as the d
 
 - The repo-local `IRIS_SPEC_AUTHORITY.md` is the IRIS authority.
 - The old external absolute-path authority is deprecated and historical only.
+- Do not create an external authority mirror unless the owner explicitly approves it.
+- When repo-local `IRIS_SPEC_AUTHORITY.md` exists, the missing external authority path is not an active repository residual and does not need routine completion-report repetition.
 - Do not use old README files, reports, comments, or launch notes as higher authority.
 
 ## Runtime Layer Contracts
