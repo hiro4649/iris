@@ -37,7 +37,7 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 - Public allowed information: safe memory summaries when explicitly allowed.
 - Internal-only information: raw memory, raw candidate payload, hidden relationship score, private viewer data.
 - Prohibited: restoring `approved` as memory status, natural use of `candidate`, `stale`, or `rejected`, direct candidate commit.
-- Missing or blocked: full runtime recall enforcement is partial; memory/candidate residual failures remain.
+- Missing or blocked: full runtime recall enforcement is partial; candidate direct commit remains prohibited and production memory evidence is not claimed.
 - Related eval: `node scripts/run-iris-evals.mjs`.
 
 ### Skill / skill
@@ -70,7 +70,7 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 - Public allowed information: status, component label, count, safe reason label, safe next action label.
 - Internal-only information: secrets, endpoints, tokens, raw payloads, raw responses, candidates, commands, `world_command`.
 - Prohibited: raw comment text, raw source response, raw memory, hidden scores, endpoint values, public `inner_intent`.
-- Missing or blocked: D3 HTTP server and D4 stream/public state residuals remain.
+- Missing or blocked: D3/D4/scenario residual tests are cleared; full real-operation public surface evidence remains incomplete.
 - Related eval: `node scripts/run-tests.js`.
 
 ### Admin / operator
@@ -92,7 +92,7 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 - Public allowed information: safe component status, stale/degraded/blocked labels, safe artifact references.
 - Internal-only information: raw bridge payload, raw command, raw path, endpoint value, token, raw diagnostic.
 - Prohibited: treating missing worker/engine/stale artifact as ready, hiding unsafe packets behind auth errors.
-- Missing or blocked: PR-F3 and PR-F4 residual runtime/bridge work remains unapproved.
+- Missing or blocked: PR-F3 and PR-F4 runtime/bridge follow-up remains unapproved.
 - Related eval: bridge, runtime, server, health subsets in `node scripts/run-tests.js`.
 
 ### Adapter / source boundary
@@ -103,7 +103,7 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 - Public allowed information: safe adapter result, safe source status, safe error code, counts.
 - Internal-only information: raw adapter packet, raw response, endpoint value, token, candidate, command, `world_command`.
 - Prohibited: candidate direct Adapter handoff, unknown adapter execution, External Observation as truth.
-- Missing or blocked: source-specific residuals remain for Game, OBS/TTS/Live2D, and related public-state paths.
+- Missing or blocked: source-specific real-operation proof remains blocked for Game, OBS/TTS/Live2D, and related public-state paths.
 - Related eval: adapter/source subsets in `node scripts/run-tests.js`.
 
 ### YouTube / OBS / TTS / Live2D / Game / DB
@@ -136,7 +136,7 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 - Public allowed information: test name, component label, pass/fail, safe reason label, count.
 - Internal-only information: raw logs that contain secrets, endpoints, raw payloads, raw memory, raw commands.
 - Prohibited: test deletion to hide failure, skip-only pass, raw log reporting.
-- Missing or blocked: full npm test remains failing with known residual categories.
+- Missing or blocked: `npm test` passes; production proof and future coverage expansion remain outside regression pass.
 - Related eval: all required local and remote quality checks.
 
 ### Growth / Curator / trace optimizer
