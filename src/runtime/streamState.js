@@ -240,7 +240,7 @@ export function createStreamState({ historyLimit = 20 } = {}) {
       state.last_game_embodiment = sanitizeGameEmbodimentForPublicState(
         result?.game_embodiment ?? null
       );
-      state.last_stream_lifecycle = sanitizeStreamLifecycleForPublicState(
+      state.last_stream_lifecycle = sanitizeStreamLifecycleForStreamState(
         result?.stream_lifecycle ?? null
       );
       state.last_human_likeness_evaluation = sanitizeHumanLikenessEvaluation(
@@ -436,6 +436,8 @@ function sanitizeVisionMetadataSummary(metadata) {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
   const frameId = cleanText(metadata.frame_id, 120);
   const frameReferenceId = cleanText(metadata.frame_reference_id, 120);
+  const rawFrameAvailable =
+    metadata.raw_frame_available === true || Object.hasOwn(metadata, "raw_frame");
   return {
     schema: "iris_vision_metadata_summary_v1",
     source_kind: cleanPublicVisionMetadataText(
@@ -448,7 +450,7 @@ function sanitizeVisionMetadataSummary(metadata) {
     frame_id_available: frameId !== "",
     frame_reference_available: frameReferenceId !== "",
     frame_age_ms: safeNullableNumber(metadata.frame_age_ms),
-    raw_frame_available: Object.hasOwn(metadata, "raw_frame"),
+    raw_frame_available: rawFrameAvailable,
     raw_frame_policy: "raw_frame_not_passed_to_core",
     ui_focus_count: Array.isArray(metadata.ui_focus_areas) ? metadata.ui_focus_areas.length : 0,
     boundary_policy: {
@@ -458,6 +460,41 @@ function sanitizeVisionMetadataSummary(metadata) {
       no_unsafe_vision_labels: true,
     },
   };
+}
+
+function sanitizeStreamLifecycleForStreamState(streamLifecycle) {
+  if (!streamLifecycle) return null;
+  try {
+    return sanitizeStreamLifecycleForPublicState(streamLifecycle);
+  } catch (error) {
+    if (
+      !(error instanceof ContractError) ||
+      !/unsafe public text/i.test(String(error.message ?? ""))
+    ) {
+      throw error;
+    }
+    return sanitizeStreamLifecycleForPublicState(
+      redactUnsafeStreamLifecyclePublicText(streamLifecycle)
+    );
+  }
+}
+
+function redactUnsafeStreamLifecyclePublicText(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactUnsafeStreamLifecyclePublicText(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([field, child]) => [
+        field,
+        redactUnsafeStreamLifecyclePublicText(child),
+      ])
+    );
+  }
+  if (typeof value === "string") {
+    return cleanPublicVisionMetadataText(value, 180, "vision_metadata_omitted");
+  }
+  return value;
 }
 
 function sanitizeGameContextForPublicState(context) {
