@@ -838,31 +838,38 @@ function createGateSummary(liveReadiness) {
     liveReadiness.obs_gate,
     liveReadiness.production_probe_gate,
   ];
-  const readyGateCount = gates.filter(
-    (gate) => gate.readiness_state === "ready"
-  ).length;
+  const runtimeGateReady =
+    liveReadiness.runtime_gate.runtime_status ===
+      "ready_for_obs_runtime_handoff" &&
+    liveReadiness.runtime_gate.runtime_flow_blocking_stage === "none" &&
+    liveReadiness.runtime_gate.readiness_state === "ready";
+  const realEngineGateReady =
+    liveReadiness.real_engine_gate.gate_status === "ready" &&
+    liveReadiness.real_engine_gate.configured_real_engine_count ===
+      liveReadiness.real_engine_gate.required_real_engine_count &&
+    liveReadiness.real_engine_gate.queue_retry_blocked_count === 0;
+  const obsGateReady =
+    liveReadiness.obs_gate.gate_status === "ready" &&
+    liveReadiness.obs_gate.artifact_pickup_ready_adapter_count ===
+      liveReadiness.obs_gate.required_artifact_pickup_ready_adapter_count &&
+    liveReadiness.obs_gate.readiness_state === "ready";
+  const productionProbeGateReady =
+    liveReadiness.production_probe_gate.readiness_state === "ready";
+  const readyGateCount = [
+    runtimeGateReady,
+    realEngineGateReady,
+    obsGateReady,
+    productionProbeGateReady,
+  ].filter(Boolean).length;
   return {
     schema: "iris_foundation_rehearsal_gate_summary_v1",
     gate_count: gates.length,
     ready_gate_count: readyGateCount,
     attention_gate_count: gates.length - readyGateCount,
-    runtime_gate_ready:
-      liveReadiness.runtime_gate.runtime_status ===
-        "ready_for_obs_runtime_handoff" &&
-      liveReadiness.runtime_gate.runtime_flow_blocking_stage === "none" &&
-      liveReadiness.runtime_gate.readiness_state === "ready",
-    real_engine_gate_ready:
-      liveReadiness.real_engine_gate.gate_status === "ready" &&
-      liveReadiness.real_engine_gate.configured_real_engine_count ===
-        liveReadiness.real_engine_gate.required_real_engine_count &&
-      liveReadiness.real_engine_gate.queue_retry_blocked_count === 0,
-    obs_gate_ready:
-      liveReadiness.obs_gate.gate_status === "ready" &&
-      liveReadiness.obs_gate.artifact_pickup_ready_adapter_count ===
-        liveReadiness.obs_gate.required_artifact_pickup_ready_adapter_count &&
-      liveReadiness.obs_gate.readiness_state === "ready",
-    production_probe_gate_ready:
-      liveReadiness.production_probe_gate.readiness_state === "ready",
+    runtime_gate_ready: runtimeGateReady,
+    real_engine_gate_ready: realEngineGateReady,
+    obs_gate_ready: obsGateReady,
+    production_probe_gate_ready: productionProbeGateReady,
     runtime_gate_status: liveReadiness.runtime_gate.runtime_status,
     real_engine_gate_status: liveReadiness.real_engine_gate.gate_status,
     obs_gate_status: liveReadiness.obs_gate.gate_status,
