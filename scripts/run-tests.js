@@ -56747,7 +56747,8 @@ const tests = [
         assert.equal(summary.unsafe_public_label_rejected_for_obs_pickup, true);
         assert.equal(summary.all_public_labels_safe_for_pickup, false);
         assert.equal(summary.manifest_id, "redacted_manifest_id");
-        assert.equal(summary.event_id, "redacted_event_id");
+        assert.equal(summary.event_id_present, true);
+        assert.equal(Object.hasOwn(summary, "event_id"), false);
         assert.equal(summary.engine_mode_by_adapter.live2d, "redacted_engine_mode");
         assert.deepEqual(summary.obs_pickup_blocking_adapter_kinds, [
           "tts",
