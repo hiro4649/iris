@@ -18284,6 +18284,47 @@ const tests = [
     },
   ],
   [
+    "youtube ingest readiness rehearsal gate summary gate counts match safe flags",
+    () => {
+      const report = createYouTubeIngestReadinessRehearsal({
+        env: {
+          IRIS_YOUTUBE_LIVE_CHAT_SOURCE: "youtube_api",
+          IRIS_YOUTUBE_VIDEO_ID: "fixture-video-id",
+          IRIS_YOUTUBE_OAUTH_REFRESH_TOKEN: "fixture-refresh-token",
+          IRIS_YOUTUBE_OAUTH_CLIENT_ID: "fixture-client-id",
+          IRIS_YOUTUBE_OAUTH_CLIENT_SECRET: "fixture-client-secret",
+          IRIS_YOUTUBE_LIVE_CHAT_CURSOR_STORE_PATH: "data/youtube-cursor.json",
+          IRIS_ENABLE_HTTP_INGEST_SCHEDULER: "true",
+        },
+        generatedAtMs: 1000,
+      });
+      const safeReadyFlags = [
+        report.gate_summary.source_gate_ready,
+        report.gate_summary.access_gate_ready,
+        report.gate_summary.scheduler_gate_ready,
+        report.gate_summary.runtime_ingest_gate_ready,
+        report.gate_summary.support_pipeline_gate_ready,
+      ];
+      const safeReadyCount = safeReadyFlags.filter(Boolean).length;
+      const serialized = JSON.stringify(report);
+
+      assert.equal(report.schema, "iris_youtube_ingest_readiness_rehearsal_v1");
+      assert.equal(report.gate_summary.ready_gate_count, safeReadyCount);
+      assert.equal(
+        report.gate_summary.attention_gate_count,
+        report.gate_summary.gate_count - safeReadyCount
+      );
+      assert.equal(report.gate_summary.access_gate_ready, false);
+      assert.equal(report.server_live_polling_ready, false);
+      assert.equal(report.poll_attempt_performed, false);
+      assert.equal(serialized.includes("fixture-refresh-token"), false);
+      assert.equal(serialized.includes("fixture-client-secret"), false);
+      assert.equal(serialized.includes("fixture-video-id"), false);
+      assert.equal(serialized.includes("data/youtube-cursor.json"), false);
+      assertYouTubeIngestReadinessRehearsalSafe(report);
+    },
+  ],
+  [
     "persistence startup checklist stays script-only and leak-free",
     () => {
       const checklist = createPersistenceStartupChecklist({ generatedAtMs: 1000 });

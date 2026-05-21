@@ -698,32 +698,43 @@ function createGateSummary(liveReadiness) {
     liveReadiness.runtime_ingest_gate,
     liveReadiness.support_pipeline_gate,
   ];
-  const readyGateCount = gates.filter((gate) => gate.ready === true).length;
+  const sourceGateReady =
+    liveReadiness.source_gate.gate_status === "ready" &&
+    liveReadiness.source_gate.preflight_ready === true &&
+    liveReadiness.source_gate.source_ready === true;
+  const accessGateReady =
+    ACCESS_GATE_READY_STATUSES.has(liveReadiness.access_gate.gate_status) &&
+    (liveReadiness.access_gate.blocking_stage === "none" ||
+      liveReadiness.access_gate.blocking_stage === "scheduler") &&
+    liveReadiness.access_gate.source_ready === true;
+  const schedulerGateReady =
+    liveReadiness.scheduler_gate.gate_status === "ready" &&
+    liveReadiness.scheduler_gate.scheduler_running === true &&
+    liveReadiness.scheduler_gate.youtube_source_count > 0;
+  const runtimeIngestGateReady =
+    liveReadiness.runtime_ingest_gate.gate_status === "ready" &&
+    liveReadiness.runtime_ingest_gate.live_chat_ingest_blocking_stage ===
+      "none" &&
+    liveReadiness.runtime_ingest_gate.runtime_event_seen === true;
+  const supportPipelineGateReady =
+    liveReadiness.support_pipeline_gate.ready === true;
+  const readyGateCount = [
+    sourceGateReady,
+    accessGateReady,
+    schedulerGateReady,
+    runtimeIngestGateReady,
+    supportPipelineGateReady,
+  ].filter(Boolean).length;
   return {
     schema: "iris_youtube_ingest_rehearsal_gate_summary_v1",
     gate_count: gates.length,
     ready_gate_count: readyGateCount,
     attention_gate_count: gates.length - readyGateCount,
-    source_gate_ready:
-      liveReadiness.source_gate.gate_status === "ready" &&
-      liveReadiness.source_gate.preflight_ready === true &&
-      liveReadiness.source_gate.source_ready === true,
-    access_gate_ready:
-      ACCESS_GATE_READY_STATUSES.has(liveReadiness.access_gate.gate_status) &&
-      (liveReadiness.access_gate.blocking_stage === "none" ||
-        liveReadiness.access_gate.blocking_stage === "scheduler") &&
-      liveReadiness.access_gate.source_ready === true,
-    scheduler_gate_ready:
-      liveReadiness.scheduler_gate.gate_status === "ready" &&
-      liveReadiness.scheduler_gate.scheduler_running === true &&
-      liveReadiness.scheduler_gate.youtube_source_count > 0,
-    runtime_ingest_gate_ready:
-      liveReadiness.runtime_ingest_gate.gate_status === "ready" &&
-      liveReadiness.runtime_ingest_gate.live_chat_ingest_blocking_stage ===
-        "none" &&
-      liveReadiness.runtime_ingest_gate.runtime_event_seen === true,
-    support_pipeline_gate_ready:
-      liveReadiness.support_pipeline_gate.ready === true,
+    source_gate_ready: sourceGateReady,
+    access_gate_ready: accessGateReady,
+    scheduler_gate_ready: schedulerGateReady,
+    runtime_ingest_gate_ready: runtimeIngestGateReady,
+    support_pipeline_gate_ready: supportPipelineGateReady,
     source_gate_status: liveReadiness.source_gate.gate_status,
     access_gate_status: liveReadiness.access_gate.gate_status,
     scheduler_gate_status: liveReadiness.scheduler_gate.gate_status,
