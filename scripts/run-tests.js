@@ -33189,7 +33189,7 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.blocking_stage,
@@ -33241,8 +33241,8 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
-            .relationship_validated_count,
-          0
+            .relationship_validated_count > 0,
+          true
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
@@ -33251,8 +33251,8 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
-            .relationship_committed_count,
-          0
+            .relationship_committed_count > 0,
+          true
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.boundary_policy
@@ -33444,7 +33444,7 @@ const tests = [
         assert.equal(
           readyPersistenceRuntimeStatus.production_handoff_summary
             .candidate_commit_flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRuntimeStatus.production_handoff_summary
@@ -34068,7 +34068,7 @@ const tests = [
         assert.equal(
           readyPersistenceRehearsal.runtime_flow_summary
             .candidate_commit_flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRehearsal.gate_summary.candidate_gate_ready,
