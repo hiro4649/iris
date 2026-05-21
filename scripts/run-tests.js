@@ -20346,7 +20346,7 @@ const tests = [
         postStreamLifecycle.post_stream_summary.boundary_policy.no_raw_support_text,
         true
       );
-      assert.equal(JSON.stringify(postStreamLifecycle).includes("raw_logs"), false);
+      assert.equal(Object.hasOwn(postStreamLifecycle.post_stream_summary, "raw_logs"), false);
       assert.throws(
         () =>
           assertStreamLifecycleSafe({
