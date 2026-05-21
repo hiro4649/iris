@@ -27,6 +27,14 @@ IRIS is merge-ready only when the target branch satisfies this gate and remote q
 - New failures block merge.
 - Raw logs are not copied into PR bodies.
 
+## Production Real Evidence
+
+Priority1 production blocker resolution is governed by `docs/iris/IRIS_PRODUCTION_REAL_EVIDENCE_MANIFEST.md`.
+
+Regression PASS, fixture PASS, rehearsal PASS, dry-run PASS, and local quality-gate PASS are not production go evidence.
+Production go requires fresh real evidence, owner confirmation, emergency stop confirmation, audit readiness, a complete live handoff bundle, and zero critical blockers.
+Missing or unsafe evidence keeps `production_go_allowed=false` and priority1 BLOCKED.
+
 ## Manual Confirmation
 
 Manual confirmation is required when the quality gate reports R3 or human review required.
