@@ -26949,6 +26949,21 @@ const tests = [
         createdAtMs: 1000,
         eventId: "foundation-runtime-ready-fixture",
       });
+      for (const adapterKind of ["tts", "live2d", "subtitle"]) {
+        const processedJobId = `foundation-runtime-ready-fixture-${adapterKind}`;
+        mkdirSync(join(runtimeOutboxDir, adapterKind), { recursive: true });
+        mkdirSync(join(runtimeArtifactDir, adapterKind), { recursive: true });
+        writeFileSync(
+          join(runtimeOutboxDir, adapterKind, "jobs.jsonl"),
+          `${JSON.stringify({ job_id: processedJobId, created_at_ms: 1000 })}\n`,
+          "utf8"
+        );
+        writeFileSync(
+          join(runtimeArtifactDir, adapterKind, "receipts.jsonl"),
+          `${JSON.stringify({ job_id: processedJobId })}\n`,
+          "utf8"
+        );
+      }
       const readyFoundationRuntimeStatus = createFoundationRuntimeStatusReport({
         env: {
           ...env,
@@ -26969,18 +26984,21 @@ const tests = [
                 reading_speed_guard: { guard_status: "fit" },
               },
               last_tts_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "http://127.0.0.1:9999/private.wav",
+                artifact_kind: "audio_wav",
                 duration_ms: 1200,
               },
               last_live2d_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/live2d-ready.json",
+                artifact_kind: "live2d_cue_json",
                 duration_ms: 900,
               },
               last_subtitle_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/subtitle-ready.vtt",
+                artifact_kind: "subtitle_vtt",
                 duration_ms: 1200,
               },
               last_performance_plan: { total_duration_ms: 1200 },
@@ -26993,11 +27011,13 @@ const tests = [
               schema: "iris_overlay_event_stream_status_v1",
               generated_at_ms: 1000,
               stream_ready: true,
+              event_bus_status: "connected",
               client_count: 1,
               published_count: 2,
-              latest_event_id: "runtime-event-id",
               latest_event_age_ms: 10,
               boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
                 no_raw_text: true,
                 no_candidates: true,
                 no_commands: true,
@@ -27042,10 +27062,12 @@ const tests = [
                   schema: "iris_overlay_event_stream_status_v1",
                   generated_at_ms: 1000,
                   stream_ready: true,
+                  event_bus_status: "connected",
                   published_count: 1,
-                  latest_event_id: "runtime-event-id",
                   latest_event_age_ms: 10,
                   boundary_policy: {
+                    no_raw_overlay_events: true,
+                    no_raw_payloads: true,
                     no_raw_text: true,
                     no_candidates: true,
                     no_commands: true,
@@ -27450,11 +27472,13 @@ const tests = [
                 schema: "iris_overlay_event_stream_status_v1",
                 generated_at_ms: 1000,
                 stream_ready: true,
+                event_bus_status: "connected",
                 client_count: 1,
                 published_count: 2,
-                latest_event_id: "runtime-event-id",
                 latest_event_age_ms: 10,
                 boundary_policy: {
+                  no_raw_overlay_events: true,
+                  no_raw_payloads: true,
                   no_raw_text: true,
                   no_candidates: true,
                   no_commands: true,
@@ -27712,18 +27736,21 @@ const tests = [
                 reading_speed_guard: { guard_status: "fit" },
               },
               last_tts_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "http://127.0.0.1:9999/private-readiness.wav",
+                artifact_kind: "audio_wav",
                 duration_ms: 1200,
               },
               last_live2d_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/live2d-ready.json",
+                artifact_kind: "live2d_cue_json",
                 duration_ms: 900,
               },
               last_subtitle_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/subtitle-ready.vtt",
+                artifact_kind: "subtitle_vtt",
                 duration_ms: 1200,
               },
               last_performance_plan: { total_duration_ms: 1200 },
@@ -27736,11 +27763,13 @@ const tests = [
               schema: "iris_overlay_event_stream_status_v1",
               generated_at_ms: 1000,
               stream_ready: true,
+              event_bus_status: "connected",
               client_count: 1,
               published_count: 2,
-              latest_event_id: "live-readiness-runtime-event",
               latest_event_age_ms: 10,
               boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
                 no_raw_text: true,
                 no_candidates: true,
                 no_commands: true,
@@ -28227,11 +28256,13 @@ const tests = [
                 schema: "iris_overlay_event_stream_status_v1",
                 generated_at_ms: 1000,
                 stream_ready: true,
+                event_bus_status: "connected",
                 client_count: 1,
                 published_count: 2,
-                latest_event_id: "blocked-worker-runtime-event",
                 latest_event_age_ms: 10,
                 boundary_policy: {
+                  no_raw_overlay_events: true,
+                  no_raw_payloads: true,
                   no_raw_text: true,
                   no_candidates: true,
                   no_commands: true,
