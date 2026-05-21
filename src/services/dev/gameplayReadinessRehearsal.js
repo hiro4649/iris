@@ -815,44 +815,61 @@ function createGateSummary(liveReadiness) {
     liveReadiness.lifecycle_gate,
     liveReadiness.vision_to_action_gate,
   ];
-  const readyGateCount = gates.filter((gate) => gate.ready === true).length;
+  const configurationGateReady =
+    liveReadiness.configuration_gate.gate_status === "ready" &&
+    liveReadiness.configuration_gate.readiness_state === "ready";
+  const schedulerGateReady =
+    liveReadiness.scheduler_gate.gate_status === "ready" &&
+    liveReadiness.scheduler_gate.scheduler_available === true &&
+    liveReadiness.scheduler_gate.scheduler_running === true;
+  const visionCaptureGateReady =
+    liveReadiness.vision_capture_gate.gate_status === "ready" &&
+    liveReadiness.vision_capture_gate.blocking_stage === "none" &&
+    liveReadiness.vision_capture_gate.game_observation_seen === true;
+  const actionGateReady =
+    liveReadiness.action_gate.gate_status === "ready" &&
+    liveReadiness.action_gate.validation_passed === true &&
+    liveReadiness.action_gate.validated_control_available === true;
+  const adapterGateReady =
+    liveReadiness.adapter_gate.gate_status === "ready" &&
+    liveReadiness.adapter_gate.adapter_status_available === true &&
+    liveReadiness.adapter_gate.accepted_count > 0;
+  const safeControlGateReady =
+    liveReadiness.safe_control_gate.gate_status === "ready" &&
+    liveReadiness.safe_control_gate.blocking_stage === "none" &&
+    liveReadiness.safe_control_gate.control_accepted === true;
+  const lifecycleGateReady =
+    liveReadiness.lifecycle_gate.gate_status === "ready" &&
+    liveReadiness.lifecycle_gate.blocking_stage === "none" &&
+    liveReadiness.lifecycle_gate.adapter_handoff_accepted === true;
+  const visionToActionGateReady =
+    liveReadiness.vision_to_action_gate.gate_status === "ready" &&
+    liveReadiness.vision_to_action_gate.blocking_stage === "none" &&
+    liveReadiness.vision_to_action_gate.control_accepted === true;
+  const readyGateCount = [
+    configurationGateReady,
+    schedulerGateReady,
+    visionCaptureGateReady,
+    actionGateReady,
+    adapterGateReady,
+    safeControlGateReady,
+    lifecycleGateReady,
+    visionToActionGateReady,
+  ].filter(Boolean).length;
   return {
     schema: "iris_gameplay_rehearsal_gate_summary_v1",
     gate_count: gates.length,
     ready_gate_count: readyGateCount,
     attention_gate_count: gates.length - readyGateCount,
     readiness_state_counts: countReadinessStates(gates),
-    configuration_gate_ready:
-      liveReadiness.configuration_gate.gate_status === "ready" &&
-      liveReadiness.configuration_gate.readiness_state === "ready",
-    scheduler_gate_ready:
-      liveReadiness.scheduler_gate.gate_status === "ready" &&
-      liveReadiness.scheduler_gate.scheduler_available === true &&
-      liveReadiness.scheduler_gate.scheduler_running === true,
-    vision_capture_gate_ready:
-      liveReadiness.vision_capture_gate.gate_status === "ready" &&
-      liveReadiness.vision_capture_gate.blocking_stage === "none" &&
-      liveReadiness.vision_capture_gate.game_observation_seen === true,
-    action_gate_ready:
-      liveReadiness.action_gate.gate_status === "ready" &&
-      liveReadiness.action_gate.validation_passed === true &&
-      liveReadiness.action_gate.validated_control_available === true,
-    adapter_gate_ready:
-      liveReadiness.adapter_gate.gate_status === "ready" &&
-      liveReadiness.adapter_gate.adapter_status_available === true &&
-      liveReadiness.adapter_gate.accepted_count > 0,
-    safe_control_gate_ready:
-      liveReadiness.safe_control_gate.gate_status === "ready" &&
-      liveReadiness.safe_control_gate.blocking_stage === "none" &&
-      liveReadiness.safe_control_gate.control_accepted === true,
-    lifecycle_gate_ready:
-      liveReadiness.lifecycle_gate.gate_status === "ready" &&
-      liveReadiness.lifecycle_gate.blocking_stage === "none" &&
-      liveReadiness.lifecycle_gate.adapter_handoff_accepted === true,
-    vision_to_action_gate_ready:
-      liveReadiness.vision_to_action_gate.gate_status === "ready" &&
-      liveReadiness.vision_to_action_gate.blocking_stage === "none" &&
-      liveReadiness.vision_to_action_gate.control_accepted === true,
+    configuration_gate_ready: configurationGateReady,
+    scheduler_gate_ready: schedulerGateReady,
+    vision_capture_gate_ready: visionCaptureGateReady,
+    action_gate_ready: actionGateReady,
+    adapter_gate_ready: adapterGateReady,
+    safe_control_gate_ready: safeControlGateReady,
+    lifecycle_gate_ready: lifecycleGateReady,
+    vision_to_action_gate_ready: visionToActionGateReady,
     configuration_gate_status: liveReadiness.configuration_gate.gate_status,
     configuration_gate_readiness_state:
       liveReadiness.configuration_gate.readiness_state,
