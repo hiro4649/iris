@@ -12,6 +12,10 @@ Every template in this document follows these rules:
 - Codex performs GitHub checks, Git Bash or shell commands, PR checks, browser or GitHub state checks, and remote quality gate checks when a task asks for them.
 - ChatGPT-side verbal confirmation is not enough when repository or GitHub evidence is required.
 - Start from latest `main`: `HEAD == origin/main`, ahead/behind `0/0`, and clean worktree.
+- Use repo-local `IRIS_SPEC_AUTHORITY.md` as the repository authority.
+- Treat the old external absolute-path authority as deprecated and historical only.
+- Do not create an external authority mirror without explicit owner approval.
+- When repo-local `IRIS_SPEC_AUTHORITY.md` exists, do not report a missing external authority path as an active residual.
 - Keep one scope per PR. Audit, fixture, implementation, policy, docs/spec, and merge work stay separate unless explicitly approved together.
 - Do not expose secrets, endpoint values, tokens, raw paths, raw diagnostics, raw payloads, raw candidates, raw memory, raw relationship records, private viewer IDs, relationship scores, commands, `world_command`, or `inner_intent`.
 - Do not treat `npm test` PASS as production ready.
