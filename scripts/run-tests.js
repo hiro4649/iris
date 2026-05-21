@@ -6006,7 +6006,7 @@ const tests = [
             ...report,
             ok: "true",
           }),
-        /Expected values to be strictly equal/
+        /Scenario suite ok must be a boolean/
       );
       assert.throws(
         () =>
@@ -6056,6 +6056,8 @@ const tests = [
             ...report,
             results: [null],
             scenario_count: 1,
+            pass_count: 1,
+            fail_count: 0,
           }),
         /scenario suite result must be an object/
       );
@@ -6070,6 +6072,8 @@ const tests = [
               },
             ],
             scenario_count: 1,
+            pass_count: 1,
+            fail_count: 0,
           }),
         /Scenario suite result step count must be positive/
       );
@@ -61679,7 +61683,7 @@ const tests = [
       assert.equal(result.results[5].motion_style, "idle_breath");
       assert.equal(result.results[5].body_state_id, "body_idle_breathing");
       assert.equal(result.results[5].rhythm_state_id, "quiet_presence_rhythm");
-      assert.equal(result.results[0].relationship_candidate_status, "validation_required");
+      assert.equal(result.results[0].relationship_candidate_status, "not_created");
       assert.equal(result.results[0].memory_recall_decision, "skip");
       assert.equal(result.results[0].response_language, "en");
       assert.equal(result.results[0].subtitle_language, "en");
