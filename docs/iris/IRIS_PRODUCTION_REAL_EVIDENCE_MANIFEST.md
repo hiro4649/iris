@@ -135,6 +135,10 @@ It must not contain shell bodies, endpoint values, token values, raw paths, loca
 
 ## Go/No-Go Conditions
 
+The production go/no-go package is governed by `docs/iris/IRIS_PRODUCTION_GO_NOGO_PACKAGE.md`.
+Package generation can only consume safe references from real evidence and live handoff bundle summaries.
+It does not perform production go, collect fresh evidence, or confirm owner approval.
+
 Production go remains prohibited unless all conditions are true:
 
 - every required component has fresh real evidence from an allowlisted source
