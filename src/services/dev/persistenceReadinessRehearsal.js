@@ -899,51 +899,59 @@ function summarizeNextStep({
 }
 
 function createGateSummary(liveReadiness) {
-  const gates = [
-    liveReadiness.configuration_gate,
-    liveReadiness.runtime_gate,
-    liveReadiness.store_gate,
-    liveReadiness.approved_record_gate,
-    liveReadiness.candidate_gate,
-    liveReadiness.relationship_gate,
-    liveReadiness.recall_gate,
-    liveReadiness.lifecycle_gate,
+  const configurationGateReady =
+    liveReadiness.configuration_gate.gate_status === "ready" &&
+    liveReadiness.configuration_gate.readiness_state === "ready";
+  const runtimeGateReady =
+    liveReadiness.runtime_gate.gate_status === "ready" &&
+    liveReadiness.runtime_gate.persistence_status_available === true &&
+    liveReadiness.runtime_gate.persistence_enabled === true;
+  const storeGateReady =
+    liveReadiness.store_gate.gate_status === "ready" &&
+    liveReadiness.store_gate.memory_store_health === "ready" &&
+    liveReadiness.store_gate.relationship_store_health === "ready";
+  const approvedRecordGateReady =
+    liveReadiness.approved_record_gate.ready === true;
+  const candidateGateReady =
+    liveReadiness.candidate_gate.gate_status === "ready" &&
+    liveReadiness.candidate_gate.blocking_stage === "none" &&
+    liveReadiness.candidate_gate.persistence_error_count === 0;
+  const relationshipGateReady =
+    liveReadiness.relationship_gate.gate_status === "ready" &&
+    liveReadiness.relationship_gate.blocking_stage === "none" &&
+    liveReadiness.relationship_gate.relationship_profiles_available === true;
+  const recallGateReady =
+    liveReadiness.recall_gate.gate_status === "ready" &&
+    liveReadiness.recall_gate.blocking_stage === "none" &&
+    liveReadiness.recall_gate.durable_restart_recall_ready === true;
+  const lifecycleGateReady =
+    liveReadiness.lifecycle_gate.gate_status === "ready" &&
+    liveReadiness.lifecycle_gate.blocking_stage === "none" &&
+    liveReadiness.lifecycle_gate.relationship_memory_complete === true;
+  const gateReadyFlags = [
+    configurationGateReady,
+    runtimeGateReady,
+    storeGateReady,
+    approvedRecordGateReady,
+    candidateGateReady,
+    relationshipGateReady,
+    recallGateReady,
+    lifecycleGateReady,
   ];
-  const readyGateCount = gates.filter((gate) => gate.ready === true).length;
+  const readyGateCount = gateReadyFlags.filter(Boolean).length;
   return {
     schema: "iris_persistence_rehearsal_gate_summary_v1",
-    gate_count: gates.length,
+    gate_count: gateReadyFlags.length,
     ready_gate_count: readyGateCount,
-    attention_gate_count: gates.length - readyGateCount,
-    configuration_gate_ready:
-      liveReadiness.configuration_gate.gate_status === "ready" &&
-      liveReadiness.configuration_gate.readiness_state === "ready",
-    runtime_gate_ready:
-      liveReadiness.runtime_gate.gate_status === "ready" &&
-      liveReadiness.runtime_gate.persistence_status_available === true &&
-      liveReadiness.runtime_gate.persistence_enabled === true,
-    store_gate_ready:
-      liveReadiness.store_gate.gate_status === "ready" &&
-      liveReadiness.store_gate.memory_store_health === "ready" &&
-      liveReadiness.store_gate.relationship_store_health === "ready",
-    approved_record_gate_ready:
-      liveReadiness.approved_record_gate.ready === true,
-    candidate_gate_ready:
-      liveReadiness.candidate_gate.gate_status === "ready" &&
-      liveReadiness.candidate_gate.blocking_stage === "none" &&
-      liveReadiness.candidate_gate.persistence_error_count === 0,
-    relationship_gate_ready:
-      liveReadiness.relationship_gate.gate_status === "ready" &&
-      liveReadiness.relationship_gate.blocking_stage === "none" &&
-      liveReadiness.relationship_gate.relationship_profiles_available === true,
-    recall_gate_ready:
-      liveReadiness.recall_gate.gate_status === "ready" &&
-      liveReadiness.recall_gate.blocking_stage === "none" &&
-      liveReadiness.recall_gate.durable_restart_recall_ready === true,
-    lifecycle_gate_ready:
-      liveReadiness.lifecycle_gate.gate_status === "ready" &&
-      liveReadiness.lifecycle_gate.blocking_stage === "none" &&
-      liveReadiness.lifecycle_gate.relationship_memory_complete === true,
+    attention_gate_count: gateReadyFlags.length - readyGateCount,
+    configuration_gate_ready: configurationGateReady,
+    runtime_gate_ready: runtimeGateReady,
+    store_gate_ready: storeGateReady,
+    approved_record_gate_ready: approvedRecordGateReady,
+    candidate_gate_ready: candidateGateReady,
+    relationship_gate_ready: relationshipGateReady,
+    recall_gate_ready: recallGateReady,
+    lifecycle_gate_ready: lifecycleGateReady,
     configuration_gate_status: liveReadiness.configuration_gate.gate_status,
     runtime_gate_status: liveReadiness.runtime_gate.gate_status,
     store_gate_status: liveReadiness.store_gate.gate_status,
