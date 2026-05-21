@@ -16393,7 +16393,35 @@ const tests = [
         ),
         true
       );
-      assert.ok(result.relationship_deepening.proposed_relation_score_delta >= 0.06);
+      assert.equal(result.relationship_deepening.relationship_update_candidate.requires_validation, true);
+      assert.equal(
+        result.relationship_deepening.relationship_update_candidate.validation_route,
+        "phase05_phase06_phase13_persistence_validator"
+      );
+      assert.equal(
+        result.relationship_deepening.relationship_update_candidate.donation_amount_policy.policy,
+        "bounded_diminishing_return_candidate_only"
+      );
+      assert.equal(
+        result.relationship_deepening.relationship_update_candidate.donation_amount_policy
+          .amount_only_deep_relationship_allowed,
+        false
+      );
+      assert.equal(
+        Object.hasOwn(
+          result.relationship_deepening.relationship_update_candidate,
+          "approved_relationship_record"
+        ),
+        false
+      );
+      assert.equal(
+        Object.hasOwn(result.relationship_deepening.relationship_update_candidate, "commit"),
+        false
+      );
+      assert.equal(
+        Object.hasOwn(result.relationship_deepening.relationship_update_candidate, "target_store"),
+        false
+      );
       assert.equal(Object.hasOwn(result.donation_reaction, "commit"), false);
       assert.equal(Object.hasOwn(result.adapter_packets.live2d, "donation_reaction"), false);
       assert.ok(
