@@ -779,8 +779,26 @@ import {
   createProductionSchedulerEnablementPlan,
 } from "../src/services/dev/productionSchedulerEnablementPlan.js";
 import {
+  assertLiveHandoffFinalPreflightSummarySafe,
+  assertLiveProductionGoNoGoClassifierSafe,
   assertProductionLiveReadinessReportSafe,
+  assertProductionLiveBlockedUntilConfirmedGateSafe,
+  assertProductionLiveFixtureVsRealGateSafe,
+  assertProductionLiveOwnerConfirmationEnvelopeSafe,
+  assertProductionFinalPreflightAuditReadinessSafe,
+  assertProductionFinalPreflightEmergencyStopReadinessSafe,
+  assertPriority1BlockerPersistenceStateSafe,
+  assertRuntimeProductionFreshArtifactRequirementSafe,
+  createLiveHandoffFinalPreflightSummary,
+  createLiveProductionGoNoGoClassifier,
   createProductionLiveReadinessReport,
+  createProductionLiveBlockedUntilConfirmedGate,
+  createProductionLiveFixtureVsRealGate,
+  createProductionLiveOwnerConfirmationEnvelope,
+  createProductionFinalPreflightAuditReadiness,
+  createProductionFinalPreflightEmergencyStopReadiness,
+  createPriority1BlockerPersistenceState,
+  createRuntimeProductionFreshArtifactRequirement,
 } from "../src/services/dev/productionLiveReadiness.js";
 import { assertSpecManifestSafe, createSpecManifest } from "../src/services/dev/specManifest.js";
 import { assertReplayEntrySafe, createJsonlReplayLog } from "../src/services/dev/replayLog.js";
@@ -42621,6 +42639,120 @@ const tests = [
           }),
         ContractError
       );
+    },
+  ],
+  [
+    "production live readiness fresh evidence owner confirmation go-no-go priority1 emergency stop audit readiness live handoff fixture pass not real ready production ready separation labels stay blocked",
+    async () => {
+      const liveReport = await createProductionLiveReadinessReport({
+        env: {},
+        generatedAtMs: 1000,
+      });
+      const freshRequirement = createRuntimeProductionFreshArtifactRequirement();
+      const blockedUntilConfirmed = createProductionLiveBlockedUntilConfirmedGate();
+      const fixtureVsReal = createProductionLiveFixtureVsRealGate({
+        fixturePass: true,
+        realLiveConfirmed: false,
+      });
+      const ownerConfirmation = createProductionLiveOwnerConfirmationEnvelope();
+      const emergencyStop = createProductionFinalPreflightEmergencyStopReadiness();
+      const auditReadiness = createProductionFinalPreflightAuditReadiness();
+      const goNoGo = createLiveProductionGoNoGoClassifier({
+        ownerConfirmationCheckedAtMs: 1000,
+      });
+      const priority1 = createPriority1BlockerPersistenceState({
+        fixturePassed: true,
+      });
+      const liveHandoff = createLiveHandoffFinalPreflightSummary();
+
+      assertProductionLiveReadinessReportSafe(liveReport);
+      assertRuntimeProductionFreshArtifactRequirementSafe(freshRequirement);
+      assertProductionLiveBlockedUntilConfirmedGateSafe(blockedUntilConfirmed);
+      assertProductionLiveFixtureVsRealGateSafe(fixtureVsReal);
+      assertProductionLiveOwnerConfirmationEnvelopeSafe(ownerConfirmation);
+      assertProductionFinalPreflightEmergencyStopReadinessSafe(emergencyStop);
+      assertProductionFinalPreflightAuditReadinessSafe(auditReadiness);
+      assertLiveProductionGoNoGoClassifierSafe(goNoGo);
+      assertPriority1BlockerPersistenceStateSafe(priority1);
+      assertLiveHandoffFinalPreflightSummarySafe(liveHandoff);
+
+      assert.equal(liveReport.ready_stage_count, 0);
+      assert.equal(
+        liveReport.production_handoff_summary.live_readiness_aggregate_only,
+        true
+      );
+      assert.equal(
+        liveReport.production_handoff_summary.no_real_processes_started_by_report,
+        true
+      );
+      assert.equal(freshRequirement.requirement_status, "runtime_waiting");
+      assert.equal(freshRequirement.real_ready_allowed, false);
+      assert.equal(blockedUntilConfirmed.gate_status, "blocked");
+      assert.equal(blockedUntilConfirmed.production_live_ready, false);
+      assert.equal(
+        blockedUntilConfirmed.blocker_labels.includes("owner_confirmation_pending"),
+        true
+      );
+      assert.equal(
+        blockedUntilConfirmed.blocker_labels.includes("emergency_stop_unconfirmed"),
+        true
+      );
+      assert.equal(
+        blockedUntilConfirmed.blocker_labels.includes("audit_not_ready"),
+        true
+      );
+      assert.equal(
+        blockedUntilConfirmed.blocker_labels.includes("fresh_heartbeat_unconfirmed"),
+        true
+      );
+      assert.equal(ownerConfirmation.confirmation_status, "owner_confirmation_pending");
+      assert.equal(ownerConfirmation.owner_confirmed, false);
+      assert.equal(emergencyStop.emergency_stop_status, "blocked");
+      assert.equal(emergencyStop.production_go_allowed, false);
+      assert.equal(auditReadiness.audit_status, "blocked");
+      assert.equal(auditReadiness.production_go_allowed, false);
+      assert.equal(goNoGo.classifier_status, "no_go");
+      assert.equal(goNoGo.production_go_allowed, false);
+      assert.equal(goNoGo.fresh_evidence_status, "fresh_evidence_required");
+      assert.equal(goNoGo.owner_confirmation_status, "owner_confirmation_required");
+      assert.equal(goNoGo.emergency_stop_status, "emergency_stop_required");
+      assert.equal(goNoGo.audit_readiness_status, "audit_readiness_required");
+      assert.equal(priority1.priority_label, "priority1");
+      assert.equal(priority1.blocker_status, "BLOCKED");
+      assert.equal(priority1.production_ready_allowed, false);
+      assert.equal(priority1.fixture_pass_ignored, true);
+      assert.equal(fixtureVsReal.fixture_status, "fixture_pass");
+      assert.equal(fixtureVsReal.real_live_status, "real_live_blocked");
+      assert.equal(fixtureVsReal.production_live_ready, false);
+      assert.equal(liveHandoff.summary_status, "BLOCKED");
+      assert.equal(liveHandoff.fresh_evidence_missing_count, 1);
+      assert.equal(liveHandoff.owner_confirmation_required_count, 1);
+
+      const serialized = JSON.stringify({
+        liveReport,
+        freshRequirement,
+        blockedUntilConfirmed,
+        fixtureVsReal,
+        ownerConfirmation,
+        emergencyStop,
+        auditReadiness,
+        goNoGo,
+        priority1,
+        liveHandoff,
+      });
+      for (const forbiddenFragment of [
+        '"raw_payload":',
+        '"raw_candidate":',
+        '"raw_memory":',
+        '"raw_relationship_record":',
+        '"private_viewer_id":',
+        '"relationship_score":',
+        '"command":',
+        '"world_command":',
+        '"inner_intent":',
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
     },
   ],
   [
