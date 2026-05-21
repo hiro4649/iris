@@ -119,7 +119,8 @@ If audit readiness is missing or blocked, production go is prohibited even when 
 
 ## Live Handoff Bundle
 
-A live handoff bundle is safe-summary-only and must contain:
+A live handoff bundle is governed by `docs/iris/IRIS_PRODUCTION_LIVE_HANDOFF_BUNDLE.md`.
+The bundle is safe-summary-only and must contain:
 
 - component evidence aggregate
 - owner confirmation aggregate
@@ -129,6 +130,7 @@ A live handoff bundle is safe-summary-only and must contain:
 - go/no-go classifier result
 - safe next action labels
 
+Bundle generation does not collect fresh evidence, perform owner confirmation, confirm emergency stop, confirm audit readiness, or perform production go.
 It must not contain shell bodies, endpoint values, token values, raw paths, local absolute paths, raw payloads, raw evidence bodies, raw jobs, candidates, commands, `world_command`, or `inner_intent`.
 
 ## Go/No-Go Conditions

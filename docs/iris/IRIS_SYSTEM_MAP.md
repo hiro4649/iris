@@ -120,12 +120,12 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 ### Readiness / production blocker
 
 - Purpose: distinguish fixture rehearsal, local dry-run, and real production evidence.
-- Canonical spec files: `docs/iris/IRIS_RELEASE_GATE.md`, `docs/iris/IRIS_RUNTIME_OPERATION_RUNBOOK.md`, `docs/iris/IRIS_PRODUCTION_REAL_EVIDENCE_MANIFEST.md`, `IRIS_SPEC_AUTHORITY.md`.
+- Canonical spec files: `docs/iris/IRIS_RELEASE_GATE.md`, `docs/iris/IRIS_RUNTIME_OPERATION_RUNBOOK.md`, `docs/iris/IRIS_PRODUCTION_REAL_EVIDENCE_MANIFEST.md`, `docs/iris/IRIS_PRODUCTION_LIVE_HANDOFF_BUNDLE.md`, `IRIS_SPEC_AUTHORITY.md`.
 - Implementation candidate files: production readiness, config doctor, integration status, local engine health probes.
 - Public allowed information: safe readiness status, blocked reason label, count, operator action label.
 - Internal-only information: endpoint values, env values, raw diagnostic, raw path, raw response.
 - Prohibited: readiness sweetening, fixture pass as real ready, missing health endpoint as ready.
-- Missing or blocked: priority1 real worker/engine/OBS/TTS/Live2D/DB/YouTube/Game proof remains blocked; real evidence acquisition manifest is spec-only and does not perform production go.
+- Missing or blocked: priority1 real worker/engine/OBS/TTS/Live2D/DB/YouTube/Game proof remains blocked; real evidence acquisition manifest and live handoff bundle are spec-only and do not perform production go.
 - Related eval: production, readiness, preflight, probe subsets in `node scripts/run-tests.js`.
 
 ### Eval / regression
