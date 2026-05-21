@@ -30727,7 +30727,7 @@ const tests = [
       );
       assert.equal(
         configuredYouTubeRehearsal.next_check_script,
-        "npm run dev:youtube:readiness-rehearsal"
+        "npm run dev:youtube:ingest-once"
       );
       assert.equal(
         configuredYouTubeRehearsal.verification_scripts.rehearsal_script,
@@ -32748,7 +32748,7 @@ const tests = [
         relayYouTubeSourceStatus.source_kind,
         "http_youtube_live_chat_source"
       );
-      assert.equal(relayYouTubeSourceStatus.status_summary.auth_mode, "not_applicable");
+      assert.equal(relayYouTubeSourceStatus.status_summary.auth_mode, "bearer");
       assert.equal(relayYouTubeSourceStatus.status_summary.bridge_endpoint_scope, "loopback");
       assert.equal(
         relayYouTubeSourceStatus.status_summary
