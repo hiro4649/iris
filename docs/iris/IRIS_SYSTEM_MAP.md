@@ -153,12 +153,12 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 ### Hermes-style operations layer
 
 - Purpose: specify safe development operations for Codex instructions, PR splitting, R3 confirmation, audits, quality gate response, merge/refresh-main procedures, and recurrence prevention.
-- Canonical spec files: `docs/iris/IRIS_HERMES_OPERATIONS_SPEC.md`, `docs/iris/IRIS_FEATURE_REGISTRY.md`.
+- Canonical spec files: `docs/iris/IRIS_HERMES_OPERATIONS_SPEC.md`, `docs/iris/IRIS_HERMES_OPERATIONS_TEMPLATES.md`, `docs/iris/IRIS_FEATURE_REGISTRY.md`.
 - Implementation candidate files: future operations Skill DB, Trace DB, Curator, and optimizer modules.
-- Public allowed information: safe scope labels, file lists, status labels, check result labels, PR numbers, and safe next action labels.
+- Public allowed information: safe scope labels, file lists, status labels, check result labels, PR numbers, safe next action labels, and template field labels.
 - Internal-only information: raw logs, secrets, endpoint values, tokens, raw paths, raw diagnostics, raw payloads, raw memory, raw candidates, raw commands, private connector data, and `inner_intent`.
-- Prohibited: writing to IRIS memory DB, treating Skill DB as user relationship memory, storing raw Trace DB logs, automatic deletion by Curator, direct commits or PRs by a GEPA-style optimizer, and quality gate weakening.
-- Missing or blocked: operations layer is `spec_only`; Skill DB, Trace DB, Curator, growth report, GEPA-style optimizer, and Hermes-style performance expansion are not implemented.
+- Prohibited: writing to IRIS memory DB, treating Skill DB as user relationship memory, storing raw Trace DB logs, automatic deletion by Curator, direct commits or PRs by a GEPA-style optimizer, auto-commit or auto-PR behavior from templates, and quality gate weakening.
+- Missing or blocked: operations layer and templates are `spec_only`; Skill DB, Trace DB, Curator, growth report, GEPA-style optimizer, and Hermes-style performance expansion are not implemented.
 - Related eval: future operations safety and trace governance evals.
 
 ### Codex / harness / PR workflow

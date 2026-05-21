@@ -20,6 +20,8 @@ SPEC-HERMES1 defines an operations layer for Codex-driven IRIS development. Its 
 
 The layer is a specification for future tooling and operating practice. It must not be treated as implemented until a later approved implementation PR provides code, tests, and remote gate evidence.
 
+`docs/iris/IRIS_HERMES_OPERATIONS_TEMPLATES.md` records SPEC-HERMES2 reusable operations templates for Codex tasks, R3 packets, audits, fixture corrections, implementation fixes, policy changes, docs/spec changes, PR creation, merge and refresh-main work, remote quality gate failures, blocked path response, scope-mixing detection, A/B/C/D split work, production-ready separation, and safe completion reports. The templates are specification material only and do not implement automation, Skill DB, Trace DB, Curator, GEPA-style optimizer, auto-commit, or auto-PR behavior.
+
 ## Non-Collision With IRIS Memory DB
 
 The Hermes-style operations layer does not replace the IRIS memory DB.
