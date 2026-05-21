@@ -174,6 +174,9 @@ Manual confirmation cannot override secret scan failures, blocked paths, high-co
 ## IRIS Boundary Rule
 
 Use only repo-local `IRIS_SPEC_AUTHORITY.md` as the IRIS source of truth.
+Treat the old external absolute-path authority as deprecated and historical only.
+When repo-local `IRIS_SPEC_AUTHORITY.md` exists, a missing external authority path is not an active repository residual and should not be repeated in routine completion reports.
+Do not create an external authority mirror without explicit owner approval.
 Preserve Phase ownership, Phase I/O, Core / Adapter boundary, and candidate / approved / commit / execution separation.
 Boundary or adapter-affecting changes are R3 and require `docs/process/skills/iris-boundary-reviewer.md`.
 <!-- CODEX_QUALITY_HARNESS_END -->
