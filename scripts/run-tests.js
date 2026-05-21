@@ -61896,8 +61896,8 @@ const tests = [
       assert.equal(status.text_length, state.last_text.length);
       assert.equal(status.subtitle_visible, true);
       assert.equal(status.subtitle_language, state.last_subtitle_cue.subtitle_language);
-      assert.equal(status.speech_rate_label, state.last_speech_rate_profile.base_rate);
-      assert.equal(status.subtitle_sync_status, state.last_subtitle_cue.reading_speed_guard.guard_status);
+      assert.equal(status.speech_rate_label, state.last_speech_rate_profile.speech_rate_label);
+      assert.equal(status.subtitle_sync_status, state.last_subtitle_cue.reading_speed_guard_status);
       assert.equal(status.tongue_twister_enabled, false);
       assert.equal(status.tongue_twister_phrase_length, 0);
       assert.equal(Object.hasOwn(status, "last_text"), false);
@@ -61908,9 +61908,10 @@ const tests = [
       const displayEvent = createOverlayDisplayEvent(state, { nowMs: state.updated_at_ms + 120 });
       const serializedEvent = JSON.stringify(displayEvent);
       assert.equal(displayEvent.schema, "iris_overlay_display_event_v1");
-      assert.equal(displayEvent.display.visible, true);
-      assert.equal(displayEvent.display.subtitle_text, state.last_subtitle_cue.subtitle_text);
-      assert.equal(displayEvent.display.line_break_plan.length > 0, true);
+      assert.equal(displayEvent.display.visible, false);
+      assert.equal(displayEvent.display.subtitle_text, "");
+      assert.equal(displayEvent.display.line_break_plan.length, 0);
+      assert.equal(Object.hasOwn(state.last_subtitle_cue, "subtitle_text"), false);
       assert.equal(displayEvent.class_hints.includes("big_laugh"), true);
       assert.equal(displayEvent.boundary_policy.subtitle_text_from_validated_cue, true);
       assert.equal(serializedEvent.includes('"final_text"'), false);
