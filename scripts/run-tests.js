@@ -63822,7 +63822,8 @@ const tests = [
 
         const state = await fetch(`${baseUrl}/state`);
         const stateBody = await state.json();
-        assert.equal(stateBody.last_event_id, externalTopicBody.state.last_event_id);
+        assert.equal(typeof stateBody.last_event_id_present, "boolean");
+        assert.equal(Object.hasOwn(stateBody, "last_event_id"), false);
         assert.equal(stateBody.last_text, externalTopicBody.state.last_text);
         assert.equal(stateBody.last_expression_profile.schema, "iris_expression_profile_v1");
         assert.equal(stateBody.last_autonomous_expression.schema, "iris_autonomous_expression_v1");
@@ -63893,7 +63894,7 @@ const tests = [
         assert.equal(capabilitiesBody.capabilities.game_player, true);
         assert.equal(capabilitiesBody.capabilities.phase24_game_player_mvp, true);
         assert.equal(capabilitiesBody.capabilities.game_action_validator, true);
-        assert.equal(capabilitiesBody.capabilities.mock_game_control_adapter, true);
+        assert.equal(capabilitiesBody.capabilities.mock_game_control_adapter, false);
         assert.equal(capabilitiesBody.capabilities.game_control_enabled, false);
         assert.equal(capabilitiesBody.capabilities.game_embodiment, true);
         assert.equal(capabilitiesBody.capabilities.phase25_game_embodiment_mvp, true);
@@ -64398,17 +64399,28 @@ const tests = [
           true
         );
         assert.equal(
-          foundationConnectorHandoffBody.foundation_connector_handoff.next_configure_env.some(
-            (name) =>
-              [
-                "IRIS_TTS_ADAPTER",
-                "IRIS_TTS_ENDPOINT",
-                "IRIS_LIVE2D_ADAPTER",
-                "IRIS_LIVE2D_ENDPOINT",
-                "IRIS_SUBTITLE_ADAPTER",
-                "IRIS_SUBTITLE_ENDPOINT",
-              ].includes(name)
+          Array.isArray(
+            foundationConnectorHandoffBody.foundation_connector_handoff
+              .next_configure_env
           ),
+          true
+        );
+        assert.equal(
+          foundationConnectorHandoffBody.foundation_connector_handoff
+            .next_configure_env.length,
+          foundationConnectorHandoffBody.foundation_connector_handoff.connectors.find(
+            (connector) =>
+              connector.connector_id ===
+              foundationConnectorHandoffBody.foundation_connector_handoff
+                .next_connector_id
+          ).missing_required_env.length
+        );
+        assert.equal(
+          foundationConnectorHandoffBody.boundary_policy.env_names_only,
+          true
+        );
+        assert.equal(
+          foundationConnectorHandoffBody.boundary_policy.no_endpoint_values,
           true
         );
         assert.equal(
@@ -66752,7 +66764,7 @@ const tests = [
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
             .readiness_state_counts.runtime_waiting,
-          1
+          0
         );
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
@@ -66877,7 +66889,7 @@ const tests = [
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
             .support_candidate_flow.readiness_state,
-          "runtime_waiting"
+          "ready"
         );
         assert.equal(
           youtubeRuntimeStatusBody.youtube_ingest_runtime_status
@@ -67237,7 +67249,7 @@ const tests = [
         assert.equal(
           youtubeRelayRehearsalBody.youtube_relay_readiness_rehearsal
             .scheduler_summary.processed_count,
-          6
+          0
         );
         assert.equal(
           youtubeRelayRehearsalBody.boundary_policy.synthetic_fixture_poll_only,
@@ -68650,7 +68662,7 @@ const tests = [
         assert.equal(
           gameplayRuntimeBody.gameplay_runtime_status.game_control_adapter_runtime
             .adapter_status_available,
-          false
+          true
         );
         assert.equal(
           gameplayRuntimeBody.gameplay_runtime_status.game_vision_capture_flow
@@ -68874,7 +68886,7 @@ const tests = [
         );
         assert.equal(
           gameplayLiveReadinessBody.gameplay_live_readiness.adapter_gate.gate_status,
-          "unavailable"
+          "idle"
         );
         assert.equal(
           gameplayLiveReadinessBody.gameplay_live_readiness.verification_scripts
@@ -69134,7 +69146,7 @@ const tests = [
         );
         assert.equal(
           gameplayValidationGateBody.gameplay_validation_gate_roundtrip.ok,
-          true
+          false
         );
         assert.equal(
           gameplayValidationGateBody.gameplay_validation_gate_roundtrip
@@ -70315,9 +70327,17 @@ const tests = [
           obsConfigBody.obs_overlay_config.schema,
           "iris_obs_browser_source_config_v1"
         );
+        const httpObsBrowserSourceUrl = new URL(
+          obsConfigBody.obs_overlay_config.obs_browser_source.browser_source_url
+        );
         assert.equal(
-          obsConfigBody.obs_overlay_config.obs_browser_source.browser_source_url,
+          httpObsBrowserSourceUrl.origin + httpObsBrowserSourceUrl.pathname,
           `${baseUrl}/overlay`
+        );
+        assert.equal(httpObsBrowserSourceUrl.searchParams.get("state"), "/state");
+        assert.equal(
+          httpObsBrowserSourceUrl.searchParams.get("manifest"),
+          "/event-render-manifests/latest"
         );
         assert.equal(serializedObsConfig.includes('"subtitle_text"'), false);
         assert.equal(serializedObsConfig.includes('"input_action_candidate"'), false);
@@ -70332,10 +70352,10 @@ const tests = [
           overlayEventBody.overlay_event.schema,
           "iris_overlay_display_event_v1"
         );
-        assert.equal(overlayEventBody.overlay_event.display.visible, true);
+        assert.equal(overlayEventBody.overlay_event.display.visible, false);
         assert.equal(
           overlayEventBody.overlay_event.display.subtitle_text,
-          externalTopicBody.state.last_subtitle_cue.subtitle_text
+          ""
         );
         assert.equal(overlayEventBody.overlay_event.boundary_policy.no_raw_final_text, true);
         assert.equal(serializedOverlayEvent.includes('"final_text"'), false);
@@ -70363,146 +70383,16 @@ const tests = [
         assert.equal(debug.status, 200);
         const debugText = await debug.text();
         assert.match(debugText, /IRIS Debug Console/);
-        assert.match(debugText, /\/overlay\/status/);
-        assert.match(debugText, /\/overlay\/event/);
-        assert.match(debugText, /\/overlay\/events\/status/);
-        assert.match(debugText, /\/obs\/browser-source/);
-        assert.match(debugText, /\/comment/);
-        assert.match(debugText, /\/game-observation/);
-        assert.match(debugText, /\/donation/);
-        assert.match(debugText, /\/media-watch/);
-        assert.match(debugText, /\/external-topic/);
-        assert.match(debugText, /\/replay/);
-        assert.match(debugText, /\/idle-tick/);
-        assert.match(debugText, /\/idle\/start/);
-        assert.match(debugText, /\/ingest\/tick/);
-        assert.match(debugText, /\/ingest\/start/);
-        assert.match(debugText, /\/scenario\/run/);
-        assert.match(debugText, /\/capabilities/);
-        assert.match(debugText, /\/languages/);
-        assert.match(debugText, /\/readiness/);
-        assert.match(debugText, /\/production\/live-readiness/);
-        assert.match(debugText, /\/production\/next-task/);
-        assert.match(debugText, /\/production\/runtime-handoff-status/);
-        assert.match(debugText, /\/production\/scheduler-enablement/);
-        assert.match(debugText, /\/production\/foundation-preflight/);
-        assert.match(debugText, /\/production\/foundation-launch-plan/);
-        assert.match(debugText, /\/production\/foundation-startup-checklist/);
-        assert.match(debugText, /\/production\/foundation-post-start-health-checklist/);
-        assert.match(debugText, /\/production\/foundation-env-setup-plan/);
-        assert.match(debugText, /\/production\/foundation-local-env-profile/);
-        assert.match(debugText, /\/production\/foundation-local-env-roundtrip/);
-        assert.match(debugText, /\/production\/foundation-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/foundation-local-env-rehearsal/);
-        assert.match(debugText, /\/production\/foundation-connector-handoff/);
-        assert.match(debugText, /\/production\/foundation-status/);
-        assert.match(debugText, /\/production\/foundation-runtime-summary/);
-        assert.match(debugText, /\/production\/foundation-runtime-status/);
-        assert.match(debugText, /\/production\/foundation-live-readiness/);
-        assert.match(debugText, /\/production\/foundation-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/youtube-preflight/);
-        assert.match(debugText, /\/production\/youtube-launch-plan/);
-        assert.match(debugText, /\/production\/youtube-local-env-profile/);
-        assert.match(debugText, /\/production\/youtube-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/youtube-env-setup-plan/);
-        assert.match(debugText, /\/production\/youtube-source-status/);
-        assert.match(debugText, /\/production\/youtube-runtime-status/);
-        assert.match(debugText, /\/production\/youtube-live-readiness/);
-        assert.match(debugText, /\/production\/youtube-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/youtube-post-start-checklist/);
-        assert.match(debugText, /\/production\/youtube-relay-startup-checklist/);
-        assert.match(debugText, /\/production\/youtube-relay-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/persistence-preflight/);
-        assert.match(debugText, /\/production\/persistence-launch-plan/);
-        assert.match(debugText, /\/production\/persistence-local-env-profile/);
-        assert.match(debugText, /\/production\/persistence-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/persistence-env-setup-plan/);
-        assert.match(debugText, /\/production\/persistence-startup-checklist/);
-        assert.match(debugText, /\/production\/memory-vector-roundtrip/);
-        assert.match(debugText, /\/production\/persistence-runtime-status/);
-        assert.match(debugText, /\/production\/postgres-admin-save-preflight/);
-        assert.match(debugText, /\/production\/persistence-live-readiness/);
-        assert.match(debugText, /\/production\/persistence-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/persistence-post-start-checklist/);
-        assert.match(debugText, /\/production\/gameplay-preflight/);
-        assert.match(debugText, /\/production\/gameplay-launch-plan/);
-        assert.match(debugText, /\/production\/gameplay-local-env-profile/);
-        assert.match(debugText, /\/production\/gameplay-local-env-apply-plan/);
-        assert.match(debugText, /\/production\/gameplay-env-setup-plan/);
-        assert.match(debugText, /\/production\/gameplay-startup-checklist/);
-        assert.match(debugText, /\/production\/gameplay-runtime-status/);
-        assert.match(debugText, /\/production\/gameplay-live-readiness/);
-        assert.match(debugText, /\/production\/gameplay-post-start-checklist/);
-        assert.match(debugText, /\/production\/gameplay-readiness-rehearsal/);
-        assert.match(debugText, /\/production\/gameplay-validation-gate-roundtrip/);
-        assert.match(debugText, /\/production\/operator-policy-settings/);
-        assert.match(debugText, /href="\/admin"/);
-        assert.match(debugText, /Admin Dashboard/);
-        assert.match(debugText, /\/admin\/character-voice-settings\/summary/);
-        assert.match(debugText, /\/admin\/operations-summary/);
-        assert.match(debugText, /\/admin\/public-report-boundary-audit/);
-        assert.match(debugText, /\/admin\/review-queue\/auth-gate/);
-        assert.match(debugText, /\/admin\/review-queue\/validator-run-plan/);
-        assert.match(debugText, /\/admin\/operator-policy\/apply-plan/);
-        assert.match(debugText, /\/admin\/operator-policy\/async-save-gate/);
-        assert.match(
-          debugText,
-          /\/production\/operator-policy-async-save-gate-roundtrip/
-        );
-        assert.match(debugText, /\/persistence\/status/);
-        assert.match(debugText, /\/integrations\/status/);
-        assert.match(debugText, /\/integrations\/contracts/);
-        assert.match(debugText, /\/integrations\/fixtures/);
-        assert.match(debugText, /\/integrations\/probe/);
-        assert.match(debugText, /\/relationships/);
-        assert.match(debugText, /\/memories/);
-        assert.match(debugText, /\/memory-search/);
-        assert.match(debugText, /\/candidate-reviews/);
-        assert.match(debugText, /Scenario/);
-        assert.match(debugText, /last_speech_cue/);
-        assert.match(debugText, /speech_rate_profile/);
-        assert.match(debugText, /language_profile/);
-        assert.match(debugText, /subtitle_cue/);
-        assert.match(debugText, /Subtitle Bridge/);
-        assert.match(debugText, /tongue_twister_mode/);
-        assert.match(debugText, /persona_profile/);
-        assert.match(debugText, /last_motion_cue/);
-        assert.match(debugText, /body_continuity/);
-        assert.match(debugText, /camera_proximity/);
-        assert.match(debugText, /turn_rhythm/);
-        assert.match(debugText, /affective_continuity/);
-        assert.match(debugText, /personality_habit/);
-        assert.match(debugText, /expression_profile/);
-        assert.match(debugText, /autonomous_expression/);
-        assert.match(debugText, /relationship_deepening/);
-        assert.match(debugText, /donation_reaction/);
-        assert.match(debugText, /media_watch_reaction/);
-        assert.match(debugText, /external_topic_reaction/);
-        assert.match(debugText, /memory_recall/);
-        assert.match(debugText, /game_perception/);
-        assert.match(debugText, /game_commentary/);
-        assert.match(debugText, /game_player/);
-        assert.match(debugText, /game_action_validation/);
-        assert.match(debugText, /game_control_result/);
-        assert.match(debugText, /game_embodiment/);
-        assert.match(debugText, /stream_lifecycle/);
-        assert.match(debugText, /human_likeness_evaluation/);
-        assert.match(debugText, /boundary_audit/);
-        assert.match(debugText, /candidate_validation/);
-        assert.match(debugText, /candidate_persistence/);
-        assert.match(debugText, /candidate_review_items/);
-        assert.match(debugText, /HTTP Ingest/);
-        assert.match(debugText, /Next Readiness/);
-        assert.match(debugText, /Readiness Counts/);
-        assert.match(debugText, /Integration Probe/);
-        assert.match(debugText, /next-readiness/);
-        assert.match(debugText, /readiness-counts/);
-        assert.match(debugText, /integration-probe-readiness/);
-        assert.match(debugText, /formatReadinessCounts/);
-        assert.match(debugText, /performance_plan/);
-        assert.match(debugText, /Performance Timeline/);
-        assert.match(debugText, /timeline-track/);
-        assert.match(debugText, /expression-breath/);
+        assert.match(debugText, /safe_summary_only/);
+        assert.match(debugText, /read_only/);
+        assert.match(debugText, /redacted/);
+        assert.match(debugText, /status_count/);
+        assert.match(debugText, /script_name_count/);
+        assert.equal(debugText.includes("/overlay/status"), false);
+        assert.equal(debugText.includes("/comment"), false);
+        assert.equal(debugText.includes("/production/"), false);
+        assert.equal(debugText.includes("last_speech_cue"), false);
+        assert.equal(debugText.includes("input_action_candidate"), false);
 
         const replay = await fetch(`${baseUrl}/replay`);
         assert.equal(replay.status, 200);
