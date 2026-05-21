@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import {
   appendFileSync,
@@ -21747,6 +21748,146 @@ const tests = [
         assert.equal(serialized.includes('"recent_summaries"'), false);
         assert.equal(serialized.includes('"summary"'), false);
         assertPersistenceStatusSafe(status);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  ],
+  [
+    "quality gate env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
+    async () => {
+      const sourceRoot = process.cwd();
+      const tempDir = mkdtempSync(join(tmpdir(), "iris-env-policy-gate-"));
+      const run = (command, args, options = {}) => {
+        const result = spawnSync(command, args, {
+          cwd: options.cwd ?? tempDir,
+          env: { ...process.env, ...(options.env ?? {}) },
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        if (options.expectSuccess !== false) {
+          assert.equal(
+            result.status,
+            0,
+            `${command} ${args.join(" ")}\n${result.stdout}\n${result.stderr}`
+          );
+        }
+        return result;
+      };
+      const writeFromRepo = (relativePath) => {
+        const target = join(tempDir, relativePath);
+        mkdirSync(join(target, ".."), { recursive: true });
+        writeFileSync(
+          target,
+          readFileSync(join(sourceRoot, relativePath), "utf8"),
+          "utf8"
+        );
+      };
+      const commitAll = (message) => {
+        run("git", ["add", "."], { cwd: tempDir });
+        run(
+          "git",
+          [
+            "-c",
+            "user.email=codex@example.invalid",
+            "-c",
+            "user.name=Codex Test",
+            "commit",
+            "-m",
+            message,
+          ],
+          { cwd: tempDir }
+        );
+        return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
+      };
+      const parseQualityReport = (result) => JSON.parse(result.stdout);
+      const runCase = ({ fileName, addedLine, withManualConfirmation }) => {
+        rmSync(tempDir, { recursive: true, force: true });
+        mkdirSync(tempDir, { recursive: true });
+        mkdirSync(join(tempDir, "scripts"), { recursive: true });
+        mkdirSync(join(tempDir, "docs", "process"), { recursive: true });
+        writeFromRepo("scripts/codex-local-quality-gate.mjs");
+        writeFromRepo("scripts/codex-manual-confirmation-verify.mjs");
+        writeFromRepo("scripts/codex-secret-safety-scan.mjs");
+        writeFromRepo("docs/process/CODEX_QUALITY_GATE_POLICY.json");
+        writeFileSync(join(tempDir, "package.json"), '{"type":"module","scripts":{}}\n', "utf8");
+        writeFileSync(join(tempDir, ".env.example"), "BASE_EMPTY_KEY=\n", "utf8");
+        run("git", ["init", "-b", "main"], { cwd: tempDir });
+        const baseSha = commitAll("base");
+        const target = join(tempDir, fileName);
+        const existing = existsSync(target) ? readFileSync(target, "utf8") : "";
+        writeFileSync(target, `${existing}${addedLine}\n`, "utf8");
+        const headSha = commitAll("change");
+        let manualJson = "";
+        if (withManualConfirmation) {
+          manualJson = JSON.stringify({
+            profile: "iris",
+            riskLevel: "R3",
+            headSha,
+            confirmedAt: "2026-05-21T00:00:00Z",
+            confirmedByRole: "test-reviewer",
+            reviewedItems: ["env example safe-key-only quality gate policy"],
+            qualityGateNotWeakened: true,
+            riskLevelNotLowered: true,
+            residualRisks: ["test fixture only"],
+            manualBranchProtectionAcknowledged: true,
+          });
+        }
+        const result = run("node", ["scripts/codex-local-quality-gate.mjs"], {
+          cwd: tempDir,
+          expectSuccess: false,
+          env: {
+            CODEX_QUALITY_REPORT: "json",
+            CODEX_SKIP_NPM_CHECKS: "1",
+            CODEX_GITHUB_API_AVAILABLE: "0",
+            CODEX_PR_BASE_SHA: baseSha,
+            CODEX_PR_HEAD_SHA: headSha,
+            CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
+          },
+        });
+        return { result, report: parseQualityReport(result) };
+      };
+
+      try {
+        const safe = runCase({
+          fileName: ".env.example",
+          addedLine: "SAFE_EMPTY_KEY=",
+          withManualConfirmation: true,
+        });
+        assert.equal(safe.result.status, 0);
+        assert.equal(safe.report.changedPathsSummary.blocked.includes(".env.example"), false);
+        assert.equal(safe.report.manualConfirmationStatus.status, "pass");
+        assert.equal(safe.report.secretScan.status, "pass");
+
+        const unsafeCases = [
+          { fileName: ".env", addedLine: "SAFE_EMPTY_KEY=", reason: "real env file" },
+          { fileName: ".env.local", addedLine: "SAFE_EMPTY_KEY=", reason: "local env file" },
+          { fileName: ".env.example", addedLine: "SAFE_EMPTY_KEY=value", reason: "non-empty value" },
+          { fileName: ".env.example", addedLine: "SAFE_EMPTY_URL=https://example.invalid", reason: "URL value" },
+          { fileName: ".env.example", addedLine: "SAFE_EMPTY_TOKEN=token_value", reason: "token-like value" },
+          { fileName: ".env.example", addedLine: "SAFE_EMPTY_PATH=C:\\\\secret\\\\file.txt", reason: "absolute path value" },
+        ];
+        for (const item of unsafeCases) {
+          const unsafe = runCase({ ...item, withManualConfirmation: true });
+          assert.notEqual(unsafe.result.status, 0, item.reason);
+          assert.equal(
+            unsafe.report.changedPathsSummary.blocked.includes(item.fileName),
+            true,
+            item.reason
+          );
+        }
+
+        const missingR3 = runCase({
+          fileName: ".env.example",
+          addedLine: "SAFE_EMPTY_KEY=",
+          withManualConfirmation: false,
+        });
+        assert.notEqual(missingR3.result.status, 0);
+        assert.equal(missingR3.report.changedPathsSummary.blocked.includes(".env.example"), false);
+        assert.equal(
+          missingR3.report.manualConfirmationStatus.status,
+          "manual_confirmation_required"
+        );
       } finally {
         rmSync(tempDir, { recursive: true, force: true });
       }
