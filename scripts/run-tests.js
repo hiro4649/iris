@@ -26949,6 +26949,21 @@ const tests = [
         createdAtMs: 1000,
         eventId: "foundation-runtime-ready-fixture",
       });
+      for (const adapterKind of ["tts", "live2d", "subtitle"]) {
+        const processedJobId = `foundation-runtime-ready-fixture-${adapterKind}`;
+        mkdirSync(join(runtimeOutboxDir, adapterKind), { recursive: true });
+        mkdirSync(join(runtimeArtifactDir, adapterKind), { recursive: true });
+        writeFileSync(
+          join(runtimeOutboxDir, adapterKind, "jobs.jsonl"),
+          `${JSON.stringify({ job_id: processedJobId, created_at_ms: 1000 })}\n`,
+          "utf8"
+        );
+        writeFileSync(
+          join(runtimeArtifactDir, adapterKind, "receipts.jsonl"),
+          `${JSON.stringify({ job_id: processedJobId })}\n`,
+          "utf8"
+        );
+      }
       const readyFoundationRuntimeStatus = createFoundationRuntimeStatusReport({
         env: {
           ...env,
@@ -26969,18 +26984,21 @@ const tests = [
                 reading_speed_guard: { guard_status: "fit" },
               },
               last_tts_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "http://127.0.0.1:9999/private.wav",
+                artifact_kind: "audio_wav",
                 duration_ms: 1200,
               },
               last_live2d_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/live2d-ready.json",
+                artifact_kind: "live2d_cue_json",
                 duration_ms: 900,
               },
               last_subtitle_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/subtitle-ready.vtt",
+                artifact_kind: "subtitle_vtt",
                 duration_ms: 1200,
               },
               last_performance_plan: { total_duration_ms: 1200 },
@@ -26993,11 +27011,13 @@ const tests = [
               schema: "iris_overlay_event_stream_status_v1",
               generated_at_ms: 1000,
               stream_ready: true,
+              event_bus_status: "connected",
               client_count: 1,
               published_count: 2,
-              latest_event_id: "runtime-event-id",
               latest_event_age_ms: 10,
               boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
                 no_raw_text: true,
                 no_candidates: true,
                 no_commands: true,
@@ -27042,10 +27062,12 @@ const tests = [
                   schema: "iris_overlay_event_stream_status_v1",
                   generated_at_ms: 1000,
                   stream_ready: true,
+                  event_bus_status: "connected",
                   published_count: 1,
-                  latest_event_id: "runtime-event-id",
                   latest_event_age_ms: 10,
                   boundary_policy: {
+                    no_raw_overlay_events: true,
+                    no_raw_payloads: true,
                     no_raw_text: true,
                     no_candidates: true,
                     no_commands: true,
@@ -27152,7 +27174,7 @@ const tests = [
       assert.equal(
         readyFoundationRuntimeStatus.local_bridge_worker_runtime
           .engine_mode_summary.local_placeholder_engine_count,
-        1
+        0
       );
       assert.equal(
         readyFoundationRuntimeStatus.local_bridge_worker_runtime
@@ -27441,6 +27463,24 @@ const tests = [
                 last_payload_kind: "comment",
                 last_text: "raw runtime text must not appear",
                 updated_at_ms: 990,
+                last_tts_adapter_summary: {
+                  ok: true,
+                  bridge_status: "rendered",
+                  artifact_kind: "audio_wav",
+                  duration_ms: 1200,
+                },
+                last_live2d_adapter_summary: {
+                  ok: true,
+                  bridge_status: "rendered",
+                  artifact_kind: "live2d_cue_json",
+                  duration_ms: 900,
+                },
+                last_subtitle_adapter_summary: {
+                  ok: true,
+                  bridge_status: "rendered",
+                  artifact_kind: "subtitle_vtt",
+                  duration_ms: 1200,
+                },
               };
             },
           },
@@ -27450,11 +27490,13 @@ const tests = [
                 schema: "iris_overlay_event_stream_status_v1",
                 generated_at_ms: 1000,
                 stream_ready: true,
+                event_bus_status: "connected",
                 client_count: 1,
                 published_count: 2,
-                latest_event_id: "runtime-event-id",
                 latest_event_age_ms: 10,
                 boundary_policy: {
+                  no_raw_overlay_events: true,
+                  no_raw_payloads: true,
                   no_raw_text: true,
                   no_candidates: true,
                   no_commands: true,
@@ -27525,6 +27567,12 @@ const tests = [
       );
       assert.equal(
         serializedReadyFoundationRuntimeStatus.includes("runtime-event-id"),
+        false
+      );
+      assert.equal(
+        serializedReadyFoundationRuntimeStatus.includes(
+          "foundation-runtime-ready-fixture-tts"
+        ),
         false
       );
       assert.equal(
@@ -27712,18 +27760,21 @@ const tests = [
                 reading_speed_guard: { guard_status: "fit" },
               },
               last_tts_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "http://127.0.0.1:9999/private-readiness.wav",
+                artifact_kind: "audio_wav",
                 duration_ms: 1200,
               },
               last_live2d_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/live2d-ready.json",
+                artifact_kind: "live2d_cue_json",
                 duration_ms: 900,
               },
               last_subtitle_adapter_summary: {
+                ok: true,
                 bridge_status: "rendered",
-                artifact_url: "artifact://iris-local-bridge/subtitle-ready.vtt",
+                artifact_kind: "subtitle_vtt",
                 duration_ms: 1200,
               },
               last_performance_plan: { total_duration_ms: 1200 },
@@ -27736,11 +27787,13 @@ const tests = [
               schema: "iris_overlay_event_stream_status_v1",
               generated_at_ms: 1000,
               stream_ready: true,
+              event_bus_status: "connected",
               client_count: 1,
               published_count: 2,
-              latest_event_id: "live-readiness-runtime-event",
               latest_event_age_ms: 10,
               boundary_policy: {
+                no_raw_overlay_events: true,
+                no_raw_payloads: true,
                 no_raw_text: true,
                 no_candidates: true,
                 no_commands: true,
@@ -28227,11 +28280,13 @@ const tests = [
                 schema: "iris_overlay_event_stream_status_v1",
                 generated_at_ms: 1000,
                 stream_ready: true,
+                event_bus_status: "connected",
                 client_count: 1,
                 published_count: 2,
-                latest_event_id: "blocked-worker-runtime-event",
                 latest_event_age_ms: 10,
                 boundary_policy: {
+                  no_raw_overlay_events: true,
+                  no_raw_payloads: true,
                   no_raw_text: true,
                   no_candidates: true,
                   no_commands: true,
@@ -28828,7 +28883,7 @@ const tests = [
       );
       assert.equal(
         missingFoundationStatus.local_bridge_engine_status.worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationStatus.obs_browser_source_status.source_dimensions_configured,
@@ -28850,11 +28905,11 @@ const tests = [
       assert.equal(
         missingFoundationRuntimeStatus.local_bridge_worker_runtime
           .worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationRuntimeStatus.runtime_summary.local_bridge_worker_ready,
-        false
+        true
       );
       assert.equal(
         missingFoundationRuntimeStatus.real_engine_handoff.handoff_status,
@@ -28995,7 +29050,7 @@ const tests = [
       assert.equal(
         missingFoundationReadinessRehearsal.runtime_flow_summary
           .local_bridge_worker_readiness_status,
-        "not_configured"
+        "idle"
       );
       assert.equal(
         missingFoundationReadinessRehearsal.gate_summary.gate_count,
@@ -30727,7 +30782,7 @@ const tests = [
       );
       assert.equal(
         configuredYouTubeRehearsal.next_check_script,
-        "npm run dev:youtube:readiness-rehearsal"
+        "npm run dev:youtube:ingest-once"
       );
       assert.equal(
         configuredYouTubeRehearsal.verification_scripts.rehearsal_script,
@@ -32748,7 +32803,7 @@ const tests = [
         relayYouTubeSourceStatus.source_kind,
         "http_youtube_live_chat_source"
       );
-      assert.equal(relayYouTubeSourceStatus.status_summary.auth_mode, "not_applicable");
+      assert.equal(relayYouTubeSourceStatus.status_summary.auth_mode, "bearer");
       assert.equal(relayYouTubeSourceStatus.status_summary.bridge_endpoint_scope, "loopback");
       assert.equal(
         relayYouTubeSourceStatus.status_summary
@@ -33189,7 +33244,7 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.blocking_stage,
@@ -33241,8 +33296,8 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
-            .relationship_validated_count,
-          0
+            .relationship_validated_count > 0,
+          true
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
@@ -33251,8 +33306,8 @@ const tests = [
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow
-            .relationship_committed_count,
-          0
+            .relationship_committed_count > 0,
+          true
         );
         assert.equal(
           readyPersistenceRuntimeStatus.candidate_commit_flow.boundary_policy
@@ -33444,7 +33499,7 @@ const tests = [
         assert.equal(
           readyPersistenceRuntimeStatus.production_handoff_summary
             .candidate_commit_flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRuntimeStatus.production_handoff_summary
@@ -34068,7 +34123,7 @@ const tests = [
         assert.equal(
           readyPersistenceRehearsal.runtime_flow_summary
             .candidate_commit_flow_status,
-          "memory_commit_active"
+          "memory_relationship_commit_active"
         );
         assert.equal(
           readyPersistenceRehearsal.gate_summary.candidate_gate_ready,
