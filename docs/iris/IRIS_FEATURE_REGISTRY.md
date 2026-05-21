@@ -16,7 +16,7 @@ Allowed status values:
 
 ## Update Rule
 
-Future PRs must update this registry and the relevant spec when they change memory schema, avatar response contract, public JSON, Admin ordinary view, adapter packet, source boundary, readiness classification, production blocker, eval runner, skill policy, Curator plan, growth report plan, trace optimizer plan, Hermes-style expansion plan, or Codex harness behavior.
+Future PRs must update this registry and the relevant spec when they change memory schema, avatar response contract, public JSON, Admin ordinary view, adapter packet, source boundary, readiness classification, production blocker, eval runner, skill policy, Curator plan, growth report plan, trace optimizer plan, Hermes-style operations or expansion plan, or Codex harness behavior.
 
 ## Registry
 
@@ -50,6 +50,7 @@ Future PRs must update this registry and the relevant spec when they change memo
 | IRIS-GROW-001 | IRIS scheduled growth review | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future growth review modules | future growth evals | safe growth status | raw user data, raw trace, private scores | human approval required | no implementation, no growth report proof | `not_run` |
 | IRIS-GROW-002 | IRIS trace-based optimizer | spec_only | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future optimizer modules | future optimizer evals | safe optimization status | raw trace, dataset path, model internals | human approval required | design only; no runtime implementation | `not_run` |
 | IRIS-GROW-003 | Hermes-style performance expansion | spec_only | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future expansion modules | future expansion evals | safe capability status | raw trace, private data, unreviewed generated plan | human approval required | concept recorded only; priority1 blockers remain | `not_run` |
+| IRIS-OPS-001 | Hermes-style operations layer | spec_only | `docs/iris/IRIS_HERMES_OPERATIONS_SPEC.md` | future operations modules | future operations evals | safe operations status, scope labels, check result labels | raw logs, secrets, endpoints, tokens, raw memory, raw candidates, commands, `inner_intent` | human approval required | specification only; Skill DB, Trace DB, Curator, and optimizer are not implemented | `node scripts/lint-iris-docs.mjs` |
 | IRIS-ROLE-001 | IRIS specialist profile roles | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future role/profile modules | future profile evals | safe role label | hidden reviewer notes, private policy state | human approval required | no implementation or authority addendum | `not_run` |
 | CODEX-MEM-001 | Codex failure memory | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future Codex memory modules | future harness evals | safe failure summary | raw logs, secrets, endpoint values | human approval required | no implementation; memory safety review required | `not_run` |
 | CODEX-PR-001 | Codex PR split advisor | planned | `docs/iris/IRIS_FEATURE_REGISTRY.md` | future advisor modules | future harness evals | safe scope recommendation | raw diff, raw logs, private connector data | human approval required | no implementation; governance only | `not_run` |

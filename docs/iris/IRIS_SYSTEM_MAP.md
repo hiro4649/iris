@@ -7,7 +7,7 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 
 ## Global Rules
 
-- Every PR that changes a feature, boundary, public surface, readiness decision, eval, skill policy, Curator plan, growth report plan, trace optimizer plan, Hermes-style expansion plan, or Codex harness behavior must update the relevant spec and `IRIS_FEATURE_REGISTRY.md`.
+- Every PR that changes a feature, boundary, public surface, readiness decision, eval, skill policy, Curator plan, growth report plan, trace optimizer plan, Hermes-style operations or expansion plan, or Codex harness behavior must update the relevant spec and `IRIS_FEATURE_REGISTRY.md`.
 - Public surfaces may expose only safe summaries: status, component label, count, safe reason label, safe reference label, and safe next action label.
 - Internal-only data includes secrets, endpoints, tokens, raw payloads, raw responses, raw diagnostics, raw comments, raw memory, candidates, commands, `world_command`, private IDs, hidden scores, and `inner_intent`.
 - Memory status remains exactly `candidate`, `accepted`, `protected`, `stale`, and `rejected`.
@@ -142,13 +142,24 @@ This map is an index for future IRIS changes. It does not implement runtime beha
 ### Growth / Curator / trace optimizer
 
 - Purpose: future governed improvement and review loops for IRIS quality.
-- Canonical spec files: future spec addenda plus `docs/iris/IRIS_FEATURE_REGISTRY.md`.
+- Canonical spec files: `docs/iris/IRIS_HERMES_OPERATIONS_SPEC.md` for operations-layer boundaries, future spec addenda, and `docs/iris/IRIS_FEATURE_REGISTRY.md`.
 - Implementation candidate files: future Curator, trace optimizer, growth review, failure memory, and PR advisor modules.
 - Public allowed information: safe improvement status, reviewed capability label, blocked reason label.
 - Internal-only information: raw traces, private prompts, dataset paths, raw failures, unsafe suggestions.
-- Prohibited: claiming planned features are complete, using raw traces as public output, automatic production changes without review.
-- Missing or blocked: Curator, growth report, real response-quality eval, GEPA-style optimizer, and Hermes-style expansion remain planned or spec-only.
+- Prohibited: claiming planned features are complete, using raw traces as public output, automatic production changes without review, mixing IRIS memory DB with operations Skill DB or Trace DB.
+- Missing or blocked: Curator, growth report, real response-quality eval, GEPA-style optimizer, Skill DB, Trace DB, and Hermes-style expansion remain planned or spec-only.
 - Related eval: future growth and trace safety evals.
+
+### Hermes-style operations layer
+
+- Purpose: specify safe development operations for Codex instructions, PR splitting, R3 confirmation, audits, quality gate response, merge/refresh-main procedures, and recurrence prevention.
+- Canonical spec files: `docs/iris/IRIS_HERMES_OPERATIONS_SPEC.md`, `docs/iris/IRIS_FEATURE_REGISTRY.md`.
+- Implementation candidate files: future operations Skill DB, Trace DB, Curator, and optimizer modules.
+- Public allowed information: safe scope labels, file lists, status labels, check result labels, PR numbers, and safe next action labels.
+- Internal-only information: raw logs, secrets, endpoint values, tokens, raw paths, raw diagnostics, raw payloads, raw memory, raw candidates, raw commands, private connector data, and `inner_intent`.
+- Prohibited: writing to IRIS memory DB, treating Skill DB as user relationship memory, storing raw Trace DB logs, automatic deletion by Curator, direct commits or PRs by a GEPA-style optimizer, and quality gate weakening.
+- Missing or blocked: operations layer is `spec_only`; Skill DB, Trace DB, Curator, growth report, GEPA-style optimizer, and Hermes-style performance expansion are not implemented.
+- Related eval: future operations safety and trace governance evals.
 
 ### Codex / harness / PR workflow
 
