@@ -163,7 +163,7 @@ full run-tests FAIL を握りつぶさない。
 secret / endpoint値 / API key / token / raw payload / raw command / raw memory / raw OBS event / raw frame / OCR text / raw voice sample / dataset path / internal model path / raw logs を出さない。
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-<!-- CODEX_QUALITY_HARNESS_FILE v0.6.8 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.6.9 -->
 ## Codex Quality Harness
 
 Use the repo-local harness files in `docs/process/` and `scripts/codex-*`.
@@ -174,9 +174,9 @@ Manual confirmation cannot override secret scan failures, blocked paths, high-co
 ## IRIS Boundary Rule
 
 Use only repo-local `IRIS_SPEC_AUTHORITY.md` as the IRIS source of truth.
-Treat the old external absolute-path authority as deprecated and historical only.
-When repo-local `IRIS_SPEC_AUTHORITY.md` exists, a missing external authority path is not an active repository residual and should not be repeated in routine completion reports.
 Do not create an external authority mirror without explicit owner approval.
+When repo-local `IRIS_SPEC_AUTHORITY.md` exists, a missing external authority path is not an active repository residual and should not be repeated in routine completion reports.
+Treat the old external absolute-path authority as deprecated and historical only.
 Preserve Phase ownership, Phase I/O, Core / Adapter boundary, and candidate / approved / commit / execution separation.
 Boundary or adapter-affecting changes are R3 and require `docs/process/skills/iris-boundary-reviewer.md`.
 <!-- CODEX_QUALITY_HARNESS_END -->
