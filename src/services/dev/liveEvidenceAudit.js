@@ -403,6 +403,47 @@ const SUBTITLE_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "line_break_status",
   "rtl_status",
 ]);
+const SUBTITLE_SAFE_COLLECTOR_INPUT_FIELDS = new Set([
+  "engine_status",
+  "engineStatus",
+  "sync_status",
+  "syncStatus",
+  "safe_area_status",
+  "safeAreaStatus",
+  "line_break_status",
+  "lineBreakStatus",
+  "rtl_status",
+  "rtlStatus",
+  "evidence_timestamp_ms",
+  "evidenceTimestampMs",
+  "source_type",
+  "sourceType",
+  "status_hash",
+  "statusHash",
+  "audit_reference",
+  "auditReference",
+]);
+const SUBTITLE_SAFE_COLLECTOR_HELPER_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "collector_label",
+  "status",
+  "freshness",
+  "source_type",
+  "engine_status",
+  "sync_status",
+  "safe_area_status",
+  "line_break_status",
+  "rtl_status",
+  "evidence_timestamp_ms",
+  "status_hash",
+  "audit_reference",
+  "blocker_count",
+  "safe_next_action_label",
+  "redaction_status",
+  "production_go_allowed",
+  "priority1_status",
+]);
 const OBS_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "schema",
   "browser_source_status",
@@ -4122,6 +4163,297 @@ export function assertSubtitleEvidenceCollectorContractSafe(
     throw new ContractError(`${context}: invalid contract`);
   }
   assertNoUnsafeAuditMaterial(contract, context);
+}
+
+function safeSubtitleCollectorStatusHash(value) {
+  const normalized = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-f0-9]/gu, "")
+    .slice(0, 128);
+  return /^[a-f0-9]{16,128}$/u.test(normalized) ? normalized : "0".repeat(16);
+}
+
+function subtitleSafeCollectorInputValue(source, ...keys) {
+  for (const key of keys) {
+    if (source && Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function assertSubtitleSafeCollectorInputSafe(
+  safeSubtitleStatus,
+  context = "subtitle safe collector input"
+) {
+  if (
+    !safeSubtitleStatus ||
+    typeof safeSubtitleStatus !== "object" ||
+    Array.isArray(safeSubtitleStatus)
+  ) {
+    throw new ContractError(`${context}: safe status object required`);
+  }
+  for (const field of Object.keys(safeSubtitleStatus)) {
+    if (
+      !SUBTITLE_SAFE_COLLECTOR_INPUT_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe input field`, {
+        field,
+      });
+    }
+  }
+  assertNoUnsafeAuditMaterial(safeSubtitleStatus, context);
+}
+
+export function createSubtitleSafeCollectorHelper({
+  safeSubtitleStatus = {},
+  engineStatus,
+  syncStatus,
+  safeAreaStatus,
+  lineBreakStatus,
+  rtlStatus,
+  evidenceTimestampMs,
+  sourceType,
+  statusHash,
+  auditReference,
+  nowMs = Date.now(),
+  freshnessThresholdMs = 20_000,
+  fixturePass = false,
+  dryRunOnly = false,
+  safeNextActionLabel = "collect_subtitle_engine_evidence",
+} = {}) {
+  assertSubtitleSafeCollectorInputSafe(safeSubtitleStatus);
+
+  const sourceClassification = classifyRealEvidenceSourceType(
+    sourceType ??
+      subtitleSafeCollectorInputValue(
+        safeSubtitleStatus,
+        "source_type",
+        "sourceType"
+      ) ??
+      "real_probe"
+  );
+  const source_type = safePacketLabel(sourceClassification.source_type);
+  const contract = createSubtitleEvidenceCollectorContract({
+    engineStatus:
+      engineStatus ??
+      subtitleSafeCollectorInputValue(
+        safeSubtitleStatus,
+        "engine_status",
+        "engineStatus"
+      ) ??
+      "runtime_waiting",
+    syncStatus:
+      syncStatus ??
+      subtitleSafeCollectorInputValue(safeSubtitleStatus, "sync_status", "syncStatus") ??
+      "runtime_waiting",
+    safeAreaStatus:
+      safeAreaStatus ??
+      subtitleSafeCollectorInputValue(
+        safeSubtitleStatus,
+        "safe_area_status",
+        "safeAreaStatus"
+      ) ??
+      "runtime_waiting",
+    lineBreakStatus:
+      lineBreakStatus ??
+      subtitleSafeCollectorInputValue(
+        safeSubtitleStatus,
+        "line_break_status",
+        "lineBreakStatus"
+      ) ??
+      "runtime_waiting",
+    rtlStatus:
+      rtlStatus ??
+      subtitleSafeCollectorInputValue(safeSubtitleStatus, "rtl_status", "rtlStatus") ??
+      "runtime_waiting",
+  });
+  const evidence_timestamp_ms = normalizeTimestampMs(
+    evidenceTimestampMs ??
+      subtitleSafeCollectorInputValue(
+        safeSubtitleStatus,
+        "evidence_timestamp_ms",
+        "evidenceTimestampMs"
+      ) ??
+      0
+  );
+  const hash = safeSubtitleCollectorStatusHash(
+    statusHash ??
+      subtitleSafeCollectorInputValue(safeSubtitleStatus, "status_hash", "statusHash")
+  );
+  const audit_reference = safePacketLabel(
+    auditReference ??
+      subtitleSafeCollectorInputValue(
+        safeSubtitleStatus,
+        "audit_reference",
+        "auditReference"
+      ) ??
+      "subtitle_audit_pending"
+  );
+  const sourceAllowed =
+    sourceClassification.allowed && source_type === sourceClassification.source_type;
+  const nonRealSource =
+    fixturePass ||
+    dryRunOnly ||
+    ["fixture", "fixture_pass", "dry_run", "dry_run_only"].includes(source_type);
+  const statusReady =
+    contract.engine_status === "ready" &&
+    contract.sync_status === "fresh" &&
+    contract.safe_area_status === "ready" &&
+    contract.line_break_status === "ready" &&
+    contract.rtl_status === "ready";
+  const evidence =
+    sourceAllowed && !nonRealSource && evidence_timestamp_ms > 0 && statusReady
+      ? createRealEvidenceIntake({
+          component: "subtitle",
+          status: contract.engine_status,
+          evidenceTimestampMs: evidence_timestamp_ms,
+          sourceType: source_type,
+          collector: "subtitle_evidence_collector",
+          statusHash: hash,
+          auditReference: audit_reference,
+        })
+      : null;
+  const freshness = evidence
+    ? classifyRealEvidenceFreshness({
+        evidence,
+        nowMs,
+        componentThresholdsMs: { subtitle: freshnessThresholdMs },
+      })
+    : contract.sync_status === "stale"
+      ? "stale"
+      : "runtime_waiting";
+  const blockers = [];
+  if (!sourceAllowed) blockers.push("source_type_blocked");
+  if (fixturePass || ["fixture", "fixture_pass"].includes(source_type)) {
+    blockers.push("fixture_only");
+  }
+  if (dryRunOnly || ["dry_run", "dry_run_only"].includes(source_type)) {
+    blockers.push("dry_run_only");
+  }
+  if (evidence_timestamp_ms === 0) blockers.push("subtitle_sync_missing");
+  if (freshness !== "fresh") blockers.push("subtitle_sync_not_fresh");
+  if (contract.engine_status !== "ready") blockers.push("subtitle_engine_not_ready");
+  if (contract.sync_status !== "fresh") blockers.push("subtitle_sync_not_fresh_label");
+  if (contract.safe_area_status !== "ready") blockers.push("subtitle_safe_area_not_ready");
+  if (contract.line_break_status !== "ready") {
+    blockers.push("subtitle_line_break_not_ready");
+  }
+  if (contract.rtl_status !== "ready") blockers.push("subtitle_rtl_not_ready");
+
+  const helper = {
+    schema: "iris_subtitle_safe_collector_helper_v1",
+    component_label: "subtitle",
+    collector_label: "subtitle_evidence_collector",
+    status: blockers.length === 0 ? "ready" : "blocked",
+    freshness,
+    source_type,
+    engine_status: contract.engine_status,
+    sync_status: contract.sync_status,
+    safe_area_status: contract.safe_area_status,
+    line_break_status: contract.line_break_status,
+    rtl_status: contract.rtl_status,
+    evidence_timestamp_ms,
+    status_hash: hash,
+    audit_reference,
+    blocker_count: blockers.length,
+    safe_next_action_label: safePacketLabel(safeNextActionLabel),
+    redaction_status: "redacted",
+    production_go_allowed: false,
+    priority1_status: "BLOCKED",
+  };
+  assertSubtitleSafeCollectorHelperSafe(helper);
+  return helper;
+}
+
+export function assertSubtitleSafeCollectorHelperSafe(
+  helper,
+  context = "subtitle safe collector helper"
+) {
+  if (!helper || typeof helper !== "object" || Array.isArray(helper)) {
+    throw new ContractError(`${context}: helper required`);
+  }
+  for (const field of Object.keys(helper)) {
+    if (
+      !SUBTITLE_SAFE_COLLECTOR_HELPER_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe helper field`, {
+        field,
+      });
+    }
+  }
+  if (
+    ![
+      "iris_subtitle_safe_collector_helper_v1",
+      "iris_subtitle_safe_collector_summary_v1",
+    ].includes(helper.schema) ||
+    helper.component_label !== "subtitle" ||
+    helper.collector_label !== "subtitle_evidence_collector" ||
+    !["ready", "blocked"].includes(helper.status) ||
+    !["fresh", "stale", "attention", "runtime_waiting"].includes(helper.freshness) ||
+    !SAFE_LABEL_PATTERN.test(helper.source_type) ||
+    !isSafeCollectorStatus(helper.engine_status) ||
+    !isSafeCollectorStatus(helper.sync_status) ||
+    !isSafeCollectorStatus(helper.safe_area_status) ||
+    !isSafeCollectorStatus(helper.line_break_status) ||
+    !isSafeCollectorStatus(helper.rtl_status) ||
+    !Number.isInteger(helper.evidence_timestamp_ms) ||
+    helper.evidence_timestamp_ms < 0 ||
+    !/^[a-f0-9]{16,128}$/u.test(helper.status_hash) ||
+    !SAFE_LABEL_PATTERN.test(helper.audit_reference) ||
+    !Number.isInteger(helper.blocker_count) ||
+    helper.blocker_count < 0 ||
+    !SAFE_LABEL_PATTERN.test(helper.safe_next_action_label) ||
+    helper.redaction_status !== "redacted" ||
+    helper.production_go_allowed !== false ||
+    helper.priority1_status !== "BLOCKED"
+  ) {
+    throw new ContractError(`${context}: invalid helper`);
+  }
+  assertNoUnsafeAuditMaterial(helper, context);
+}
+
+export function createSubtitleSafeCollectorSummary({ helper } = {}) {
+  assertSubtitleSafeCollectorHelperSafe(
+    helper,
+    "subtitle safe collector summary input"
+  );
+  const summary = {
+    ...helper,
+    schema: "iris_subtitle_safe_collector_summary_v1",
+  };
+  assertSubtitleSafeCollectorSummarySafe(summary);
+  return summary;
+}
+
+export function assertSubtitleSafeCollectorSummarySafe(
+  summary,
+  context = "subtitle safe collector summary"
+) {
+  assertSubtitleSafeCollectorHelperSafe(summary, context);
+}
+
+export function createSubtitleSafeCollectorEvidenceIntake({ helper } = {}) {
+  assertSubtitleSafeCollectorHelperSafe(
+    helper,
+    "subtitle safe collector evidence intake input"
+  );
+  if (helper.blocker_count > 0 || helper.evidence_timestamp_ms === 0) {
+    return null;
+  }
+  const evidence = createRealEvidenceIntake({
+    component: helper.component_label,
+    status: helper.engine_status,
+    evidenceTimestampMs: helper.evidence_timestamp_ms,
+    sourceType: helper.source_type,
+    collector: helper.collector_label,
+    statusHash: helper.status_hash,
+    auditReference: helper.audit_reference,
+  });
+  assertRealEvidenceIntakeSafe(evidence, "subtitle safe collector evidence intake");
+  return evidence;
 }
 
 export function createObsEvidenceCollectorContract({
