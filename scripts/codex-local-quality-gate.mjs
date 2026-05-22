@@ -1,11 +1,17 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.7.0
+// CODEX_QUALITY_HARNESS_FILE v0.7.1
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import crypto from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  buildHumanConfirmationStatus,
+  buildProductionReadinessReport,
+} from './codex-production-readiness-gate.mjs';
+import { buildEvidenceIntegrityReport } from './codex-evidence-integrity-gate.mjs';
+import { buildHermesInvariantReport } from './codex-hermes-invariant-gate.mjs';
 
 process.chdir(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));
 
@@ -17,7 +23,8 @@ const agentMemoryPolicyPath = path.join('docs', 'process', 'CODEX_AGENT_MEMORY_P
 const skillLifecyclePolicyPath = path.join('docs', 'process', 'CODEX_SKILL_LIFECYCLE_POLICY.json');
 const selfEvolutionPolicyPath = path.join('docs', 'process', 'CODEX_HARNESS_SELF_EVOLUTION_POLICY.json');
 const openaiMethodPolicyPath = path.join('docs', 'process', 'CODEX_OPENAI_CODEX_METHOD_POLICY.json');
-const HARNESS_VERSION = '0.7.0';
+const HARNESS_VERSION = '0.7.1';
+const PROFILE_TEMPLATE_VERSION = '0.7.0';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 const SOURCE_REPO_MODE = process.env.CODEX_HARNESS_SOURCE_REPO === '1';
 const jsonMode = process.env.CODEX_QUALITY_REPORT === 'json';
@@ -525,8 +532,15 @@ const report = {
   curatorSuggestionStatus: { status: 'not_run', autoApply: false },
   selfEvolutionPolicyStatus: { status: 'not_run', violations: [] },
   sourceHarnessValidationStatus: { status: 'not_run', sourceRepoMode: SOURCE_REPO_MODE },
+  profileTemplateCompatibilityStatus: { status: 'not_run' },
   openaiCodexMethodStatus: { status: 'not_run' },
   methodSupportStatus: { status: 'not_run' },
+  productionReadinessStatus: { status: 'not_run' },
+  evidenceIntegrityStatus: { status: 'not_run' },
+  hermesInvariantStatus: { status: 'not_run' },
+  humanConfirmationStatus: { status: 'not_run' },
+  v071SelfTestStatus: { status: 'not_run' },
+  qualityScoreStatus: { status: 'not_run' },
   outputSizeBudget: { topFindings: 5, rootCauses: 5, safeSummary: true },
   recommendedNextAction: 'run quality gate',
   prType: process.env.CODEX_PR_TYPE || 'unspecified',
@@ -1876,8 +1890,11 @@ function computeVersionConsistency() {
   const candidates = new Set();
   const optional = new Set();
   const manifestOmissions = [];
+  const compatibleVersions = new Set([PROFILE_TEMPLATE_VERSION]);
   try {
     const manifest = readJsonFile(manifestPath);
+    for (const version of manifest.compatibleProfileTemplateVersions || []) compatibleVersions.add(String(version));
+    if (manifest.profileTemplateVersion) compatibleVersions.add(String(manifest.profileTemplateVersion));
     if (manifest.marker !== marker) candidates.add(manifestPath);
     for (const file of manifest.managedFiles || []) candidates.add(normalizePath(file));
     for (const file of manifest.policyFiles || []) candidates.add(normalizePath(file));
@@ -1903,7 +1920,8 @@ function computeVersionConsistency() {
       continue;
     }
     const version = markerVersionFromFile(rel);
-    files.push({ path: rel, status: version ? (version === HARNESS_VERSION ? 'pass' : 'mismatch') : 'unmarked', version });
+    const accepted = version === HARNESS_VERSION || compatibleVersions.has(String(version));
+    files.push({ path: rel, status: version ? (accepted ? 'pass' : 'mismatch') : 'unmarked', version });
   }
   const mismatches = files.filter((file) => file.status === 'mismatch');
   const missing = files.filter((file) => file.status === 'missing');
@@ -1911,6 +1929,7 @@ function computeVersionConsistency() {
   return {
     status: mismatches.length || missing.length || manifestOmissions.length ? 'fail' : (unmarked.length ? 'warning' : 'pass'),
     expected: HARNESS_VERSION,
+    compatibleProfileTemplateVersions: [...compatibleVersions].sort(),
     files,
     mismatches,
     missing,
@@ -1919,8 +1938,44 @@ function computeVersionConsistency() {
     manifestOmissions,
   };
 }
+function computeProfileTemplateCompatibilityStatus() {
+  const manifestPath = path.join('docs', 'process', 'CODEX_HARNESS_MANIFEST.json');
+  try {
+    const manifest = readJsonFile(manifestPath);
+    const compatible = new Set((manifest.compatibleProfileTemplateVersions || []).map(String));
+    if (manifest.profileTemplateVersion) compatible.add(String(manifest.profileTemplateVersion));
+    const profileVersion = String(manifest.profileTemplateVersion || '');
+    return {
+      status: profileVersion === PROFILE_TEMPLATE_VERSION && compatible.has(PROFILE_TEMPLATE_VERSION) ? 'pass' : 'fail',
+      profileTemplateVersion: profileVersion || 'missing',
+      compatibleProfileTemplateVersions: [...compatible].sort(),
+      rootHarnessVersion: HARNESS_VERSION,
+      safeSummaryOnly: true,
+    };
+  } catch {
+    return {
+      status: 'fail',
+      profileTemplateVersion: 'missing',
+      compatibleProfileTemplateVersions: [],
+      rootHarnessVersion: HARNESS_VERSION,
+      safeSummaryOnly: true,
+    };
+  }
+}
+function compatibleHarnessMarkers() {
+  const versions = new Set([HARNESS_VERSION, PROFILE_TEMPLATE_VERSION]);
+  const manifestPath = path.join('docs', 'process', 'CODEX_HARNESS_MANIFEST.json');
+  try {
+    const manifest = readJsonFile(manifestPath);
+    if (manifest.profileTemplateVersion) versions.add(String(manifest.profileTemplateVersion));
+    for (const version of manifest.compatibleProfileTemplateVersions || []) versions.add(String(version));
+  } catch {
+    // Keep the built-in root/profile compatibility versions when the manifest is unavailable.
+  }
+  return new Set([...versions].map((version) => `CODEX_QUALITY_HARNESS_FILE v${version}`));
+}
 function computeSourceHarnessValidationStatus() {
-  if (!SOURCE_REPO_MODE) return { status: 'not_run', sourceRepoMode: false };
+  if (!SOURCE_REPO_MODE) return { status: 'not_applicable', sourceRepoMode: false };
   const profile = sourceProfileName();
   const raw = rawChangedPathList();
   const prefix = `profiles/${profile}/`;
@@ -1967,7 +2022,7 @@ function policyViolationList(status) {
   return status.violations || [];
 }
 function validateGovernanceMarker(policy, file, violations) {
-  if (policy.marker !== marker) violations.push({ id: 'marker.mismatch', level: 'fail', path: normalizePath(file) });
+  if (!compatibleHarnessMarkers().has(policy.marker)) violations.push({ id: 'marker.mismatch', level: 'fail', path: normalizePath(file) });
 }
 function validateAgentMemoryPolicy() {
   if (!fs.existsSync(agentMemoryPolicyPath)) return policyMissingStatus('agentMemoryPolicy.missing', agentMemoryPolicyPath);
@@ -3175,6 +3230,74 @@ function applyOpenAIMethodGateStatus(status) {
     addFailure('methodSupportStatus.failed', 'OpenAI Codex Method support file validation failed.');
   }
 }
+function runV071SelfTestGate() {
+  const script = path.join('scripts', 'codex-v071-self-test.mjs');
+  if (!fs.existsSync(script)) {
+    return { status: 'not_applicable', labels: ['v071_self_test_script_missing'], safeSummaryOnly: true };
+  }
+  const result = spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    env: { ...process.env, CODEX_V071_SELF_TEST_REPORT: 'json' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const output = String(result.stdout || '').trim();
+  if (output) {
+    try {
+      const parsed = JSON.parse(output);
+      return parsed.v071SelfTestStatus || { status: parsed.status || 'fail', labels: parsed.failures || [] };
+    } catch {
+      return { status: 'fail', labels: ['v071_self_test_output_parse_failed'], safeSummaryOnly: true };
+    }
+  }
+  return { status: result.status === 0 ? 'pass' : 'fail', labels: result.status === 0 ? [] : ['v071_self_test_failed'], safeSummaryOnly: true };
+}
+function applyV071Status(name, status) {
+  const value = status?.status || 'missing';
+  if (value === 'fail' || value === 'missing') addFailure(`${name}.failed`, `${name} failed.`);
+  else if (value === 'manual_confirmation_required' || value === 'warning') {
+    addHumanReviewReason(`${name}.manual_confirmation_required`);
+    addWarning({ id: `${name}.manual_confirmation_required`, message: `${name} requires manual confirmation.` });
+  }
+}
+function computeQualityScoreStatus() {
+  const scored = [
+    report.sourceHarnessValidationStatus,
+    report.profileTemplateCompatibilityStatus,
+    report.secretScan,
+    report.versionConsistency,
+    report.policySchema,
+    report.openaiCodexMethodStatus,
+    report.methodSupportStatus,
+    report.productionReadinessStatus,
+    report.evidenceIntegrityStatus,
+    report.hermesInvariantStatus,
+    report.humanConfirmationStatus,
+    report.v071SelfTestStatus,
+    report.safeArtifactValidation,
+    report.outputShapeStatus,
+  ];
+  const effective = scored.map((item) => {
+    const status = item?.status || 'missing';
+    return status === 'not_required' || status === 'not_applicable' ? 'pass' : status;
+  });
+  const failuresFound = effective.some((status) => ['fail', 'missing', 'not_run'].includes(status));
+  const manualFound = effective.some((status) => ['manual_confirmation_required', 'warning'].includes(status));
+  const passCount = effective.filter((status) => status === 'pass').length;
+  let score = Math.floor((passCount / effective.length) * 99);
+  if (failuresFound) score = Math.min(score, 70);
+  else if (manualFound) score = Math.min(score, 89);
+  else score = 100;
+  return {
+    status: failuresFound ? 'fail' : 'pass',
+    score,
+    labels: [
+      ...(failuresFound ? ['blocking_gate_not_pass'] : []),
+      ...(manualFound ? ['manual_confirmation_remaining'] : []),
+      ...(score === 100 ? ['all_required_gates_passed'] : []),
+    ],
+    safeSummaryOnly: true,
+  };
+}
 
 function computeOutputShapeStatus() {
   const serialized = JSON.stringify(report);
@@ -3183,7 +3306,7 @@ function computeOutputShapeStatus() {
     /\b(?:gh[pousr]_|sk-|AKIA)[A-Za-z0-9_-]{8,}\b/,
     /-----BEGIN [^-]+PRIVATE KEY-----/i,
   ];
-  const requiredFields = ['qualityReportSchemaVersion', 'codeAuditSchemaVersion', 'harnessVersion', 'profile', 'riskLevel', 'manualConfirmationStatus', 'rootCauseGroups', 'blockingFindings', 'warningFindings', 'agentMemoryPolicyStatus', 'skillLifecyclePolicyStatus', 'selfEvolutionPolicyStatus', 'curatorSuggestionStatus', 'sourceHarnessValidationStatus', 'openaiCodexMethodStatus', 'methodSupportStatus', 'safeArtifactValidation', 'faultInjectionBenchmark', 'semanticImpact', 'testSufficiency', 'specTestMismatch', 'minimalPrPlan', 'ciRiskPrediction', 'decisionTrace', 'defectTaxonomy', 'ciParity', 'oracleLimits', 'auditGrade', 'oracleValidation', 'decisionSimulator', 'acceptanceCriteria', 'confusionRisk', 'temporalConsistency', 'deploymentBoundary', 'mutationBenchmark', 'adversarialPrSimulator', 'auditBypass', 'realWorldCanarySet', 'specBoundaryMutation', 'testAuditMutation', 'dependencyAdversarial', 'ciParityAdversarial', 'evidenceIntegrity', 'policyLint', 'auditEffectiveness', 'fixOutcome', 'postFixVerificationPlan', 'repairQuality', 'splitEffectiveness', 'noiseControl', 'auditLearningRecommendation', 'decisionRetrospective', 'rolloutScore', 'freshness', 'riskAcceptanceWorkflow', 'reviewerAssignmentQuality', 'verificationCompleteness', 'skippedCheckJustification', 'auditModeRecommendation', 'auditConflict', 'maturityScore'];
+  const requiredFields = ['qualityReportSchemaVersion', 'codeAuditSchemaVersion', 'harnessVersion', 'profile', 'riskLevel', 'manualConfirmationStatus', 'rootCauseGroups', 'blockingFindings', 'warningFindings', 'agentMemoryPolicyStatus', 'skillLifecyclePolicyStatus', 'selfEvolutionPolicyStatus', 'curatorSuggestionStatus', 'sourceHarnessValidationStatus', 'profileTemplateCompatibilityStatus', 'openaiCodexMethodStatus', 'methodSupportStatus', 'productionReadinessStatus', 'evidenceIntegrityStatus', 'hermesInvariantStatus', 'humanConfirmationStatus', 'v071SelfTestStatus', 'qualityScoreStatus', 'safeArtifactValidation', 'faultInjectionBenchmark', 'semanticImpact', 'testSufficiency', 'specTestMismatch', 'minimalPrPlan', 'ciRiskPrediction', 'decisionTrace', 'defectTaxonomy', 'ciParity', 'oracleLimits', 'auditGrade', 'oracleValidation', 'decisionSimulator', 'acceptanceCriteria', 'confusionRisk', 'temporalConsistency', 'deploymentBoundary', 'mutationBenchmark', 'adversarialPrSimulator', 'auditBypass', 'realWorldCanarySet', 'specBoundaryMutation', 'testAuditMutation', 'dependencyAdversarial', 'ciParityAdversarial', 'evidenceIntegrity', 'policyLint', 'auditEffectiveness', 'fixOutcome', 'postFixVerificationPlan', 'repairQuality', 'splitEffectiveness', 'noiseControl', 'auditLearningRecommendation', 'decisionRetrospective', 'rolloutScore', 'freshness', 'riskAcceptanceWorkflow', 'reviewerAssignmentQuality', 'verificationCompleteness', 'skippedCheckJustification', 'auditModeRecommendation', 'auditConflict', 'maturityScore'];
   const missing = requiredFields.filter((field) => report[field] === undefined);
   return {
     status: missing.length || forbidden.some((pattern) => pattern.test(serialized)) ? 'fail' : 'pass',
@@ -5180,17 +5303,24 @@ function enforceFinalValidationStatuses() {
     ['selfEvolutionPolicyStatus', report.selfEvolutionPolicyStatus],
     ['curatorSuggestionStatus', report.curatorSuggestionStatus],
     ['sourceHarnessValidationStatus', report.sourceHarnessValidationStatus],
+    ['profileTemplateCompatibilityStatus', report.profileTemplateCompatibilityStatus],
     ['openaiCodexMethodStatus', report.openaiCodexMethodStatus],
     ['methodSupportStatus', report.methodSupportStatus],
+    ['productionReadinessStatus', report.productionReadinessStatus],
+    ['evidenceIntegrityStatus', report.evidenceIntegrityStatus],
+    ['hermesInvariantStatus', report.hermesInvariantStatus],
+    ['humanConfirmationStatus', report.humanConfirmationStatus],
+    ['v071SelfTestStatus', report.v071SelfTestStatus],
     ['safeArtifactValidation', report.safeArtifactValidation],
     ['outputShapeStatus', report.outputShapeStatus],
+    ['qualityScoreStatus', report.qualityScoreStatus],
   ];
   for (const [name, value] of statuses) {
-    if (!value || value.status === 'not_run' || value.status === 'not_required') continue;
+    if (!value || value.status === 'not_run' || value.status === 'not_required' || value.status === 'not_applicable') continue;
     if (value.status === 'fail') {
       const id = `${name}.failed`;
       if (!failureRecorded(id)) addFailure(id, `${name} failed.`);
-    } else if (value.status === 'warning') {
+    } else if (value.status === 'warning' || value.status === 'manual_confirmation_required') {
       addHumanReviewReason(`${name}.warning`);
       addWarning({ id: `${name}.warning`, message: `${name} requires human review.` });
     }
@@ -5976,10 +6106,13 @@ function writeReport() {
   report.auditGrade = computeAuditGrade();
   report.safeArtifactValidation = computeSafeArtifactValidation();
   report.outputShapeStatus = computeOutputShapeStatus();
+  report.qualityScoreStatus = computeQualityScoreStatus();
   enforceFinalValidationStatuses();
-  report.mergeReady = failures.length === 0;
+  const manualConfirmationPending = report.humanConfirmationStatus?.status === 'manual_confirmation_required';
+  report.humanReviewRequired = report.humanReviewRequired || manualConfirmationPending;
+  report.mergeReady = failures.length === 0 && !manualConfirmationPending;
   report.postMerge.mergeReady = report.mergeReady && report.postMerge.status === 'pass';
-  report.status = failures.length === 0 ? 'pass' : 'fail';
+  report.status = failures.length === 0 ? (manualConfirmationPending ? 'manual_confirmation_required' : 'pass') : 'fail';
   report.localGate.status = report.status;
   report.goldenPack = computeGoldenPack();
   report.selfTestCoverageReport = computeSelfTestCoverageReport();
@@ -6050,6 +6183,10 @@ for (const file of report.versionConsistency.missing || []) {
 for (const file of report.versionConsistency.unmarked || []) {
   addWarning({ id: 'versionConsistency.unmarked', path: file.path, message: `Managed harness file has no version marker: ${file.path}`, known: warningKnown({ id: 'versionConsistency.unmarked', path: file.path }, knownRisks) });
 }
+report.profileTemplateCompatibilityStatus = computeProfileTemplateCompatibilityStatus();
+if (report.profileTemplateCompatibilityStatus.status === 'fail') {
+  addFailure('profileTemplateCompatibilityStatus.failed', 'Profile template compatibility validation failed.');
+}
 report.sourceHarnessValidationStatus = computeSourceHarnessValidationStatus();
 if (report.sourceHarnessValidationStatus.status === 'fail') {
   addFailure('sourceHarnessValidation.failed', 'Source harness validation failed.', {
@@ -6066,6 +6203,16 @@ report.selfEvolutionPolicyStatus = validateSelfEvolutionPolicy();
 applyGovernancePolicyStatus(report.selfEvolutionPolicyStatus, 'selfEvolutionPolicy.failed', 'Self-evolution policy governance failed.');
 report.openaiCodexMethodStatus = runOpenAICodexMethodGate();
 applyOpenAIMethodGateStatus(report.openaiCodexMethodStatus);
+report.productionReadinessStatus = buildProductionReadinessReport(process.env).productionReadinessStatus;
+report.evidenceIntegrityStatus = buildEvidenceIntegrityReport(process.env).evidenceIntegrityStatus;
+report.hermesInvariantStatus = buildHermesInvariantReport(process.env).hermesInvariantStatus;
+report.humanConfirmationStatus = buildHumanConfirmationStatus(process.env).humanConfirmationStatus;
+report.v071SelfTestStatus = runV071SelfTestGate();
+applyV071Status('productionReadinessStatus', report.productionReadinessStatus);
+applyV071Status('evidenceIntegrityStatus', report.evidenceIntegrityStatus);
+applyV071Status('hermesInvariantStatus', report.hermesInvariantStatus);
+applyV071Status('humanConfirmationStatus', report.humanConfirmationStatus);
+applyV071Status('v071SelfTestStatus', report.v071SelfTestStatus);
 classifyDiff(policy, knownRisks);
 runDiffAudits(policy, knownRisks, codeAuditBaseline);
 for (const warning of report.warnings) {

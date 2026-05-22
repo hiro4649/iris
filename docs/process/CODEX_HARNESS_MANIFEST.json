@@ -1,6 +1,11 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.7.0",
-  "harnessVersion": "0.7.0",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.7.1",
+  "harnessVersion": "0.7.1",
+  "sourceHarnessVersion": "0.7.1",
+  "profileTemplateVersion": "0.7.0",
+  "compatibleProfileTemplateVersions": [
+    "0.7.0"
+  ],
   "profile": "iris",
   "scriptNames": [
     "codex-adversarial-pr-simulator.mjs",
@@ -54,7 +59,11 @@
     "codex-secret-safety-scan.sh",
     "codex-skill-lifecycle-validate.mjs",
     "codex-worktree-doctor.mjs",
-    "codex-openai-method-gate.mjs"
+    "codex-openai-method-gate.mjs",
+    "codex-production-readiness-gate.mjs",
+    "codex-evidence-integrity-gate.mjs",
+    "codex-hermes-invariant-gate.mjs",
+    "codex-v071-self-test.mjs"
   ],
   "policyFiles": [
     "docs/process/CODEX_AGENT_MEMORY_POLICY.json",
@@ -77,7 +86,13 @@
     "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
     "docs/process/CODEX_TASK_BRIEF_TEMPLATE.md",
     "docs/process/CODEX_PLAN_TEMPLATE.md",
-    "docs/process/code_review.md"
+    "docs/process/code_review.md",
+    "docs/process/CODEX_PRODUCTION_READINESS_POLICY.md",
+    "docs/process/CODEX_PRODUCTION_READINESS_POLICY.json",
+    "docs/process/CODEX_EVIDENCE_INTEGRITY_POLICY.md",
+    "docs/process/CODEX_EVIDENCE_INTEGRITY_POLICY.json",
+    "docs/process/CODEX_HERMES_INVARIANT_POLICY.md",
+    "docs/process/CODEX_HERMES_INVARIANT_POLICY.json"
   ],
   "managedFiles": [
     ".github/pull_request_template.md",
@@ -157,6 +172,16 @@
     "docs/process/CODEX_TASK_BRIEF_TEMPLATE.md",
     "docs/process/CODEX_PLAN_TEMPLATE.md",
     "docs/process/code_review.md",
-    "scripts/codex-openai-method-gate.mjs"
+    "scripts/codex-openai-method-gate.mjs",
+    "docs/process/CODEX_PRODUCTION_READINESS_POLICY.md",
+    "docs/process/CODEX_PRODUCTION_READINESS_POLICY.json",
+    "docs/process/CODEX_EVIDENCE_INTEGRITY_POLICY.md",
+    "docs/process/CODEX_EVIDENCE_INTEGRITY_POLICY.json",
+    "docs/process/CODEX_HERMES_INVARIANT_POLICY.md",
+    "docs/process/CODEX_HERMES_INVARIANT_POLICY.json",
+    "scripts/codex-production-readiness-gate.mjs",
+    "scripts/codex-evidence-integrity-gate.mjs",
+    "scripts/codex-hermes-invariant-gate.mjs",
+    "scripts/codex-v071-self-test.mjs"
   ]
 }

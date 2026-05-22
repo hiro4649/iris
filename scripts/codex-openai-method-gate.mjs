@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.7.0
+// CODEX_QUALITY_HARNESS_FILE v0.7.1
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
-const HARNESS_VERSION = '0.7.0';
+const HARNESS_VERSION = '0.7.1';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 
 const defaultPolicy = {
@@ -70,37 +70,7 @@ function readJson(file) {
   return JSON.parse(text);
 }
 
-async function readCurrentPrBodyFromGithub() {
-  if (process.env.CODEX_GITHUB_API_AVAILABLE !== '1') return null;
-  const eventName = process.env.CODEX_EVENT_NAME || process.env.GITHUB_EVENT_NAME || '';
-  if (eventName !== 'pull_request') return null;
-  const repository = process.env.CODEX_REPOSITORY || process.env.GITHUB_REPOSITORY || '';
-  const prNumber = process.env.CODEX_PR_NUMBER || '';
-  const token = process.env.CODEX_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
-  if (!repository || !prNumber || !token || typeof fetch !== 'function') return null;
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^\d+$/.test(prNumber)) return null;
-
-  try {
-    const response = await fetch(`https://api.github.com/repos/${repository}/pulls/${prNumber}`, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'codex-openai-method-gate',
-      },
-    });
-    if (!response.ok) return null;
-    const pr = await response.json();
-    if (typeof pr.body === 'string') {
-      return { body: pr.body, prContext: true, source: 'GITHUB_API_CURRENT_PR' };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-async function readPrBody() {
+function readPrBody() {
   if (process.env.CODEX_PR_BODY && process.env.CODEX_PR_BODY.trim()) {
     return { body: process.env.CODEX_PR_BODY, prContext: true, source: 'CODEX_PR_BODY' };
   }
@@ -109,9 +79,6 @@ async function readPrBody() {
     const body = readText(process.env.CODEX_PR_BODY_PATH);
     if (body !== null) return { body, prContext: true, source: 'CODEX_PR_BODY_PATH' };
   }
-
-  const currentPrBody = await readCurrentPrBodyFromGithub();
-  if (currentPrBody) return currentPrBody;
 
   if (process.env.GITHUB_EVENT_PATH) {
     const eventText = readText(process.env.GITHUB_EVENT_PATH);
@@ -441,7 +408,7 @@ function validateExplicitSection(section, value) {
   return null;
 }
 
-async function buildReport() {
+function buildReport() {
   const warnings = [];
   const failures = [];
   let policy = { ...defaultPolicy };
@@ -452,7 +419,7 @@ async function buildReport() {
     failures.push('policyJson=parse_failed');
   }
 
-  const bodyInfo = await readPrBody();
+  const bodyInfo = readPrBody();
   const requireGate = process.env.CODEX_REQUIRE_OPENAI_METHOD_GATE === '1';
   const support = inspectSupportFiles(policy);
   failures.push(...support.failures);
@@ -473,7 +440,6 @@ async function buildReport() {
         codeReviewStatus: { status: support.files.codeReview || 'missing', path: managedPaths.codeReview },
         policyStatus: { status: support.failures.some((item) => item.startsWith('policyJson=')) ? 'fail' : 'pass', path: managedPaths.policyJson },
         methodSupportStatus: support,
-        prBodySource: bodyInfo.source,
         unsafeOutputStatus: { status: support.failures.some((item) => item.startsWith('unsafeOutput=')) ? 'fail' : 'pass' },
         warnings,
         failures,
@@ -542,7 +508,6 @@ async function buildReport() {
     codeReviewStatus: { status: support.files.codeReview || 'missing', path: managedPaths.codeReview },
     policyStatus: { status: failures.some((item) => item.startsWith('policyJson=')) ? 'fail' : 'pass', path: managedPaths.policyJson },
     methodSupportStatus: support,
-    prBodySource: bodyInfo.source,
     unsafeOutputStatus: { status: unsafeFindings.length ? 'fail' : 'pass', labels: unsafeFindings },
     warnings,
     failures,
@@ -568,32 +533,27 @@ function printReport(report) {
   if (report.failures?.length) console.log(`failures: ${report.failures.join(', ')}`);
 }
 
-async function main() {
-  try {
-    const report = await buildReport();
-    printReport(report);
-    process.exit(report.status === 'fail' ? 1 : 0);
-  } catch {
-    printReport({
-      marker,
-      harnessVersion: HARNESS_VERSION,
-      status: 'fail',
-      requiredSections: defaultPolicy.requiredPrSections,
-      missingSections: [],
-      weakSections: [],
-      planFirst: { required: false, status: 'error', triggers: [] },
-      prTemplateStatus: { status: 'unknown' },
-      codeReviewStatus: { status: 'unknown' },
-      policyStatus: { status: 'unknown' },
-      methodSupportStatus: { status: 'unknown' },
-      prBodySource: 'unknown',
-      unsafeOutputStatus: { status: 'unknown' },
-      warnings: [],
-      failures: ['methodGate=unexpected_error'],
-      safeSummary: 'OpenAI Codex Method Gate failed with an internal error.',
-    });
-    process.exit(1);
-  }
+try {
+  const report = buildReport();
+  printReport(report);
+  process.exit(report.status === 'fail' ? 1 : 0);
+} catch {
+  printReport({
+    marker,
+    harnessVersion: HARNESS_VERSION,
+    status: 'fail',
+    requiredSections: defaultPolicy.requiredPrSections,
+    missingSections: [],
+    weakSections: [],
+    planFirst: { required: false, status: 'error', triggers: [] },
+    prTemplateStatus: { status: 'unknown' },
+    codeReviewStatus: { status: 'unknown' },
+    policyStatus: { status: 'unknown' },
+    methodSupportStatus: { status: 'unknown' },
+    unsafeOutputStatus: { status: 'unknown' },
+    warnings: [],
+    failures: ['methodGate=unexpected_error'],
+    safeSummary: 'OpenAI Codex Method Gate failed with an internal error.',
+  });
+  process.exit(1);
 }
-
-await main();

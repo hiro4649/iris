@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.0 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.7.1 -->
 ## Summary
 
 ## Why this change is needed
@@ -66,5 +66,19 @@ Best of N used or skipped:
 Code review status:
 
 Human confirmation needed:
+
+Production Go/No-Go:
+
+Evidence Integrity:
+
+Hermes Invariants:
+
+Remote/Local Evidence:
+
+Rollback or Merge-After Verify:
+
+Stale Evidence Check:
+
+Manual Confirmation Limits:
 
 Do not leave TODO / TBD / N/A without reason.
