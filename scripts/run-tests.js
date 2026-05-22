@@ -803,6 +803,13 @@ import {
   createRuntimeProductionFreshArtifactRequirement,
 } from "../src/services/dev/productionLiveReadiness.js";
 import {
+  assertBridgeEvidenceCollectorContractSafe,
+  assertDbEvidenceCollectorContractSafe,
+  assertEvidenceCollectorFixturePackSafe,
+  assertGameEvidenceCollectorContractSafe,
+  assertLive2dEvidenceCollectorContractSafe,
+  assertLiveEvidenceCollectorManifestSafe,
+  assertObsEvidenceCollectorContractSafe,
   assertProductionEvidenceSafeProvenanceCompositorSafe,
   assertProductionEvidenceSafeProvenanceSummarySafe,
   assertProductionGoPackageFixturePackSafe,
@@ -810,6 +817,16 @@ import {
   assertProductionGoPackageReadinessResultSafe,
   assertProductionGoPackageSafe,
   assertProductionGoPackageSafeSummarySafe,
+  assertSubtitleEvidenceCollectorContractSafe,
+  assertTtsEvidenceCollectorContractSafe,
+  assertYoutubeEvidenceCollectorContractSafe,
+  createBridgeEvidenceCollectorContract,
+  createDbEvidenceCollectorContract,
+  createEvidenceCollectorFixturePack,
+  createGameEvidenceCollectorContract,
+  createLive2dEvidenceCollectorContract,
+  createLiveEvidenceCollectorManifest,
+  createObsEvidenceCollectorContract,
   createProductionEvidenceSafeProvenanceCompositor,
   createProductionEvidenceSafeProvenanceSummary,
   createProductionGoPackage,
@@ -817,6 +834,9 @@ import {
   createProductionGoPackageNoRealGoGate,
   createProductionGoPackageReadinessResult,
   createProductionGoPackageSafeSummary,
+  createSubtitleEvidenceCollectorContract,
+  createTtsEvidenceCollectorContract,
+  createYoutubeEvidenceCollectorContract,
 } from "../src/services/dev/liveEvidenceAudit.js";
 import {
   assertRealEvidenceBodyScanSafe,
@@ -43333,6 +43353,334 @@ const tests = [
         "relationship score",
         "world_command",
         "inner_intent",
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "collector collector contract bridge TTS Live2D subtitle OBS DB YouTube Game real evidence safe summary keeps fixture mode blocked and redacted",
+    () => {
+      const manifest = createLiveEvidenceCollectorManifest();
+      const fixturePack = createEvidenceCollectorFixturePack();
+      const realEvidenceFixturePack = createRealEvidenceFixturePack();
+      const manifestByComponent = new Map(
+        manifest.collectors.map((collector) => [collector.component, collector])
+      );
+      const contracts = [
+        {
+          component_label: "bridge",
+          collector_label: "bridge_evidence_collector",
+          contract: createBridgeEvidenceCollectorContract({
+            workerHeartbeat: "fresh",
+            workerStatus: "ready",
+            evidenceTimestampMs: 1000,
+          }),
+          assertSafe: assertBridgeEvidenceCollectorContractSafe,
+          safeFixture: "bridge_safe_output_fixture",
+          rejectFixture: "bridge_reject_fixture",
+          safeFields: [
+            "schema",
+            "worker_heartbeat",
+            "worker_status",
+            "evidence_timestamp_ms",
+          ],
+        },
+        {
+          component_label: "tts",
+          collector_label: "tts_evidence_collector",
+          contract: createTtsEvidenceCollectorContract({
+            engineHealth: "fresh",
+            voiceStatus: "ready",
+            licenseStatus: "ready",
+          }),
+          assertSafe: assertTtsEvidenceCollectorContractSafe,
+          safeFixture: "tts_safe_output_fixture",
+          rejectFixture: "tts_reject_fixture",
+          safeFields: ["schema", "engine_health", "voice_status", "license_status"],
+        },
+        {
+          component_label: "live2d",
+          collector_label: "live2d_evidence_collector",
+          contract: createLive2dEvidenceCollectorContract({
+            rendererHeartbeat: "fresh",
+            modelConfigured: "ready",
+            cueCapability: "ready",
+          }),
+          assertSafe: assertLive2dEvidenceCollectorContractSafe,
+          safeFixture: "live2d_safe_output_fixture",
+          rejectFixture: "live2d_reject_fixture",
+          safeFields: [
+            "schema",
+            "renderer_heartbeat",
+            "model_configured",
+            "cue_capability",
+          ],
+        },
+        {
+          component_label: "subtitle",
+          collector_label: "subtitle_evidence_collector",
+          contract: createSubtitleEvidenceCollectorContract({
+            engineStatus: "fresh",
+            syncStatus: "ready",
+            safeAreaStatus: "ready",
+            lineBreakStatus: "ready",
+            rtlStatus: "ready",
+          }),
+          assertSafe: assertSubtitleEvidenceCollectorContractSafe,
+          safeFixture: "subtitle_safe_output_fixture",
+          rejectFixture: "subtitle_reject_fixture",
+          safeFields: [
+            "schema",
+            "engine_status",
+            "sync_status",
+            "safe_area_status",
+            "line_break_status",
+            "rtl_status",
+          ],
+        },
+        {
+          component_label: "obs",
+          collector_label: "obs_evidence_collector",
+          contract: createObsEvidenceCollectorContract({
+            browserSourceStatus: "ready",
+            pickupStatus: "ready",
+            heartbeatStatus: "fresh",
+            artifactFreshness: "fresh",
+          }),
+          assertSafe: assertObsEvidenceCollectorContractSafe,
+          safeFixture: "obs_safe_output_fixture",
+          rejectFixture: "obs_reject_fixture",
+          safeFields: [
+            "schema",
+            "browser_source_status",
+            "pickup_status",
+            "heartbeat_status",
+            "artifact_freshness",
+          ],
+        },
+        {
+          component_label: "db",
+          collector_label: "db_evidence_collector",
+          contract: createDbEvidenceCollectorContract({
+            connectionStatus: "ready",
+            schemaStatus: "ready",
+            indexStatus: "ready",
+            migrationStatus: "ready",
+            backupStatus: "fresh",
+          }),
+          assertSafe: assertDbEvidenceCollectorContractSafe,
+          safeFixture: "db_safe_output_fixture",
+          rejectFixture: "db_reject_fixture",
+          safeFields: [
+            "schema",
+            "connection_status",
+            "schema_status",
+            "index_status",
+            "migration_status",
+            "backup_status",
+          ],
+        },
+        {
+          component_label: "youtube",
+          collector_label: "youtube_evidence_collector",
+          contract: createYoutubeEvidenceCollectorContract({
+            oauthStatus: "ready",
+            tokenStatus: "fresh",
+            chatStatus: "ready",
+            pollingStatus: "ready",
+            moderationStatus: "ready",
+          }),
+          assertSafe: assertYoutubeEvidenceCollectorContractSafe,
+          safeFixture: "youtube_safe_output_fixture",
+          rejectFixture: "youtube_reject_fixture",
+          safeFields: [
+            "schema",
+            "oauth_status",
+            "token_status",
+            "chat_status",
+            "polling_status",
+            "moderation_status",
+          ],
+        },
+        {
+          component_label: "game",
+          collector_label: "game_evidence_collector",
+          contract: createGameEvidenceCollectorContract({
+            adapterStatus: "ready",
+            safeMapStatus: "ready",
+            manualApprovalStatus: "ready",
+            emergencyStopStatus: "fresh",
+            auditStatus: "ready",
+          }),
+          assertSafe: assertGameEvidenceCollectorContractSafe,
+          safeFixture: "game_safe_output_fixture",
+          rejectFixture: "game_reject_fixture",
+          safeFields: [
+            "schema",
+            "adapter_status",
+            "safe_map_status",
+            "manual_approval_status",
+            "emergency_stop_status",
+            "audit_status",
+          ],
+        },
+      ];
+      const allowedCoverageFields = [
+        "component_label",
+        "collector_label",
+        "status",
+        "freshness",
+        "source_type",
+        "required",
+        "blocker_count",
+        "safe_next_action_label",
+        "status_hash",
+        "audit_reference",
+        "evidence_timestamp_ms",
+        "fixture_status",
+        "redaction_status",
+      ];
+
+      assertLiveEvidenceCollectorManifestSafe(manifest);
+      assertEvidenceCollectorFixturePackSafe(fixturePack);
+      assertRealEvidenceFixturePackSafe(realEvidenceFixturePack);
+      assert.equal(manifest.component_count, 9);
+      assert.equal(realEvidenceFixturePack.fixture_as_real_status, "rejected");
+      assert.equal(classifyRealEvidenceSourceType("fixture").real_evidence, false);
+
+      const componentCoverage = contracts.map((entry, index) => {
+        entry.assertSafe(entry.contract);
+        assert.deepEqual(Object.keys(entry.contract).sort(), entry.safeFields.sort());
+        assert.equal(
+          fixturePack[entry.safeFixture].fixture_status,
+          "safe_output",
+          entry.component_label
+        );
+        assert.equal(
+          fixturePack[entry.rejectFixture].fixture_status,
+          "contracterror",
+          entry.component_label
+        );
+        const collector = manifestByComponent.get(entry.component_label);
+        assert.equal(collector.collector_name, entry.collector_label);
+        assert.equal(collector.required, true);
+        return {
+          component_label: entry.component_label,
+          collector_label: entry.collector_label,
+          status: "ready",
+          freshness: "fresh",
+          source_type: collector.expected_source,
+          required: collector.required,
+          blocker_count: 0,
+          safe_next_action_label: "connect_real_collector_later",
+          status_hash: `abcdef01234567${String(index).padStart(2, "0")}`,
+          audit_reference: `audit_${entry.component_label}_fixture`,
+          evidence_timestamp_ms: 1000 + index,
+          fixture_status: fixturePack[entry.safeFixture].fixture_status,
+          redaction_status: "redacted",
+        };
+      });
+
+      assert.deepEqual(
+        componentCoverage.map((item) => item.component_label).sort(),
+        ["bridge", "db", "game", "live2d", "obs", "subtitle", "tts", "youtube"]
+      );
+      for (const item of componentCoverage) {
+        assert.deepEqual(Object.keys(item).sort(), [...allowedCoverageFields].sort());
+        assert.equal(item.fixture_status, "safe_output");
+        assert.equal(item.redaction_status, "redacted");
+        assert.match(item.status_hash, /^[a-f0-9]{16}$/u);
+      }
+
+      const fixtureOnlyEvidence = createRealEvidenceIntake({
+        component: "bridge",
+        status: "ready",
+        evidenceTimestampMs: 900,
+        sourceType: "real_probe",
+        collector: "bridge_evidence_collector",
+        statusHash: "abcdef0123456789",
+        auditReference: "audit_bridge_fixture",
+      });
+      const fixtureOnlyCompositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [fixtureOnlyEvidence],
+        requiredComponents: ["bridge"],
+        nowMs: 1000,
+        componentThresholdsMs: { bridge: 10_000 },
+        fixtureOnly: true,
+      });
+      const staleEvidence = createRealEvidenceIntake({
+        component: "bridge",
+        status: "ready",
+        evidenceTimestampMs: 1,
+        sourceType: "real_probe",
+        collector: "bridge_evidence_collector",
+        statusHash: "abcdef0123456789",
+        auditReference: "audit_bridge_fixture",
+      });
+      const staleCompositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [staleEvidence],
+        requiredComponents: ["bridge"],
+        nowMs: 1000,
+        componentThresholdsMs: { bridge: 1 },
+      });
+
+      assertProductionEvidenceSafeProvenanceCompositorSafe(fixtureOnlyCompositor);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(staleCompositor);
+      assert.equal(fixtureOnlyCompositor.package_status, "blocked");
+      assert.equal(fixtureOnlyCompositor.production_go_allowed, false);
+      assert.equal(fixtureOnlyCompositor.priority1_status, "BLOCKED");
+      assert.equal(
+        fixtureOnlyCompositor.missing_required.includes("fixture_only_not_go"),
+        true
+      );
+      assert.equal(staleCompositor.package_status, "blocked");
+      assert.equal(staleCompositor.production_go_allowed, false);
+      assert.equal(
+        staleCompositor.handoff_bundle_reference.missing_required.includes(
+          "fresh_evidence_required"
+        ),
+        true
+      );
+
+      const serialized = JSON.stringify({
+        manifest,
+        fixturePack,
+        componentCoverage,
+        realEvidenceFixturePack,
+        fixtureOnlyCompositor,
+        staleCompositor,
+      });
+      assert.equal(serialized.includes('"token_status":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token=",
+        "raw path",
+        "local absolute path",
+        '"raw_payload":',
+        '"raw_command":',
+        '"raw_response":',
+        "raw evidence body",
+        '"raw_memory":',
+        '"raw_candidate":',
+        "raw relationship record",
+        '"private_viewer_id":',
+        '"relationship_score":',
+        '"world_command":',
+        '"inner_intent":',
+        "connection string",
+        "password",
+        "OAuth token",
+        "API response body",
+        "OBS URL",
+        "credential",
+        "raw input",
+        "OS command",
+        "model path",
+        "raw cue",
+        "raw audio",
+        "vendor diagnostics",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
       }
