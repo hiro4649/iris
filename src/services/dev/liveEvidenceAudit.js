@@ -389,6 +389,44 @@ const TTS_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "voice_status",
   "license_status",
 ]);
+const TTS_SAFE_COLLECTOR_INPUT_FIELDS = new Set([
+  "engine_health",
+  "engineHealth",
+  "voice_status",
+  "voiceStatus",
+  "license_status",
+  "licenseStatus",
+  "voice_source_status",
+  "voiceSourceStatus",
+  "evidence_timestamp_ms",
+  "evidenceTimestampMs",
+  "source_type",
+  "sourceType",
+  "status_hash",
+  "statusHash",
+  "audit_reference",
+  "auditReference",
+]);
+const TTS_SAFE_COLLECTOR_HELPER_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "collector_label",
+  "status",
+  "freshness",
+  "source_type",
+  "engine_health",
+  "voice_status",
+  "license_status",
+  "voice_source_status",
+  "evidence_timestamp_ms",
+  "status_hash",
+  "audit_reference",
+  "blocker_count",
+  "safe_next_action_label",
+  "redaction_status",
+  "production_go_allowed",
+  "priority1_status",
+]);
 const LIVE2D_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "schema",
   "renderer_heartbeat",
@@ -4077,6 +4115,265 @@ export function assertTtsEvidenceCollectorContractSafe(
     throw new ContractError(`${context}: invalid contract`);
   }
   assertNoUnsafeAuditMaterial(contract, context);
+}
+
+function safeTtsCollectorStatusHash(value) {
+  const normalized = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-f0-9]/gu, "")
+    .slice(0, 128);
+  return /^[a-f0-9]{16,128}$/u.test(normalized) ? normalized : "0".repeat(16);
+}
+
+function ttsSafeCollectorInputValue(source, ...keys) {
+  for (const key of keys) {
+    if (source && Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function assertTtsSafeCollectorInputSafe(
+  safeTtsStatus,
+  context = "TTS safe collector input"
+) {
+  if (!safeTtsStatus || typeof safeTtsStatus !== "object" || Array.isArray(safeTtsStatus)) {
+    throw new ContractError(`${context}: safe status object required`);
+  }
+  for (const field of Object.keys(safeTtsStatus)) {
+    if (!TTS_SAFE_COLLECTOR_INPUT_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected or unsafe input field`, {
+        field,
+      });
+    }
+  }
+  assertNoUnsafeAuditMaterial(safeTtsStatus, context);
+}
+
+export function createTtsSafeCollectorHelper({
+  safeTtsStatus = {},
+  engineHealth,
+  voiceStatus,
+  licenseStatus,
+  voiceSourceStatus,
+  evidenceTimestampMs,
+  sourceType,
+  statusHash,
+  auditReference,
+  nowMs = Date.now(),
+  freshnessThresholdMs = 20_000,
+  fixturePass = false,
+  dryRunOnly = false,
+  placeholderOnly = false,
+  safeNextActionLabel = "collect_tts_engine_evidence",
+} = {}) {
+  assertTtsSafeCollectorInputSafe(safeTtsStatus);
+
+  const sourceClassification = classifyRealEvidenceSourceType(
+    sourceType ??
+      ttsSafeCollectorInputValue(safeTtsStatus, "source_type", "sourceType") ??
+      "real_probe"
+  );
+  const source_type = safePacketLabel(sourceClassification.source_type);
+  const contract = createTtsEvidenceCollectorContract({
+    engineHealth:
+      engineHealth ??
+      ttsSafeCollectorInputValue(safeTtsStatus, "engine_health", "engineHealth") ??
+      "runtime_waiting",
+    voiceStatus:
+      voiceStatus ??
+      ttsSafeCollectorInputValue(safeTtsStatus, "voice_status", "voiceStatus") ??
+      "runtime_waiting",
+    licenseStatus:
+      licenseStatus ??
+      ttsSafeCollectorInputValue(safeTtsStatus, "license_status", "licenseStatus") ??
+      "runtime_waiting",
+  });
+  const voice_source_status = safeCollectorStatus(
+    voiceSourceStatus ??
+      ttsSafeCollectorInputValue(
+        safeTtsStatus,
+        "voice_source_status",
+        "voiceSourceStatus"
+      ) ??
+      "runtime_waiting"
+  );
+  const evidence_timestamp_ms = normalizeTimestampMs(
+    evidenceTimestampMs ??
+      ttsSafeCollectorInputValue(
+        safeTtsStatus,
+        "evidence_timestamp_ms",
+        "evidenceTimestampMs"
+      ) ??
+      0
+  );
+  const hash = safeTtsCollectorStatusHash(
+    statusHash ?? ttsSafeCollectorInputValue(safeTtsStatus, "status_hash", "statusHash")
+  );
+  const audit_reference = safePacketLabel(
+    auditReference ??
+      ttsSafeCollectorInputValue(safeTtsStatus, "audit_reference", "auditReference") ??
+      "tts_audit_pending"
+  );
+  const sourceAllowed =
+    sourceClassification.allowed && source_type === sourceClassification.source_type;
+  const nonRealSource =
+    fixturePass ||
+    dryRunOnly ||
+    placeholderOnly ||
+    ["fixture", "fixture_pass", "dry_run", "dry_run_only"].includes(source_type);
+  const licenseNeedsAttention = contract.license_status !== "ready";
+  const voiceSourceNeedsAttention = voice_source_status !== "ready";
+  const statusReady =
+    contract.engine_health === "fresh" &&
+    contract.voice_status === "ready" &&
+    !licenseNeedsAttention &&
+    !voiceSourceNeedsAttention;
+  const evidence =
+    sourceAllowed && !nonRealSource && evidence_timestamp_ms > 0 && statusReady
+      ? createRealEvidenceIntake({
+          component: "tts",
+          status: contract.voice_status,
+          evidenceTimestampMs: evidence_timestamp_ms,
+          sourceType: source_type,
+          collector: "tts_evidence_collector",
+          statusHash: hash,
+          auditReference: audit_reference,
+        })
+      : null;
+  const freshness = evidence
+    ? classifyRealEvidenceFreshness({
+        evidence,
+        nowMs,
+        componentThresholdsMs: { tts: freshnessThresholdMs },
+      })
+    : contract.engine_health === "stale"
+      ? "stale"
+      : licenseNeedsAttention || voiceSourceNeedsAttention
+        ? "attention"
+        : "runtime_waiting";
+  const blockers = [];
+  if (!sourceAllowed) blockers.push("source_type_blocked");
+  if (fixturePass || ["fixture", "fixture_pass"].includes(source_type)) {
+    blockers.push("fixture_only");
+  }
+  if (dryRunOnly || ["dry_run", "dry_run_only"].includes(source_type)) {
+    blockers.push("dry_run_only");
+  }
+  if (placeholderOnly) blockers.push("placeholder_only");
+  if (evidence_timestamp_ms === 0) blockers.push("tts_engine_health_missing");
+  if (freshness !== "fresh") blockers.push("tts_engine_health_not_fresh");
+  if (contract.engine_health !== "fresh") blockers.push("tts_engine_health_not_fresh_label");
+  if (contract.voice_status !== "ready") blockers.push("tts_voice_not_ready");
+  if (licenseNeedsAttention) blockers.push("tts_license_attention_required");
+  if (voiceSourceNeedsAttention) blockers.push("tts_voice_source_attention_required");
+
+  const helper = {
+    schema: "iris_tts_safe_collector_helper_v1",
+    component_label: "tts",
+    collector_label: "tts_evidence_collector",
+    status: blockers.length === 0 ? "ready" : "blocked",
+    freshness,
+    source_type,
+    engine_health: contract.engine_health,
+    voice_status: contract.voice_status,
+    license_status: contract.license_status,
+    voice_source_status,
+    evidence_timestamp_ms,
+    status_hash: hash,
+    audit_reference,
+    blocker_count: blockers.length,
+    safe_next_action_label: safePacketLabel(
+      licenseNeedsAttention || voiceSourceNeedsAttention
+        ? "operator_attention_required"
+        : safeNextActionLabel
+    ),
+    redaction_status: "redacted",
+    production_go_allowed: false,
+    priority1_status: "BLOCKED",
+  };
+  assertTtsSafeCollectorHelperSafe(helper);
+  return helper;
+}
+
+export function assertTtsSafeCollectorHelperSafe(
+  helper,
+  context = "TTS safe collector helper"
+) {
+  if (!helper || typeof helper !== "object" || Array.isArray(helper)) {
+    throw new ContractError(`${context}: helper required`);
+  }
+  for (const field of Object.keys(helper)) {
+    if (!TTS_SAFE_COLLECTOR_HELPER_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected or unsafe helper field`, {
+        field,
+      });
+    }
+  }
+  if (
+    ![
+      "iris_tts_safe_collector_helper_v1",
+      "iris_tts_safe_collector_summary_v1",
+    ].includes(helper.schema) ||
+    helper.component_label !== "tts" ||
+    helper.collector_label !== "tts_evidence_collector" ||
+    !["ready", "blocked"].includes(helper.status) ||
+    !["fresh", "stale", "attention", "runtime_waiting"].includes(helper.freshness) ||
+    !SAFE_LABEL_PATTERN.test(helper.source_type) ||
+    !isSafeCollectorStatus(helper.engine_health) ||
+    !isSafeCollectorStatus(helper.voice_status) ||
+    !isSafeCollectorStatus(helper.license_status) ||
+    !isSafeCollectorStatus(helper.voice_source_status) ||
+    !Number.isInteger(helper.evidence_timestamp_ms) ||
+    helper.evidence_timestamp_ms < 0 ||
+    !/^[a-f0-9]{16,128}$/u.test(helper.status_hash) ||
+    !SAFE_LABEL_PATTERN.test(helper.audit_reference) ||
+    !Number.isInteger(helper.blocker_count) ||
+    helper.blocker_count < 0 ||
+    !SAFE_LABEL_PATTERN.test(helper.safe_next_action_label) ||
+    helper.redaction_status !== "redacted" ||
+    helper.production_go_allowed !== false ||
+    helper.priority1_status !== "BLOCKED"
+  ) {
+    throw new ContractError(`${context}: invalid helper`);
+  }
+  assertNoUnsafeAuditMaterial(helper, context);
+}
+
+export function createTtsSafeCollectorSummary({ helper } = {}) {
+  assertTtsSafeCollectorHelperSafe(helper, "TTS safe collector summary input");
+  const summary = {
+    ...helper,
+    schema: "iris_tts_safe_collector_summary_v1",
+  };
+  assertTtsSafeCollectorSummarySafe(summary);
+  return summary;
+}
+
+export function assertTtsSafeCollectorSummarySafe(
+  summary,
+  context = "TTS safe collector summary"
+) {
+  assertTtsSafeCollectorHelperSafe(summary, context);
+}
+
+export function createTtsSafeCollectorEvidenceIntake({ helper } = {}) {
+  assertTtsSafeCollectorHelperSafe(helper, "TTS safe collector evidence intake input");
+  if (helper.blocker_count > 0 || helper.evidence_timestamp_ms === 0) {
+    return null;
+  }
+  const evidence = createRealEvidenceIntake({
+    component: helper.component_label,
+    status: helper.voice_status,
+    evidenceTimestampMs: helper.evidence_timestamp_ms,
+    sourceType: helper.source_type,
+    collector: helper.collector_label,
+    statusHash: helper.status_hash,
+    auditReference: helper.audit_reference,
+  });
+  assertRealEvidenceIntakeSafe(evidence, "TTS safe collector evidence intake");
+  return evidence;
 }
 
 export function createLive2dEvidenceCollectorContract({

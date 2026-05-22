@@ -823,6 +823,8 @@ import {
   assertSubtitleSafeCollectorHelperSafe,
   assertSubtitleSafeCollectorSummarySafe,
   assertTtsEvidenceCollectorContractSafe,
+  assertTtsSafeCollectorHelperSafe,
+  assertTtsSafeCollectorSummarySafe,
   assertYoutubeEvidenceCollectorContractSafe,
   createBridgeEvidenceCollectorContract,
   createBridgeSafeCollectorEvidenceIntake,
@@ -846,6 +848,9 @@ import {
   createSubtitleSafeCollectorHelper,
   createSubtitleSafeCollectorSummary,
   createTtsEvidenceCollectorContract,
+  createTtsSafeCollectorEvidenceIntake,
+  createTtsSafeCollectorHelper,
+  createTtsSafeCollectorSummary,
   createYoutubeEvidenceCollectorContract,
 } from "../src/services/dev/liveEvidenceAudit.js";
 import {
@@ -43691,6 +43696,286 @@ const tests = [
         "raw cue",
         "raw audio",
         "vendor diagnostics",
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "TTS tts collector source allowlist status hash audit reference priority1 safe summary blocks placeholder fixture pass dry run stale missing engine health license missing",
+    () => {
+      const helper = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "fresh",
+          voice_status: "ready",
+          license_status: "ready",
+          voice_source_status: "ready",
+          evidence_timestamp_ms: 900,
+          source_type: "real_probe",
+          status_hash: "abcdef0123456789",
+          audit_reference: "audit_tts_safe",
+        },
+        nowMs: 1000,
+      });
+      const summary = createTtsSafeCollectorSummary({ helper });
+      const evidence = createTtsSafeCollectorEvidenceIntake({ helper });
+      const compositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [evidence],
+        requiredComponents: ["tts"],
+        nowMs: 1000,
+        componentThresholdsMs: { tts: 10_000 },
+        criticalBlockers: ["priority1_runtime_waiting"],
+      });
+      const helperFields = [
+        "schema",
+        "component_label",
+        "collector_label",
+        "status",
+        "freshness",
+        "source_type",
+        "engine_health",
+        "voice_status",
+        "license_status",
+        "voice_source_status",
+        "evidence_timestamp_ms",
+        "status_hash",
+        "audit_reference",
+        "blocker_count",
+        "safe_next_action_label",
+        "redaction_status",
+        "production_go_allowed",
+        "priority1_status",
+      ];
+
+      assertTtsSafeCollectorHelperSafe(helper);
+      assertTtsSafeCollectorSummarySafe(summary);
+      assertRealEvidenceIntakeSafe(evidence);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+      assert.deepEqual(Object.keys(helper).sort(), [...helperFields].sort());
+      assert.equal(helper.component_label, "tts");
+      assert.equal(helper.collector_label, "tts_evidence_collector");
+      assert.equal(helper.source_type, "real_probe");
+      assert.equal(helper.engine_health, "fresh");
+      assert.equal(helper.voice_status, "ready");
+      assert.equal(helper.license_status, "ready");
+      assert.equal(helper.voice_source_status, "ready");
+      assert.equal(helper.status_hash, "abcdef0123456789");
+      assert.equal(helper.audit_reference, "audit_tts_safe");
+      assert.equal(helper.production_go_allowed, false);
+      assert.equal(helper.priority1_status, "BLOCKED");
+      assert.deepEqual(Object.keys(evidence).sort(), [
+        "audit_reference",
+        "collector",
+        "component",
+        "evidence_timestamp_ms",
+        "schema",
+        "source_type",
+        "status",
+        "status_hash",
+      ]);
+      assert.equal(evidence.component, "tts");
+      assert.equal(evidence.collector, "tts_evidence_collector");
+      assert.equal(evidence.source_type, "real_probe");
+      assert.equal(evidence.status_hash, "abcdef0123456789");
+      assert.equal(evidence.audit_reference, "audit_tts_safe");
+      assert.equal(compositor.package_status, "blocked");
+      assert.equal(compositor.production_go_allowed, false);
+      assert.equal(compositor.priority1_status, "BLOCKED");
+
+      const placeholder = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "fresh",
+          voice_status: "ready",
+          license_status: "ready",
+          voice_source_status: "attention",
+          evidence_timestamp_ms: 900,
+        },
+        placeholderOnly: true,
+        nowMs: 1000,
+      });
+      const fixturePass = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "fresh",
+          voice_status: "ready",
+          license_status: "ready",
+          voice_source_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        fixturePass: true,
+        nowMs: 1000,
+      });
+      const dryRun = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "fresh",
+          voice_status: "ready",
+          license_status: "ready",
+          voice_source_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "dry_run",
+        dryRunOnly: true,
+        nowMs: 1000,
+      });
+      const staleEngineHealth = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "stale",
+          voice_status: "ready",
+          license_status: "ready",
+          voice_source_status: "ready",
+          evidence_timestamp_ms: 1,
+          status_hash: "fedcba9876543210",
+          audit_reference: "audit_tts_stale",
+        },
+        nowMs: 1000,
+        freshnessThresholdMs: 1,
+      });
+      const missingEngineHealth = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "runtime_waiting",
+          voice_status: "ready",
+          license_status: "ready",
+          voice_source_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const licenseMissing = createTtsSafeCollectorHelper({
+        safeTtsStatus: {
+          engine_health: "fresh",
+          voice_status: "ready",
+          license_status: "attention",
+          voice_source_status: "attention",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+
+      for (const blockedHelper of [
+        placeholder,
+        fixturePass,
+        dryRun,
+        staleEngineHealth,
+        missingEngineHealth,
+        licenseMissing,
+      ]) {
+        assertTtsSafeCollectorHelperSafe(blockedHelper);
+        assert.equal(blockedHelper.status, "blocked");
+        assert.equal(blockedHelper.production_go_allowed, false);
+        assert.equal(blockedHelper.priority1_status, "BLOCKED");
+        assert.equal(createTtsSafeCollectorEvidenceIntake({ helper: blockedHelper }), null);
+      }
+      assert.equal(placeholder.voice_source_status, "attention");
+      assert.equal(fixturePass.blocker_count > 0, true);
+      assert.equal(dryRun.source_type, "dry_run");
+      assert.notEqual(staleEngineHealth.freshness, "fresh");
+      assert.equal(missingEngineHealth.engine_health, "runtime_waiting");
+      assert.equal(licenseMissing.license_status, "attention");
+      assert.equal(licenseMissing.safe_next_action_label, "operator_attention_required");
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { raw_audio: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { raw_phoneme: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { vendor_diagnostics: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { model_path: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { dataset_path: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { voice_source_value: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createTtsSafeCollectorHelper({
+            safeTtsStatus: { engine_health: "https://blocked.example" },
+          }),
+        ContractError
+      );
+
+      const serialized = JSON.stringify({
+        helper,
+        summary,
+        evidence,
+        compositor,
+        placeholder,
+        fixturePass,
+        dryRun,
+        staleEngineHealth,
+        missingEngineHealth,
+        licenseMissing,
+      });
+      assert.equal(serialized.includes('"raw_audio":'), false);
+      assert.equal(serialized.includes('"audio_body":'), false);
+      assert.equal(serialized.includes('"raw_phoneme":'), false);
+      assert.equal(serialized.includes('"phoneme_debug":'), false);
+      assert.equal(serialized.includes('"vendor_diagnostics":'), false);
+      assert.equal(serialized.includes('"model_path":'), false);
+      assert.equal(serialized.includes('"dataset_path":'), false);
+      assert.equal(serialized.includes('"voice_source_value":'), false);
+      assert.equal(serialized.includes('"voice_id_value":'), false);
+      assert.equal(serialized.includes('"license_contract_text":'), false);
+      assert.equal(serialized.includes('"vendor_response_body":'), false);
+      assert.equal(serialized.includes('"raw_payload":'), false);
+      assert.equal(serialized.includes('"raw_command":'), false);
+      assert.equal(serialized.includes('"raw_response":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "raw path",
+        "local absolute path",
+        "raw audio",
+        "audio body",
+        "raw phoneme",
+        "phoneme debug",
+        "vendor diagnostics",
+        "raw evidence body",
+        "raw memory",
+        "raw candidate",
+        "raw relationship record",
+        "private viewer id",
+        "relationship score",
+        "world_command",
+        "inner_intent",
+        "connection string",
+        "password",
+        "URL value",
+        "model path",
+        "dataset path",
+        "voice source value",
+        "voice id value",
+        "license contract text",
+        "vendor response body",
+        "OS command",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
       }
