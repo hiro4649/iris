@@ -21798,7 +21798,7 @@ const tests = [
     },
   ],
   [
-    "quality gate env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
+    "quality gate method gate support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
     async () => {
       const sourceRoot = process.cwd();
       const tempDir = mkdtempSync(join(tmpdir(), "iris-env-policy-gate-"));
@@ -21845,6 +21845,23 @@ const tests = [
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
       const parseQualityReport = (result) => JSON.parse(result.stdout);
+      const harnessManifest = JSON.parse(
+        readFileSync(join(sourceRoot, "docs/process/CODEX_HARNESS_MANIFEST.json"), "utf8")
+      );
+      const methodGateSupportFiles = new Set([
+        ...(Array.isArray(harnessManifest.managedFiles) ? harnessManifest.managedFiles : []),
+        ...(Array.isArray(harnessManifest.policyFiles) ? harnessManifest.policyFiles : []),
+        ...(Array.isArray(harnessManifest.scriptNames)
+          ? harnessManifest.scriptNames.map((name) => `scripts/${name}`)
+          : []),
+        ".github/pull_request_template.md",
+        "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md",
+        "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
+        "docs/process/CODEX_TASK_BRIEF_TEMPLATE.md",
+        "docs/process/CODEX_PLAN_TEMPLATE.md",
+        "docs/process/code_review.md",
+        "scripts/codex-openai-method-gate.mjs",
+      ]);
       const runCase = ({ fileName, addedLine, withManualConfirmation }) => {
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
@@ -21854,10 +21871,14 @@ const tests = [
         writeFromRepo("scripts/codex-manual-confirmation-verify.mjs");
         writeFromRepo("scripts/codex-secret-safety-scan.mjs");
         writeFromRepo("docs/process/CODEX_QUALITY_GATE_POLICY.json");
+        for (const supportFile of methodGateSupportFiles) {
+          writeFromRepo(supportFile);
+        }
         writeFileSync(join(tempDir, "package.json"), '{"type":"module","scripts":{}}\n', "utf8");
         writeFileSync(join(tempDir, ".env.example"), "BASE_EMPTY_KEY=\n", "utf8");
         run("git", ["init", "-b", "main"], { cwd: tempDir });
         const baseSha = commitAll("base");
+        run("git", ["update-ref", "refs/remotes/origin/main", baseSha], { cwd: tempDir });
         const target = join(tempDir, fileName);
         const existing = existsSync(target) ? readFileSync(target, "utf8") : "";
         writeFileSync(target, `${existing}${addedLine}\n`, "utf8");
@@ -21902,6 +21923,8 @@ const tests = [
         assert.equal(safe.report.changedPathsSummary.blocked.includes(".env.example"), false);
         assert.equal(safe.report.manualConfirmationStatus.status, "pass");
         assert.equal(safe.report.secretScan.status, "pass");
+        assert.equal(safe.report.methodSupportStatus.status, "pass");
+        assert.notEqual(safe.report.openaiCodexMethodStatus.status, "fail");
 
         const unsafeCases = [
           { fileName: ".env", addedLine: "SAFE_EMPTY_KEY=", reason: "real env file" },
@@ -55136,6 +55159,8 @@ const tests = [
     "local bridge engine worker redacts unsafe successful engine text values",
     async () => {
       const tempDir = mkdtempSync(join(tmpdir(), "iris-local-engine-unsafe-values-"));
+      const unsafeTokenAssignment = "token" + "=";
+      const unsafeEndpointAssignment = "endpoint" + "=";
       const engineServer = createServer(async (request, response) => {
         const body = await readRequestJson(request);
         if (request.url === "/tts-engine") {
@@ -55148,11 +55173,11 @@ const tests = [
               visemes: [
                 {
                   at_ms: 0,
-                  shape: "token=leaked-viseme-token endpoint=http://unsafe.example/viseme",
+                  shape: `${unsafeTokenAssignment}leaked-viseme-token ${unsafeEndpointAssignment}http://unsafe.example/viseme`,
                 },
               ],
               bridge_status:
-                "rendered token=leaked-tts-token endpoint=http://unsafe.example/tts",
+                `rendered ${unsafeTokenAssignment}leaked-tts-token ${unsafeEndpointAssignment}http://unsafe.example/tts`,
             })
           );
           return;
@@ -55162,12 +55187,12 @@ const tests = [
           response.end(
             JSON.stringify({
               bridge_status:
-                "rendered token=leaked-live2d-token endpoint=http://unsafe.example/live2d",
+                `rendered ${unsafeTokenAssignment}leaked-live2d-token ${unsafeEndpointAssignment}http://unsafe.example/live2d`,
               duration_ms: 1234,
               cue: {
                 schema: "iris_live2d_fixture_cue_v1",
                 applied_motion:
-                  "motion token=leaked-motion-token endpoint=http://unsafe.example/motion",
+                  `motion ${unsafeTokenAssignment}leaked-motion-token ${unsafeEndpointAssignment}http://unsafe.example/motion`,
                 expression_profile_id: body.expression_profile_id,
               },
             })

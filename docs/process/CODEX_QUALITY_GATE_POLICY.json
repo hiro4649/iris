@@ -13,6 +13,11 @@
     "**/*.p12",
     "**/*.pfx"
   ],
+  "envExampleSafeKeyOnlyException": {
+    "enabled": true,
+    "path": ".env.example",
+    "requireManualConfirmation": true
+  },
   "highRiskPaths": [
     "src/",
     "test/",

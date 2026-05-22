@@ -27,6 +27,11 @@ const defaultPolicy = {
   missingScript: 'skip',
   allowedPaths: [],
   blockedPaths: [],
+  envExampleSafeKeyOnlyException: {
+    enabled: false,
+    path: '.env.example',
+    requireManualConfirmation: true,
+  },
   highRiskPaths: [],
   harnessPrAllowedPaths: ['AGENTS.md', '.github/', 'docs/process/', 'scripts/codex-*'],
   harnessPrBlockedPaths: [],
@@ -641,7 +646,7 @@ function validateStringArray(policy, key, { allowEmpty = true } = {}) {
 }
 function validatePolicySchema(policy) {
   const knownFields = new Set([
-    'marker', 'profile', 'packageDirs', 'missingScript', 'allowedPaths', 'blockedPaths', 'highRiskPaths',
+    'marker', 'profile', 'packageDirs', 'missingScript', 'allowedPaths', 'blockedPaths', 'envExampleSafeKeyOnlyException', 'highRiskPaths',
     'diffScope', 'riskKeywords', 'riskLevelBehavior', 'failOnNewWarnings', 'knownRiskExpiry',
     'knownRisks', 'harnessPrAllowedPaths', 'harnessPrBlockedPaths', 'implementationCompanionTestPaths', 'testFixtureCompanionPaths', 'fixtureContractRepairPaths', 'fixtureContractRepairRules', 'harnessPrMode', 'prTypes', 'prTypePolicies', 'checks',
     'reviewerSelection', 'testWeakening', 'domainInvariants', 'dependencyAudit', 'securitySensitiveTerms', 'manualConfirmationPolicy', 'coverageIntent', 'codeAuditPolicy',
@@ -660,6 +665,27 @@ function validatePolicySchema(policy) {
   validateStringArray(policy, 'packageDirs');
   validateStringArray(policy, 'allowedPaths');
   validateStringArray(policy, 'blockedPaths');
+  if (policy.envExampleSafeKeyOnlyException !== undefined) {
+    const cfg = policy.envExampleSafeKeyOnlyException;
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
+      addPolicyViolation('policy.envExampleSafeKeyOnlyException.invalid', 'envExampleSafeKeyOnlyException must be an object.');
+    } else {
+      for (const key of Object.keys(cfg)) {
+        if (!['enabled', 'path', 'requireManualConfirmation'].includes(key)) {
+          addPolicyViolation('policy.envExampleSafeKeyOnlyException.unknownField', `envExampleSafeKeyOnlyException contains unknown field: ${key}`, 'warning');
+        }
+      }
+      if (cfg.enabled !== undefined && typeof cfg.enabled !== 'boolean') {
+        addPolicyViolation('policy.envExampleSafeKeyOnlyException.enabled.invalid', 'envExampleSafeKeyOnlyException.enabled must be boolean.');
+      }
+      if (cfg.path !== undefined && typeof cfg.path !== 'string') {
+        addPolicyViolation('policy.envExampleSafeKeyOnlyException.path.invalid', 'envExampleSafeKeyOnlyException.path must be a string.');
+      }
+      if (cfg.requireManualConfirmation !== undefined && typeof cfg.requireManualConfirmation !== 'boolean') {
+        addPolicyViolation('policy.envExampleSafeKeyOnlyException.requireManualConfirmation.invalid', 'envExampleSafeKeyOnlyException.requireManualConfirmation must be boolean.');
+      }
+    }
+  }
   validateStringArray(policy, 'highRiskPaths');
   validateStringArray(policy, 'harnessPrAllowedPaths');
   validateStringArray(policy, 'harnessPrBlockedPaths');
@@ -855,6 +881,10 @@ function readPolicy() {
     return {
       ...defaultPolicy,
       ...policy,
+      envExampleSafeKeyOnlyException: {
+        ...defaultPolicy.envExampleSafeKeyOnlyException,
+        ...(policy.envExampleSafeKeyOnlyException || {}),
+      },
       diffScope: { ...defaultPolicy.diffScope, ...(policy.diffScope || {}) },
       riskKeywords: Array.isArray(policy.riskKeywords)
         ? { ...defaultPolicy.riskKeywords, R2: [...defaultPolicy.riskKeywords.R2, ...policy.riskKeywords] }
@@ -1621,6 +1651,22 @@ function changedPathList() {
   }
   return [...paths].sort();
 }
+function diffBaseCandidates() {
+  const raw = [
+    process.env.CODEX_PR_BASE_SHA,
+    process.env.GITHUB_BASE_SHA,
+    process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : '',
+    process.env.GITHUB_BASE_REF || '',
+    'origin/main',
+    'main',
+  ].filter(Boolean);
+  const out = [];
+  for (const ref of raw) {
+    if (out.includes(ref)) continue;
+    if (git(['rev-parse', '--verify', ref]).trim()) out.push(ref);
+  }
+  return out;
+}
 function parseDiffText(text, records) {
   let current = null;
   for (const line of String(text || '').split(/\r?\n/)) {
@@ -1685,6 +1731,52 @@ function collectDiffRecords() {
     else addWarning({ id: 'codeAudit.performanceBudget', message: 'Code audit performance budget was exceeded; partial audit summary used.' });
   }
   return out;
+}
+function collectSinglePathDiffRecord(file) {
+  const target = normalizePath(file);
+  const records = new Map();
+  parseDiffText(git(['diff', '--unified=0', '--no-ext-diff', '--', target]), records);
+  parseDiffText(git(['diff', '--cached', '--unified=0', '--no-ext-diff', '--', target]), records);
+  for (const base of diffBaseCandidates()) {
+    const out = git(['diff', '--unified=0', '--no-ext-diff', `${base}...HEAD`, '--', target]);
+    parseDiffText(out, records);
+    if (out.trim()) break;
+  }
+  if (!records.has(target) && fs.existsSync(target)) {
+    const status = git(['ls-files', '--others', '--exclude-standard', '--', target]).trim();
+    if (status) ensureRecord(records, target).added.push(...fs.readFileSync(target, 'utf8').split(/\r?\n/));
+  }
+  return records.get(target) || { file: target, added: [], removed: [] };
+}
+function envExampleSafeKeyOnlyStatus(policy, file) {
+  const cfg = policy.envExampleSafeKeyOnlyException || {};
+  const configuredPath = normalizePath(cfg.path || '.env.example');
+  const target = normalizePath(file);
+  if (cfg.enabled !== true || configuredPath !== '.env.example' || target !== configuredPath) {
+    return { safe: false, reason: 'not_configured_exception_path' };
+  }
+  const record = collectSinglePathDiffRecord(target);
+  const added = (record.added || []).map((line) => String(line || ''));
+  const removed = (record.removed || []).map((line) => String(line || ''));
+  const addedContent = added.filter((line) => line.trim());
+  const removedContent = removed.filter((line) => line.trim());
+  if (!addedContent.length) return { safe: false, reason: 'no_added_safe_keys' };
+  if (removedContent.length) return { safe: false, reason: 'removed_or_modified_lines' };
+  for (const line of addedContent) {
+    const trimmed = line.trim();
+    if (trimmed !== line || !/^[A-Z][A-Z0-9_]*=$/.test(trimmed)) {
+      return { safe: false, reason: 'non_empty_or_invalid_assignment' };
+    }
+    if (looksSecretLike(trimmed) || looksEndpointLike(trimmed) || /(?:[A-Za-z]:\\|\/(?:home|Users)\/|https?:\/\/|\b(?:curl|bash|sh|powershell|export)\b)/i.test(trimmed)) {
+      return { safe: false, reason: 'unsafe_value_shape' };
+    }
+  }
+  return {
+    safe: true,
+    reason: 'safe_key_only',
+    keyCount: addedContent.length,
+    requireManualConfirmation: cfg.requireManualConfirmation !== false,
+  };
 }
 function lineText(record) {
   return [...record.added, ...record.removed, record.file].join('\n').toLowerCase();
@@ -2068,6 +2160,18 @@ function classifyDiff(policy, knownRisks) {
       else addWarning({ ...item, known: warningKnown(item, knownRisks) });
     }
     if (pathMatches(file, blocked)) {
+      const envExampleException = envExampleSafeKeyOnlyStatus(policy, file);
+      if (envExampleException.safe) {
+        bumpRisk('R3');
+        if (envExampleException.requireManualConfirmation) addHumanReviewReason('diff.envExampleSafeKeyOnly');
+        addWarning({
+          id: 'diff.envExampleSafeKeyOnly',
+          path: file,
+          message: 'Changed .env.example contains safe empty key additions only and still requires manual confirmation.',
+          known: warningKnown({ id: 'diff.envExampleSafeKeyOnly', path: file }, knownRisks),
+        });
+        continue;
+      }
       report.changedPaths.blocked.push(file);
       bumpRisk('R3');
       const action = policy.diffScope?.blocked || 'fail';
