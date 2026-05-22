@@ -820,6 +820,8 @@ import {
   assertProductionGoPackageSafe,
   assertProductionGoPackageSafeSummarySafe,
   assertSubtitleEvidenceCollectorContractSafe,
+  assertSubtitleSafeCollectorHelperSafe,
+  assertSubtitleSafeCollectorSummarySafe,
   assertTtsEvidenceCollectorContractSafe,
   assertYoutubeEvidenceCollectorContractSafe,
   createBridgeEvidenceCollectorContract,
@@ -840,6 +842,9 @@ import {
   createProductionGoPackageReadinessResult,
   createProductionGoPackageSafeSummary,
   createSubtitleEvidenceCollectorContract,
+  createSubtitleSafeCollectorEvidenceIntake,
+  createSubtitleSafeCollectorHelper,
+  createSubtitleSafeCollectorSummary,
   createTtsEvidenceCollectorContract,
   createYoutubeEvidenceCollectorContract,
 } from "../src/services/dev/liveEvidenceAudit.js";
@@ -43842,6 +43847,257 @@ const tests = [
         "connection string",
         "password",
         "URL value",
+        "OS command",
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "subtitle collector source allowlist status hash audit reference priority1 safe summary blocks fixture pass dry run stale missing sync",
+    () => {
+      const helper = createSubtitleSafeCollectorHelper({
+        safeSubtitleStatus: {
+          engine_status: "ready",
+          sync_status: "fresh",
+          safe_area_status: "ready",
+          line_break_status: "ready",
+          rtl_status: "ready",
+          evidence_timestamp_ms: 900,
+          source_type: "real_probe",
+          status_hash: "1234567890abcdef",
+          audit_reference: "audit_subtitle_safe",
+        },
+        nowMs: 1000,
+      });
+      const summary = createSubtitleSafeCollectorSummary({ helper });
+      const evidence = createSubtitleSafeCollectorEvidenceIntake({ helper });
+      const compositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [evidence],
+        requiredComponents: ["subtitle"],
+        nowMs: 1000,
+        componentThresholdsMs: { subtitle: 10_000 },
+        criticalBlockers: ["priority1_runtime_waiting"],
+      });
+      const helperFields = [
+        "schema",
+        "component_label",
+        "collector_label",
+        "status",
+        "freshness",
+        "source_type",
+        "engine_status",
+        "sync_status",
+        "safe_area_status",
+        "line_break_status",
+        "rtl_status",
+        "evidence_timestamp_ms",
+        "status_hash",
+        "audit_reference",
+        "blocker_count",
+        "safe_next_action_label",
+        "redaction_status",
+        "production_go_allowed",
+        "priority1_status",
+      ];
+
+      assertSubtitleSafeCollectorHelperSafe(helper);
+      assertSubtitleSafeCollectorSummarySafe(summary);
+      assertRealEvidenceIntakeSafe(evidence);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+      assert.deepEqual(Object.keys(helper).sort(), [...helperFields].sort());
+      assert.equal(helper.component_label, "subtitle");
+      assert.equal(helper.collector_label, "subtitle_evidence_collector");
+      assert.equal(helper.source_type, "real_probe");
+      assert.equal(helper.engine_status, "ready");
+      assert.equal(helper.sync_status, "fresh");
+      assert.equal(helper.safe_area_status, "ready");
+      assert.equal(helper.line_break_status, "ready");
+      assert.equal(helper.rtl_status, "ready");
+      assert.equal(helper.status_hash, "1234567890abcdef");
+      assert.equal(helper.audit_reference, "audit_subtitle_safe");
+      assert.equal(helper.production_go_allowed, false);
+      assert.equal(helper.priority1_status, "BLOCKED");
+      assert.deepEqual(Object.keys(evidence).sort(), [
+        "audit_reference",
+        "collector",
+        "component",
+        "evidence_timestamp_ms",
+        "schema",
+        "source_type",
+        "status",
+        "status_hash",
+      ]);
+      assert.equal(evidence.component, "subtitle");
+      assert.equal(evidence.collector, "subtitle_evidence_collector");
+      assert.equal(evidence.source_type, "real_probe");
+      assert.equal(evidence.status_hash, "1234567890abcdef");
+      assert.equal(evidence.audit_reference, "audit_subtitle_safe");
+      assert.equal(compositor.package_status, "blocked");
+      assert.equal(compositor.production_go_allowed, false);
+      assert.equal(compositor.priority1_status, "BLOCKED");
+
+      const fixturePass = createSubtitleSafeCollectorHelper({
+        safeSubtitleStatus: {
+          engine_status: "ready",
+          sync_status: "fresh",
+          safe_area_status: "ready",
+          line_break_status: "ready",
+          rtl_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        fixturePass: true,
+        nowMs: 1000,
+      });
+      const dryRun = createSubtitleSafeCollectorHelper({
+        safeSubtitleStatus: {
+          engine_status: "ready",
+          sync_status: "fresh",
+          safe_area_status: "ready",
+          line_break_status: "ready",
+          rtl_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "dry_run",
+        dryRunOnly: true,
+        nowMs: 1000,
+      });
+      const staleSync = createSubtitleSafeCollectorHelper({
+        safeSubtitleStatus: {
+          engine_status: "ready",
+          sync_status: "stale",
+          safe_area_status: "ready",
+          line_break_status: "ready",
+          rtl_status: "ready",
+          evidence_timestamp_ms: 1,
+          status_hash: "fedcba9876543210",
+          audit_reference: "audit_subtitle_stale",
+        },
+        nowMs: 1000,
+        freshnessThresholdMs: 1,
+      });
+      const missingSync = createSubtitleSafeCollectorHelper({
+        safeSubtitleStatus: {
+          engine_status: "ready",
+          sync_status: "runtime_waiting",
+          safe_area_status: "ready",
+          line_break_status: "ready",
+          rtl_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const missingEngine = createSubtitleSafeCollectorHelper({
+        safeSubtitleStatus: {
+          engine_status: "runtime_waiting",
+          sync_status: "fresh",
+          safe_area_status: "ready",
+          line_break_status: "ready",
+          rtl_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+
+      for (const blockedHelper of [
+        fixturePass,
+        dryRun,
+        staleSync,
+        missingSync,
+        missingEngine,
+      ]) {
+        assertSubtitleSafeCollectorHelperSafe(blockedHelper);
+        assert.equal(blockedHelper.status, "blocked");
+        assert.equal(blockedHelper.production_go_allowed, false);
+        assert.equal(blockedHelper.priority1_status, "BLOCKED");
+        assert.equal(
+          createSubtitleSafeCollectorEvidenceIntake({ helper: blockedHelper }),
+          null
+        );
+      }
+      assert.equal(fixturePass.blocker_count > 0, true);
+      assert.equal(dryRun.source_type, "dry_run");
+      assert.notEqual(staleSync.freshness, "fresh");
+      assert.equal(missingSync.sync_status, "runtime_waiting");
+      assert.equal(missingEngine.engine_status, "runtime_waiting");
+      assert.throws(
+        () =>
+          createSubtitleSafeCollectorHelper({
+            safeSubtitleStatus: { raw_subtitle_payload: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createSubtitleSafeCollectorHelper({
+            safeSubtitleStatus: { raw_subtitle_text: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createSubtitleSafeCollectorHelper({
+            safeSubtitleStatus: { memory_id: "subtitle_memory_reference" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createSubtitleSafeCollectorHelper({
+            safeSubtitleStatus: { candidate: "subtitle_candidate_reference" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createSubtitleSafeCollectorHelper({
+            safeSubtitleStatus: { obs_command: "blocked" },
+          }),
+        ContractError
+      );
+
+      const serialized = JSON.stringify({
+        helper,
+        summary,
+        evidence,
+        compositor,
+        fixturePass,
+        dryRun,
+        staleSync,
+        missingSync,
+        missingEngine,
+      });
+      assert.equal(serialized.includes('"raw_subtitle_payload":'), false);
+      assert.equal(serialized.includes('"raw_subtitle_text":'), false);
+      assert.equal(serialized.includes('"raw_subtitle_body":'), false);
+      assert.equal(serialized.includes('"memory_id":'), false);
+      assert.equal(serialized.includes('"candidate":'), false);
+      assert.equal(serialized.includes('"obs_command":'), false);
+      assert.equal(serialized.includes('"raw_payload":'), false);
+      assert.equal(serialized.includes('"raw_command":'), false);
+      assert.equal(serialized.includes('"raw_response":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "raw path",
+        "local absolute path",
+        "raw subtitle payload",
+        "raw subtitle text",
+        "raw subtitle body",
+        "raw evidence body",
+        "raw memory",
+        "memory id",
+        "raw candidate",
+        "raw relationship record",
+        "private viewer id",
+        "relationship score",
+        "world_command",
+        "inner_intent",
+        "connection string",
+        "password",
+        "URL value",
+        "OBS command",
         "OS command",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
