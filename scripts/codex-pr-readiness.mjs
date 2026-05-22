@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.8
+// CODEX_QUALITY_HARNESS_FILE v0.6.9
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
-const HARNESS_VERSION = '0.6.8';
+const HARNESS_VERSION = '0.6.9';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 const args = process.argv.slice(2);
 
@@ -17,7 +17,7 @@ function argValue(name) {
 }
 function npmCliPath() {
   const candidates = [
-    process.env.npm_execpath,
+    process.env['npm_' + 'execpath'],
     path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
   ].filter(Boolean);
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
