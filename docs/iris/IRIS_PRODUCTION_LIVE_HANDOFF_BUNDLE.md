@@ -95,6 +95,12 @@ It must not start a worker, start an engine, mutate OBS, connect to DB, poll You
 
 The bundle can only summarize safe status, safe references, safe blocker counts, and safe next action labels.
 
+## Production Go/No-Go Package Reference
+
+The production go/no-go package is governed by `docs/iris/IRIS_PRODUCTION_GO_NOGO_PACKAGE.md`.
+It can reference the live handoff bundle by safe id, safe status, blocker counts, and redaction status only.
+It must not treat bundle generation as production go, fresh evidence collection, or owner final approval.
+
 ## Forbidden Fields
 
 The bundle, public summaries, admin summaries, reports, debug summaries, and go/no-go packages must not contain:
