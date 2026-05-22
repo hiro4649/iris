@@ -804,6 +804,8 @@ import {
 } from "../src/services/dev/productionLiveReadiness.js";
 import {
   assertBridgeEvidenceCollectorContractSafe,
+  assertBridgeSafeCollectorHelperSafe,
+  assertBridgeSafeCollectorSummarySafe,
   assertDbEvidenceCollectorContractSafe,
   assertEvidenceCollectorFixturePackSafe,
   assertGameEvidenceCollectorContractSafe,
@@ -821,6 +823,9 @@ import {
   assertTtsEvidenceCollectorContractSafe,
   assertYoutubeEvidenceCollectorContractSafe,
   createBridgeEvidenceCollectorContract,
+  createBridgeSafeCollectorEvidenceIntake,
+  createBridgeSafeCollectorHelper,
+  createBridgeSafeCollectorSummary,
   createDbEvidenceCollectorContract,
   createEvidenceCollectorFixturePack,
   createGameEvidenceCollectorContract,
@@ -43681,6 +43686,163 @@ const tests = [
         "raw cue",
         "raw audio",
         "vendor diagnostics",
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "bridge collector source allowlist status hash audit reference priority1 safe summary blocks node_repl fixture pass stale missing heartbeat",
+    () => {
+      const helper = createBridgeSafeCollectorHelper({
+        safeBridgeStatus: {
+          worker_heartbeat: "fresh",
+          worker_status: "ready",
+          evidence_timestamp_ms: 900,
+          source_type: "real_probe",
+          status_hash: "abcdef0123456789",
+          audit_reference: "audit_bridge_safe",
+        },
+        nowMs: 1000,
+      });
+      const summary = createBridgeSafeCollectorSummary({ helper });
+      const evidence = createBridgeSafeCollectorEvidenceIntake({ helper });
+      const compositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [evidence],
+        requiredComponents: ["bridge"],
+        nowMs: 1000,
+        componentThresholdsMs: { bridge: 10_000 },
+        criticalBlockers: ["priority1_runtime_waiting"],
+      });
+
+      assertBridgeSafeCollectorHelperSafe(helper);
+      assertBridgeSafeCollectorSummarySafe(summary);
+      assertRealEvidenceIntakeSafe(evidence);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+      assert.equal(helper.component_label, "bridge");
+      assert.equal(helper.collector_label, "bridge_evidence_collector");
+      assert.equal(helper.source_type, "real_probe");
+      assert.equal(helper.worker_heartbeat, "fresh");
+      assert.equal(helper.worker_status, "ready");
+      assert.equal(helper.status_hash, "abcdef0123456789");
+      assert.equal(helper.audit_reference, "audit_bridge_safe");
+      assert.equal(helper.production_go_allowed, false);
+      assert.equal(helper.priority1_status, "BLOCKED");
+      assert.equal(evidence.component, "bridge");
+      assert.equal(evidence.collector, "bridge_evidence_collector");
+      assert.equal(evidence.source_type, "real_probe");
+      assert.equal(evidence.status_hash, "abcdef0123456789");
+      assert.equal(evidence.audit_reference, "audit_bridge_safe");
+      assert.equal(compositor.package_status, "blocked");
+      assert.equal(compositor.production_go_allowed, false);
+      assert.equal(compositor.priority1_status, "BLOCKED");
+
+      const nodeReplOnly = createBridgeSafeCollectorHelper({
+        safeBridgeStatus: {
+          worker_heartbeat: "fresh",
+          worker_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "node_repl_only",
+        nodeReplOnly: true,
+        nowMs: 1000,
+      });
+      const fixturePass = createBridgeSafeCollectorHelper({
+        safeBridgeStatus: {
+          worker_heartbeat: "fresh",
+          worker_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        fixturePass: true,
+        nowMs: 1000,
+      });
+      const staleHeartbeat = createBridgeSafeCollectorHelper({
+        safeBridgeStatus: {
+          worker_heartbeat: "stale",
+          worker_status: "ready",
+          evidence_timestamp_ms: 1,
+          status_hash: "fedcba9876543210",
+          audit_reference: "audit_bridge_stale",
+        },
+        nowMs: 1000,
+        freshnessThresholdMs: 1,
+      });
+      const missingHeartbeat = createBridgeSafeCollectorHelper({
+        safeBridgeStatus: {
+          worker_heartbeat: "runtime_waiting",
+          worker_status: "runtime_waiting",
+          evidence_timestamp_ms: 0,
+        },
+        nowMs: 1000,
+      });
+
+      for (const blockedHelper of [
+        nodeReplOnly,
+        fixturePass,
+        staleHeartbeat,
+        missingHeartbeat,
+      ]) {
+        assertBridgeSafeCollectorHelperSafe(blockedHelper);
+        assert.equal(blockedHelper.status, "blocked");
+        assert.equal(blockedHelper.production_go_allowed, false);
+        assert.equal(blockedHelper.priority1_status, "BLOCKED");
+        assert.equal(
+          createBridgeSafeCollectorEvidenceIntake({ helper: blockedHelper }),
+          null
+        );
+      }
+      assert.equal(nodeReplOnly.source_type, "node_repl_only");
+      assert.equal(fixturePass.blocker_count > 0, true);
+      assert.notEqual(staleHeartbeat.freshness, "fresh");
+      assert.equal(missingHeartbeat.evidence_timestamp_ms, 0);
+      assert.throws(
+        () =>
+          createBridgeSafeCollectorHelper({
+            safeBridgeStatus: { raw_bridge_payload: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createBridgeSafeCollectorHelper({
+            safeBridgeStatus: { worker_status: "https://blocked.example" },
+          }),
+        ContractError
+      );
+
+      const serialized = JSON.stringify({
+        helper,
+        summary,
+        evidence,
+        compositor,
+        nodeReplOnly,
+        fixturePass,
+        staleHeartbeat,
+        missingHeartbeat,
+      });
+      assert.equal(serialized.includes('"raw_bridge_payload":'), false);
+      assert.equal(serialized.includes('"raw_payload":'), false);
+      assert.equal(serialized.includes('"raw_command":'), false);
+      assert.equal(serialized.includes('"raw_response":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "raw path",
+        "local absolute path",
+        "raw bridge payload",
+        "raw evidence body",
+        "raw memory",
+        "raw candidate",
+        "raw relationship record",
+        "private viewer id",
+        "relationship score",
+        "world_command",
+        "inner_intent",
+        "connection string",
+        "password",
+        "URL value",
+        "OS command",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
       }

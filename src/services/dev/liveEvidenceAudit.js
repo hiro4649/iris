@@ -5,6 +5,7 @@ import {
 } from "./freshEvidenceEnvelope.js";
 import {
   assertRealEvidenceIntakeSafe,
+  classifyRealEvidenceSourceType,
   classifyRealEvidenceFreshness,
   createRealEvidenceIntake,
 } from "./realEvidenceIntake.js";
@@ -363,6 +364,24 @@ const BRIDGE_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "worker_heartbeat",
   "worker_status",
   "evidence_timestamp_ms",
+]);
+const BRIDGE_SAFE_COLLECTOR_HELPER_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "collector_label",
+  "status",
+  "freshness",
+  "source_type",
+  "worker_heartbeat",
+  "worker_status",
+  "evidence_timestamp_ms",
+  "status_hash",
+  "audit_reference",
+  "blocker_count",
+  "safe_next_action_label",
+  "redaction_status",
+  "production_go_allowed",
+  "priority1_status",
 ]);
 const TTS_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "schema",
@@ -3753,6 +3772,230 @@ export function assertBridgeEvidenceCollectorContractSafe(
     throw new ContractError(`${context}: invalid contract`);
   }
   assertNoUnsafeAuditMaterial(contract, context);
+}
+
+function safeBridgeCollectorStatusHash(value) {
+  const normalized = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-f0-9]/gu, "")
+    .slice(0, 128);
+  return /^[a-f0-9]{16,128}$/u.test(normalized) ? normalized : "0".repeat(16);
+}
+
+function bridgeSafeCollectorInputValue(source, ...keys) {
+  for (const key of keys) {
+    if (source && Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+export function createBridgeSafeCollectorHelper({
+  safeBridgeStatus = {},
+  workerHeartbeat,
+  workerStatus,
+  evidenceTimestampMs,
+  sourceType,
+  statusHash,
+  auditReference,
+  nowMs = Date.now(),
+  freshnessThresholdMs = 10_000,
+  nodeReplOnly = false,
+  fixturePass = false,
+  dryRunOnly = false,
+  safeNextActionLabel = "collect_bridge_worker_evidence",
+} = {}) {
+  if (!safeBridgeStatus || typeof safeBridgeStatus !== "object" || Array.isArray(safeBridgeStatus)) {
+    throw new ContractError("bridge safe collector helper: safe status object required");
+  }
+  assertNoUnsafeAuditMaterial(safeBridgeStatus, "bridge safe collector input");
+
+  const sourceClassification = classifyRealEvidenceSourceType(
+    sourceType ?? bridgeSafeCollectorInputValue(safeBridgeStatus, "source_type") ?? "real_probe"
+  );
+  const source_type = safePacketLabel(sourceClassification.source_type);
+  const contract = createBridgeEvidenceCollectorContract({
+    workerHeartbeat:
+      workerHeartbeat ??
+      bridgeSafeCollectorInputValue(
+        safeBridgeStatus,
+        "worker_heartbeat",
+        "workerHeartbeat",
+        "heartbeat_status"
+      ) ??
+      "runtime_waiting",
+    workerStatus:
+      workerStatus ??
+      bridgeSafeCollectorInputValue(
+        safeBridgeStatus,
+        "worker_status",
+        "workerStatus",
+        "bridge_status",
+        "status"
+      ) ??
+      "runtime_waiting",
+    evidenceTimestampMs:
+      evidenceTimestampMs ??
+      bridgeSafeCollectorInputValue(
+        safeBridgeStatus,
+        "evidence_timestamp_ms",
+        "evidenceTimestampMs",
+        "lastSeenMs",
+        "last_seen_ms"
+      ) ??
+      0,
+  });
+  const hash = safeBridgeCollectorStatusHash(
+    statusHash ?? bridgeSafeCollectorInputValue(safeBridgeStatus, "status_hash")
+  );
+  const audit_reference = safePacketLabel(
+    auditReference ??
+      bridgeSafeCollectorInputValue(safeBridgeStatus, "audit_reference") ??
+      "bridge_audit_pending"
+  );
+  const sourceAllowed =
+    sourceClassification.allowed && source_type === sourceClassification.source_type;
+  const nonRealSource =
+    nodeReplOnly ||
+    fixturePass ||
+    dryRunOnly ||
+    ["node_repl_only", "fixture", "fixture_pass", "dry_run", "dry_run_only"].includes(
+      source_type
+    );
+  const evidence =
+    sourceAllowed && !nonRealSource && contract.evidence_timestamp_ms > 0
+      ? createRealEvidenceIntake({
+          component: "bridge",
+          status: contract.worker_status,
+          evidenceTimestampMs: contract.evidence_timestamp_ms,
+          sourceType: source_type,
+          collector: "bridge_evidence_collector",
+          statusHash: hash,
+          auditReference: audit_reference,
+        })
+      : null;
+  const freshness = evidence
+    ? classifyRealEvidenceFreshness({
+        evidence,
+        nowMs,
+        componentThresholdsMs: { bridge: freshnessThresholdMs },
+      })
+    : "runtime_waiting";
+  const blockers = [];
+  if (!sourceAllowed) blockers.push("source_type_blocked");
+  if (nodeReplOnly || source_type === "node_repl_only") blockers.push("node_repl_only");
+  if (fixturePass || ["fixture", "fixture_pass"].includes(source_type)) {
+    blockers.push("fixture_only");
+  }
+  if (dryRunOnly || ["dry_run", "dry_run_only"].includes(source_type)) {
+    blockers.push("dry_run_only");
+  }
+  if (contract.evidence_timestamp_ms === 0) blockers.push("worker_heartbeat_missing");
+  if (freshness !== "fresh") blockers.push("worker_heartbeat_not_fresh");
+  if (contract.worker_heartbeat !== "fresh") blockers.push("worker_heartbeat_not_fresh_label");
+  if (contract.worker_status !== "ready") blockers.push("worker_status_not_ready");
+
+  const helper = {
+    schema: "iris_bridge_safe_collector_helper_v1",
+    component_label: "bridge",
+    collector_label: "bridge_evidence_collector",
+    status: blockers.length === 0 ? "ready" : "blocked",
+    freshness,
+    source_type,
+    worker_heartbeat: contract.worker_heartbeat,
+    worker_status: contract.worker_status,
+    evidence_timestamp_ms: contract.evidence_timestamp_ms,
+    status_hash: hash,
+    audit_reference,
+    blocker_count: blockers.length,
+    safe_next_action_label: safePacketLabel(safeNextActionLabel),
+    redaction_status: "redacted",
+    production_go_allowed: false,
+    priority1_status: "BLOCKED",
+  };
+  assertBridgeSafeCollectorHelperSafe(helper);
+  return helper;
+}
+
+export function assertBridgeSafeCollectorHelperSafe(
+  helper,
+  context = "bridge safe collector helper"
+) {
+  if (!helper || typeof helper !== "object" || Array.isArray(helper)) {
+    throw new ContractError(`${context}: helper required`);
+  }
+  for (const field of Object.keys(helper)) {
+    if (
+      !BRIDGE_SAFE_COLLECTOR_HELPER_FIELDS.has(field) ||
+      UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe helper field`, {
+        field,
+      });
+    }
+  }
+  if (
+    ![
+      "iris_bridge_safe_collector_helper_v1",
+      "iris_bridge_safe_collector_summary_v1",
+    ].includes(helper.schema) ||
+    helper.component_label !== "bridge" ||
+    helper.collector_label !== "bridge_evidence_collector" ||
+    !["ready", "blocked"].includes(helper.status) ||
+    !["fresh", "stale", "attention", "runtime_waiting"].includes(helper.freshness) ||
+    !SAFE_LABEL_PATTERN.test(helper.source_type) ||
+    !isSafeCollectorStatus(helper.worker_heartbeat) ||
+    !isSafeCollectorStatus(helper.worker_status) ||
+    !Number.isInteger(helper.evidence_timestamp_ms) ||
+    helper.evidence_timestamp_ms < 0 ||
+    !/^[a-f0-9]{16,128}$/u.test(helper.status_hash) ||
+    !SAFE_LABEL_PATTERN.test(helper.audit_reference) ||
+    !Number.isInteger(helper.blocker_count) ||
+    helper.blocker_count < 0 ||
+    !SAFE_LABEL_PATTERN.test(helper.safe_next_action_label) ||
+    helper.redaction_status !== "redacted" ||
+    helper.production_go_allowed !== false ||
+    helper.priority1_status !== "BLOCKED"
+  ) {
+    throw new ContractError(`${context}: invalid helper`);
+  }
+  assertNoUnsafeAuditMaterial(helper, context);
+}
+
+export function createBridgeSafeCollectorSummary({ helper } = {}) {
+  assertBridgeSafeCollectorHelperSafe(helper, "bridge safe collector summary input");
+  const summary = {
+    ...helper,
+    schema: "iris_bridge_safe_collector_summary_v1",
+  };
+  assertBridgeSafeCollectorSummarySafe(summary);
+  return summary;
+}
+
+export function assertBridgeSafeCollectorSummarySafe(
+  summary,
+  context = "bridge safe collector summary"
+) {
+  assertBridgeSafeCollectorHelperSafe(summary, context);
+}
+
+export function createBridgeSafeCollectorEvidenceIntake({ helper } = {}) {
+  assertBridgeSafeCollectorHelperSafe(helper, "bridge safe collector evidence intake input");
+  if (helper.blocker_count > 0 || helper.evidence_timestamp_ms === 0) {
+    return null;
+  }
+  const evidence = createRealEvidenceIntake({
+    component: helper.component_label,
+    status: helper.worker_status,
+    evidenceTimestampMs: helper.evidence_timestamp_ms,
+    sourceType: helper.source_type,
+    collector: helper.collector_label,
+    statusHash: helper.status_hash,
+    auditReference: helper.audit_reference,
+  });
+  assertRealEvidenceIntakeSafe(evidence, "bridge safe collector evidence intake");
+  return evidence;
 }
 
 export function createTtsEvidenceCollectorContract({
