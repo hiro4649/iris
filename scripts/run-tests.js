@@ -802,17 +802,30 @@ import {
   createRuntimeProductionFreshArtifactRequirement,
 } from "../src/services/dev/productionLiveReadiness.js";
 import {
+  assertProductionEvidenceSafeProvenanceCompositorSafe,
+  assertProductionEvidenceSafeProvenanceSummarySafe,
   assertProductionGoPackageFixturePackSafe,
   assertProductionGoPackageNoRealGoGateSafe,
   assertProductionGoPackageReadinessResultSafe,
   assertProductionGoPackageSafe,
   assertProductionGoPackageSafeSummarySafe,
+  createProductionEvidenceSafeProvenanceCompositor,
+  createProductionEvidenceSafeProvenanceSummary,
   createProductionGoPackage,
   createProductionGoPackageFixturePack,
   createProductionGoPackageNoRealGoGate,
   createProductionGoPackageReadinessResult,
   createProductionGoPackageSafeSummary,
 } from "../src/services/dev/liveEvidenceAudit.js";
+import {
+  assertRealEvidenceBodyScanSafe,
+  assertRealEvidenceFixturePackSafe,
+  assertRealEvidenceIntakeSafe,
+  classifyRealEvidenceSourceType,
+  createRealEvidenceFixturePack,
+  createRealEvidenceIntake,
+  scanRealEvidenceBodyForUnsafeValues,
+} from "../src/services/dev/realEvidenceIntake.js";
 import { assertSpecManifestSafe, createSpecManifest } from "../src/services/dev/specManifest.js";
 import { assertReplayEntrySafe, createJsonlReplayLog } from "../src/services/dev/replayLog.js";
 import {
@@ -42952,6 +42965,163 @@ const tests = [
         '"relationship_score":',
         '"world_command":',
         '"inner_intent":',
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "real evidence safe provenance source allowlist status hash audit reference handoff go-no-go production go priority1 safe summary keeps blocked",
+    () => {
+      const evidence = createRealEvidenceIntake({
+        component: "bridge_worker",
+        status: "ready",
+        evidenceTimestampMs: 900,
+        sourceType: "real_probe",
+        collector: "local_probe",
+        statusHash: "abcdef0123456789",
+        auditReference: "audit_entry_001",
+      });
+      const acceptedScan = scanRealEvidenceBodyForUnsafeValues({
+        component_label: "bridge_worker",
+        status: "ready",
+      });
+      const source = classifyRealEvidenceSourceType("real_probe");
+      const fixtureSource = classifyRealEvidenceSourceType("fixture");
+      const fixturePack = createRealEvidenceFixturePack();
+      const compositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [evidence],
+        requiredComponents: ["bridge_worker", "tts_engine"],
+        nowMs: 1000,
+        componentThresholdsMs: { bridge_worker: 10_000 },
+        criticalBlockers: ["priority1_runtime_waiting"],
+        degradedComponents: ["tts_engine"],
+        rollbackPlanStatus: "missing",
+      });
+      const summary = createProductionEvidenceSafeProvenanceSummary({
+        compositor,
+      });
+      const fixtureOnlyCompositor =
+        createProductionEvidenceSafeProvenanceCompositor({
+          realEvidence: [evidence],
+          requiredComponents: ["bridge_worker"],
+          nowMs: 1000,
+          componentThresholdsMs: { bridge_worker: 10_000 },
+          fixtureOnly: true,
+        });
+
+      assertRealEvidenceIntakeSafe(evidence);
+      assertRealEvidenceBodyScanSafe(acceptedScan);
+      assertRealEvidenceFixturePackSafe(fixturePack);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+      assertProductionEvidenceSafeProvenanceSummarySafe(summary);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(fixtureOnlyCompositor);
+
+      assert.equal(source.allowed, true);
+      assert.equal(source.real_evidence, true);
+      assert.equal(fixtureSource.allowed, false);
+      assert.equal(fixtureSource.real_evidence, false);
+      assert.equal(fixturePack.pack_status, "pass");
+      assert.equal(fixturePack.fixture_as_real_status, "rejected");
+      assert.throws(
+        () =>
+          createRealEvidenceIntake({
+            component: "bridge_worker",
+            status: "ready",
+            evidenceTimestampMs: 1000,
+            sourceType: "fixture",
+            collector: "fixture_pack",
+            statusHash: "fedcba0987654321",
+            auditReference: "audit_entry_002",
+          }),
+        ContractError
+      );
+      assert.throws(
+        () => scanRealEvidenceBodyForUnsafeValues({ token: "unsafe" }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createProductionEvidenceSafeProvenanceCompositor({
+            realEvidence: [
+              {
+                ...evidence,
+                raw_evidence_body: "unsafe",
+              },
+            ],
+          }),
+        ContractError
+      );
+
+      const reference = compositor.safe_provenance_references[0];
+      assert.equal(reference.component_label, "bridge_worker");
+      assert.equal(reference.source_type, "real_probe");
+      assert.equal(reference.collector_role, "local_probe");
+      assert.equal(reference.freshness, "fresh");
+      assert.equal(reference.status_hash, "abcdef0123456789");
+      assert.equal(reference.audit_reference, "audit_entry_001");
+      assert.equal(compositor.handoff_bundle_reference.handoff_ready, false);
+      assert.equal(compositor.handoff_bundle_reference.bundle_status, "BLOCKED");
+      assert.equal(
+        compositor.handoff_bundle_reference.missing_required.includes(
+          "required_component_missing"
+        ),
+        true
+      );
+      assert.equal(compositor.go_no_go_package_reference.package_status, "blocked");
+      assert.equal(
+        compositor.go_no_go_package_reference.production_go_allowed,
+        false
+      );
+      assert.equal(
+        compositor.go_no_go_package_reference.degraded_mode_available,
+        true
+      );
+      assert.equal(compositor.package_status, "blocked");
+      assert.equal(compositor.production_go_allowed, false);
+      assert.equal(compositor.priority1_status, "BLOCKED");
+      assert.equal(compositor.missing_required.includes("owner_confirmation"), true);
+      assert.equal(compositor.missing_required.includes("emergency_stop"), true);
+      assert.equal(compositor.missing_required.includes("audit_readiness"), true);
+      assert.equal(compositor.missing_required.includes("rollback_plan"), true);
+      assert.equal(
+        compositor.missing_required.includes("critical_blocker"),
+        true
+      );
+      assert.equal(
+        fixtureOnlyCompositor.missing_required.includes("fixture_only_not_go"),
+        true
+      );
+      assert.equal(summary.evidence_reference_count, 1);
+      assert.equal(summary.package_status, "blocked");
+      assert.equal(summary.production_go_allowed, false);
+      assert.equal(summary.priority1_status, "BLOCKED");
+
+      const serialized = JSON.stringify({
+        compositor,
+        summary,
+        fixtureOnlyCompositor,
+      });
+      assert.equal(serialized.includes('"real_evidence":'), false);
+      assert.equal(serialized.includes('"raw_evidence_body":'), false);
+      assert.equal(serialized.includes('"raw_payload":'), false);
+      assert.equal(serialized.includes('"raw_command":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "raw path",
+        "local absolute path",
+        "raw payload",
+        "raw command",
+        "raw evidence body",
+        "raw memory",
+        "raw candidate",
+        "raw relationship record",
+        "private viewer id",
+        "relationship score",
+        "world_command",
+        "inner_intent",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
       }
