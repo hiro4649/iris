@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.6.9
+# CODEX_QUALITY_HARNESS_FILE v0.7.0
 name: quality-gate
 
 on:
@@ -46,11 +46,12 @@ jobs:
             (cd "$dir" && npm install --no-package-lock)
           done < "$RUNNER_TEMP/codex-package-dirs.txt"
       - name: Run local quality gate
-        shell: bash
         env:
           CODEX_REQUIRE_NPM: "1"
           CODEX_RUN_PROFILE_REQUIRED_CHECKS: "1"
           CODEX_QUALITY_REPORT: "json"
+
+          CODEX_OPENAI_METHOD_REPORT: "json"
           CODEX_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           CODEX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CODEX_PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
@@ -58,86 +59,4 @@ jobs:
           CODEX_REPOSITORY: ${{ github.repository }}
           CODEX_GITHUB_API_AVAILABLE: "1"
           CODEX_GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          set +e
-          node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json"
-          gate_exit=$?
-          set -e
-          node - "$RUNNER_TEMP/codex-quality-gate.json" "$gate_exit" <<'NODE'
-          const fs = require('fs');
-          const file = process.argv[2];
-          const gateExit = Number(process.argv[3] || 0);
-          const raw = fs.readFileSync(file, 'utf8');
-          const report = JSON.parse(raw);
-
-          const requiredPass = [
-            'secretScan',
-            'prSeparationStatus',
-            'versionConsistency',
-            'policySchema',
-            'profileRequiredChecks',
-            'agentMemoryPolicyStatus',
-            'skillLifecyclePolicyStatus',
-            'curatorSuggestionStatus',
-            'selfEvolutionPolicyStatus',
-            'safeArtifactValidation',
-            'outputShapeStatus',
-          ];
-
-          const failures = [];
-          for (const key of requiredPass) {
-            const status = report[key]?.status || 'missing';
-            console.log(`${key}: ${status}`);
-            if (status !== 'pass') failures.push(`${key}=${status}`);
-          }
-
-          for (const check of report.localGate?.checksRun || []) {
-            console.log(`check ${check.name}: ${check.status}`);
-            if (check.status !== 'pass' && check.status !== 'skipped') {
-              failures.push(`check.${check.name}=${check.status}`);
-            }
-          }
-
-          const cannotOverride = report.manualConfirmationStatus?.cannotOverrideFailures || [];
-          const manualRequired = report.manualConfirmationStatus?.status === 'manual_confirmation_required';
-          const acceptableManualExit = gateExit !== 0 && manualRequired && cannotOverride.length === 0;
-
-          console.log(`report.status: ${report.status}`);
-          console.log(`mergeReady: ${report.mergeReady}`);
-          console.log(`manualConfirmationStatus: ${report.manualConfirmationStatus?.status || 'missing'}`);
-          console.log(`profileRequiredChecks: ${report.profileRequiredChecks?.status || 'missing'}`);
-
-          const unsafe = [
-            /rawDiff/i,
-            /rawLogs/i,
-            /secretValue/i,
-            /endpointValue/i,
-            /privatePath/i,
-            /"payload"\s*:/i,
-            /productionData/i,
-            /personalData/i,
-            /(?:https?|postgres(?:ql)?|mysql|mongodb):\/\/\S+/i,
-            /\b(?:gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/,
-            /-----BEGIN [^-]+PRIVATE KEY-----/i,
-          ];
-          if (unsafe.some((pattern) => pattern.test(raw))) {
-            failures.push('unsafe output pattern detected');
-          }
-
-          if (gateExit !== 0 && !acceptableManualExit) {
-            failures.push(`gate_exit=${gateExit}`);
-          }
-          if (cannotOverride.length) {
-            failures.push('non-overridable manual confirmation failure present');
-          }
-
-          if (failures.length) {
-            console.error('Quality gate verification failed:');
-            for (const item of failures) console.error(`- ${item}`);
-            process.exit(1);
-          }
-          if (acceptableManualExit) {
-            console.log('quality gate requires manual confirmation before merge');
-          }
-          NODE
+        run: node scripts/codex-local-quality-gate.mjs

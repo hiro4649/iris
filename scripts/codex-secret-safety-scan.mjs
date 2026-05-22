@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.6.9
+// CODEX_QUALITY_HARNESS_FILE v0.7.0
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -42,7 +42,7 @@ const highConfidenceChecks = [
   ['aws_access_key', /\bAKIA[0-9A-Z]{16}\b/],
   ['jwt_like', /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/],
   ['slack_token_like', /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/],
-  ['package_manager_token_like', /\bnpm_[A-Za-z0-9]{20,}\b/],
+  ['npm_token_like', /\bnpm_[A-Za-z0-9]{20,}\b/],
   ['gitlab_token_like', /\bglpat-[A-Za-z0-9_-]{20,}\b/],
 ];
 const assignmentPattern = /(?:^|[^\w])([A-Z0-9_]*(?:PRIVATE_KEY|JWT_SECRET|DATABASE_URL|DB_URL|API_KEY|ACCESS_TOKEN|SECRET_KEY|SLACK_TOKEN|NPM_TOKEN|GITLAB_TOKEN|TOKEN|PASSWORD|CREDENTIAL|CLIENT_SECRET)[A-Z0-9_]*)\s*=\s*([^\r\n]*)/ig;
