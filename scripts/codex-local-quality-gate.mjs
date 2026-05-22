@@ -2712,9 +2712,17 @@ function packagePath(file) {
 function lockfilePath(file) {
   return /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(file);
 }
+function exactPathSet(paths, expected) {
+  const normalizedPaths = [...new Set(paths.map(normalizePath))].sort();
+  const normalizedExpected = [...new Set((expected || []).map(normalizePath))].sort();
+  if (!normalizedPaths.length || normalizedPaths.length !== normalizedExpected.length) return false;
+  return normalizedPaths.every((file, index) => file === normalizedExpected[index]);
+}
 function inferPrType(policy, changed = changedPathList()) {
   const paths = changed.map(normalizePath).sort();
   const harnessPaths = policy.harnessPrAllowedPaths || defaultPolicy.harnessPrAllowedPaths;
+  const harnessFixtureRepairPaths = policy.prTypes?.['harness-fixture-repair']?.allowedPaths || [];
+  const harnessFixtureRepairOnly = exactPathSet(paths, harnessFixtureRepairPaths);
   const docsOnly = paths.length > 0 && paths.every((file) => /^docs\//.test(file) || /^[^/]+\.(md|txt)$/.test(file));
   const testPaths = policy.coverageIntent?.testPaths || defaultPolicy.coverageIntent.testPaths;
   const testOnly = paths.length > 0 && paths.every((file) => pathMatches(file, testPaths));
@@ -2731,6 +2739,9 @@ function inferPrType(policy, changed = changedPathList()) {
   const reasons = [];
   if (!paths.length) {
     reasons.push('no changed paths detected');
+  } else if (harnessFixtureRepairOnly) {
+    inferredType = 'harness-fixture-repair';
+    reasons.push('changed paths exactly match harness fixture repair scope');
   } else if (harnessOnly) {
     inferredType = 'harness';
     reasons.push('all changed paths match harness scope');
@@ -5605,7 +5616,8 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
       ]
     : [];
   const companionTestChanges = changed.filter((file) => pathMatches(file, companionTestPaths));
-  const implementationLike = changed.filter((file) => !pathMatches(file, harnessAllowed) && !/^docs\//.test(file) && !pathMatches(file, testPatterns) && !dependencyFiles.has(file));
+  const nonImplementationAllowed = prTypePolicy?.allowImplementationChanges === false && typeAllowed.length ? typeAllowed : [];
+  const implementationLike = changed.filter((file) => !pathMatches(file, nonImplementationAllowed) && !pathMatches(file, harnessAllowed) && !/^docs\//.test(file) && !pathMatches(file, testPatterns) && !dependencyFiles.has(file));
   const extraIssues = [];
   if (prTypePolicy) {
     if (prTypePolicy.allowPackageChanges === false && packageChanges.length) extraIssues.push({ id: 'prType.packageChange', paths: packageChanges });
@@ -5646,6 +5658,15 @@ function evaluatePrSeparation(policy, changed, knownRisks) {
       id: 'prType.fixtureContractRepair',
       message: 'Fixture contract repair PR requires R3 manual review and must not weaken validators or negative cases.',
       known: warningKnown({ id: 'prType.fixtureContractRepair' }, knownRisks),
+    });
+  }
+  if (prTypeName === 'harness-fixture-repair') {
+    bumpRisk(prTypePolicy?.riskLevel || 'R3');
+    addHumanReviewReason('prType.harnessFixtureRepair');
+    addWarning({
+      id: 'prType.harnessFixtureRepair',
+      message: 'Harness fixture repair PR requires R3 manual review and must stay within the exact policy, gate script, and fixture scope.',
+      known: warningKnown({ id: 'prType.harnessFixtureRepair' }, knownRisks),
     });
   }
   if (!enabled && prTypeName !== 'unknown') addWarning({ id: 'prType.policyMissing', message: 'Inferred PR type has no explicit policy.' });

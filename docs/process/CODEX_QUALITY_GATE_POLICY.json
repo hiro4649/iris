@@ -138,6 +138,46 @@
       "testFixtureCompanionPaths": [],
       "highRiskPaths": []
     },
+    "harness-fixture-repair": {
+      "allowedPaths": [
+        "docs/process/CODEX_QUALITY_GATE_POLICY.json",
+        "scripts/codex-local-quality-gate.mjs",
+        "scripts/codex-openai-method-gate.mjs",
+        "scripts/run-tests.js"
+      ],
+      "blockedPaths": [
+        "src/",
+        "docs/iris/",
+        ".env.example",
+        "package.json",
+        "AGENTS.md",
+        "IRIS_SPEC_AUTHORITY.md",
+        ".github/",
+        "docs/process/CODEX_HARNESS_MANIFEST.json"
+      ],
+      "requiredChecks": [],
+      "requiredReviewerSkills": [
+        "test-coverage-reviewer",
+        "iris-boundary-reviewer"
+      ],
+      "requiredReviewers": [
+        "test-coverage-reviewer",
+        "iris-boundary-reviewer"
+      ],
+      "requiresHumanReview": true,
+      "riskLevel": "R3",
+      "allowPackageChanges": false,
+      "allowLockfileChanges": false,
+      "allowImplementationChanges": false,
+      "companionTestPaths": [],
+      "testFixtureCompanionPaths": [],
+      "highRiskPaths": [
+        "scripts/run-tests.js",
+        "scripts/codex-local-quality-gate.mjs",
+        "scripts/codex-openai-method-gate.mjs",
+        "docs/process/CODEX_QUALITY_GATE_POLICY.json"
+      ]
+    },
     "implementation": {
       "allowedPaths": [],
       "blockedPaths": [],

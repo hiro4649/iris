@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   assertProductionAttentionDigestSafe,
   createProductionAttentionDigestReport,
@@ -21845,6 +21846,53 @@ const tests = [
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
       const parseQualityReport = (result) => JSON.parse(result.stdout);
+      const methodGateCompliantBody = [
+        "Scope:",
+        "HARNESS070-ENV-POLICY1 exact .env.example safe-key-only exception restore under harness v0.7.0",
+        "",
+        "PR type:",
+        "harness-fixture-repair",
+        "",
+        "Goal:",
+        "Restore npm test after Codex Harness v0.7.0 with the exact safe-key-only exception.",
+        "",
+        "Context:",
+        "Harness v0.7.0 adds OpenAI Codex Method Gate and this repair keeps policy strict.",
+        "",
+        "Files or scope:",
+        "docs/process/CODEX_QUALITY_GATE_POLICY.json",
+        "scripts/codex-local-quality-gate.mjs",
+        "scripts/codex-openai-method-gate.mjs",
+        "scripts/run-tests.js",
+        "",
+        "Constraints:",
+        "Do not loosen quality gate. Do not disable method gate. Do not relax blocked paths.",
+        "",
+        "Done when:",
+        "npm test PASS and remote quality gate success.",
+        "",
+        "Plan-first status:",
+        "Done. Plan-first was used before coding because this is an R3 harness repair.",
+        "",
+        "Environment setup:",
+        "Verified main, PR state, harness v0.7.0, and clean worktree before changes.",
+        "",
+        "Testing and review:",
+        "run-iris-evals PASS. lint-iris-docs PASS. secret scan PASS. npm test PASS.",
+        "",
+        "Residual risks:",
+        "No production readiness change. Future harness changes may need another fixture update.",
+        "",
+        "Best of N used or skipped:",
+        "Skipped with reason. This is a narrow restoration of an approved safe-key-only exception.",
+        "",
+        "Code review status:",
+        "Reviewed. Self-reviewed against docs/process/code_review.md and v0.7.0 method policy.",
+        "",
+        "Human confirmation needed:",
+        "yes. R3 confirmation is required for harness and policy-adjacent change.",
+        "",
+      ].join("\n");
       const harnessManifest = JSON.parse(
         readFileSync(join(sourceRoot, "docs/process/CODEX_HARNESS_MANIFEST.json"), "utf8")
       );
@@ -21907,13 +21955,129 @@ const tests = [
             CODEX_GITHUB_API_AVAILABLE: "0",
             CODEX_PR_BASE_SHA: baseSha,
             CODEX_PR_HEAD_SHA: headSha,
+            CODEX_PR_BODY: methodGateCompliantBody,
             CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
           },
         });
         return { result, report: parseQualityReport(result) };
       };
+      const setupMethodGateSupportRepo = () => {
+        rmSync(tempDir, { recursive: true, force: true });
+        mkdirSync(tempDir, { recursive: true });
+        mkdirSync(join(tempDir, "scripts"), { recursive: true });
+        mkdirSync(join(tempDir, "docs", "process"), { recursive: true });
+        for (const supportFile of methodGateSupportFiles) {
+          writeFromRepo(supportFile);
+        }
+      };
+      const runCurrentPrBodyApiCase = () => {
+        setupMethodGateSupportRepo();
+        const eventPath = join(tempDir, "event.json");
+        writeFileSync(eventPath, JSON.stringify({ pull_request: { body: "Goal:\nstale event body" } }), "utf8");
+        const mockFetchPath = join(tempDir, "mock-fetch.mjs");
+        writeFileSync(
+          mockFetchPath,
+          [
+            "globalThis.fetch = async () => ({",
+            "  ok: true,",
+            "  async json() { return { body: process.env.TEST_CURRENT_PR_BODY || '' }; },",
+            "});",
+          ].join("\n"),
+          "utf8"
+        );
+        const result = run("node", ["--import", pathToFileURL(mockFetchPath).href, "scripts/codex-openai-method-gate.mjs"], {
+          cwd: tempDir,
+          env: {
+            CODEX_OPENAI_METHOD_REPORT: "json",
+            CODEX_GITHUB_API_AVAILABLE: "1",
+            CODEX_EVENT_NAME: "pull_request",
+            CODEX_REPOSITORY: "owner/repo",
+            CODEX_PR_NUMBER: "68",
+            CODEX_GITHUB_TOKEN: "redacted-test-token",
+            GITHUB_EVENT_PATH: eventPath,
+            TEST_CURRENT_PR_BODY: methodGateCompliantBody,
+          },
+        });
+        return JSON.parse(result.stdout);
+      };
+      const runHarnessFixtureScopeCase = ({ extraFileName = "", explicitPrType = "" } = {}) => {
+        rmSync(tempDir, { recursive: true, force: true });
+        mkdirSync(tempDir, { recursive: true });
+        mkdirSync(join(tempDir, "scripts"), { recursive: true });
+        mkdirSync(join(tempDir, "docs", "process"), { recursive: true });
+        writeFromRepo("scripts/codex-local-quality-gate.mjs");
+        writeFromRepo("scripts/codex-manual-confirmation-verify.mjs");
+        writeFromRepo("scripts/codex-secret-safety-scan.mjs");
+        writeFromRepo("scripts/run-tests.js");
+        writeFromRepo("docs/process/CODEX_QUALITY_GATE_POLICY.json");
+        for (const supportFile of methodGateSupportFiles) {
+          writeFromRepo(supportFile);
+        }
+        writeFileSync(join(tempDir, "package.json"), '{"type":"module","scripts":{}}\n', "utf8");
+        run("git", ["init", "-b", "main"], { cwd: tempDir });
+        const baseSha = commitAll("base");
+        run("git", ["update-ref", "refs/remotes/origin/main", baseSha], { cwd: tempDir });
+        writeFileSync(
+          join(tempDir, "docs/process/CODEX_QUALITY_GATE_POLICY.json"),
+          readFileSync(join(tempDir, "docs/process/CODEX_QUALITY_GATE_POLICY.json"), "utf8").replace(/^\{\r?\n/, "{\n  \n"),
+          "utf8"
+        );
+        writeFileSync(
+          join(tempDir, "scripts/codex-local-quality-gate.mjs"),
+          `${readFileSync(join(tempDir, "scripts/codex-local-quality-gate.mjs"), "utf8")}\n// harness fixture repair scope test\n`,
+          "utf8"
+        );
+        writeFileSync(
+          join(tempDir, "scripts/codex-openai-method-gate.mjs"),
+          `${readFileSync(join(tempDir, "scripts/codex-openai-method-gate.mjs"), "utf8")}\n// harness fixture repair scope test\n`,
+          "utf8"
+        );
+        writeFileSync(
+          join(tempDir, "scripts/run-tests.js"),
+          `${readFileSync(join(tempDir, "scripts/run-tests.js"), "utf8")}\n// harness fixture repair scope test\n`,
+          "utf8"
+        );
+        if (extraFileName) {
+          const extraPath = join(tempDir, extraFileName);
+          mkdirSync(join(extraPath, ".."), { recursive: true });
+          writeFileSync(extraPath, "SAFE_EMPTY_KEY=\n", "utf8");
+        }
+        const headSha = commitAll("harness fixture repair scope change");
+        const manualJson = JSON.stringify({
+          profile: "iris",
+          riskLevel: "R3",
+          headSha,
+          confirmedAt: "2026-05-21T00:00:00Z",
+          confirmedByRole: "test-reviewer",
+          reviewedItems: ["harness-fixture-repair scope policy"],
+          qualityGateNotWeakened: true,
+          riskLevelNotLowered: true,
+          residualRisks: ["test fixture only"],
+          manualBranchProtectionAcknowledged: true,
+        });
+        const env = {
+          CODEX_QUALITY_REPORT: "json",
+          CODEX_SKIP_NPM_CHECKS: "1",
+          CODEX_GITHUB_API_AVAILABLE: "0",
+          CODEX_PR_BASE_SHA: baseSha,
+          CODEX_PR_HEAD_SHA: headSha,
+          CODEX_PR_BODY: methodGateCompliantBody,
+          CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
+        };
+        if (explicitPrType) env.CODEX_PR_TYPE = explicitPrType;
+        const result = run("node", ["scripts/codex-local-quality-gate.mjs"], {
+          cwd: tempDir,
+          expectSuccess: false,
+          env,
+        });
+        return { result, report: parseQualityReport(result) };
+      };
 
       try {
+        const currentBody = runCurrentPrBodyApiCase();
+        assert.equal(currentBody.status, "pass");
+        assert.equal(currentBody.prBodySource, "GITHUB_API_CURRENT_PR");
+
         const safe = runCase({
           fileName: ".env.example",
           addedLine: "SAFE_EMPTY_KEY=",
@@ -21925,6 +22089,30 @@ const tests = [
         assert.equal(safe.report.secretScan.status, "pass");
         assert.equal(safe.report.methodSupportStatus.status, "pass");
         assert.notEqual(safe.report.openaiCodexMethodStatus.status, "fail");
+        assert.equal(safe.report.openaiCodexMethodStatus.prBodySource, "CODEX_PR_BODY");
+
+        const harnessFixtureRepair = runHarnessFixtureScopeCase();
+        assert.equal(harnessFixtureRepair.result.status, 0);
+        assert.equal(harnessFixtureRepair.report.prTypeInference.inferredType, "harness-fixture-repair");
+        assert.equal(harnessFixtureRepair.report.prScopeAgreement.status, "pass");
+        assert.equal(harnessFixtureRepair.report.prSeparationStatus.status, "pass");
+
+        const harnessGeneral = runHarnessFixtureScopeCase({ explicitPrType: "harness" });
+        assert.notEqual(harnessGeneral.result.status, 0);
+        assert.equal(harnessGeneral.report.prSeparationStatus.status, "fail");
+        assert.equal(
+          harnessGeneral.report.prSeparationStatus.blocked.includes("scripts/run-tests.js"),
+          true
+        );
+
+        for (const extraFileName of ["src/blocked.js", "docs/iris/blocked.md", ".env.example", "package.json", "AGENTS.md"]) {
+          const outOfScope = runHarnessFixtureScopeCase({
+            extraFileName,
+            explicitPrType: "harness-fixture-repair",
+          });
+          assert.notEqual(outOfScope.result.status, 0, extraFileName);
+          assert.equal(outOfScope.report.prSeparationStatus.status, "fail", extraFileName);
+        }
 
         const unsafeCases = [
           { fileName: ".env", addedLine: "SAFE_EMPTY_KEY=", reason: "real env file" },
