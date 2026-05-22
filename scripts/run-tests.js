@@ -791,6 +791,7 @@ import {
   assertRuntimeProductionFreshArtifactRequirementSafe,
   createLiveHandoffFinalPreflightSummary,
   createLiveProductionGoNoGoClassifier,
+  createEmergencyStopAuditRequirement,
   createProductionLiveReadinessReport,
   createProductionLiveBlockedUntilConfirmedGate,
   createProductionLiveFixtureVsRealGate,
@@ -800,6 +801,18 @@ import {
   createPriority1BlockerPersistenceState,
   createRuntimeProductionFreshArtifactRequirement,
 } from "../src/services/dev/productionLiveReadiness.js";
+import {
+  assertProductionGoPackageFixturePackSafe,
+  assertProductionGoPackageNoRealGoGateSafe,
+  assertProductionGoPackageReadinessResultSafe,
+  assertProductionGoPackageSafe,
+  assertProductionGoPackageSafeSummarySafe,
+  createProductionGoPackage,
+  createProductionGoPackageFixturePack,
+  createProductionGoPackageNoRealGoGate,
+  createProductionGoPackageReadinessResult,
+  createProductionGoPackageSafeSummary,
+} from "../src/services/dev/liveEvidenceAudit.js";
 import { assertSpecManifestSafe, createSpecManifest } from "../src/services/dev/specManifest.js";
 import { assertReplayEntrySafe, createJsonlReplayLog } from "../src/services/dev/replayLog.js";
 import {
@@ -42748,6 +42761,195 @@ const tests = [
         '"private_viewer_id":',
         '"relationship_score":',
         '"command":',
+        '"world_command":',
+        '"inner_intent":',
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "production go go-no-go package go no-go package package status degraded mode rollback owner final safe summary keeps no-go blocked",
+    () => {
+      const goPackage = createProductionGoPackage();
+      const readiness = createProductionGoPackageReadinessResult({ goPackage });
+      const summary = createProductionGoPackageSafeSummary({ goPackage });
+      const noRealGoGate = createProductionGoPackageNoRealGoGate({ goPackage });
+      const fixturePack = createProductionGoPackageFixturePack();
+      const rollbackMissing = createProductionGoPackageReadinessResult({
+        goPackage: createProductionGoPackage({
+          evidenceBundleStatus: "ready",
+          ownerConfirmationStatus: "confirmed",
+          emergencyStopStatus: "fresh",
+          auditStatus: "ready",
+          rollbackPlanStatus: "missing",
+          blockerStatus: "none",
+        }),
+      });
+      const ownerFinalMissing = createProductionGoPackageReadinessResult({
+        goPackage: createProductionGoPackage({
+          evidenceBundleStatus: "ready",
+          ownerConfirmationStatus: "pending",
+          emergencyStopStatus: "fresh",
+          auditStatus: "ready",
+          rollbackPlanStatus: "ready",
+          blockerStatus: "none",
+        }),
+      });
+      const emergencyStopMissing = createProductionGoPackageReadinessResult({
+        goPackage: createProductionGoPackage({
+          evidenceBundleStatus: "ready",
+          ownerConfirmationStatus: "confirmed",
+          emergencyStopStatus: "missing",
+          auditStatus: "ready",
+          rollbackPlanStatus: "ready",
+          blockerStatus: "none",
+        }),
+      });
+      const auditTrailMissing = createProductionGoPackageReadinessResult({
+        goPackage: createProductionGoPackage({
+          evidenceBundleStatus: "ready",
+          ownerConfirmationStatus: "confirmed",
+          emergencyStopStatus: "fresh",
+          auditStatus: "missing",
+          rollbackPlanStatus: "ready",
+          blockerStatus: "none",
+        }),
+      });
+      const staleEvidence = createProductionGoPackageReadinessResult({
+        goPackage: createProductionGoPackage({
+          evidenceBundleStatus: "stale",
+          ownerConfirmationStatus: "confirmed",
+          emergencyStopStatus: "fresh",
+          auditStatus: "ready",
+          rollbackPlanStatus: "ready",
+          blockerStatus: "none",
+        }),
+      });
+      const blockerOpen = createProductionGoPackageReadinessResult({
+        goPackage: createProductionGoPackage({
+          evidenceBundleStatus: "ready",
+          ownerConfirmationStatus: "confirmed",
+          emergencyStopStatus: "fresh",
+          auditStatus: "ready",
+          rollbackPlanStatus: "ready",
+          blockerStatus: "open",
+        }),
+      });
+      const auditEntry = createEmergencyStopAuditRequirement({
+        operationType: "dry_run",
+        resultStatus: "recorded",
+        eventAtMs: 1000,
+      }).audit_entry;
+      const degradedClassifier = createLiveProductionGoNoGoClassifier({
+        componentStatuses: {
+          bridge: "degraded",
+          tts: "ready",
+          live2d: "ready",
+          subtitle: "ready",
+          obs: "ready",
+          db: "ready",
+          youtube: "ready",
+          game: "ready",
+        },
+        freshEvidenceReady: true,
+        ownerConfirmed: true,
+        emergencyStopConfirmed: true,
+        auditReadinessReady: true,
+        auditEntry,
+        ownerConfirmationCheckedAtMs: 1000,
+        ownerConfirmationExpiresAtMs: 2000,
+      });
+      const priority1 = createPriority1BlockerPersistenceState({
+        fixturePassed: true,
+      });
+
+      assertProductionGoPackageSafe(goPackage);
+      assertProductionGoPackageReadinessResultSafe(readiness);
+      assertProductionGoPackageSafeSummarySafe(summary);
+      assertProductionGoPackageNoRealGoGateSafe(noRealGoGate);
+      assertProductionGoPackageFixturePackSafe(fixturePack);
+      assertLiveProductionGoNoGoClassifierSafe(degradedClassifier);
+      assertPriority1BlockerPersistenceStateSafe(priority1);
+
+      assert.equal(noRealGoGate.package_generated, true);
+      assert.equal(noRealGoGate.real_go_executed, false);
+      assert.equal(noRealGoGate.production_go_claimed, false);
+      assert.equal(noRealGoGate.status, "not_executed");
+      assert.equal(readiness.package_status, "blocked");
+      assert.equal(summary.package_status, "blocked");
+      assert.equal(readiness.missing_required.includes("evidence_bundle"), true);
+      assert.equal(readiness.missing_required.includes("owner_confirmation"), true);
+      assert.equal(readiness.missing_required.includes("emergency_stop"), true);
+      assert.equal(readiness.missing_required.includes("audit"), true);
+      assert.equal(readiness.missing_required.includes("rollback_plan"), true);
+      assert.equal(readiness.missing_required.includes("blocker_status"), true);
+      assert.equal(staleEvidence.package_status, "blocked");
+      assert.equal(staleEvidence.missing_required.includes("evidence_bundle"), true);
+      assert.equal(ownerFinalMissing.package_status, "blocked");
+      assert.equal(
+        ownerFinalMissing.missing_required.includes("owner_confirmation"),
+        true
+      );
+      assert.equal(emergencyStopMissing.package_status, "blocked");
+      assert.equal(
+        emergencyStopMissing.missing_required.includes("emergency_stop"),
+        true
+      );
+      assert.equal(auditTrailMissing.package_status, "blocked");
+      assert.equal(auditTrailMissing.missing_required.includes("audit"), true);
+      assert.equal(rollbackMissing.package_status, "blocked");
+      assert.equal(rollbackMissing.missing_required.includes("rollback_plan"), true);
+      assert.equal(blockerOpen.package_status, "blocked");
+      assert.equal(blockerOpen.missing_required.includes("blocker_status"), true);
+      assert.equal(degradedClassifier.classifier_status, "no_go");
+      assert.equal(degradedClassifier.degraded_mode_available, true);
+      assert.equal(degradedClassifier.production_go_allowed, false);
+      assert.equal(
+        degradedClassifier.degraded_mode_available ===
+          degradedClassifier.production_go_allowed,
+        false
+      );
+      assert.equal(fixturePack.pack_status, "pass");
+      assert.equal(fixturePack.owner_missing_fixture.fixture_status, "blocked");
+      assert.equal(fixturePack.evidence_stale_fixture.fixture_status, "blocked");
+      assert.equal(fixturePack.emergency_missing_fixture.fixture_status, "blocked");
+      assert.equal(fixturePack.audit_missing_fixture.fixture_status, "blocked");
+      assert.equal(fixturePack.leak_reject_fixture.fixture_status, "contracterror");
+      assert.equal(priority1.priority_label, "priority1");
+      assert.equal(priority1.blocker_status, "BLOCKED");
+      assert.equal(priority1.production_ready_allowed, false);
+      assert.equal(priority1.fixture_pass_ignored, true);
+
+      const serialized = JSON.stringify({
+        goPackage,
+        readiness,
+        summary,
+        noRealGoGate,
+        fixturePack,
+        rollbackMissing,
+        ownerFinalMissing,
+        emergencyStopMissing,
+        auditTrailMissing,
+        staleEvidence,
+        blockerOpen,
+        degradedClassifier,
+        priority1,
+      });
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "raw path",
+        "local absolute path",
+        '"raw_payload":',
+        '"raw_command":',
+        "raw evidence body",
+        '"raw_memory":',
+        '"raw_candidate":',
+        "raw relationship record",
+        '"private_viewer_id":',
+        '"relationship_score":',
         '"world_command":',
         '"inner_intent":',
       ]) {
