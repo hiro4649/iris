@@ -774,6 +774,64 @@ const PRODUCTION_GO_PACKAGE_SAFE_SUMMARY_FIELDS = new Set([
   "required_count",
   "missing_required",
 ]);
+const PRODUCTION_EVIDENCE_SAFE_PROVENANCE_REFERENCE_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "status",
+  "freshness",
+  "source_type",
+  "collector_role",
+  "status_hash",
+  "audit_reference",
+  "evidence_timestamp_ms",
+  "safe_next_action_label",
+]);
+const PRODUCTION_EVIDENCE_SAFE_PROVENANCE_HANDOFF_REFERENCE_FIELDS = new Set([
+  "schema",
+  "bundle_status",
+  "handoff_ready",
+  "blocker_count",
+  "missing_required",
+  "safe_next_action_label",
+]);
+const PRODUCTION_EVIDENCE_SAFE_PROVENANCE_GO_PACKAGE_REFERENCE_FIELDS = new Set([
+  "schema",
+  "package_status",
+  "production_go_allowed",
+  "degraded_mode_available",
+  "final_classifier_status",
+  "blocker_count",
+  "missing_required",
+  "safe_next_action_label",
+]);
+const PRODUCTION_EVIDENCE_SAFE_PROVENANCE_COMPOSITOR_FIELDS = new Set([
+  "schema",
+  "compositor_status",
+  "safe_provenance_references",
+  "handoff_bundle_reference",
+  "go_no_go_package_reference",
+  "bundle_status",
+  "package_status",
+  "blocker_count",
+  "missing_required",
+  "production_go_allowed",
+  "degraded_mode_available",
+  "priority1_status",
+  "safe_next_action_label",
+]);
+const PRODUCTION_EVIDENCE_SAFE_PROVENANCE_SUMMARY_FIELDS = new Set([
+  "schema",
+  "compositor_status",
+  "evidence_reference_count",
+  "bundle_status",
+  "package_status",
+  "blocker_count",
+  "missing_required",
+  "production_go_allowed",
+  "degraded_mode_available",
+  "priority1_status",
+  "safe_next_action_label",
+]);
 const PRODUCTION_GO_PACKAGE_FIXTURE_PACK_FIELDS = new Set([
   "schema",
   "pack_status",
@@ -6526,6 +6584,341 @@ export function assertProductionGoPackageSafeSummarySafe(
   assertNoUnsafeAuditMaterial(summary, context);
 }
 
+export function createProductionEvidenceSafeProvenanceCompositor({
+  realEvidence = [],
+  requiredComponents = [],
+  nowMs = Date.now(),
+  componentThresholdsMs = {},
+  ownerConfirmation,
+  ownerFinalApproval,
+  emergencyStopEvidence,
+  auditReadinessStatus = "missing",
+  auditEntries = [],
+  auditEvent,
+  rollbackPlanStatus = "missing",
+  criticalBlockers = [],
+  degradedComponents = [],
+  fixtureOnly = false,
+  dryRunOnly = false,
+  safeNextActionLabel = "collect_real_evidence",
+} = {}) {
+  const safeAction = safePacketLabel(safeNextActionLabel);
+  const safeRealEvidence = (Array.isArray(realEvidence) ? realEvidence : []).map(
+    (evidence) => {
+      assertRealEvidenceIntakeSafe(
+        evidence,
+        "production evidence safe provenance item"
+      );
+      return evidence;
+    }
+  );
+  const safeRequiredComponents = [
+    ...new Set(
+      (Array.isArray(requiredComponents) ? requiredComponents : [])
+        .map((component) => safeLabel(component))
+        .filter((component) => component !== "unknown")
+    ),
+  ].sort();
+  const safeCriticalBlockers = [
+    ...new Set(
+      (Array.isArray(criticalBlockers) ? criticalBlockers : [])
+        .map((blocker) => safeLabel(blocker))
+        .filter((blocker) => blocker !== "unknown")
+    ),
+  ].sort();
+  const bundle = createLiveHandoffEvidenceBundle({
+    realEvidence: safeRealEvidence,
+    ownerConfirmation,
+    auditReference: safeRealEvidence[0]?.audit_reference ?? "audit_pending",
+    blockerLabels: safeCriticalBlockers,
+  });
+  const completenessGate = createLiveHandoffBundleCompletenessGate({
+    bundle,
+    requiredComponents: safeRequiredComponents,
+  });
+  const freshnessGate = createLiveHandoffBundleFreshnessGate({
+    bundle,
+    nowMs,
+    componentThresholdsMs,
+  });
+  const ownerGate = createLiveHandoffBundleOwnerGate({ bundle, checkedAt: nowMs });
+  let emergencyHandoffReady = false;
+  let emergencyGoReady = false;
+  let emergencyPackageStatus = "missing";
+  if (emergencyStopEvidence) {
+    assertFreshEvidenceEnvelopeSafe(
+      emergencyStopEvidence,
+      "production evidence safe provenance emergency evidence"
+    );
+    const emergencyGate = createLiveHandoffBundleEmergencyGate({
+      emergencyStopEvidence,
+    });
+    const emergencyFinalGate = createLiveGoNoGoEmergencyFinalGate({
+      emergencyStopEvidence,
+    });
+    emergencyHandoffReady = emergencyGate.handoff_ready;
+    emergencyGoReady = emergencyFinalGate.go;
+    emergencyPackageStatus =
+      emergencyStopEvidence.freshness === "fresh" ? "fresh" : "stale";
+  }
+  const auditGate = createLiveHandoffBundleAuditGate({
+    bundle,
+    auditReadinessStatus,
+    auditEntries,
+  });
+  const evaluator = createLiveGoNoGoEvidenceEvaluator({
+    bundle,
+    fixtureOnly,
+    dryRunOnly,
+  });
+  const criticalBlockerGate = createLiveGoNoGoCriticalBlockerGate({
+    components: safeRequiredComponents,
+    criticalBlockers: safeCriticalBlockers,
+  });
+  const degradedModeGate = createLiveGoNoGoDegradedModeGate({
+    go: false,
+    degradedComponents,
+  });
+  const ownerFinalGate = createLiveGoNoGoOwnerFinalApprovalGate({
+    ownerApproval: ownerFinalApproval,
+  });
+  const auditFinalGate = createLiveGoNoGoAuditTrailFinalGate({ auditEvent });
+  const handoffMissingRequired = [
+    ...(completenessGate.handoff_ready ? [] : ["required_component_missing"]),
+    ...(freshnessGate.handoff_ready ? [] : ["fresh_evidence_required"]),
+    ...(ownerGate.handoff_ready ? [] : ["owner_confirmation"]),
+    ...(emergencyHandoffReady ? [] : ["emergency_stop"]),
+    ...(auditGate.handoff_ready ? [] : ["audit_readiness"]),
+    ...(evaluator.go ? [] : [evaluator.blocker_label]),
+    ...(criticalBlockerGate.go ? [] : ["critical_blocker"]),
+  ].filter((label) => label !== "none");
+  const evidenceBundleStatus = !completenessGate.handoff_ready
+    ? "missing"
+    : !freshnessGate.handoff_ready
+      ? "stale"
+      : !evaluator.go
+        ? "blocked"
+        : "ready";
+  const ownerPackageStatus =
+    ownerGate.handoff_ready && ownerFinalGate.go ? "confirmed" : "pending";
+  const auditPackageStatus =
+    auditGate.handoff_ready && auditFinalGate.go ? "ready" : "missing";
+  const rollbackStatus = safePacketLabel(rollbackPlanStatus);
+  const allBlockingClear =
+    handoffMissingRequired.length === 0 &&
+    ownerFinalGate.go &&
+    emergencyGoReady &&
+    auditFinalGate.go &&
+    rollbackStatus === "ready" &&
+    criticalBlockerGate.go;
+  const goPackage = createProductionGoPackage({
+    evidenceBundleStatus,
+    ownerConfirmationStatus: ownerPackageStatus,
+    emergencyStopStatus: emergencyGoReady ? emergencyPackageStatus : "missing",
+    auditStatus: auditPackageStatus,
+    rollbackPlanStatus: rollbackStatus,
+    blockerStatus: allBlockingClear ? "none" : "open",
+  });
+  const packageReadiness = createProductionGoPackageReadinessResult({ goPackage });
+  const missingRequired = uniqueSafeLabels([
+    ...handoffMissingRequired,
+    ...packageReadiness.missing_required,
+    ...(ownerFinalGate.go ? [] : ["owner_final_approval"]),
+    ...(emergencyGoReady ? [] : ["emergency_stop_final"]),
+    ...(auditFinalGate.go ? [] : ["audit_trail"]),
+    ...(rollbackStatus === "ready" ? [] : ["rollback_plan"]),
+  ]);
+  const productionGoAllowed = false;
+  const finalClassifierStatus =
+    packageReadiness.package_status === "ready" ? "no_go" : "blocked";
+  const compositor = {
+    schema: "iris_production_evidence_safe_provenance_compositor_v1",
+    compositor_status: missingRequired.length === 0 ? "no_go" : "blocked",
+    safe_provenance_references: safeRealEvidence.map((evidence) =>
+      createProductionEvidenceSafeProvenanceReference({
+        evidence,
+        nowMs,
+        componentThresholdsMs,
+        safeNextActionLabel: safeAction,
+      })
+    ),
+    handoff_bundle_reference: {
+      schema: "iris_production_evidence_safe_provenance_handoff_reference_v1",
+      bundle_status: bundle.bundle_status,
+      handoff_ready:
+        completenessGate.handoff_ready &&
+        freshnessGate.handoff_ready &&
+        ownerGate.handoff_ready &&
+        emergencyHandoffReady &&
+        auditGate.handoff_ready &&
+        evaluator.go &&
+        criticalBlockerGate.go,
+      blocker_count: handoffMissingRequired.length,
+      missing_required: uniqueSafeLabels(handoffMissingRequired),
+      safe_next_action_label: safeAction,
+    },
+    go_no_go_package_reference: {
+      schema: "iris_production_evidence_safe_provenance_go_package_reference_v1",
+      package_status: packageReadiness.package_status,
+      production_go_allowed: productionGoAllowed,
+      degraded_mode_available: degradedModeGate.degraded_mode_available,
+      final_classifier_status: finalClassifierStatus,
+      blocker_count: packageReadiness.blocker_count,
+      missing_required: [...packageReadiness.missing_required],
+      safe_next_action_label: safeAction,
+    },
+    bundle_status: bundle.bundle_status,
+    package_status: packageReadiness.package_status,
+    blocker_count: missingRequired.length,
+    missing_required: missingRequired,
+    production_go_allowed: productionGoAllowed,
+    degraded_mode_available: degradedModeGate.degraded_mode_available,
+    priority1_status: "BLOCKED",
+    safe_next_action_label: safeAction,
+  };
+  assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+  return compositor;
+}
+
+export function assertProductionEvidenceSafeProvenanceCompositorSafe(
+  compositor,
+  context = "production evidence safe provenance compositor"
+) {
+  if (!compositor || typeof compositor !== "object" || Array.isArray(compositor)) {
+    throw new ContractError(`${context}: compositor required`);
+  }
+  for (const field of Object.keys(compositor)) {
+    if (
+      !PRODUCTION_EVIDENCE_SAFE_PROVENANCE_COMPOSITOR_FIELDS.has(field) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe compositor field`, {
+        field,
+      });
+    }
+  }
+  if (
+    compositor.schema !==
+      "iris_production_evidence_safe_provenance_compositor_v1" ||
+    !["blocked", "no_go"].includes(compositor.compositor_status) ||
+    !Array.isArray(compositor.safe_provenance_references) ||
+    !["collected", "BLOCKED"].includes(compositor.bundle_status) ||
+    !["ready", "blocked"].includes(compositor.package_status) ||
+    !Number.isInteger(compositor.blocker_count) ||
+    compositor.blocker_count < 0 ||
+    !Array.isArray(compositor.missing_required) ||
+    typeof compositor.production_go_allowed !== "boolean" ||
+    typeof compositor.degraded_mode_available !== "boolean" ||
+    compositor.priority1_status !== "BLOCKED" ||
+    !SAFE_LABEL_PATTERN.test(compositor.safe_next_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid compositor`);
+  }
+  for (const reference of compositor.safe_provenance_references) {
+    assertProductionEvidenceSafeProvenanceReferenceSafe(reference, context);
+  }
+  assertProductionEvidenceSafeProvenanceHandoffReferenceSafe(
+    compositor.handoff_bundle_reference,
+    context
+  );
+  assertProductionEvidenceSafeProvenanceGoPackageReferenceSafe(
+    compositor.go_no_go_package_reference,
+    context
+  );
+  for (const label of compositor.missing_required) {
+    if (
+      !SAFE_LABEL_PATTERN.test(label) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_VALUE_PATTERN.test(label)
+    ) {
+      throw new ContractError(`${context}: invalid missing required label`);
+    }
+  }
+  if (
+    compositor.blocker_count !== compositor.missing_required.length ||
+    compositor.production_go_allowed !== false ||
+    compositor.package_status !== compositor.go_no_go_package_reference.package_status ||
+    compositor.bundle_status !== compositor.handoff_bundle_reference.bundle_status
+  ) {
+    throw new ContractError(`${context}: compositor mismatch`);
+  }
+  assertNoUnsafeAuditMaterial(compositor, context);
+}
+
+export function createProductionEvidenceSafeProvenanceSummary({
+  compositor,
+} = {}) {
+  assertProductionEvidenceSafeProvenanceCompositorSafe(
+    compositor,
+    "production evidence safe provenance summary source"
+  );
+  const summary = {
+    schema: "iris_production_evidence_safe_provenance_summary_v1",
+    compositor_status: compositor.compositor_status,
+    evidence_reference_count: compositor.safe_provenance_references.length,
+    bundle_status: compositor.bundle_status,
+    package_status: compositor.package_status,
+    blocker_count: compositor.blocker_count,
+    missing_required: [...compositor.missing_required],
+    production_go_allowed: compositor.production_go_allowed,
+    degraded_mode_available: compositor.degraded_mode_available,
+    priority1_status: compositor.priority1_status,
+    safe_next_action_label: compositor.safe_next_action_label,
+  };
+  assertProductionEvidenceSafeProvenanceSummarySafe(summary);
+  return summary;
+}
+
+export function assertProductionEvidenceSafeProvenanceSummarySafe(
+  summary,
+  context = "production evidence safe provenance summary"
+) {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+    throw new ContractError(`${context}: summary required`);
+  }
+  for (const field of Object.keys(summary)) {
+    if (
+      !PRODUCTION_EVIDENCE_SAFE_PROVENANCE_SUMMARY_FIELDS.has(field) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe summary field`, {
+        field,
+      });
+    }
+  }
+  if (
+    summary.schema !== "iris_production_evidence_safe_provenance_summary_v1" ||
+    !["blocked", "no_go"].includes(summary.compositor_status) ||
+    !Number.isInteger(summary.evidence_reference_count) ||
+    summary.evidence_reference_count < 0 ||
+    !["collected", "BLOCKED"].includes(summary.bundle_status) ||
+    !["ready", "blocked"].includes(summary.package_status) ||
+    !Number.isInteger(summary.blocker_count) ||
+    summary.blocker_count < 0 ||
+    !Array.isArray(summary.missing_required) ||
+    typeof summary.production_go_allowed !== "boolean" ||
+    typeof summary.degraded_mode_available !== "boolean" ||
+    summary.priority1_status !== "BLOCKED" ||
+    !SAFE_LABEL_PATTERN.test(summary.safe_next_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid summary`);
+  }
+  for (const label of summary.missing_required) {
+    if (
+      !SAFE_LABEL_PATTERN.test(label) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_VALUE_PATTERN.test(label)
+    ) {
+      throw new ContractError(`${context}: invalid missing required label`);
+    }
+  }
+  if (
+    summary.blocker_count !== summary.missing_required.length ||
+    summary.production_go_allowed !== false
+  ) {
+    throw new ContractError(`${context}: summary mismatch`);
+  }
+  assertNoUnsafeAuditMaterial(summary, context);
+}
+
 export function createProductionGoPackageFixturePack() {
   const complete = createProductionGoPackageReadinessResult({
     goPackage: createProductionGoPackage({
@@ -7366,6 +7759,166 @@ function createProductionGoPackageItem(label, status) {
     status: safePacketLabel(status),
     label: safePacketLabel(label),
   };
+}
+
+function createProductionEvidenceSafeProvenanceReference({
+  evidence,
+  nowMs,
+  componentThresholdsMs,
+  safeNextActionLabel,
+}) {
+  assertRealEvidenceIntakeSafe(evidence, "production evidence safe reference");
+  const reference = {
+    schema: "iris_production_evidence_safe_provenance_reference_v1",
+    component_label: evidence.component,
+    status: evidence.status,
+    freshness: classifyRealEvidenceFreshness({
+      evidence,
+      nowMs,
+      componentThresholdsMs,
+    }),
+    source_type: evidence.source_type,
+    collector_role: evidence.collector,
+    status_hash: evidence.status_hash,
+    audit_reference: evidence.audit_reference,
+    evidence_timestamp_ms: evidence.evidence_timestamp_ms,
+    safe_next_action_label: safePacketLabel(safeNextActionLabel),
+  };
+  assertProductionEvidenceSafeProvenanceReferenceSafe(reference);
+  return reference;
+}
+
+function assertProductionEvidenceSafeProvenanceReferenceSafe(
+  reference,
+  context = "production evidence safe provenance reference"
+) {
+  if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+    throw new ContractError(`${context}: reference required`);
+  }
+  for (const field of Object.keys(reference)) {
+    if (
+      !PRODUCTION_EVIDENCE_SAFE_PROVENANCE_REFERENCE_FIELDS.has(field) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe reference field`, {
+        field,
+      });
+    }
+  }
+  if (
+    reference.schema !==
+      "iris_production_evidence_safe_provenance_reference_v1" ||
+    !SAFE_LABEL_PATTERN.test(reference.component_label) ||
+    !SAFE_LABEL_PATTERN.test(reference.status) ||
+    !["fresh", "stale", "runtime_waiting", "attention"].includes(
+      reference.freshness
+    ) ||
+    !SAFE_LABEL_PATTERN.test(reference.source_type) ||
+    !SAFE_LABEL_PATTERN.test(reference.collector_role) ||
+    !/^[a-f0-9]{16}$/u.test(reference.status_hash) ||
+    !SAFE_LABEL_PATTERN.test(reference.audit_reference) ||
+    !Number.isInteger(reference.evidence_timestamp_ms) ||
+    reference.evidence_timestamp_ms < 0 ||
+    !SAFE_LABEL_PATTERN.test(reference.safe_next_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid reference`);
+  }
+  assertNoUnsafeAuditMaterial(reference, context);
+}
+
+function assertProductionEvidenceSafeProvenanceHandoffReferenceSafe(
+  reference,
+  context = "production evidence safe provenance handoff reference"
+) {
+  if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+    throw new ContractError(`${context}: reference required`);
+  }
+  for (const field of Object.keys(reference)) {
+    if (
+      !PRODUCTION_EVIDENCE_SAFE_PROVENANCE_HANDOFF_REFERENCE_FIELDS.has(field) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe reference field`, {
+        field,
+      });
+    }
+  }
+  if (
+    reference.schema !==
+      "iris_production_evidence_safe_provenance_handoff_reference_v1" ||
+    !["collected", "BLOCKED"].includes(reference.bundle_status) ||
+    typeof reference.handoff_ready !== "boolean" ||
+    !Number.isInteger(reference.blocker_count) ||
+    reference.blocker_count < 0 ||
+    !Array.isArray(reference.missing_required) ||
+    !SAFE_LABEL_PATTERN.test(reference.safe_next_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid reference`);
+  }
+  for (const label of reference.missing_required) {
+    if (
+      !SAFE_LABEL_PATTERN.test(label) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_VALUE_PATTERN.test(label)
+    ) {
+      throw new ContractError(`${context}: invalid missing required label`);
+    }
+  }
+  if (
+    reference.blocker_count !== reference.missing_required.length ||
+    reference.handoff_ready !== (reference.missing_required.length === 0)
+  ) {
+    throw new ContractError(`${context}: handoff reference mismatch`);
+  }
+  assertNoUnsafeAuditMaterial(reference, context);
+}
+
+function assertProductionEvidenceSafeProvenanceGoPackageReferenceSafe(
+  reference,
+  context = "production evidence safe provenance go package reference"
+) {
+  if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+    throw new ContractError(`${context}: reference required`);
+  }
+  for (const field of Object.keys(reference)) {
+    if (
+      !PRODUCTION_EVIDENCE_SAFE_PROVENANCE_GO_PACKAGE_REFERENCE_FIELDS.has(field) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_FIELD_PATTERN.test(field)
+    ) {
+      throw new ContractError(`${context}: unexpected or unsafe reference field`, {
+        field,
+      });
+    }
+  }
+  if (
+    reference.schema !==
+      "iris_production_evidence_safe_provenance_go_package_reference_v1" ||
+    !["ready", "blocked"].includes(reference.package_status) ||
+    reference.production_go_allowed !== false ||
+    typeof reference.degraded_mode_available !== "boolean" ||
+    !["blocked", "no_go"].includes(reference.final_classifier_status) ||
+    !Number.isInteger(reference.blocker_count) ||
+    reference.blocker_count < 0 ||
+    !Array.isArray(reference.missing_required) ||
+    !SAFE_LABEL_PATTERN.test(reference.safe_next_action_label)
+  ) {
+    throw new ContractError(`${context}: invalid reference`);
+  }
+  for (const label of reference.missing_required) {
+    if (
+      !SAFE_LABEL_PATTERN.test(label) ||
+      LIVE_HANDOFF_OPERATOR_PACKET_UNSAFE_VALUE_PATTERN.test(label)
+    ) {
+      throw new ContractError(`${context}: invalid missing required label`);
+    }
+  }
+  if (
+    reference.blocker_count !== reference.missing_required.length ||
+    reference.final_classifier_status !==
+      (reference.package_status === "ready" ? "no_go" : "blocked")
+  ) {
+    throw new ContractError(`${context}: go package reference mismatch`);
+  }
+  assertNoUnsafeAuditMaterial(reference, context);
 }
 
 function assertProductionGoPackageItemSafe(item, context) {
@@ -8788,6 +9341,16 @@ function safeAuditReadinessStatus(value) {
 function safeDryRunStatus(value) {
   const status = safeLabel(value);
   return ["blocked", "attention", "ready"].includes(status) ? status : "blocked";
+}
+
+function uniqueSafeLabels(labels) {
+  return [
+    ...new Set(
+      (Array.isArray(labels) ? labels : [])
+        .map((label) => safePacketLabel(label))
+        .filter((label) => label !== "unknown")
+    ),
+  ].sort();
 }
 
 function safePacketLabel(value) {
