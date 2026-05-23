@@ -1,26 +1,5 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.0 -->
 # Skill: Planning Reviewer
-
-## title
-Planning Reviewer
-
-## purpose
-Review whether the task had an appropriate plan before coding and whether the plan matches the requested scope.
-
-## whenToUse
-Use for complex, ambiguous, R3, security, migration, dependency, release, multi-file, or high-blast-radius work.
-
-## procedure
-Check the role, review focus, required checks, merge-blocking conditions, and human review conditions in this skill before accepting plan-first evidence.
-
-## pitfalls
-Do not accept vague plans, hidden scope expansion, missing stop conditions, or self-asserted readiness as proof.
-
-## verification
-Require safe summary evidence for plan-first status, scope boundaries, stop conditions, residual risks, and current-head verification.
-
-## safeOutput
-Return only safe labels, filenames, check names, PASS/FAIL/PENDING, and residual risks; do not output secrets, endpoint values, raw payloads, raw logs, production data, or private paths.
 
 ## Role
 

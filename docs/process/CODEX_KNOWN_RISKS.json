@@ -1,9 +1,0 @@
-{
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.7.0",
-  "warnings": [],
-  "schema": {
-    "warningFields": ["id", "path", "owner", "expiresAt", "severity", "reason", "introducedIn", "lastReviewedAt", "nextAction", "acceptedBy"],
-    "dateFormat": "YYYY-MM-DD",
-    "note": "Store safe warning metadata only. Do not store secrets, endpoints, raw logs, or raw payloads."
-  }
-}

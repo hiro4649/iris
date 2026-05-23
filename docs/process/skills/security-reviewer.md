@@ -1,26 +1,5 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.0 -->
 # Skill: Security Reviewer
-
-## title
-Security Reviewer
-
-## purpose
-Review security-sensitive changes, secret safety, unsafe output risk, and non-overridable failures.
-
-## whenToUse
-Use for security, auth, secret, endpoint, production data, R3, release, or dependency-sensitive changes.
-
-## procedure
-Check the role, review focus, required checks, merge-blocking conditions, and human review conditions in this skill before accepting security evidence.
-
-## pitfalls
-Do not accept exposed values, unsafe artifacts, manual override of non-overridable failures, or self-asserted readiness as proof.
-
-## verification
-Require safe summary evidence for secret scan, unsafe output scan, security residual risks, and current-head verification.
-
-## safeOutput
-Return only safe labels, filenames, check names, PASS/FAIL/PENDING, and residual risks; do not output secrets, endpoint values, raw payloads, raw logs, production data, or private paths.
 
 ## Role
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.7.2
+// CODEX_QUALITY_HARNESS_FILE v0.8.0
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
-const HARNESS_VERSION = '0.7.2';
+const HARNESS_VERSION = '0.8.0';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 
 const defaultPolicy = {
@@ -70,46 +70,7 @@ function readJson(file) {
   return JSON.parse(text);
 }
 
-async function readCurrentGithubPrBody() {
-  if (process.env.CODEX_GITHUB_API_AVAILABLE !== '1') return null;
-  if (typeof fetch !== 'function') return null;
-
-  const repository = process.env.CODEX_REPOSITORY || process.env.GITHUB_REPOSITORY || '';
-  const prNumber =
-    process.env.CODEX_PR_NUMBER ||
-    (process.env.GITHUB_REF || '').match(/^refs\/pull\/([0-9]+)\//)?.[1] ||
-    '';
-
-  if (!repository || !prNumber || !repository.includes('/')) return null;
-
-  const [owner, repo] = repository.split('/');
-  try {
-    const headers = {
-      accept: 'application/vnd.github+json',
-      'user-agent': 'iris-codex-method-gate',
-    };
-    const token = process.env.GITHUB_TOKEN || process.env.CODEX_GITHUB_TOKEN;
-    if (token) headers.authorization = `Bearer ${token}`;
-
-    const response = await fetch(
-      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${prNumber}`,
-      { headers }
-    );
-    if (!response?.ok) return null;
-
-    const payload = await response.json();
-    if (typeof payload?.body !== 'string') return null;
-    return {
-      body: payload.body,
-      prContext: true,
-      source: 'GITHUB_API_CURRENT_PR',
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function readPrBody() {
+function readPrBody() {
   if (process.env.CODEX_PR_BODY && process.env.CODEX_PR_BODY.trim()) {
     return { body: process.env.CODEX_PR_BODY, prContext: true, source: 'CODEX_PR_BODY' };
   }
@@ -118,9 +79,6 @@ async function readPrBody() {
     const body = readText(process.env.CODEX_PR_BODY_PATH);
     if (body !== null) return { body, prContext: true, source: 'CODEX_PR_BODY_PATH' };
   }
-
-  const currentGithubPrBody = await readCurrentGithubPrBody();
-  if (currentGithubPrBody) return currentGithubPrBody;
 
   if (process.env.GITHUB_EVENT_PATH) {
     const eventText = readText(process.env.GITHUB_EVENT_PATH);
@@ -166,6 +124,7 @@ function canonicalSectionName(value, requiredSections) {
   aliases.set('risks', 'Residual risks');
   aliases.set('residual risks', 'Residual risks');
   aliases.set('best of n', 'Best of N used or skipped');
+  aliases.set('best of n evidence', 'Best of N used or skipped');
   aliases.set('best of n used or skipped', 'Best of N used or skipped');
   aliases.set('code review', 'Code review status');
   aliases.set('code review status', 'Code review status');
@@ -443,6 +402,7 @@ function validateExplicitSection(section, value) {
 
   if (section === 'Best of N used or skipped') {
     if (/\b(used|compared)\b/.test(compact)) return null;
+    if (/candidate count/.test(compact) && /selected candidate/.test(compact)) return null;
     if (/skipped/.test(compact) && /\b(reason|because|not applicable|not required with reason|not-required-with-reason)\b/.test(compact)) return null;
     return 'Best of N used or skipped=missing_reason';
   }
@@ -450,7 +410,7 @@ function validateExplicitSection(section, value) {
   return null;
 }
 
-async function buildReport() {
+function buildReport() {
   const warnings = [];
   const failures = [];
   let policy = { ...defaultPolicy };
@@ -461,7 +421,7 @@ async function buildReport() {
     failures.push('policyJson=parse_failed');
   }
 
-  const bodyInfo = await readPrBody();
+  const bodyInfo = readPrBody();
   const requireGate = process.env.CODEX_REQUIRE_OPENAI_METHOD_GATE === '1';
   const support = inspectSupportFiles(policy);
   failures.push(...support.failures);
@@ -482,7 +442,6 @@ async function buildReport() {
         codeReviewStatus: { status: support.files.codeReview || 'missing', path: managedPaths.codeReview },
         policyStatus: { status: support.failures.some((item) => item.startsWith('policyJson=')) ? 'fail' : 'pass', path: managedPaths.policyJson },
         methodSupportStatus: support,
-        prBodySource: bodyInfo.source,
         unsafeOutputStatus: { status: support.failures.some((item) => item.startsWith('unsafeOutput=')) ? 'fail' : 'pass' },
         warnings,
         failures,
@@ -551,7 +510,6 @@ async function buildReport() {
     codeReviewStatus: { status: support.files.codeReview || 'missing', path: managedPaths.codeReview },
     policyStatus: { status: failures.some((item) => item.startsWith('policyJson=')) ? 'fail' : 'pass', path: managedPaths.policyJson },
     methodSupportStatus: support,
-    prBodySource: bodyInfo.source,
     unsafeOutputStatus: { status: unsafeFindings.length ? 'fail' : 'pass', labels: unsafeFindings },
     warnings,
     failures,
@@ -578,7 +536,7 @@ function printReport(report) {
 }
 
 try {
-  const report = await buildReport();
+  const report = buildReport();
   printReport(report);
   process.exit(report.status === 'fail' ? 1 : 0);
 } catch {

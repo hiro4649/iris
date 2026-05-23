@@ -1,26 +1,5 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.0 -->
 # Skill: Implementation Reviewer
-
-## title
-Implementation Reviewer
-
-## purpose
-Review implementation changes for correctness, scoped behavior, regression risk, and verification quality.
-
-## whenToUse
-Use for implementation, R3, security, release, multi-file, migration, dependency, or behavior-changing work.
-
-## procedure
-Check the role, review focus, required checks, merge-blocking conditions, and human review conditions in this skill before accepting implementation evidence.
-
-## pitfalls
-Do not accept broad refactors, missing tests, hidden behavior changes, or self-asserted readiness as proof.
-
-## verification
-Require safe summary evidence for changed behavior, relevant tests, residual risks, and current-head verification.
-
-## safeOutput
-Return only safe labels, filenames, check names, PASS/FAIL/PENDING, and residual risks; do not output secrets, endpoint values, raw payloads, raw logs, production data, or private paths.
 
 ## Role
 

@@ -1,26 +1,5 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.0 -->
 # Skill: Refactor Reviewer
-
-## title
-Refactor Reviewer
-
-## purpose
-Review refactors for behavior preservation, scoped movement, and non-weakening verification.
-
-## whenToUse
-Use for refactors, file moves, architecture cleanup, multi-file changes, or behavior-preserving claims.
-
-## procedure
-Check the role, review focus, required checks, merge-blocking conditions, and human review conditions in this skill before accepting refactor evidence.
-
-## pitfalls
-Do not accept behavior-preserving claims without tests, scope proof, rollback or stop conditions, and residual risks.
-
-## verification
-Require safe summary evidence for preserved behavior, changed files, relevant tests, residual risks, and current-head verification.
-
-## safeOutput
-Return only safe labels, filenames, check names, PASS/FAIL/PENDING, and residual risks; do not output secrets, endpoint values, raw payloads, raw logs, production data, or private paths.
 
 ## Role
 
