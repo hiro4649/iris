@@ -17,6 +17,27 @@ function verificationEvidence(body) {
   return commands;
 }
 
+function envVerificationEvidence(env) {
+  const commands = String(env.CODEX_PRODUCT_VERIFICATION_COMMANDS || '').trim();
+  const result = String(env.CODEX_PRODUCT_VERIFICATION_RESULT || '').trim().toLowerCase();
+  const source = String(env.CODEX_PRODUCT_VERIFICATION_SOURCE || '').trim().toLowerCase();
+  const providedEvidence = [];
+  const reasonCodes = [];
+  const envPresent = Boolean(commands || result || source);
+  if (!envPresent) return { providedEvidence, reasonCodes, envPresent: false };
+
+  const commandOk = /\b(?:npm test|npm run test|npm run build|node scripts\/run-tests)\b/i.test(commands);
+  const resultOk = result === 'pass';
+  const sourceOk = ['remote_quality_gate', 'local_quality_gate', 'local', 'ci', 'github_actions'].includes(source);
+
+  if (!commandOk) reasonCodes.push('product_verification_env_command_missing_or_unrecognized');
+  if (!resultOk) reasonCodes.push('product_verification_env_result_not_pass');
+  if (!sourceOk) reasonCodes.push('product_verification_env_source_unrecognized');
+  if (commandOk && resultOk && sourceOk) providedEvidence.push('env_product_verification_pass');
+
+  return { providedEvidence, reasonCodes, envPresent: true };
+}
+
 export function buildProductVerificationReport(env = process.env) {
   const body = prBodyText(env);
   const classified = classifyChange(changedFiles(env), env);
@@ -24,7 +45,8 @@ export function buildProductVerificationReport(env = process.env) {
   const skipNpm = env.CODEX_SKIP_NPM === '1';
   const reasonCodes = [...classified.reasonCodes.filter((item) => item !== 'no_pr_context')];
   const requiredCommands = [];
-  const providedEvidence = verificationEvidence(body);
+  const envEvidence = envVerificationEvidence(env);
+  const providedEvidence = [...verificationEvidence(body), ...envEvidence.providedEvidence];
   const missingEvidence = [];
   let skipAllowed = false;
   let skipReason = '';
@@ -54,16 +76,19 @@ export function buildProductVerificationReport(env = process.env) {
     requiredCommands.push('repository_test_or_build_or_project_defined_check');
     if (skipNpm) reasonCodes.push('npm_skip_not_allowed_for_product_change');
     if (!providedEvidence.length) missingEvidence.push('product_verification_commands');
+    if (envEvidence.envPresent) reasonCodes.push(...envEvidence.reasonCodes);
   }
   if (c.runtimeReadinessClaimed) {
     requiredCommands.push('runtime_or_smoke_verification');
     if (skipNpm) reasonCodes.push('runtime_claim_requires_product_checks');
     if (!providedEvidence.length) missingEvidence.push('runtime_verification_evidence');
+    if (envEvidence.envPresent) reasonCodes.push(...envEvidence.reasonCodes);
   }
   if (c.packageChanged || c.lockfileChanged) {
     requiredCommands.push('package_verification');
     reasonCodes.push('package_change_requires_package_verification');
     if (!providedEvidence.length) missingEvidence.push('package_verification_evidence');
+    if (envEvidence.envPresent) reasonCodes.push(...envEvidence.reasonCodes);
   }
   if (classified.status === 'fail') reasonCodes.push('unknown_change_classification');
   if (missingEvidence.length && productRelevant) reasonCodes.push('product_verification_required');
@@ -79,6 +104,7 @@ export function buildProductVerificationReport(env = process.env) {
     providedEvidence: [...new Set(providedEvidence)],
     missingEvidence: [...new Set(missingEvidence)],
     reasonCodes: [...new Set(reasonCodes)],
+    envEvidencePresent: envEvidence.envPresent,
   });
 }
 
