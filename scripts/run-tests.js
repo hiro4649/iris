@@ -21834,7 +21834,7 @@ const tests = [
     },
   ],
   [
-    "quality gate method gate support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
+    "quality gate method gate production readiness evidence integrity Hermes v0.7.1 support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
     async () => {
       const sourceRoot = process.cwd();
       const tempDir = mkdtempSync(join(tmpdir(), "iris-env-policy-gate-"));
@@ -21881,7 +21881,7 @@ const tests = [
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
       const parseQualityReport = (result) => JSON.parse(result.stdout);
-      const methodGateCompliantBody = [
+      const methodGateCompliantBody = (headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") => [
         "Scope:",
         "HARNESS070-ENV-POLICY1 exact .env.example safe-key-only exception restore under harness v0.7.0",
         "",
@@ -21913,10 +21913,14 @@ const tests = [
         "Verified main, PR state, harness v0.7.0, and clean worktree before changes.",
         "",
         "Testing and review:",
-        "run-iris-evals PASS. lint-iris-docs PASS. secret scan PASS. npm test PASS.",
+        "Date: 2026-05-21.",
+        "Source: local fixture.",
+        "Commands run: node scripts/run-iris-evals.mjs; node scripts/lint-iris-docs.mjs; node scripts/codex-secret-safety-scan.mjs; npm test.",
+        "Result: all listed fixture checks PASS.",
         "",
         "Residual risks:",
         "No production readiness change. Future harness changes may need another fixture update.",
+        "Residual risks accepted: true.",
         "",
         "Best of N used or skipped:",
         "Skipped with reason. This is a narrow restoration of an approved safe-key-only exception.",
@@ -21926,6 +21930,13 @@ const tests = [
         "",
         "Human confirmation needed:",
         "yes. R3 confirmation is required for harness and policy-adjacent change.",
+        "confirmedByRole: test-reviewer.",
+        "reviewedItems: env example safe-key-only quality gate policy.",
+        `headSha: ${headSha}.`,
+        "residualRisksAccepted: true.",
+        "qualityGateNotWeakened: true.",
+        "riskLevelNotLowered: true.",
+        "Stop condition: do not merge if quality gate fails or method gate fails.",
         "",
       ].join("\n");
       const harnessManifest = JSON.parse(
@@ -21990,7 +22001,7 @@ const tests = [
             CODEX_GITHUB_API_AVAILABLE: "0",
             CODEX_PR_BASE_SHA: baseSha,
             CODEX_PR_HEAD_SHA: headSha,
-            CODEX_PR_BODY: methodGateCompliantBody,
+            CODEX_PR_BODY: methodGateCompliantBody(headSha),
             CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
           },
         });
@@ -22030,7 +22041,7 @@ const tests = [
             CODEX_PR_NUMBER: "68",
             CODEX_GITHUB_TOKEN: "redacted-test-token",
             GITHUB_EVENT_PATH: eventPath,
-            TEST_CURRENT_PR_BODY: methodGateCompliantBody,
+            TEST_CURRENT_PR_BODY: methodGateCompliantBody(),
           },
         });
         return JSON.parse(result.stdout);
@@ -22096,7 +22107,7 @@ const tests = [
           CODEX_GITHUB_API_AVAILABLE: "0",
           CODEX_PR_BASE_SHA: baseSha,
           CODEX_PR_HEAD_SHA: headSha,
-          CODEX_PR_BODY: methodGateCompliantBody,
+          CODEX_PR_BODY: methodGateCompliantBody(headSha),
           CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
         };
         if (explicitPrType) env.CODEX_PR_TYPE = explicitPrType;

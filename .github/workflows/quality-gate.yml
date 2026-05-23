@@ -62,10 +62,21 @@ jobs:
           CODEX_GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json"
-          node - "$RUNNER_TEMP/codex-quality-gate.json" <<'NODE'
+          gate_exit=0
+          node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json" || gate_exit=$?
+          parser_exit=0
+          node - "$RUNNER_TEMP/codex-quality-gate.json" <<'NODE' || parser_exit=$?
           const fs = require('fs');
-          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          let report;
+          let raw;
+          try {
+            raw = fs.readFileSync(process.argv[2], 'utf8');
+            report = JSON.parse(raw);
+          } catch {
+            console.error('Quality gate verification failed:');
+            console.error('- report=unreadable_or_invalid');
+            process.exit(1);
+          }
 
           const requiredPass = [
             'profileTemplateCompatibilityStatus',
@@ -127,7 +138,6 @@ jobs:
             /\b(?:gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/,
             /-----BEGIN [^-]+PRIVATE KEY-----/i,
           ];
-          const raw = fs.readFileSync(process.argv[2], 'utf8');
           if (unsafe.some((pattern) => pattern.test(raw))) failures.push('unsafe output pattern detected');
 
           if (failures.length) {
@@ -136,3 +146,7 @@ jobs:
             process.exit(1);
           }
           NODE
+          if [ "$parser_exit" -ne 0 ]; then
+            exit "$parser_exit"
+          fi
+          exit "$gate_exit"
