@@ -810,6 +810,8 @@ import {
   assertEvidenceCollectorFixturePackSafe,
   assertGameEvidenceCollectorContractSafe,
   assertLive2dEvidenceCollectorContractSafe,
+  assertLive2dSafeCollectorHelperSafe,
+  assertLive2dSafeCollectorSummarySafe,
   assertLiveEvidenceCollectorManifestSafe,
   assertObsEvidenceCollectorContractSafe,
   assertProductionEvidenceSafeProvenanceCompositorSafe,
@@ -834,6 +836,9 @@ import {
   createEvidenceCollectorFixturePack,
   createGameEvidenceCollectorContract,
   createLive2dEvidenceCollectorContract,
+  createLive2dSafeCollectorEvidenceIntake,
+  createLive2dSafeCollectorHelper,
+  createLive2dSafeCollectorSummary,
   createLiveEvidenceCollectorManifest,
   createObsEvidenceCollectorContract,
   createProductionEvidenceSafeProvenanceCompositor,
@@ -44072,6 +44077,325 @@ const tests = [
         "voice id value",
         "license contract text",
         "vendor response body",
+        "OS command",
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "Live2D live2d collector source allowlist status hash audit reference priority1 safe summary blocks fixture pass dry run stale missing renderer heartbeat model missing unsupported cue recovery missing",
+    () => {
+      const helper = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 900,
+          source_type: "real_probe",
+          status_hash: "234567890abcdef1",
+          audit_reference: "audit_live2d_safe",
+        },
+        nowMs: 1000,
+      });
+      const summary = createLive2dSafeCollectorSummary({ helper });
+      const evidence = createLive2dSafeCollectorEvidenceIntake({ helper });
+      const compositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [evidence],
+        requiredComponents: ["live2d"],
+        nowMs: 1000,
+        componentThresholdsMs: { live2d: 10_000 },
+        criticalBlockers: ["priority1_runtime_waiting"],
+      });
+      const helperFields = [
+        "schema",
+        "component_label",
+        "collector_label",
+        "status",
+        "freshness",
+        "source_type",
+        "renderer_heartbeat",
+        "model_configured",
+        "cue_capability",
+        "recovery_status",
+        "evidence_timestamp_ms",
+        "status_hash",
+        "audit_reference",
+        "blocker_count",
+        "safe_next_action_label",
+        "redaction_status",
+        "production_go_allowed",
+        "priority1_status",
+      ];
+
+      assertLive2dSafeCollectorHelperSafe(helper);
+      assertLive2dSafeCollectorSummarySafe(summary);
+      assertRealEvidenceIntakeSafe(evidence);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+      assert.deepEqual(Object.keys(helper).sort(), [...helperFields].sort());
+      assert.equal(helper.component_label, "live2d");
+      assert.equal(helper.collector_label, "live2d_evidence_collector");
+      assert.equal(helper.source_type, "real_probe");
+      assert.equal(helper.renderer_heartbeat, "fresh");
+      assert.equal(helper.model_configured, "ready");
+      assert.equal(helper.cue_capability, "ready");
+      assert.equal(helper.recovery_status, "ready");
+      assert.equal(helper.status_hash, "234567890abcdef1");
+      assert.equal(helper.audit_reference, "audit_live2d_safe");
+      assert.equal(helper.production_go_allowed, false);
+      assert.equal(helper.priority1_status, "BLOCKED");
+      assert.deepEqual(Object.keys(evidence).sort(), [
+        "audit_reference",
+        "collector",
+        "component",
+        "evidence_timestamp_ms",
+        "schema",
+        "source_type",
+        "status",
+        "status_hash",
+      ]);
+      assert.equal(evidence.component, "live2d");
+      assert.equal(evidence.collector, "live2d_evidence_collector");
+      assert.equal(evidence.source_type, "real_probe");
+      assert.equal(evidence.status_hash, "234567890abcdef1");
+      assert.equal(evidence.audit_reference, "audit_live2d_safe");
+      assert.equal(compositor.package_status, "blocked");
+      assert.equal(compositor.production_go_allowed, false);
+      assert.equal(compositor.priority1_status, "BLOCKED");
+
+      const fixturePass = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        fixturePass: true,
+        nowMs: 1000,
+      });
+      const dryRun = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "dry_run",
+        dryRunOnly: true,
+        nowMs: 1000,
+      });
+      const staleRendererHeartbeat = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "stale",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 1,
+          status_hash: "fedcba9876543210",
+          audit_reference: "audit_live2d_stale",
+        },
+        nowMs: 1000,
+        freshnessThresholdMs: 1,
+      });
+      const missingRendererHeartbeat = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "runtime_waiting",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 0,
+        },
+        nowMs: 1000,
+      });
+      const modelMissing = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "runtime_waiting",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const unsupportedCue = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "ready",
+          cue_capability: "attention",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const recoveryMissing = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "runtime_waiting",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const placeholderEquivalent = createLive2dSafeCollectorHelper({
+        safeLive2dStatus: {
+          renderer_heartbeat: "fresh",
+          model_configured: "ready",
+          cue_capability: "ready",
+          recovery_status: "ready",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "placeholder",
+        nowMs: 1000,
+      });
+
+      for (const blockedHelper of [
+        fixturePass,
+        dryRun,
+        staleRendererHeartbeat,
+        missingRendererHeartbeat,
+        modelMissing,
+        unsupportedCue,
+        recoveryMissing,
+        placeholderEquivalent,
+      ]) {
+        assertLive2dSafeCollectorHelperSafe(blockedHelper);
+        assert.equal(blockedHelper.status, "blocked");
+        assert.equal(blockedHelper.production_go_allowed, false);
+        assert.equal(blockedHelper.priority1_status, "BLOCKED");
+        assert.equal(
+          createLive2dSafeCollectorEvidenceIntake({ helper: blockedHelper }),
+          null
+        );
+      }
+      assert.equal(fixturePass.blocker_count > 0, true);
+      assert.equal(dryRun.source_type, "dry_run");
+      assert.notEqual(staleRendererHeartbeat.freshness, "fresh");
+      assert.equal(missingRendererHeartbeat.renderer_heartbeat, "runtime_waiting");
+      assert.equal(modelMissing.model_configured, "runtime_waiting");
+      assert.equal(unsupportedCue.cue_capability, "attention");
+      assert.equal(unsupportedCue.safe_next_action_label, "operator_attention_required");
+      assert.equal(recoveryMissing.recovery_status, "runtime_waiting");
+      assert.equal(recoveryMissing.safe_next_action_label, "operator_attention_required");
+      assert.equal(placeholderEquivalent.source_type, "placeholder");
+      assert.equal(placeholderEquivalent.blocker_count > 0, true);
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { placeholder_only: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { raw_renderer_payload: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { raw_cue: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { motion_command: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { renderer_endpoint: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { model_path: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { motion_path: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { token: "blocked" },
+          }),
+        ContractError
+      );
+      assert.throws(
+        () =>
+          createLive2dSafeCollectorHelper({
+            safeLive2dStatus: { renderer_heartbeat: "https://blocked.example" },
+          }),
+        ContractError
+      );
+
+      const serialized = JSON.stringify({
+        helper,
+        summary,
+        evidence,
+        compositor,
+        fixturePass,
+        dryRun,
+        staleRendererHeartbeat,
+        missingRendererHeartbeat,
+        modelMissing,
+        unsupportedCue,
+        recoveryMissing,
+        placeholderEquivalent,
+      });
+      assert.equal(serialized.includes('"placeholder_only":'), false);
+      assert.equal(serialized.includes('"raw_renderer_payload":'), false);
+      assert.equal(serialized.includes('"raw_cue":'), false);
+      assert.equal(serialized.includes('"motion_command":'), false);
+      assert.equal(serialized.includes('"renderer_endpoint":'), false);
+      assert.equal(serialized.includes('"model_path":'), false);
+      assert.equal(serialized.includes('"internal_model_path":'), false);
+      assert.equal(serialized.includes('"motion_path":'), false);
+      assert.equal(serialized.includes('"renderer_job":'), false);
+      assert.equal(serialized.includes('"raw_payload":'), false);
+      assert.equal(serialized.includes('"raw_command":'), false);
+      assert.equal(serialized.includes('"raw_response":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "raw path",
+        "local absolute path",
+        "raw renderer payload",
+        "raw cue",
+        "motion command",
+        "raw evidence body",
+        "raw memory",
+        "raw candidate",
+        "raw relationship record",
+        "private viewer id",
+        "relationship score",
+        "world_command",
+        "inner_intent",
+        "connection string",
+        "password",
+        "URL value",
+        "model path",
+        "internal model path",
+        "motion path",
+        "renderer job",
         "OS command",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
