@@ -22095,7 +22095,12 @@ const tests = [
         });
         return JSON.parse(result.stdout);
       };
-      const runHarnessFixtureScopeCase = ({ extraFileName = "", explicitPrType = "" } = {}) => {
+      const runHarnessFixtureScopeCase = ({
+        extraFileName = "",
+        explicitPrType = "",
+        includeRunTestsChanged = false,
+        productEvidence = false,
+      } = {}) => {
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
         mkdirSync(join(tempDir, "scripts"), { recursive: true });
@@ -22149,25 +22154,33 @@ const tests = [
           residualRisks: ["test fixture only"],
           manualBranchProtectionAcknowledged: true,
         });
+        const changedFiles = extraFileName
+          ? [extraFileName]
+          : [
+              "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
+              "scripts/codex-local-quality-gate.mjs",
+              "scripts/codex-openai-method-gate.mjs",
+            ];
+        if (includeRunTestsChanged) changedFiles.push("scripts/run-tests.js");
         const env = {
           CODEX_QUALITY_REPORT: "json",
           CODEX_HARNESS_MODE: "target",
           CODEX_PROFILE_COMPAT_MODE: "off",
-          CODEX_SKIP_NPM: "1",
           CODEX_SKIP_V081_SELF_TEST: "1",
-          CODEX_CHANGED_FILES: extraFileName
-            ? extraFileName
-            : [
-                "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
-                "scripts/codex-local-quality-gate.mjs",
-                "scripts/codex-openai-method-gate.mjs",
-              ].join(","),
+          CODEX_CHANGED_FILES: changedFiles.join(","),
           CODEX_GITHUB_API_AVAILABLE: "0",
           CODEX_PR_BASE_SHA: baseSha,
           CODEX_PR_HEAD_SHA: headSha,
           CODEX_PR_BODY: methodGateCompliantBody(headSha),
           CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
         };
+        if (productEvidence) {
+          env.CODEX_PRODUCT_VERIFICATION_COMMANDS = "npm test";
+          env.CODEX_PRODUCT_VERIFICATION_RESULT = "pass";
+          env.CODEX_PRODUCT_VERIFICATION_SOURCE = "remote_quality_gate";
+        } else {
+          env.CODEX_SKIP_NPM = "1";
+        }
         if (explicitPrType) env.CODEX_PR_TYPE = explicitPrType;
         const result = run("node", ["scripts/codex-local-quality-gate.mjs"], {
           cwd: tempDir,
@@ -22213,6 +22226,15 @@ const tests = [
         assert.equal(harnessFixtureRepair.report.productVerificationStatus.status, "pass");
         assert.equal(harnessFixtureRepair.report.targetQualityScoreStatus.status, "pass");
 
+        const runTestsFixtureRepairSkipped = runHarnessFixtureScopeCase({
+          explicitPrType: "harness-fixture-repair",
+          includeRunTestsChanged: true,
+        });
+        assert.notEqual(runTestsFixtureRepairSkipped.result.status, 0);
+        assert.equal(runTestsFixtureRepairSkipped.report.changeClassificationStatus.status, "pass");
+        assert.equal(runTestsFixtureRepairSkipped.report.productVerificationStatus.status, "fail");
+        assert.equal(runTestsFixtureRepairSkipped.report.targetQualityScoreStatus.status, "fail");
+
         const harnessGeneral = runHarnessFixtureScopeCase({ explicitPrType: "harness" });
         assert.equal(harnessGeneral.result.status, 0);
         assert.equal(harnessGeneral.report.changeClassificationStatus.status, "pass");
@@ -22248,12 +22270,11 @@ const tests = [
           fileName: ".env.example",
           addedLine: "SAFE_EMPTY_KEY=",
           withManualConfirmation: false,
+          changedFilesOverride: ".env.example",
         });
-        assert.equal(missingR3.result.status, 0);
-        assert.equal(
-          missingR3.report.targetQualityScoreStatus.status,
-          "pass"
-        );
+        assert.notEqual(missingR3.result.status, 0);
+        assert.equal(missingR3.report.targetMergeReady, false);
+        assert.notEqual(missingR3.report.status, "pass");
       } finally {
         rmSync(tempDir, { recursive: true, force: true });
       }

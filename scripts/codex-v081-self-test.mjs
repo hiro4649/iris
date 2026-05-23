@@ -11,6 +11,7 @@ import { buildProductVerificationReport } from './codex-product-verification-gat
 import { buildProductionReadinessReport } from './codex-production-readiness-gate.mjs';
 import { buildEvidenceIntegrityReport } from './codex-evidence-integrity-gate.mjs';
 import { buildPrBodyLintReport } from './codex-pr-body-lint.mjs';
+import { buildSafeOutputScanReport } from './codex-safe-output-scan.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.dirname(here);
@@ -117,6 +118,14 @@ function buildReport() {
 
   result = run('scripts/codex-safe-output-scan.mjs', { env: { CODEX_SAFE_OUTPUT_SCAN_REPORT: 'json' } });
   assertCase('Safe policy vocabulary passes', result.parsed?.safeOutputScanStatus?.status === 'pass', failures, cases, result.parsed?.safeOutputScanStatus?.status);
+  const safePolicyScan = buildSafeOutputScanReport({
+    safeSummary: 'Reports must not include raw payload, raw logs, endpoint value, token value, private path, production data, or personal data.',
+  });
+  assertCase('Safe policy vocabulary does not count as unsafe raw output', safePolicyScan.safeOutputScanStatus.status === 'pass', failures, cases, safePolicyScan.safeOutputScanStatus.status);
+  const unsafeConcreteScan = buildSafeOutputScanReport({
+    endpointValue: 'https://example.invalid/token',
+  });
+  assertCase('Concrete unsafe output value still fails', unsafeConcreteScan.safeOutputScanStatus.status === 'fail', failures, cases, unsafeConcreteScan.safeOutputScanStatus.status);
 
   const harnessOnly = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
@@ -161,8 +170,21 @@ function buildReport() {
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_CHANGED_FILES: 'scripts/run-tests.js',
     CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
   });
-  assertCase('scripts/run-tests.js fixture repair passes product verification with npm evidence', runTestsEvidence.productVerificationStatus.status === 'pass', failures, cases, runTestsEvidence.productVerificationStatus.status);
+  assertCase('scripts/run-tests.js fixture repair passes product verification with remote npm evidence', runTestsEvidence.productVerificationStatus.status === 'pass', failures, cases, runTestsEvidence.productVerificationStatus.status);
+
+  const productSourceEvidence = buildProductVerificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'src/app.js',
+    CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+  });
+  assertCase('Product src change with remote npm evidence passes product verification', productSourceEvidence.productVerificationStatus.status === 'pass', failures, cases, productSourceEvidence.productVerificationStatus.status);
 
   const runtimeSkip = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
