@@ -1,26 +1,5 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.0 -->
 # Skill: Boundary Reviewer
-
-## title
-Boundary Reviewer
-
-## purpose
-Review whether a change preserves project boundaries, contracts, ownership, and handoff points.
-
-## whenToUse
-Use for boundary-sensitive, R3, security, release, multi-file, or contract-adjacent changes.
-
-## procedure
-Check the role, review focus, required checks, merge-blocking conditions, and human review conditions in this skill before approving boundary evidence.
-
-## pitfalls
-Do not accept boundary ambiguity, hidden ownership changes, missing contract evidence, or self-asserted readiness as proof.
-
-## verification
-Require safe summary evidence for preserved boundaries, explicit human review where needed, and current-head verification.
-
-## safeOutput
-Return only safe labels, filenames, check names, PASS/FAIL/PENDING, and residual risks; do not output secrets, endpoint values, raw payloads, raw logs, production data, or private paths.
 
 ## Role
 

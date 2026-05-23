@@ -1,26 +1,5 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.0 -->
 # Skill: Spec Reviewer
-
-## title
-Spec Reviewer
-
-## purpose
-Review whether changes preserve applicable authority, specification, and policy contracts.
-
-## whenToUse
-Use for spec-adjacent, authority-bound, contract, R3, security, release, or multi-file changes.
-
-## procedure
-Check the role, review focus, required checks, merge-blocking conditions, and human review conditions in this skill before accepting spec evidence.
-
-## pitfalls
-Do not accept old docs, comments, reports, hidden spec changes, or self-asserted readiness as proof.
-
-## verification
-Require safe summary evidence for the relevant authority, changed contracts, residual risks, and current-head verification.
-
-## safeOutput
-Return only safe labels, filenames, check names, PASS/FAIL/PENDING, and residual risks; do not output secrets, endpoint values, raw payloads, raw logs, production data, or private paths.
 
 ## Role
 
