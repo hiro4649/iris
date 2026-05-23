@@ -139,6 +139,31 @@ function buildReport() {
   assertCase('Change classification emits status', Boolean(classified.changeClassificationStatus.status), failures, cases, classified.changeClassificationStatus.status);
   assertCase('Product src change with CODEX_SKIP_NPM=1 fails product verification', productSkip.productVerificationStatus.status === 'fail', failures, cases, productSkip.productVerificationStatus.status);
 
+  const runTestsClassification = buildChangeClassificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: 'Runtime readiness claimed: no.',
+  });
+  assertCase('scripts/run-tests.js fixture repair is classified as tests not unknown', runTestsClassification.changeClassificationStatus.status === 'pass' &&
+    runTestsClassification.changeClassificationStatus.classification.testsChanged === true &&
+    runTestsClassification.changeClassificationStatus.classification.unknownRisk === false,
+  failures, cases, runTestsClassification.changeClassificationStatus);
+
+  const runTestsSkip = buildProductVerificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
+    CODEX_SKIP_NPM: '1',
+  });
+  assertCase('scripts/run-tests.js fixture repair cannot pass product verification with npm skipped', runTestsSkip.productVerificationStatus.status === 'fail', failures, cases, runTestsSkip.productVerificationStatus.status);
+
+  const runTestsEvidence = buildProductVerificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
+  });
+  assertCase('scripts/run-tests.js fixture repair passes product verification with npm evidence', runTestsEvidence.productVerificationStatus.status === 'pass', failures, cases, runTestsEvidence.productVerificationStatus.status);
+
   const runtimeSkip = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_PR_BODY: 'Runtime readiness claimed: yes.',

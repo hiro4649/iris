@@ -54,7 +54,7 @@ const harnessPatterns = [
 
 const docsPatterns = ['README.md', 'docs/'];
 const productPatterns = ['src/', 'apps/', 'contracts/', 'packages/', 'lib/', 'server/', 'client/', 'public/', 'assets/', 'runtime/'];
-const testPatterns = ['test/', 'tests/', '__tests__/'];
+const testPatterns = ['test/', 'tests/', '__tests__/', 'scripts/run-tests.js'];
 const specPatterns = ['specs/', 'docs/specs/', 'IRIS_SPEC_AUTHORITY.md'];
 const packagePatterns = ['package.json', 'npm-shrinkwrap.json'];
 const lockPatterns = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
