@@ -81,7 +81,7 @@ jobs:
             console.log(`preflightRuntimeReadinessClaimed: ${runtimeClaim}`);
             console.log(`preflightPackageOrLockfileChanged: ${packageOrLockfile}`);
             if (changeExit !== 0) console.log('preflightChangeClassificationExit: nonzero');
-            NODE
+          NODE
             needs_npm=$(node - "$RUNNER_TEMP/codex-change-classification.json" "$change_exit" <<'NODE'
             const fs = require('fs');
             const file = process.argv[2];
@@ -95,7 +95,7 @@ jobs:
               report.changeClassificationStatus?.runtimeReadinessClaimed === true ||
               report.changeClassificationStatus?.packageOrLockfileChanged === true;
             process.stdout.write(needs ? '1' : '0');
-            NODE
+          NODE
             )
             if [ "$needs_npm" = "1" ]; then
               echo "targetProductVerification: npm test required"
