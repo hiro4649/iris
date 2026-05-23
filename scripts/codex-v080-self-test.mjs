@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.0
+// CODEX_QUALITY_HARNESS_FILE v0.8.1
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { buildProductionReadinessReport } from './codex-production-readiness-gate.mjs';
 import { HARNESS_VERSION, marker, writeJsonReport } from './codex-v080-lib.mjs';
 import {
   cleanAgentsContext,
@@ -69,6 +70,19 @@ function buildReport() {
   result = runScript('scripts/codex-golden-set-gate.mjs');
   assertCase('Golden Set positive and negative fixtures pass', result.parsed?.goldenSetStatus?.status === 'pass', failures, cases, result.parsed?.goldenSetStatus?.status);
 
+  const goNoGoHeading = buildProductionReadinessReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_PR_HEAD_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    CODEX_PR_BODY: [
+      'Production Go/No-Go:',
+      'No production readiness claim.',
+      'Risk level: R1',
+      'Human confirmation needed: not required with reason - cleanup only.',
+      'Residual risks: none beyond cleanup review.',
+    ].join('\n'),
+  });
+  assertCase('Production Go/No-Go heading alone is not a go claim', goNoGoHeading.productionReadinessStatus.status === 'pass', failures, cases, goNoGoHeading.productionReadinessStatus.status);
+
   result = runScript('scripts/codex-safe-trace-schema-gate.mjs', { cwd: tmp });
   assertCase('Safe trace absent returns not_applicable', result.parsed?.safeTraceSchemaStatus?.status === 'not_applicable', failures, cases, result.parsed?.safeTraceSchemaStatus?.status);
   const traceDir = path.join(tmp, '.codex', 'experience', 'traces');
@@ -114,7 +128,7 @@ function buildReport() {
     v080SelfTestStatus: { status: failures.length ? 'fail' : 'pass', cases, failures, safeSummaryOnly: true },
     valuesPrinted: false,
     status: failures.length ? 'fail' : 'pass',
-    safeSummary: failures.length ? 'v0.8.0 self-test failed; see safe labels only.' : 'v0.8.0 self-test passed.',
+    safeSummary: failures.length ? 'v0.8.1 self-test failed; see safe labels only.' : 'v0.8.1 self-test passed.',
   };
 }
 
@@ -134,7 +148,7 @@ if (isMain()) {
       v080SelfTestStatus: { status: 'fail', failures: ['unexpected_error'], safeSummaryOnly: true },
       valuesPrinted: false,
       status: 'fail',
-      safeSummary: 'v0.8.0 self-test failed with an internal error.',
+      safeSummary: 'v0.8.1 self-test failed with an internal error.',
     };
     writeJsonReport(report, 'CODEX_V080_SELF_TEST_REPORT');
     process.exit(1);

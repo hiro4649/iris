@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.8.0
+# CODEX_QUALITY_HARNESS_FILE v0.8.1
 name: weekly-health-check
 
 on:
@@ -31,4 +31,42 @@ jobs:
           set -euo pipefail
           node --check scripts/codex-local-quality-gate.mjs
           node scripts/codex-secret-safety-scan.mjs
-          node scripts/codex-local-quality-gate.mjs
+          node scripts/codex-v080-self-test.mjs
+          node scripts/codex-v081-self-test.mjs
+          node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-target-weekly.json"
+          node - "$RUNNER_TEMP/codex-target-weekly.json" <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const required = [
+            'secretScan',
+            'agentsContextStatus',
+            'environmentReadinessStatus',
+            'changeClassificationStatus',
+            'productVerificationStatus',
+            'safeOutputScanStatus',
+            'v080SelfTestStatus',
+            'v081SelfTestStatus',
+            'safeArtifactValidation',
+            'outputShapeStatus',
+            'targetQualityScoreStatus',
+          ];
+          const failures = [];
+          for (const key of required) {
+            const status = report[key]?.status || 'missing';
+            console.log(`${key}: ${status}`);
+            if (status !== 'pass' && status !== 'not_applicable') failures.push(`${key}=${status}`);
+          }
+          console.log(`report.status: ${report.status}`);
+          console.log(`targetMergeReady: ${report.targetMergeReady ?? report.mergeReady}`);
+          console.log(`targetQualityScoreStatus: ${report.targetQualityScoreStatus?.status || 'missing'}`);
+          console.log(`targetQualityScore: ${report.targetQualityScoreStatus?.score ?? 'missing'}`);
+          if (report.status !== 'pass') failures.push(`report.status=${report.status}`);
+          if (report.targetQualityScoreStatus?.status !== 'pass') failures.push(`targetQualityScoreStatus=${report.targetQualityScoreStatus?.status || 'missing'}`);
+          if (failures.length) {
+            for (const item of failures) {
+              const safe = String(item).replace(/[^A-Za-z0-9_.:= -]/g, '_').slice(0, 180);
+              console.error(`::error title=codex-weekly-health::${safe}`);
+            }
+            process.exit(1);
+          }
+          NODE
