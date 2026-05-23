@@ -163,14 +163,14 @@ full run-tests FAIL を握りつぶさない。
 secret / endpoint値 / API key / token / raw payload / raw command / raw memory / raw OBS event / raw frame / OCR text / raw voice sample / dataset path / internal model path / raw logs を出さない。
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-<!-- CODEX_QUALITY_HARNESS_FILE v0.7.1 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.7.2 -->
 ## Codex Quality Harness
 
 Use the repo-local harness files in `docs/process/` and `scripts/codex-*`.
-Run the secret scan and local quality gate before reporting merge readiness.
-R3 or human-review-required changes need manual confirmation for the current head.
-Manual confirmation cannot override secret scan failures, blocked paths, high-confidence secrets, implementation/harness mixing, or profile-required failures.
-Production, release, merge-ready, or go/no-go claims require local/remote evidence, residual risks, rollback or merge-after verification, and current-head human confirmation when required.
+Run the secret scan, local quality gate, and required profile checks before reporting merge readiness.
+R3 or human-review-required changes need current-head structured evidence and human confirmation.
+Manual confirmation cannot override non-overridable failures such as secret scan failures, blocked paths, high-confidence secrets, implementation/harness mixing, profile-required failures, OpenAI method gate failures, stale evidence, unsafe output, risk-level lowering, or quality-gate weakening.
+Production, release, merge-ready, or go/no-go claims require local/remote evidence, residual risks, rollback or merge-after verification, and current-head confirmation when required.
 Keep outputs safe-summary-only: no raw diff, raw logs, raw payload, endpoint value, secret value, private path, production data, or personal data.
 Root harness version and profile template version are separate; keep compatible profile-template files at v0.7.0 unless the source profile explicitly changes.
 
@@ -190,5 +190,15 @@ For complex, ambiguous, R3, security, migration, dependency, release, or multi-f
 PRs must satisfy `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md`.
 Reviews should use `docs/process/code_review.md`.
 Do not claim merge readiness unless method gate, quality gate, and required checks pass.
+
+## Structured Evidence and CI Replay Rule
+
+Root harness version is v0.7.2. Profile templates remain v0.7.0 compatible unless a project propagation task explicitly says otherwise.
+Do not bump profile-template files to v0.7.2 only to satisfy validation.
+Prefer structured evidence pack, structured human confirmation, CI replay, PR body lint, and safe failure reason outputs over prose-only evidence where available.
+Source or downstream harness PRs that require human confirmation must keep the current head SHA visible and matched in all evidence.
+Do not claim production ready, release ready, merge ready, go/no-go, or equivalent production/shipping wording without checkable evidence.
+Use safe summary only: no raw diff, raw logs, raw payload, endpoint value, secret value, private path, production data, or personal data.
+For R3, security, release, dependency, migration, or multi-file work, keep plan-first evidence, review evidence, residual risks, and rollback or stop condition visible.
 
 <!-- CODEX_QUALITY_HARNESS_END -->

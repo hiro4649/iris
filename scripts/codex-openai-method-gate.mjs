@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.7.1
+// CODEX_QUALITY_HARNESS_FILE v0.7.2
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
-const HARNESS_VERSION = '0.7.1';
+const HARNESS_VERSION = '0.7.2';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 
 const defaultPolicy = {
@@ -79,9 +79,10 @@ async function readCurrentGithubPrBody() {
     process.env.CODEX_PR_NUMBER ||
     (process.env.GITHUB_REF || '').match(/^refs\/pull\/([0-9]+)\//)?.[1] ||
     '';
-  const [owner, repo] = repository.split('/');
-  if (!owner || !repo || !/^[0-9]+$/.test(prNumber)) return null;
 
+  if (!repository || !prNumber || !repository.includes('/')) return null;
+
+  const [owner, repo] = repository.split('/');
   try {
     const headers = {
       accept: 'application/vnd.github+json',
@@ -97,8 +98,9 @@ async function readCurrentGithubPrBody() {
     if (!response?.ok) return null;
 
     const payload = await response.json();
+    if (typeof payload?.body !== 'string') return null;
     return {
-      body: typeof payload?.body === 'string' ? payload.body : '',
+      body: payload.body,
       prContext: true,
       source: 'GITHUB_API_CURRENT_PR',
     };
