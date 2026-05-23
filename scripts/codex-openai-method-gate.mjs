@@ -70,7 +70,44 @@ function readJson(file) {
   return JSON.parse(text);
 }
 
-function readPrBody() {
+async function readCurrentGithubPrBody() {
+  if (process.env.CODEX_GITHUB_API_AVAILABLE !== '1') return null;
+  if (typeof fetch !== 'function') return null;
+
+  const repository = process.env.CODEX_REPOSITORY || process.env.GITHUB_REPOSITORY || '';
+  const prNumber =
+    process.env.CODEX_PR_NUMBER ||
+    (process.env.GITHUB_REF || '').match(/^refs\/pull\/([0-9]+)\//)?.[1] ||
+    '';
+  const [owner, repo] = repository.split('/');
+  if (!owner || !repo || !/^[0-9]+$/.test(prNumber)) return null;
+
+  try {
+    const headers = {
+      accept: 'application/vnd.github+json',
+      'user-agent': 'iris-codex-method-gate',
+    };
+    const token = process.env.GITHUB_TOKEN || process.env.CODEX_GITHUB_TOKEN;
+    if (token) headers.authorization = `Bearer ${token}`;
+
+    const response = await fetch(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${prNumber}`,
+      { headers }
+    );
+    if (!response?.ok) return null;
+
+    const payload = await response.json();
+    return {
+      body: typeof payload?.body === 'string' ? payload.body : '',
+      prContext: true,
+      source: 'GITHUB_API_CURRENT_PR',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function readPrBody() {
   if (process.env.CODEX_PR_BODY && process.env.CODEX_PR_BODY.trim()) {
     return { body: process.env.CODEX_PR_BODY, prContext: true, source: 'CODEX_PR_BODY' };
   }
@@ -79,6 +116,9 @@ function readPrBody() {
     const body = readText(process.env.CODEX_PR_BODY_PATH);
     if (body !== null) return { body, prContext: true, source: 'CODEX_PR_BODY_PATH' };
   }
+
+  const currentGithubPrBody = await readCurrentGithubPrBody();
+  if (currentGithubPrBody) return currentGithubPrBody;
 
   if (process.env.GITHUB_EVENT_PATH) {
     const eventText = readText(process.env.GITHUB_EVENT_PATH);
@@ -408,7 +448,7 @@ function validateExplicitSection(section, value) {
   return null;
 }
 
-function buildReport() {
+async function buildReport() {
   const warnings = [];
   const failures = [];
   let policy = { ...defaultPolicy };
@@ -419,7 +459,7 @@ function buildReport() {
     failures.push('policyJson=parse_failed');
   }
 
-  const bodyInfo = readPrBody();
+  const bodyInfo = await readPrBody();
   const requireGate = process.env.CODEX_REQUIRE_OPENAI_METHOD_GATE === '1';
   const support = inspectSupportFiles(policy);
   failures.push(...support.failures);
@@ -440,6 +480,7 @@ function buildReport() {
         codeReviewStatus: { status: support.files.codeReview || 'missing', path: managedPaths.codeReview },
         policyStatus: { status: support.failures.some((item) => item.startsWith('policyJson=')) ? 'fail' : 'pass', path: managedPaths.policyJson },
         methodSupportStatus: support,
+        prBodySource: bodyInfo.source,
         unsafeOutputStatus: { status: support.failures.some((item) => item.startsWith('unsafeOutput=')) ? 'fail' : 'pass' },
         warnings,
         failures,
@@ -508,6 +549,7 @@ function buildReport() {
     codeReviewStatus: { status: support.files.codeReview || 'missing', path: managedPaths.codeReview },
     policyStatus: { status: failures.some((item) => item.startsWith('policyJson=')) ? 'fail' : 'pass', path: managedPaths.policyJson },
     methodSupportStatus: support,
+    prBodySource: bodyInfo.source,
     unsafeOutputStatus: { status: unsafeFindings.length ? 'fail' : 'pass', labels: unsafeFindings },
     warnings,
     failures,
@@ -534,7 +576,7 @@ function printReport(report) {
 }
 
 try {
-  const report = buildReport();
+  const report = await buildReport();
   printReport(report);
   process.exit(report.status === 'fail' ? 1 : 0);
 } catch {
