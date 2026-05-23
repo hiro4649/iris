@@ -1,7 +1,7 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v0.7.1",
-  "harnessVersion": "0.7.1",
-  "sourceHarnessVersion": "0.7.1",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v0.7.2",
+  "harnessVersion": "0.7.2",
+  "sourceHarnessVersion": "0.7.2",
   "profileTemplateVersion": "0.7.0",
   "compatibleProfileTemplateVersions": [
     "0.7.0"
@@ -63,7 +63,13 @@
     "codex-production-readiness-gate.mjs",
     "codex-evidence-integrity-gate.mjs",
     "codex-hermes-invariant-gate.mjs",
-    "codex-v071-self-test.mjs"
+    "codex-v071-self-test.mjs",
+    "codex-ci-replay.mjs",
+    "codex-evidence-pack-validate.mjs",
+    "codex-human-confirmation-validate.mjs",
+    "codex-pr-body-lint.mjs",
+    "codex-safe-output-scan.mjs",
+    "codex-v072-self-test.mjs"
   ],
   "policyFiles": [
     "docs/process/CODEX_AGENT_MEMORY_POLICY.json",
@@ -92,7 +98,18 @@
     "docs/process/CODEX_EVIDENCE_INTEGRITY_POLICY.md",
     "docs/process/CODEX_EVIDENCE_INTEGRITY_POLICY.json",
     "docs/process/CODEX_HERMES_INVARIANT_POLICY.md",
-    "docs/process/CODEX_HERMES_INVARIANT_POLICY.json"
+    "docs/process/CODEX_HERMES_INVARIANT_POLICY.json",
+    "docs/process/CODEX_DEVELOPMENT_HARNESS.md",
+    "docs/process/CODEX_EVIDENCE_PACK_POLICY.md",
+    "docs/process/CODEX_EVIDENCE_PACK_SCHEMA.json",
+    "docs/process/CODEX_FAILURE_REASON_CATALOG.json",
+    "docs/process/CODEX_MANUAL_CONFIRMATION_POLICY.md",
+    "docs/process/CODEX_MANUAL_CONFIRMATION_SCHEMA.json",
+    "docs/process/CODEX_PROJECT_AUTHORITY_REGISTRY.json",
+    "docs/process/CODEX_SAFE_OUTPUT_SCAN_POLICY.json",
+    "docs/process/PR_RISK_MATRIX.md",
+    "docs/process/REFACTORING_POLICY.md",
+    "docs/process/RELEASE_GATE.md"
   ],
   "managedFiles": [
     ".github/pull_request_template.md",
@@ -182,6 +199,32 @@
     "scripts/codex-production-readiness-gate.mjs",
     "scripts/codex-evidence-integrity-gate.mjs",
     "scripts/codex-hermes-invariant-gate.mjs",
-    "scripts/codex-v071-self-test.mjs"
+    "scripts/codex-v071-self-test.mjs",
+    "docs/process/CODEX_DEVELOPMENT_HARNESS.md",
+    "docs/process/CODEX_EVIDENCE_PACK_POLICY.md",
+    "docs/process/CODEX_EVIDENCE_PACK_SCHEMA.json",
+    "docs/process/CODEX_FAILURE_REASON_CATALOG.json",
+    "docs/process/CODEX_MANUAL_CONFIRMATION_POLICY.md",
+    "docs/process/CODEX_MANUAL_CONFIRMATION_SCHEMA.json",
+    "docs/process/CODEX_PROJECT_AUTHORITY_REGISTRY.json",
+    "docs/process/CODEX_SAFE_OUTPUT_SCAN_POLICY.json",
+    "docs/process/PR_RISK_MATRIX.md",
+    "docs/process/REFACTORING_POLICY.md",
+    "docs/process/RELEASE_GATE.md",
+    "docs/process/skills/boundary-reviewer.md",
+    "docs/process/skills/implementation-reviewer.md",
+    "docs/process/skills/planning-reviewer.md",
+    "docs/process/skills/preview-smoke-reviewer.md",
+    "docs/process/skills/refactor-reviewer.md",
+    "docs/process/skills/release-gate-reviewer.md",
+    "docs/process/skills/security-reviewer.md",
+    "docs/process/skills/spec-reviewer.md",
+    "docs/process/skills/test-coverage-reviewer.md",
+    "scripts/codex-ci-replay.mjs",
+    "scripts/codex-evidence-pack-validate.mjs",
+    "scripts/codex-human-confirmation-validate.mjs",
+    "scripts/codex-pr-body-lint.mjs",
+    "scripts/codex-safe-output-scan.mjs",
+    "scripts/codex-v072-self-test.mjs"
   ]
 }
