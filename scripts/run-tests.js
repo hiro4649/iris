@@ -44282,6 +44282,42 @@ const tests = [
       assert.equal(recoveryMissing.safe_next_action_label, "operator_attention_required");
       assert.equal(placeholderEquivalent.source_type, "placeholder");
       assert.equal(placeholderEquivalent.blocker_count > 0, true);
+      const handMadeReadyHelper = {
+        schema: "iris_live2d_safe_collector_helper_v1",
+        component_label: "live2d",
+        collector_label: "live2d_evidence_collector",
+        status: "ready",
+        freshness: "fresh",
+        source_type: "real_probe",
+        renderer_heartbeat: "fresh",
+        model_configured: "ready",
+        cue_capability: "ready",
+        recovery_status: "ready",
+        evidence_timestamp_ms: 900,
+        status_hash: "234567890abcdef1",
+        audit_reference: "audit_live2d_safe",
+        blocker_count: 0,
+        safe_next_action_label: "collect_live2d_renderer_evidence",
+        redaction_status: "redacted",
+        production_go_allowed: false,
+        priority1_status: "BLOCKED",
+      };
+      for (const tamperedHelper of [
+        { ...handMadeReadyHelper, renderer_heartbeat: "stale" },
+        { ...handMadeReadyHelper, model_configured: "runtime_waiting" },
+        { ...handMadeReadyHelper, cue_capability: "attention" },
+        { ...handMadeReadyHelper, recovery_status: "runtime_waiting" },
+        { ...handMadeReadyHelper, freshness: "stale" },
+        { ...handMadeReadyHelper, status: "blocked" },
+        { ...handMadeReadyHelper, source_type: "placeholder" },
+        { ...handMadeReadyHelper, source_type: "dry_run" },
+        { ...handMadeReadyHelper, source_type: "fixture" },
+      ]) {
+        assert.equal(
+          createLive2dSafeCollectorEvidenceIntake({ helper: tamperedHelper }),
+          null
+        );
+      }
       assert.throws(
         () =>
           createLive2dSafeCollectorHelper({

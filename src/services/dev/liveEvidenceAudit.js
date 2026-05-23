@@ -4734,7 +4734,29 @@ export function createLive2dSafeCollectorEvidenceIntake({ helper } = {}) {
     helper,
     "Live2D safe collector evidence intake input"
   );
-  if (helper.blocker_count > 0 || helper.evidence_timestamp_ms === 0) {
+  const sourceClassification = classifyRealEvidenceSourceType(helper.source_type);
+  const nonRealSource = [
+    "fixture",
+    "fixture_pass",
+    "dry_run",
+    "dry_run_only",
+    "placeholder",
+  ].includes(helper.source_type);
+  const intakeReady =
+    helper.status === "ready" &&
+    helper.freshness === "fresh" &&
+    sourceClassification.allowed &&
+    sourceClassification.source_type === helper.source_type &&
+    !nonRealSource &&
+    helper.renderer_heartbeat === "fresh" &&
+    helper.model_configured === "ready" &&
+    helper.cue_capability === "ready" &&
+    helper.recovery_status === "ready" &&
+    helper.evidence_timestamp_ms > 0 &&
+    helper.production_go_allowed === false &&
+    helper.priority1_status === "BLOCKED" &&
+    helper.blocker_count === 0;
+  if (!intakeReady) {
     return null;
   }
   const evidence = createRealEvidenceIntake({
