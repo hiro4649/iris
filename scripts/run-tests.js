@@ -21839,7 +21839,7 @@ const tests = [
     },
   ],
   [
-    "quality gate method gate production readiness evidence integrity Hermes v0.8.1 support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
+    "quality gate method gate production readiness evidence integrity Hermes v0.8.4 support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
     async () => {
       const sourceRoot = process.cwd();
       const tempDir = mkdtempSync(join(tmpdir(), "iris-env-policy-gate-"));
@@ -21885,10 +21885,14 @@ const tests = [
         );
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
-      const parseQualityReport = (result) => JSON.parse(result.stdout);
+      const parseJsonText = (text) => JSON.parse(String(text).replace(/^\uFEFF/, ""));
+      const parseQualityReport = (result) => parseJsonText(result.stdout);
       const methodGateCompliantBody = (headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") => [
         "Scope:",
-        "HARNESS081-NPM-BASELINE-FIX v0.8.1 method gate fixture repair only",
+        "HARNESS084-NPM-BASELINE-FIX v0.8.4 fixture evidence only",
+        "",
+        "PR profile:",
+        "harness_workflow_r3",
         "",
         "PR type:",
         "harness-fixture-repair",
@@ -21897,10 +21901,10 @@ const tests = [
         "R3",
         "",
         "Goal:",
-        "Restore clean-main npm test after Codex Harness v0.8.1 by updating stale method-gate fixture body expectations.",
+        "Restore clean-main npm test after Codex Harness v0.8.4 by updating stale harness fixture body expectations.",
         "",
         "Context:",
-        "Harness v0.8.1 adds target verification and stricter evidence labels. This fixture remains narrow and keeps policy strict.",
+        "Harness v0.8.4 preserves target verification and adds Fast Path, Diagnostic Consolidation, Unsafe Value Class Handling, Invalid Report Recovery, PR Profile, Artifact Budget, and Actions Runtime Advisory evidence. This fixture remains narrow and keeps policy strict.",
         "",
         "Files or scope:",
         "scripts/run-tests.js fixture body only.",
@@ -21909,21 +21913,24 @@ const tests = [
         "Do not loosen quality gate. Do not disable method gate. Do not remove required sections. Do not claim production readiness.",
         "",
         "Done when:",
-        "npm test PASS, v0.8.1 self-test PASS, and target quality gate PASS.",
+        "npm test PASS, v0.8.4 self-test PASS, and target quality gate PASS.",
         "",
         "Plan-first status:",
         "Done. Plan-first was used before coding because this is an R3 harness baseline repair.",
         "",
         "Environment setup:",
-        "Verified clean main, current head, harness v0.8.1, and isolated fixture-only scope before changes.",
+        "Verified clean main, current head, harness v0.8.4, and isolated fixture-only scope before changes.",
         "",
         "Testing and review:",
         "Date: 2026-05-21.",
         "Source: local fixture.",
-        "Commands run: node scripts/run-iris-evals.mjs; node scripts/lint-iris-docs.mjs; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-v081-self-test.mjs; npm test.",
+        "Commands run: node scripts/run-iris-evals.mjs; node scripts/lint-iris-docs.mjs; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-v084-self-test.mjs; npm test.",
         "Tests or checks run: npm test PASS.",
         "Result: all listed fixture checks PASS.",
         `Head SHA: ${headSha}.`,
+        "",
+        "Validation commands:",
+        "node scripts/run-iris-evals.mjs; node scripts/lint-iris-docs.mjs; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-v084-self-test.mjs; npm test.",
         "",
         "Change Classification:",
         "Harness fixture repair only. No source, package, workflow, or runtime files are changed.",
@@ -21942,6 +21949,27 @@ const tests = [
         "",
         "Evidence Integrity:",
         "Evidence is command, result, source, date, and head scoped. Safe summary labels only.",
+        "",
+        "Harness Fast Path:",
+        "Fast path must not bypass product verification for product-relevant changes.",
+        "",
+        "Diagnostic Consolidation:",
+        "Diagnostic consolidation remains safe-summary only and does not allow raw values.",
+        "",
+        "Unsafe Value Class Handling:",
+        "Unsafe values remain failures unless explicitly classified and handled by policy.",
+        "",
+        "Invalid Report Recovery:",
+        "Invalid report recovery preserves failure status and writes safe fallback artifacts.",
+        "",
+        "PR Profile:",
+        "Profile is harness_workflow_r3 for this R3 harness fixture evidence repair.",
+        "",
+        "Artifact Budget:",
+        "Artifact index and budget evidence remain safe-summary only.",
+        "",
+        "Actions Runtime Advisory:",
+        "Actions runtime advisory is warning-only unless policy marks it blocking.",
         "",
         "Hermes Invariants:",
         "Boundary and scope are explicit. Human judgment is visible for R3 work. Non-overridable failures remain protected.",
@@ -21979,7 +22007,7 @@ const tests = [
         "Stop condition: do not merge if quality gate fails or method gate fails.",
         "",
       ].join("\n");
-      const harnessManifest = JSON.parse(
+      const harnessManifest = parseJsonText(
         readFileSync(join(sourceRoot, "docs/process/CODEX_HARNESS_MANIFEST.json"), "utf8")
       );
       const methodGateSupportFiles = new Set([
@@ -22098,7 +22126,7 @@ const tests = [
             TEST_CURRENT_PR_BODY: methodGateCompliantBody(),
           },
         });
-        return JSON.parse(result.stdout);
+        return parseJsonText(result.stdout);
       };
       const runHarnessFixtureScopeCase = ({
         extraFileName = "",
