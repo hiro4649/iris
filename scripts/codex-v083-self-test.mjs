@@ -172,6 +172,62 @@ function assertCase(name, ok, failures, cases, status = ok ? 'pass' : 'fail') {
   if (!ok) failures.push(name);
 }
 
+const fallbackArtifactNames = [
+  'codex-quality-gate-safe-summary.json',
+  'codex-target-quality-summary.json',
+  'codex-target-final-summary.json',
+  'codex-reason-summary.json',
+  'codex-safe-artifact-index.json',
+  'codex-failure-reasons.json',
+];
+
+function readJsonFile(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+  } catch {
+    return null;
+  }
+}
+
+function runWorkflowRunnerFixture(reportText) {
+  return withTempCwd((tmp) => {
+    const args = [path.join(repo, 'scripts', 'codex-workflow-quality-runner.mjs')];
+    if (reportText !== null) {
+      const reportPath = path.join(tmp, 'quality-report.json');
+      fs.writeFileSync(reportPath, reportText, 'utf8');
+      args.push('--report', reportPath);
+    } else {
+      args.push('--report', path.join(tmp, 'missing-report.json'));
+    }
+    const result = spawnSync(process.execPath, args, {
+      cwd: tmp,
+      env: { ...process.env, CODEX_HARNESS_MODE: 'target', CODEX_WORKFLOW_RUNNER_REPORT: 'json' },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const artifacts = Object.fromEntries(
+      fallbackArtifactNames.map((name) => [name, fs.existsSync(path.join(tmp, name))])
+    );
+    return {
+      code: result.status,
+      parsed: (() => {
+        try { return JSON.parse(result.stdout || '{}'); } catch { return null; }
+      })(),
+      artifacts,
+      index: readJsonFile(path.join(tmp, 'codex-safe-artifact-index.json')),
+      finalSummary: readJsonFile(path.join(tmp, 'codex-target-final-summary.json')),
+      reasonSummary: readJsonFile(path.join(tmp, 'codex-reason-summary.json')),
+      failureReasons: readJsonFile(path.join(tmp, 'codex-failure-reasons.json')),
+      serializedArtifacts: fallbackArtifactNames
+        .filter((name) => fs.existsSync(path.join(tmp, name)))
+        .map((name) => fs.readFileSync(path.join(tmp, name), 'utf8'))
+        .join('\n'),
+      stdout: result.stdout || '',
+      stderr: result.stderr || '',
+    };
+  });
+}
+
 function buildReport() {
   const failures = [];
   const cases = [];
@@ -256,6 +312,24 @@ function buildReport() {
 
   result = buildFinalSummary(targetPassReport(), 'target');
   assertCase('target final summary has no unsafe values', result.status === 'pass' && result.summary.safeSummaryOnly, failures, cases, result.status);
+
+  result = runWorkflowRunnerFixture(null);
+  assertCase('workflow runner writes safe artifacts when quality report is missing', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
+  assertCase('workflow runner missing report remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.status === 'fail', failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
+  assertCase('workflow runner missing report writes safe artifact index', Array.isArray(result.index?.artifacts) && result.index.artifacts.some((item) => item.artifactName === 'codex-target-final-summary.json'), failures, cases, result.index?.status);
+  assertCase('workflow runner missing report writes target final summary', result.finalSummary?.safeSummaryOnly === true, failures, cases, result.finalSummary ? 'pass' : 'missing');
+  assertCase('workflow runner missing report writes reason summary', result.reasonSummary?.safeSummaryOnly === true, failures, cases, result.reasonSummary ? 'pass' : 'missing');
+  assertCase('workflow runner failure reasons use safe codes only', result.failureReasons?.every((item) => /^[a-z0-9_]+$/.test(item.reasonCode || '')) === true, failures, cases);
+
+  result = runWorkflowRunnerFixture('{ invalid json');
+  assertCase('workflow runner writes safe artifacts when quality report JSON parse fails', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
+  assertCase('workflow runner parse failure remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.reasonCodes?.includes('quality_report_parse_failed'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
+
+  result = runWorkflowRunnerFixture(JSON.stringify({ status: 'fail', rawPayload: 'unsafe value' }));
+  assertCase('workflow runner writes safe artifacts when report is invalid or unsafe', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
+  assertCase('workflow runner unsafe report remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.reasonCodes?.includes('workflow_runner_invalid_report'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
+  const unsafeEcho = `${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`;
+  assertCase('workflow runner fallback artifacts do not print raw report values', !unsafeEcho.includes('rawPayload') && !unsafeEcho.includes('unsafe value'), failures, cases);
 
   result = run('scripts/codex-v082-self-test.mjs', { CODEX_QUALITY_REPORT: 'json', CODEX_SKIP_V083_SELF_TEST: '1' });
   assertCase('v0.8.2 behavior still passes', result.parsed?.v082SelfTestStatus?.status === 'pass', failures, cases, result.parsed?.v082SelfTestStatus?.status);
