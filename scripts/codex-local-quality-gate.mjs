@@ -171,6 +171,61 @@ function markerAllowedForPath(file, version, profileVersions) {
 function safeForbiddenArtifactHit(value) {
   return scanSafeOutput(value).findings.length > 0;
 }
+
+function safeCommandLabels(value) {
+  return String(value || '')
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const label = item.replace(/[^A-Za-z0-9_.:/= -]/g, '_').slice(0, 80);
+      return safeForbiddenArtifactHit(label) ? 'command_label_omitted' : label;
+    })
+    .filter(Boolean);
+}
+
+function remoteBaselineResult(value) {
+  return ['pass', 'fail', 'warning'].includes(String(value || '')) ? String(value) : 'fail';
+}
+
+function buildRemoteProductBaselineEvidenceJson(env = process.env) {
+  if (env.CODEX_REMOTE_PRODUCT_BASELINE_JSON || env.CODEX_REMOTE_PRODUCT_BASELINE_PATH) return null;
+  const hasEvidence = Boolean(
+    env.CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS ||
+    env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT ||
+    env.CODEX_REMOTE_PRODUCT_BASELINE_SOURCE,
+  );
+  if (!hasEvidence) return null;
+  const result = remoteBaselineResult(env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT);
+  const commands = safeCommandLabels(env.CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS || 'npm test');
+  const now = env.CODEX_REMOTE_PRODUCT_BASELINE_DATE || new Date().toISOString();
+  const expiresAt = env.CODEX_REMOTE_PRODUCT_BASELINE_EXPIRES_AT ||
+    new Date(new Date(now).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const baseline = {
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    repository: String(env.CODEX_REPOSITORY || 'target_repository').replace(/[^A-Za-z0-9_.:/-]/g, '_').slice(0, 120),
+    baseSha: String(env.CODEX_PR_BASE_SHA || env.GITHUB_BASE_SHA || 'baseline_sha_unset').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 80),
+    baselineType: 'remote_product_verification',
+    commands: commands.length ? commands : ['npm test'],
+    result,
+    date: now,
+    source: String(env.CODEX_REMOTE_PRODUCT_BASELINE_SOURCE || 'remote_quality_gate').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 80),
+    safeSummary: `remote product baseline ${result}`,
+    knownFailures: result === 'fail' ? ['remote_product_baseline_command_failed'] : [],
+    expiresAt,
+    rawValuesStored: false,
+    safeSummaryOnly: true,
+  };
+  if (safeForbiddenArtifactHit(JSON.stringify(baseline))) return null;
+  return JSON.stringify({ codexRemoteProductBaseline: baseline });
+}
+
+function withRemoteProductBaselineEvidence(env = process.env) {
+  const json = buildRemoteProductBaselineEvidenceJson(env);
+  return json ? { ...env, CODEX_REMOTE_PRODUCT_BASELINE_JSON: json } : env;
+}
+
 function runGateScript(script, field, envName, baseEnv = process.env) {
   if (!fs.existsSync(script)) {
     return { status: 'fail', failures: [`${field}=script_missing`], safeSummaryOnly: true };
@@ -926,7 +981,7 @@ async function runSourceHarnessGate() {
   const warnings = [];
   if (!jsonReport) console.log('== Codex source harness quality gate ==');
   const remoteContext = await resolveRemoteGateContext(process.env);
-  const gateEnv = { ...process.env, ...remoteContext.env };
+  const gateEnv = withRemoteProductBaselineEvidence({ ...process.env, ...remoteContext.env });
   const secretSelfTest = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { env: { CODEX_SECRET_SCAN_SELF_TEST: '1' }, stdio: 'pipe' });
   if (secretSelfTest.status !== 0) failures.push({ id: 'secretScan.selfTest', message: 'secret scan self-test failed' });
   const secretScan = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { stdio: 'pipe' });
@@ -1241,7 +1296,7 @@ async function runTargetHarnessGate() {
   const secretScan = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { stdio: 'pipe' });
   if (secretScan.status !== 0) failures.push({ id: 'secretScan.failed', message: 'secret safety scan failed' });
 
-  const gateEnv = { ...process.env };
+  const gateEnv = withRemoteProductBaselineEvidence({ ...process.env });
   const report = {
     marker: MARKER,
     harnessVersion: HARNESS_VERSION,
