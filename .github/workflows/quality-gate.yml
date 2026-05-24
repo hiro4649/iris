@@ -40,6 +40,36 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          classification_exit=0
+          node scripts/codex-change-classification-gate.mjs --json > "$RUNNER_TEMP/codex-change-classification.json" || classification_exit=$?
+          needs_npm="$(node - "$RUNNER_TEMP/codex-change-classification.json" <<'NODE'
+          const fs = require('fs');
+          const file = process.argv[2];
+          let report = null;
+          try { report = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+          const status = report?.changeClassificationStatus || {};
+          const needs = Boolean(status.productRelevantChanged || status.runtimeReadinessClaimed || status.packageOrLockfileChanged);
+          process.stdout.write(needs ? 'true' : 'false');
+          NODE
+          )"
+          if [ "$needs_npm" = "true" ]; then
+            unset CODEX_SKIP_NPM
+            unset CODEX_NPM_SKIP_REASON
+            npm_exit=0
+            npm test > "$RUNNER_TEMP/codex-npm-test-safe-hidden.log" 2>&1 || npm_exit=$?
+            export CODEX_PRODUCT_VERIFICATION_COMMANDS="npm test"
+            export CODEX_PRODUCT_VERIFICATION_SOURCE="remote_quality_gate"
+            if [ "$npm_exit" -eq 0 ]; then
+              export CODEX_PRODUCT_VERIFICATION_RESULT="pass"
+              echo "remote npm test result: pass"
+            else
+              export CODEX_PRODUCT_VERIFICATION_RESULT="fail"
+              echo "remote npm test result: fail"
+            fi
+          else
+            export CODEX_SKIP_NPM="1"
+            export CODEX_NPM_SKIP_REASON="harness-only or docs-only target workflow"
+          fi
           gate_exit=0
           node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json" || gate_exit=$?
           node scripts/codex-workflow-quality-runner.mjs --report "$RUNNER_TEMP/codex-quality-gate.json" --gate-exit "$gate_exit"
