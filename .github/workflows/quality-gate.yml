@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.8.1
+# CODEX_QUALITY_HARNESS_FILE v0.8.2
 name: quality-gate
 
 on:
@@ -24,29 +24,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install root dependencies if present
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package.json ]; then
-            npm install --no-package-lock
-          fi
-      - name: Install monorepo dependencies if present
-        shell: bash
-        run: |
-          set -euo pipefail
-          for dir in apps/backend apps/frontend contracts; do
-            if [ -f "$dir/package.json" ]; then
-              (cd "$dir" && npm install --no-package-lock)
-            fi
-          done
-      - name: Run source harness quality gate
+      - name: Run Codex target quality gate
         shell: bash
         env:
+          CODEX_HARNESS_MODE: "target"
+          CODEX_PROFILE_COMPAT_MODE: "off"
           CODEX_QUALITY_REPORT: "json"
           CODEX_OPENAI_METHOD_REPORT: "json"
-          CODEX_EVIDENCE_PACK_STRICT: "1"
-          CODEX_HUMAN_CONFIRMATION_STRICT: "1"
+          CODEX_SKIP_NPM: "1"
           CODEX_EVENT_NAME: ${{ github.event_name }}
           CODEX_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           CODEX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
@@ -55,265 +40,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ -f CODEX_SOURCE_HARNESS_MANIFEST.json ]; then
-            export CODEX_HARNESS_SOURCE_REPO=1
-            export CODEX_HARNESS_MODE=core
-            export CODEX_PROFILE_COMPAT_MODE=optional
-            export CODEX_REQUIRE_NPM=1
-          else
-            export CODEX_HARNESS_MODE=target
-            export CODEX_PROFILE_COMPAT_MODE=off
-            export CODEX_CHANGE_CLASSIFICATION_REPORT=json
-            change_exit=0
-            node scripts/codex-change-classification-gate.mjs > "$RUNNER_TEMP/codex-change-classification.json" || change_exit=$?
-            node - "$RUNNER_TEMP/codex-change-classification.json" "$change_exit" <<'NODE'
-            const fs = require('fs');
-            const file = process.argv[2];
-            const changeExit = Number(process.argv[3] || 0);
-            let report = {};
-            try { report = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-            const status = report.changeClassificationStatus?.status || 'missing';
-            const productRelevant = report.changeClassificationStatus?.productRelevantChanged === true;
-            const runtimeClaim = report.changeClassificationStatus?.runtimeReadinessClaimed === true;
-            const packageOrLockfile = report.changeClassificationStatus?.packageOrLockfileChanged === true;
-            console.log(`preflightChangeClassificationStatus: ${status}`);
-            console.log(`preflightProductRelevantChanged: ${productRelevant}`);
-            console.log(`preflightRuntimeReadinessClaimed: ${runtimeClaim}`);
-            console.log(`preflightPackageOrLockfileChanged: ${packageOrLockfile}`);
-            if (changeExit !== 0) console.log('preflightChangeClassificationExit: nonzero');
-          NODE
-            needs_npm=$(node - "$RUNNER_TEMP/codex-change-classification.json" "$change_exit" <<'NODE'
-            const fs = require('fs');
-            const file = process.argv[2];
-            const changeExit = Number(process.argv[3] || 0);
-            let report = {};
-            try { report = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-            const status = report.changeClassificationStatus?.status || 'missing';
-            const needs = changeExit !== 0 ||
-              status === 'fail' ||
-              report.changeClassificationStatus?.productRelevantChanged === true ||
-              report.changeClassificationStatus?.runtimeReadinessClaimed === true ||
-              report.changeClassificationStatus?.packageOrLockfileChanged === true;
-            process.stdout.write(needs ? '1' : '0');
-          NODE
-            )
-            if [ "$needs_npm" = "1" ]; then
-              echo "targetProductVerification: npm test required"
-              npm_exit=0
-              npm test || npm_exit=$?
-              export CODEX_PRODUCT_VERIFICATION_COMMANDS="npm test"
-              export CODEX_PRODUCT_VERIFICATION_SOURCE="remote_quality_gate"
-              if [ "$npm_exit" -eq 0 ]; then
-                export CODEX_PRODUCT_VERIFICATION_RESULT="pass"
-              else
-                export CODEX_PRODUCT_VERIFICATION_RESULT="fail"
-              fi
-              unset CODEX_SKIP_NPM
-            else
-              export CODEX_SKIP_NPM="${CODEX_SKIP_NPM:-1}"
-              export CODEX_NPM_SKIP_REASON="${CODEX_NPM_SKIP_REASON:-harness-only/docs-only target change without runtime claim}"
-            fi
-          fi
           gate_exit=0
-          node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-source-gate.json" || gate_exit=$?
-          node - "$RUNNER_TEMP/codex-source-gate.json" "$gate_exit" <<'NODE'
-          const fs = require('fs');
-          const file = process.argv[2];
-          const gateExit = Number(process.argv[3] || 0);
-          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
-          const targetMode = Boolean(report.targetQualityScoreStatus) && !report.sourceHarnessValidationStatus;
-
-          const sourceRequiredPass = [
-            'sourceHarnessValidationStatus',
-            'profileTemplateCompatibilityStatus',
-            'genericHarnessCoreStatus',
-            'agentsContextStatus',
-            'environmentReadinessStatus',
-            'goldenSetStatus',
-            'changeClassificationStatus',
-            'productVerificationStatus',
-            'bestOfNEvidenceStatus',
-            'taskQueueLiteStatus',
-            'safeTraceSchemaStatus',
-            'curatorReportStatus',
-            'offlineEvolutionProposalStatus',
-            'testCoverageEvidenceStatus',
-            'performanceEvidenceStatus',
-            'agentMemoryPolicyStatus',
-            'skillLifecyclePolicyStatus',
-            'curatorSuggestionStatus',
-            'selfEvolutionPolicyStatus',
-            'safeArtifactValidation',
-            'outputShapeStatus',
-            'openaiCodexMethodStatus',
-            'methodSupportStatus',
-            'productionReadinessStatus',
-            'evidenceIntegrityStatus',
-            'hermesInvariantStatus',
-            'evidencePackStatus',
-            'humanConfirmationObjectStatus',
-            'safeOutputScanStatus',
-            'ciReplayStatus',
-            'prBodyLintStatus',
-            'failureReasonCatalogStatus',
-            'v071SelfTestStatus',
-            'v072SelfTestStatus',
-            'v080SelfTestStatus',
-            'v081SelfTestStatus',
-            'qualityScoreStatus',
-          ];
-          const targetRequiredPass = [
-            'targetManifestStatus',
-            'secretScan',
-            'agentsContextStatus',
-            'environmentReadinessStatus',
-            'changeClassificationStatus',
-            'productVerificationStatus',
-            'safeOutputScanStatus',
-            'v080SelfTestStatus',
-            'v081SelfTestStatus',
-            'safeArtifactValidation',
-            'outputShapeStatus',
-            'targetQualityScoreStatus',
-          ];
-          const requiredPass = targetMode ? targetRequiredPass : sourceRequiredPass;
-
-          const failures = [];
-          const prDependent = new Set([
-            'openaiCodexMethodStatus',
-            'productionReadinessStatus',
-            'evidenceIntegrityStatus',
-            'hermesInvariantStatus',
-          ]);
-          const optionalNotApplicable = new Set([
-            'agentMemoryPolicyStatus',
-            'skillLifecyclePolicyStatus',
-            'curatorSuggestionStatus',
-            'selfEvolutionPolicyStatus',
-            'taskQueueLiteStatus',
-            'safeTraceSchemaStatus',
-            'curatorReportStatus',
-            'offlineEvolutionProposalStatus',
-            'testCoverageEvidenceStatus',
-            'performanceEvidenceStatus',
-            'bestOfNEvidenceStatus',
-            'changeClassificationStatus',
-            'productVerificationStatus',
-            'goldenSetStatus',
-          ]);
-          for (const key of requiredPass) {
-            const status = report[key]?.status || 'missing';
-            console.log(`${key}: ${status}`);
-            if (prDependent.has(key) && status === 'not_applicable' && process.env.CODEX_EVENT_NAME !== 'pull_request') {
-              continue;
-            }
-            if (key === 'ciReplayStatus' && status === 'not_applicable' && process.env.CODEX_EVENT_NAME !== 'pull_request') {
-              continue;
-            }
-            if (optionalNotApplicable.has(key) && status === 'not_applicable') {
-              continue;
-            }
-            if (key === 'humanConfirmationObjectStatus' && status === 'not_required') {
-              continue;
-            }
-            if (status !== 'pass') failures.push(`${key}=${status}`);
-          }
-
-          console.log(`report.status: ${report.status}`);
-          console.log(`mergeReady: ${report.mergeReady}`);
-          console.log(`targetMergeReady: ${report.targetMergeReady ?? 'not_applicable'}`);
-          console.log(`humanReviewRequired: ${report.humanReviewRequired}`);
-          console.log(`humanConfirmationStatus: ${report.humanConfirmationStatus?.status || 'missing'}`);
-          console.log(`qualityScoreStatus: ${report.qualityScoreStatus?.status || 'missing'}`);
-          console.log(`qualityScore: ${report.qualityScoreStatus?.score ?? 'missing'}`);
-          console.log(`targetQualityScoreStatus: ${report.targetQualityScoreStatus?.status || 'missing'}`);
-          console.log(`targetQualityScore: ${report.targetQualityScoreStatus?.score ?? 'missing'}`);
-          console.log(`changeClassificationStatus: ${report.changeClassificationStatus?.status || 'missing'}`);
-          console.log(`productVerificationStatus: ${report.productVerificationStatus?.status || 'missing'}`);
-          console.log(`agentsContextStatus: ${report.agentsContextStatus?.status || 'missing'}`);
-          console.log(`secretScan: ${report.secretScan?.status || 'missing'}`);
-
-          const safeSummary = {
-            status: report.status,
-            mergeReady: report.mergeReady,
-            targetMergeReady: report.targetMergeReady ?? null,
-            humanReviewRequired: report.humanReviewRequired,
-            qualityScoreStatus: report.qualityScoreStatus || report.targetQualityScoreStatus,
-            failureCount: Array.isArray(report.failures) ? report.failures.length : 0,
-            warningCount: Array.isArray(report.warnings) ? report.warnings.length : 0,
-          };
-          const failureReasons = [
-            ...(Array.isArray(report.failures) ? report.failures : []).map((item) => ({
-              reasonCode: item.id || 'quality_gate_failure',
-              safeMessage: item.message || 'Quality gate failure.',
-            })),
-            ...failures.map((item) => ({
-              reasonCode: 'workflow_required_status_failure',
-              safeMessage: item,
-            })),
-          ];
-          fs.writeFileSync('codex-quality-gate-safe-summary.json', JSON.stringify(safeSummary, null, 2));
-          fs.writeFileSync('codex-failure-reasons.json', JSON.stringify(failureReasons, null, 2));
-          fs.writeFileSync('codex-evidence-pack.normalized.json', JSON.stringify({
-            evidencePackStatus: report.evidencePackStatus || { status: 'missing' },
-            normalizedEvidencePackPresent: Boolean(report.normalizedEvidencePack),
-          }, null, 2));
-
-          if (gateExit !== 0 && !['pass', 'manual_confirmation_required'].includes(report.status)) {
-            failures.push(`report.status=${report.status}`);
-          }
-
-          function concreteUnsafeFindings(value, path = 'report') {
-            const findings = [];
-            const unsafeKey = /^(rawDiff|rawLogs|secretValue|endpointValue|privatePath|rawPayload|payload|productionData|personalData)$/i;
-            const valuePatterns = [
-              /(?:https?|postgres(?:ql)?|mysql|mongodb):\/\/[^\s<>"'`]+/i,
-              /\b(?:gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/,
-              /-----BEGIN [^-]+PRIVATE KEY-----/i,
-              /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/,
-              /\b[A-Za-z]:\\Users\\[^"'`\s]+|\/home\/[^"'`\s]+/i,
-            ];
-            const visit = (node, label) => {
-              if (node === null || node === undefined) return;
-              if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') {
-                const text = String(node);
-                if (valuePatterns.some((pattern) => pattern.test(text))) findings.push(label);
-                return;
-              }
-              if (Array.isArray(node)) {
-                node.forEach((item, index) => visit(item, `${label}[${index}]`));
-                return;
-              }
-              if (typeof node === 'object') {
-                for (const [key, nested] of Object.entries(node)) {
-                  const nextLabel = `${label}.${key}`;
-                  if (unsafeKey.test(key)) findings.push(nextLabel);
-                  else visit(nested, nextLabel);
-                }
-              }
-            };
-            visit(value, path);
-            return findings;
-          }
-          if (concreteUnsafeFindings(report).length) {
-            failures.push('unsafe output pattern detected');
-          }
-
-          if (failures.length) {
-            console.error('Source harness gate verification failed:');
-            for (const item of failures) {
-              const safe = String(item).replace(/[^A-Za-z0-9_.:= -]/g, '_').slice(0, 180);
-              console.error(`::error title=codex-quality-gate::${safe}`);
-              console.error(`- ${safe}`);
-            }
-            for (const warning of report.warnings || []) {
-              const safe = String(warning.id || warning.message || 'quality_gate_warning').replace(/[^A-Za-z0-9_.:= -]/g, '_').slice(0, 180);
-              console.warn(`::warning title=codex-quality-gate::${safe}`);
-            }
-            process.exit(1);
-          }
-          NODE
-      - name: Write safe quality summary
+          node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json" || gate_exit=$?
+          node scripts/codex-workflow-quality-runner.mjs --report "$RUNNER_TEMP/codex-quality-gate.json" --gate-exit "$gate_exit"
+      - name: Write safe target summary
         if: always()
         shell: bash
         run: |
@@ -325,14 +55,18 @@ jobs:
             catch { return null; }
           }
           const summary = readJson('codex-quality-gate-safe-summary.json');
+          const target = readJson('codex-target-quality-summary.json');
           const reasons = readJson('codex-failure-reasons.json') || [];
-          console.log('## Codex quality gate safe summary');
+          console.log('## Codex target quality gate safe summary');
           if (summary) {
             console.log(`- status: ${summary.status || 'missing'}`);
-            console.log(`- mergeReady: ${summary.mergeReady}`);
-            console.log(`- humanReviewRequired: ${summary.humanReviewRequired}`);
-            console.log(`- qualityScoreStatus: ${summary.qualityScoreStatus?.status || 'missing'}`);
-            console.log(`- qualityScore: ${summary.qualityScoreStatus?.score ?? 'missing'}`);
+            console.log(`- mode: ${summary.mode || 'missing'}`);
+            console.log(`- targetMergeReady: ${summary.targetMergeReady ?? 'not_applicable'}`);
+            console.log(`- targetQualityScoreStatus: ${target?.targetQualityScoreStatus?.status || summary.targetQualityScoreStatus?.status || 'missing'}`);
+            console.log(`- targetQualityScore: ${target?.targetQualityScoreStatus?.score ?? summary.targetQualityScoreStatus?.score ?? 'missing'}`);
+            console.log(`- agentsContextStatus: ${summary.agentsContextStatus?.status || 'missing'}`);
+            console.log(`- productVerificationStatus: ${summary.productVerificationStatus?.status || 'missing'}`);
+            console.log(`- secretScan: ${summary.secretScan?.status || 'missing'}`);
           } else {
             console.log('- status: summary_missing');
           }
@@ -352,4 +86,6 @@ jobs:
             codex-quality-gate-safe-summary.json
             codex-evidence-pack.normalized.json
             codex-failure-reasons.json
+            codex-target-quality-summary.json
+            codex-test-metrics.safe.json
           if-no-files-found: ignore
