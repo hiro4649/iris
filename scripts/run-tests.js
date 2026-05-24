@@ -21839,7 +21839,7 @@ const tests = [
     },
   ],
   [
-    "quality gate method gate production readiness evidence integrity Hermes v0.8.1 support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
+    "quality gate method gate production readiness evidence integrity Hermes v0.8.3 support env example .env.example safe-key-only blocked path secret scan policy keeps guard narrow",
     async () => {
       const sourceRoot = process.cwd();
       const tempDir = mkdtempSync(join(tmpdir(), "iris-env-policy-gate-"));
@@ -21885,10 +21885,11 @@ const tests = [
         );
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
-      const parseQualityReport = (result) => JSON.parse(result.stdout);
+      const parseJsonText = (text) => JSON.parse(String(text).replace(/^\uFEFF/, ""));
+      const parseQualityReport = (result) => parseJsonText(result.stdout);
       const methodGateCompliantBody = (headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") => [
         "Scope:",
-        "HARNESS081-NPM-BASELINE-FIX v0.8.1 method gate fixture repair only",
+        "HARNESS083-NPM-BASELINE-FIX v0.8.3 method gate fixture repair only",
         "",
         "PR type:",
         "harness-fixture-repair",
@@ -21897,10 +21898,10 @@ const tests = [
         "R3",
         "",
         "Goal:",
-        "Restore clean-main npm test after Codex Harness v0.8.1 by updating stale method-gate fixture body expectations.",
+        "Restore clean-main npm test after Codex Harness v0.8.3 by updating stale method-gate fixture body expectations.",
         "",
         "Context:",
-        "Harness v0.8.1 adds target verification and stricter evidence labels. This fixture remains narrow and keeps policy strict.",
+        "Harness v0.8.3 adds workflow preflight, remote product baseline, remote npm diagnostic, safe artifact index, and target final summary evidence. This fixture remains narrow and keeps policy strict.",
         "",
         "Files or scope:",
         "scripts/run-tests.js fixture body only.",
@@ -21909,18 +21910,18 @@ const tests = [
         "Do not loosen quality gate. Do not disable method gate. Do not remove required sections. Do not claim production readiness.",
         "",
         "Done when:",
-        "npm test PASS, v0.8.1 self-test PASS, and target quality gate PASS.",
+        "npm test PASS, v0.8.3 self-test PASS, and target quality gate PASS.",
         "",
         "Plan-first status:",
         "Done. Plan-first was used before coding because this is an R3 harness baseline repair.",
         "",
         "Environment setup:",
-        "Verified clean main, current head, harness v0.8.1, and isolated fixture-only scope before changes.",
+        "Verified clean main, current head, harness v0.8.3, and isolated fixture-only scope before changes.",
         "",
         "Testing and review:",
-        "Date: 2026-05-21.",
+        "Date: 2026-05-24.",
         "Source: local fixture.",
-        "Commands run: node scripts/run-iris-evals.mjs; node scripts/lint-iris-docs.mjs; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-v081-self-test.mjs; npm test.",
+        "Commands run: node scripts/run-iris-evals.mjs; node scripts/lint-iris-docs.mjs; node scripts/codex-secret-safety-scan.mjs; node scripts/codex-v080-self-test.mjs; node scripts/codex-v081-self-test.mjs; node scripts/codex-v082-self-test.mjs; node scripts/codex-v083-self-test.mjs; npm test.",
         "Tests or checks run: npm test PASS.",
         "Result: all listed fixture checks PASS.",
         `Head SHA: ${headSha}.`,
@@ -21930,6 +21931,30 @@ const tests = [
         "",
         "Product Verification:",
         "Product verification commands: npm test PASS for fixture baseline coverage.",
+        "",
+        "Product Verification Evidence:",
+        "Normalized evidence source: local npm test evidence. CODEX_PRODUCT_VERIFICATION_COMMANDS=npm test. CODEX_PRODUCT_VERIFICATION_RESULT=pass. CODEX_PRODUCT_VERIFICATION_SOURCE=local.",
+        "",
+        "Test Metrics:",
+        "testMetricsStatus PASS or safe not_applicable according to target gate output. Test count is recorded as safe summary only.",
+        "",
+        "Workflow Preflight:",
+        "workflowPreflightStatus PASS for target preflight evidence.",
+        "",
+        "Remote Product Baseline:",
+        "remoteProductBaselineStatus PASS or safe not_applicable for local fixture repair evidence.",
+        "",
+        "Remote NPM Diagnostic:",
+        "remoteNpmDiagnosticStatus PASS or safe not_applicable because no remote npm failure diagnostic is claimed by this local fixture.",
+        "",
+        "Safe Artifact Index:",
+        "safeArtifactIndexStatus PASS with safe artifact labels only.",
+        "",
+        "Target Final Summary:",
+        "targetFinalSummaryStatus PASS with safe summary labels only.",
+        "",
+        "Reason Summary:",
+        "reasonSummaryStatus PASS with safe reason labels only.",
         "",
         "Runtime Readiness Claim:",
         "No runtime readiness is claimed.",
@@ -21966,7 +21991,7 @@ const tests = [
         "Skipped with reason. This is a narrow fixture baseline repair and should not expand scope.",
         "",
         "Code review status:",
-        "Reviewed. Self-reviewed against docs/process/code_review.md and v0.8.1 method policy.",
+        "Reviewed. Self-reviewed against docs/process/code_review.md and v0.8.3 method policy.",
         "",
         "Human confirmation needed:",
         "yes. R3 confirmation is required for harness and policy-adjacent change.",
@@ -21979,7 +22004,7 @@ const tests = [
         "Stop condition: do not merge if quality gate fails or method gate fails.",
         "",
       ].join("\n");
-      const harnessManifest = JSON.parse(
+      const harnessManifest = parseJsonText(
         readFileSync(join(sourceRoot, "docs/process/CODEX_HARNESS_MANIFEST.json"), "utf8")
       );
       const methodGateSupportFiles = new Set([
@@ -22050,7 +22075,10 @@ const tests = [
             CODEX_HARNESS_MODE: "target",
             CODEX_PROFILE_COMPAT_MODE: "off",
             CODEX_SKIP_NPM: "1",
+            CODEX_NPM_SKIP_REASON: "harness fixture policy case without product runtime changes",
             CODEX_SKIP_V081_SELF_TEST: "1",
+            CODEX_SKIP_V082_SELF_TEST: "1",
+            CODEX_SKIP_V083_SELF_TEST: "1",
             CODEX_CHANGED_FILES: changedFilesOverride || "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
             CODEX_GITHUB_API_AVAILABLE: "0",
             CODEX_PR_BASE_SHA: baseSha,
@@ -22098,7 +22126,7 @@ const tests = [
             TEST_CURRENT_PR_BODY: methodGateCompliantBody(),
           },
         });
-        return JSON.parse(result.stdout);
+        return parseJsonText(result.stdout);
       };
       const runHarnessFixtureScopeCase = ({
         extraFileName = "",
@@ -22172,6 +22200,8 @@ const tests = [
           CODEX_HARNESS_MODE: "target",
           CODEX_PROFILE_COMPAT_MODE: "off",
           CODEX_SKIP_V081_SELF_TEST: "1",
+          CODEX_SKIP_V082_SELF_TEST: "1",
+          CODEX_SKIP_V083_SELF_TEST: "1",
           CODEX_CHANGED_FILES: changedFiles.join(","),
           CODEX_GITHUB_API_AVAILABLE: "0",
           CODEX_PR_BASE_SHA: baseSha,
@@ -22185,6 +22215,7 @@ const tests = [
           env.CODEX_PRODUCT_VERIFICATION_SOURCE = "remote_quality_gate";
         } else {
           env.CODEX_SKIP_NPM = "1";
+          env.CODEX_NPM_SKIP_REASON = "harness fixture policy case without product runtime changes";
         }
         if (explicitPrType) env.CODEX_PR_TYPE = explicitPrType;
         const result = run("node", ["scripts/codex-local-quality-gate.mjs"], {
