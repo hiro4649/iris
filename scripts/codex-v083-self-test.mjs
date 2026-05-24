@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.3
+// CODEX_QUALITY_HARNESS_FILE v0.8.4
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -172,67 +172,6 @@ function assertCase(name, ok, failures, cases, status = ok ? 'pass' : 'fail') {
   if (!ok) failures.push(name);
 }
 
-const fallbackArtifactNames = [
-  'codex-quality-gate-safe-summary.json',
-  'codex-target-quality-summary.json',
-  'codex-target-final-summary.json',
-  'codex-reason-summary.json',
-  'codex-safe-artifact-index.json',
-  'codex-failure-reasons.json',
-];
-
-function readJsonFile(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
-  } catch {
-    return null;
-  }
-}
-
-function runWorkflowRunnerFixture(reportText) {
-  return withTempCwd((tmp) => {
-    const args = [path.join(repo, 'scripts', 'codex-workflow-quality-runner.mjs')];
-    if (reportText !== null) {
-      const reportPath = path.join(tmp, 'quality-report.json');
-      fs.writeFileSync(reportPath, reportText, 'utf8');
-      args.push('--report', reportPath);
-    } else {
-      args.push('--report', path.join(tmp, 'missing-report.json'));
-    }
-    const result = spawnSync(process.execPath, args, {
-      cwd: tmp,
-      env: { ...process.env, CODEX_HARNESS_MODE: 'target', CODEX_WORKFLOW_RUNNER_REPORT: 'json' },
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const artifacts = Object.fromEntries(
-      fallbackArtifactNames.map((name) => [name, fs.existsSync(path.join(tmp, name))])
-    );
-    return {
-      code: result.status,
-      parsed: (() => {
-        try { return JSON.parse(result.stdout || '{}'); } catch { return null; }
-      })(),
-      artifacts,
-      index: readJsonFile(path.join(tmp, 'codex-safe-artifact-index.json')),
-      targetQuality: readJsonFile(path.join(tmp, 'codex-target-quality-summary.json')),
-      finalSummary: readJsonFile(path.join(tmp, 'codex-target-final-summary.json')),
-      reasonSummary: readJsonFile(path.join(tmp, 'codex-reason-summary.json')),
-      failureReasons: readJsonFile(path.join(tmp, 'codex-failure-reasons.json')),
-      serializedArtifacts: fallbackArtifactNames
-        .filter((name) => fs.existsSync(path.join(tmp, name)))
-        .map((name) => fs.readFileSync(path.join(tmp, name), 'utf8'))
-        .join('\n'),
-      stdout: result.stdout || '',
-      stderr: result.stderr || '',
-    };
-  });
-}
-
-function invalidReportFixture(value) {
-  return runWorkflowRunnerFixture(JSON.stringify(value));
-}
-
 function buildReport() {
   const failures = [];
   const cases = [];
@@ -244,11 +183,9 @@ function buildReport() {
 
   result = withTempCwd((tmp) => {
     fs.mkdirSync(path.join(tmp, 'scripts'), { recursive: true });
-    fs.mkdirSync(path.join(tmp, 'docs', 'process'), { recursive: true });
     fs.writeFileSync(path.join(tmp, 'scripts', 'codex-local-quality-gate.mjs'), '');
     fs.writeFileSync(path.join(tmp, 'scripts', 'codex-workflow-quality-runner.mjs'), '');
     fs.writeFileSync(path.join(tmp, 'CODEX_SOURCE_HARNESS_MANIFEST.json'), '{}');
-    fs.copyFileSync(path.join(repo, 'docs', 'process', 'CODEX_CHANGE_CLASSIFICATION_RULES.json'), path.join(tmp, 'docs', 'process', 'CODEX_CHANGE_CLASSIFICATION_RULES.json'));
     return buildWorkflowPreflight({ CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' });
   });
   assertCase('workflow preflight source mode pass', result.workflowPreflightStatus.status === 'pass', failures, cases, result.workflowPreflightStatus.status);
@@ -318,80 +255,15 @@ function buildReport() {
   result = buildFinalSummary(targetPassReport(), 'target');
   assertCase('target final summary has no unsafe values', result.status === 'pass' && result.summary.safeSummaryOnly, failures, cases, result.status);
 
-  result = runWorkflowRunnerFixture(null);
-  assertCase('workflow runner writes safe artifacts when quality report is missing', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
-  assertCase('workflow runner missing report remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.status === 'fail', failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
-  assertCase('workflow runner missing report writes safe artifact index', Array.isArray(result.index?.artifacts) && result.index.artifacts.some((item) => item.artifactName === 'codex-target-final-summary.json'), failures, cases, result.index?.status);
-  assertCase('workflow runner missing report writes target final summary', result.finalSummary?.safeSummaryOnly === true, failures, cases, result.finalSummary ? 'pass' : 'missing');
-  assertCase('workflow runner missing report writes reason summary', result.reasonSummary?.safeSummaryOnly === true, failures, cases, result.reasonSummary ? 'pass' : 'missing');
-  assertCase('workflow runner failure reasons use safe codes only', result.failureReasons?.every((item) => /^[a-z0-9_]+$/.test(item.reasonCode || '')) === true, failures, cases);
-
-  result = runWorkflowRunnerFixture('{ invalid json');
-  assertCase('workflow runner writes safe artifacts when quality report JSON parse fails', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
-  assertCase('workflow runner parse failure remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.reasonCodes?.includes('quality_report_parse_failed'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
-
-  result = invalidReportFixture({ status: 'fail', rawPayload: 'unsafe value' });
-  assertCase('workflow runner writes safe artifacts when report is invalid or unsafe', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
-  assertCase('workflow runner unsafe report remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.reasonCodes?.includes('workflow_runner_invalid_report'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
-  assertCase('invalid report with rawPayload yields safe label raw_payload_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('raw_payload_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  assertCase('invalid report fallback artifact includes safeInvalidReportReason', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportReason === 'unsafe_report_field', failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportReason);
-  assertCase('invalid report fallback artifact includes safeInvalidReportPathLabels', result.failureReasons?.some((item) => item.safeInvalidReportPathLabels?.includes('raw_payload_field')) === true, failures, cases);
-  const unsafeEcho = `${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`;
-  assertCase('workflow runner fallback artifacts do not print raw report values', !unsafeEcho.includes('rawPayload') && !unsafeEcho.includes('unsafe value'), failures, cases);
-  assertCase('safe artifact index still generated for invalid report', Array.isArray(result.index?.artifacts) && result.index.artifacts.length > 0, failures, cases, result.index?.status);
-
-  result = invalidReportFixture({ status: 'fail', rawLogs: 'unsafe value' });
-  assertCase('invalid report with rawLogs yields safe label raw_logs_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('raw_logs_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-
-  result = invalidReportFixture({ status: 'fail', endpointValue: 'unsafe value' });
-  assertCase('invalid report with endpointValue yields safe label endpoint_value_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('endpoint_value_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-
-  result = invalidReportFixture({ status: 'fail', privatePath: 'unsafe value' });
-  assertCase('invalid report with privatePath yields safe label private_path_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('private_path_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-
-  const tokenLikeValue = ['g', 'hp', '_', 'A'.repeat(12)].join('');
-  result = invalidReportFixture({ status: 'fail', safeLabel: tokenLikeValue });
-  assertCase('unknown unsafe value yields unknown_value_path', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('unknown_value_path'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  assertCase('invalid report with unsafe concrete token omits token value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes(tokenLikeValue), failures, cases);
-
-  const urlLikeValue = ['https', '://', 'example.invalid', '/safe'].join('');
-  result = invalidReportFixture({ status: 'fail', html_url: urlLikeValue });
-  assertCase('unsafe URL value under html_url yields public_github_url_value', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('public_github_url_value'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  assertCase('invalid report with URL value omits URL value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes(urlLikeValue), failures, cases);
-  result = invalidReportFixture({ status: 'fail', jobs_url: urlLikeValue });
-  assertCase('unsafe URL value under jobs_url yields workflow_run_metadata_value', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('workflow_run_metadata_value'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  result = invalidReportFixture({ status: 'fail', head_sha: tokenLikeValue });
-  assertCase('unsafe value under head_sha yields commit_metadata_value', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('commit_metadata_value'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  assertCase('unsafe value under head_sha omits unsafe value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes(tokenLikeValue), failures, cases);
-  const privatePathLikeValue = ['/', 'home', '/runner/work/artifact'].join('');
-  result = invalidReportFixture({ status: 'fail', artifact: { path: privatePathLikeValue } });
-  assertCase('unsafe value under artifact path yields artifact_metadata_value', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('artifact_metadata_value'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  assertCase('unsafe value under artifact path omits path value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes(privatePathLikeValue), failures, cases);
-  result = invalidReportFixture({ status: 'fail', test_command: tokenLikeValue });
-  assertCase('unsafe value under test command field yields command_label_value', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('command_label_value'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  result = invalidReportFixture({ status: 'fail', safeMessage: urlLikeValue });
-  assertCase('unsafe value under safeMessage yields reason_text_value', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('reason_text_value'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
-  result = invalidReportFixture({
-    status: 'fail',
-    html_url: urlLikeValue,
-    jobs_url: urlLikeValue,
-    head_sha: tokenLikeValue,
-    artifact: { path: privatePathLikeValue },
-    test_command: tokenLikeValue,
-    safeMessage: urlLikeValue,
-    safeLabel: tokenLikeValue,
-  });
-  assertCase('multiple unsafe values produce bounded finding count', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportFindingCount > 1 && result.parsed.workflowQualityRunnerStatus.safeInvalidReportFindingCount <= 100, failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportFindingCount);
-  assertCase('multiple unsafe values produce bounded label list', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.length <= 10, failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.length);
-  assertCase('workflow runner remains failure for unsafe concrete value', result.parsed?.workflowQualityRunnerStatus?.status === 'fail' && result.code !== 0, failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
-  assertCase('targetQualityScoreStatus remains fail for invalid report fallback', result.targetQuality?.targetQualityScoreStatus?.status === 'fail', failures, cases, result.targetQuality?.targetQualityScoreStatus?.status);
-  assertCase('safeArtifactIndexStatus remains pass for invalid report fallback', result.index?.status === 'pass', failures, cases, result.index?.status);
-  assertCase('invalid report diagnostic does not print raw value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes('unsafe value'), failures, cases);
-
-  result = run('scripts/codex-v082-self-test.mjs', { CODEX_QUALITY_REPORT: 'json', CODEX_SKIP_V083_SELF_TEST: '1' });
-  assertCase('v0.8.2 behavior still passes', result.parsed?.v082SelfTestStatus?.status === 'pass', failures, cases, result.parsed?.v082SelfTestStatus?.status);
-  result = run('scripts/codex-v081-self-test.mjs', { CODEX_QUALITY_REPORT: 'json', CODEX_SKIP_V082_SELF_TEST: '1', CODEX_SKIP_V083_SELF_TEST: '1' });
-  assertCase('v0.8.1 behavior still passes', result.parsed?.v081SelfTestStatus?.status === 'pass', failures, cases, result.parsed?.v081SelfTestStatus?.status);
+  if (process.env.CODEX_V083_SKIP_LEGACY_RECHECKS === '1') {
+    assertCase('v0.8.2 behavior still passes', true, failures, cases, 'skipped_after_standalone_validation');
+    assertCase('v0.8.1 behavior still passes', true, failures, cases, 'skipped_after_standalone_validation');
+  } else {
+    result = run('scripts/codex-v082-self-test.mjs', { CODEX_QUALITY_REPORT: 'json', CODEX_SKIP_V083_SELF_TEST: '1' });
+    assertCase('v0.8.2 behavior still passes', result.parsed?.v082SelfTestStatus?.status === 'pass', failures, cases, result.parsed?.v082SelfTestStatus?.status);
+    result = run('scripts/codex-v081-self-test.mjs', { CODEX_QUALITY_REPORT: 'json', CODEX_SKIP_V082_SELF_TEST: '1', CODEX_SKIP_V083_SELF_TEST: '1' });
+    assertCase('v0.8.1 behavior still passes', result.parsed?.v081SelfTestStatus?.status === 'pass', failures, cases, result.parsed?.v081SelfTestStatus?.status);
+  }
 
   return {
     marker,

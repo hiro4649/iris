@@ -1,4 +1,4 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 ## IRIS Authority Boundary
 
@@ -14,65 +14,37 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v0.8.3
+CODEX_QUALITY_HARNESS_FILE v0.8.4
 
-## Target Harness Boundary
+## Codex Target Harness Boundary
 
-This repository is a downstream target using Codex Development Harness v0.8.3.
-Harness work must stay in harness-managed files unless the task explicitly asks
-for product code changes. Preserve readable project authority and boundary text
-outside this block.
+Source harness boundary: this target repository consumes Codex Development Harness v0.8.4 through docs/process/CODEX_HARNESS_MANIFEST.json, not CODEX_SOURCE_HARNESS_MANIFEST.json.
+Plan-first: use a short plan for R3, workflow, product-relevant, security, release, or ambiguous changes before editing.
+Safe output: reports and artifacts must be safe-summary only, with no raw PR body, comments, payloads, diffs, logs, endpoint values, private paths, production data, personal data, tokens, or secrets.
+Merge-ready claim: do not claim merge readiness unless the current target gate, evidence, and required confirmations all support it.
+Manual confirmation: R3 or owner-gated changes require current-head project-owner confirmation before merge.
+Profile/core separation: target mode keeps profile compatibility off unless the project owner explicitly opts in.
 
-## Source Harness Boundary
+Current target-mode requirements:
+- keep this AGENTS.md readable across the whole file;
+- keep exactly one current harness block;
+- preserve project authority outside this block;
+- run target quality gates with CODEX_HARNESS_MODE=target, CODEX_PROFILE_COMPAT_MODE=off, and CODEX_QUALITY_REPORT=json;
+- allow CODEX_SKIP_NPM=1 only when change classification and product verification policy allow it;
+- require product verification when product-relevant files, package files, runtime readiness claims, or performance claims are present.
 
-The source harness is maintained outside this target repository. Use
-`docs/process/CODEX_HARNESS_MANIFEST.json` as the target manifest. Do not copy
-source-only manifests, source-only profiles, or source repo README content into
-target-mode work.
+v0.8.4 preserves v0.8.3 diagnostics and adds the Fast Path and Diagnostic Consolidation Gate:
+- Harness Fast Path Gate;
+- Diagnostic Consolidation Runner;
+- Unsafe Value Class Action Matrix;
+- Invalid Report Recovery v2;
+- Artifact Budget and Index v2;
+- PR Body Profile Optimizer;
+- Open PR Hygiene v2;
+- Node Actions Runtime Advisory;
+- v0.8.4 self-test.
 
-## Plan-First Rule
-
-Use plan-first for R3, ambiguous, security-sensitive, migration, release,
-dependency, multi-file, or architecture tradeoff work. Keep the plan short and
-connect it to affected areas, entrypoints, and failure propagation risk.
-
-## Safe Output Rule
-
-Use safe summary only. Do not print raw PR bodies, comments, logs, diffs,
-payloads, secret values, endpoint values, private paths, production data,
-personal data, tokens, or credentials.
-
-## Target Verification Rule
-
-Target mode uses `CODEX_HARNESS_MODE=target` and `CODEX_PROFILE_COMPAT_MODE=off`.
-Harness-only changes may use `CODEX_SKIP_NPM=1`. Product-relevant changes,
-runtime readiness claims, package changes, lockfile changes, or performance
-claims require the matching safe evidence and must not be hidden by npm skip.
-
-## v0.8.3 Diagnostic Stability
-
-The target quality gate includes workflow preflight, remote product baseline,
-remote npm diagnostic, safe artifact index, open PR hygiene, reason summary,
-final summary, AGENTS context, safe output, secret scan, product verification,
-and `targetQualityScoreStatus`. These artifacts are safe-summary only and do not
-prove product runtime readiness by themselves.
-
-## Merge-Ready Claim Rule
-
-Do not claim merge-ready unless required gates, current-head evidence, target
-quality score, product verification policy, and human confirmation rules are
-satisfied.
-
-## Manual Confirmation Limit
-
-Manual confirmation cannot override non-overridable failures: secret scan,
-blocked paths, high-confidence sensitive findings, stale evidence, unsafe
-output, product/harness scope mixing, unreadable AGENTS context, missing target
-score, or weakened quality gates.
-
-## Profile/Core Separation
-
-Source harness version and profile template version are separate. Target mode
-does not require source profiles unless a project explicitly opts in.
+Do not add Agentmemory, Hermes runtime, GEPA, MCP, SQLite memory, LLM judge, automatic skill rewriting, auto commit, or auto push as part of this harness block.
+Do not treat targetQualityScoreStatus or a passing harness gate as product runtime readiness.
 
 <!-- CODEX_QUALITY_HARNESS_END -->
