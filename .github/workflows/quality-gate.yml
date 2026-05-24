@@ -57,6 +57,53 @@ jobs:
             unset CODEX_NPM_SKIP_REASON
             npm_exit=0
             npm test > "$RUNNER_TEMP/codex-npm-test-safe-hidden.log" 2>&1 || npm_exit=$?
+            if [ "$npm_exit" -ne 0 ]; then
+              node - "$RUNNER_TEMP/codex-npm-test-safe-hidden.log" "$npm_exit" <<'NODE' > codex-npm-test-safe-summary.json
+          const fs = require('fs');
+          const logFile = process.argv[2];
+          const npmExitCode = Number.parseInt(process.argv[3] || '1', 10);
+          let text = '';
+          try { text = fs.readFileSync(logFile, 'utf8'); } catch {}
+          const markerRules = [
+            ['bom_parse_failure', /\bBOM\b|\uFEFF|Unexpected token .* JSON at position 0/i],
+            ['json_parse_failure', /JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i],
+            ['module_not_found', /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i],
+            ['missing_dependency', /Cannot find package|npm ERR! missing|ENOENT.*node_modules/i],
+            ['node_syntax_check_failure', /SyntaxError|Unexpected token/i],
+            ['permission_or_path_issue', /EACCES|EPERM|ENOENT/i],
+            ['timeout_or_killed', /timed out|timeout|SIGKILL|Killed/i],
+            ['test_fixture_failure', /not ok|AssertionError|test failed|FAIL/i],
+          ];
+          let category = 'unknown_npm_failure';
+          let markerCount = 0;
+          for (const [label, pattern] of markerRules) {
+            if (pattern.test(text)) {
+              markerCount += 1;
+              if (category === 'unknown_npm_failure') category = label;
+            }
+          }
+          const testCountMatch = text.match(/\b(\d{1,5})\s+tests?\b/i);
+          const testCount = testCountMatch ? Number.parseInt(testCountMatch[1], 10) : null;
+          const platform = ['linux', 'win32', 'darwin'].includes(process.platform) ? process.platform : 'other';
+          const report = {
+            schema: 'codex_npm_test_safe_summary_v1',
+            status: 'fail',
+            safeSummaryOnly: true,
+            npm_exit_code: Number.isFinite(npmExitCode) ? npmExitCode : 1,
+            node_version_major: Number.parseInt(process.versions.node.split('.')[0] || '0', 10),
+            platform,
+            package_json_exists: fs.existsSync('package.json'),
+            run_tests_js_exists: fs.existsSync('scripts/run-tests.js'),
+            node_modules_exists: fs.existsSync('node_modules'),
+            package_install_present: fs.existsSync('node_modules'),
+            test_count_detected: testCount,
+            safe_failure_category: category,
+            safe_failure_marker_count: markerCount,
+            raw_values_printed: false,
+          };
+          process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+          NODE
+            fi
             export CODEX_PRODUCT_VERIFICATION_COMMANDS="npm test"
             export CODEX_PRODUCT_VERIFICATION_SOURCE="remote_quality_gate"
             if [ "$npm_exit" -eq 0 ]; then
@@ -87,6 +134,7 @@ jobs:
           const summary = readJson('codex-quality-gate-safe-summary.json');
           const target = readJson('codex-target-quality-summary.json');
           const reasons = readJson('codex-failure-reasons.json') || [];
+          const npmSummary = readJson('codex-npm-test-safe-summary.json');
           console.log('## Codex target quality gate safe summary');
           if (summary) {
             console.log(`- status: ${summary.status || 'missing'}`);
@@ -99,6 +147,12 @@ jobs:
             console.log(`- secretScan: ${summary.secretScan?.status || 'missing'}`);
           } else {
             console.log('- status: summary_missing');
+          }
+          if (npmSummary) {
+            console.log(`- npmDiagnosticStatus: ${npmSummary.status || 'missing'}`);
+            console.log(`- npmFailureCategory: ${npmSummary.safe_failure_category || 'missing'}`);
+            console.log(`- npmFailureMarkerCount: ${npmSummary.safe_failure_marker_count ?? 'missing'}`);
+            console.log(`- npmExitCode: ${npmSummary.npm_exit_code ?? 'missing'}`);
           }
           console.log(`- failureReasonCount: ${Array.isArray(reasons) ? reasons.length : 0}`);
           for (const item of Array.isArray(reasons) ? reasons.slice(0, 20) : []) {
@@ -118,4 +172,5 @@ jobs:
             codex-failure-reasons.json
             codex-target-quality-summary.json
             codex-test-metrics.safe.json
+            codex-npm-test-safe-summary.json
           if-no-files-found: ignore

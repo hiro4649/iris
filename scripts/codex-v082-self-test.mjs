@@ -126,6 +126,49 @@ function targetPassReport() {
   return report;
 }
 
+function buildNpmSafeDiagnostic(logText, options = {}) {
+  const text = String(logText || '');
+  const markerRules = [
+    ['bom_parse_failure', /\bBOM\b|\uFEFF|Unexpected token .* JSON at position 0/i],
+    ['json_parse_failure', /JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i],
+    ['module_not_found', /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i],
+    ['missing_dependency', /Cannot find package|npm ERR! missing|ENOENT.*node_modules/i],
+    ['node_syntax_check_failure', /SyntaxError|Unexpected token/i],
+    ['permission_or_path_issue', /EACCES|EPERM|ENOENT/i],
+    ['timeout_or_killed', /timed out|timeout|SIGKILL|Killed/i],
+    ['test_fixture_failure', /not ok|AssertionError|test failed|FAIL/i],
+  ];
+  let category = 'unknown_npm_failure';
+  let markerCount = 0;
+  for (const [label, pattern] of markerRules) {
+    if (pattern.test(text)) {
+      markerCount += 1;
+      if (category === 'unknown_npm_failure') category = label;
+    }
+  }
+  const testCountMatch = text.match(/\b(\d{1,5})\s+tests?\b/i);
+  const testCount = testCountMatch ? Number.parseInt(testCountMatch[1], 10) : null;
+  const platform = ['linux', 'win32', 'darwin'].includes(options.platform || process.platform)
+    ? options.platform || process.platform
+    : 'other';
+  return {
+    schema: 'codex_npm_test_safe_summary_v1',
+    status: 'fail',
+    safeSummaryOnly: true,
+    npm_exit_code: Number.isFinite(options.exitCode) ? options.exitCode : 1,
+    node_version_major: Number.parseInt(process.versions.node.split('.')[0] || '0', 10),
+    platform,
+    package_json_exists: true,
+    run_tests_js_exists: true,
+    node_modules_exists: Boolean(options.nodeModulesExists),
+    package_install_present: Boolean(options.nodeModulesExists),
+    test_count_detected: testCount,
+    safe_failure_category: category,
+    safe_failure_marker_count: markerCount,
+    raw_values_printed: false,
+  };
+}
+
 function withRulesTmp(callback) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v082-'));
   fs.mkdirSync(path.join(tmp, 'docs', 'process'), { recursive: true });
@@ -267,6 +310,30 @@ function buildReport() {
   assertCase('product-relevant target change with remote npm evidence fail fails product verification', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
   result = buildProductVerificationEvidenceReport(remoteNpmFail);
   assertCase('product-relevant target change with remote npm evidence fail fails normalized evidence', result.productVerificationEvidenceStatus.status === 'fail', failures, cases, result.productVerificationEvidenceStatus.status);
+  const remoteNpmFailTarget = targetPassReport();
+  remoteNpmFailTarget.productVerificationStatus = buildProductVerificationReport(remoteNpmFail).productVerificationStatus;
+  remoteNpmFailTarget.productVerificationEvidenceStatus = result.productVerificationEvidenceStatus;
+  remoteNpmFailTarget.targetQualityScoreStatus = { status: 'fail', score: 70, safeSummaryOnly: true };
+  const remoteNpmFailRunner = evaluateWorkflowReport(remoteNpmFailTarget, { eventName: 'pull_request' });
+  assertCase('product-relevant remote npm fail keeps target runner failing', remoteNpmFailRunner.status === 'fail', failures, cases, remoteNpmFailRunner.status);
+
+  const moduleDiagnostic = buildNpmSafeDiagnostic('Error: Cannot find module example\n    at /home/runner/work/iris/iris/file.js', { exitCode: 1, platform: 'linux' });
+  assertCase('remote npm diagnostic emits safe summary only', moduleDiagnostic.safeSummaryOnly && moduleDiagnostic.raw_values_printed === false, failures, cases, moduleDiagnostic.status);
+  assertCase('remote npm diagnostic classifies module_not_found without raw stack', moduleDiagnostic.safe_failure_category === 'module_not_found' && !JSON.stringify(moduleDiagnostic).includes('/home/runner'), failures, cases, moduleDiagnostic.safe_failure_category);
+  const jsonDiagnostic = buildNpmSafeDiagnostic('SyntaxError: Unexpected token } in JSON at position 4\n{"not":"printed"}');
+  assertCase('remote npm diagnostic classifies json_parse_failure without raw JSON', jsonDiagnostic.safe_failure_category === 'json_parse_failure' && !JSON.stringify(jsonDiagnostic).includes('not'), failures, cases, jsonDiagnostic.safe_failure_category);
+  const bomDiagnostic = buildNpmSafeDiagnostic('\uFEFF SyntaxError: Unexpected token ﻿ in JSON at position 0');
+  assertCase('remote npm diagnostic classifies bom_parse_failure without raw JSON', bomDiagnostic.safe_failure_category === 'bom_parse_failure' && !JSON.stringify(bomDiagnostic).includes('\uFEFF'), failures, cases, bomDiagnostic.safe_failure_category);
+  const tokenDiagnostic = buildNpmSafeDiagnostic('token ghp_1234567890abcdef should not print');
+  assertCase('remote npm diagnostic rejects token or secret leakage by omission', !JSON.stringify(tokenDiagnostic).includes('ghp_1234567890abcdef'), failures, cases, tokenDiagnostic.status);
+  const pathDiagnostic = buildNpmSafeDiagnostic('failure at C:\\Users\\HIRO-001\\Documents\\private.txt');
+  assertCase('remote npm diagnostic rejects private path leakage by omission', !JSON.stringify(pathDiagnostic).includes('HIRO-001'), failures, cases, pathDiagnostic.status);
+  const workflowText = fs.readFileSync(path.join(repo, '.github', 'workflows', 'quality-gate.yml'), 'utf8');
+  const uploadBlock = workflowText.slice(workflowText.indexOf('Upload safe quality artifacts'));
+  assertCase('remote npm diagnostic does not upload raw npm log', !uploadBlock.includes('codex-npm-test-safe-hidden.log'), failures, cases, uploadBlock.includes('codex-npm-test-safe-hidden.log') ? 'fail' : 'pass');
+  assertCase('remote npm diagnostic uploads safe summary artifact', uploadBlock.includes('codex-npm-test-safe-summary.json'), failures, cases, uploadBlock.includes('codex-npm-test-safe-summary.json') ? 'pass' : 'fail');
+  assertCase('remote npm diagnostic includes exit code and safe category', moduleDiagnostic.npm_exit_code === 1 && moduleDiagnostic.safe_failure_category === 'module_not_found', failures, cases, moduleDiagnostic.safe_failure_category);
+
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_SKIP_NPM: '1',
