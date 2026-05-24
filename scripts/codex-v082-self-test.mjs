@@ -145,6 +145,42 @@ function buildReport() {
   assertCase('workflow runner rejects source fail report', result.status === 'fail', failures, cases, result.status);
   result = evaluateWorkflowReport(targetPassReport(), { eventName: 'pull_request' });
   assertCase('workflow runner accepts target pass report', result.status === 'pass', failures, cases, result.status);
+  const targetWithSafeGithubMetadata = targetPassReport();
+  targetWithSafeGithubMetadata.prContext = {
+    pullRequestUrl: 'https://github.com/hiro4649/iris/pull/82',
+    commitUrl: 'https://github.com/hiro4649/iris/commit/a33b09fb48499c4d660cec52c953549c8004abef',
+    apiUrl: 'https://api.github.com/repos/hiro4649/iris/pulls/82',
+    changedFiles: ['scripts/run-tests.js'],
+    artifactFilename: 'codex-quality-gate-safe-summary.json',
+    commandLabel: 'npm test',
+    sourceLabel: 'github_actions',
+    policyVocabulary: 'Do not print raw payload, raw logs, endpoint value, secret value, or private path; safe status labels only.',
+  };
+  result = evaluateWorkflowReport(targetWithSafeGithubMetadata, { eventName: 'pull_request' });
+  assertCase('workflow runner accepts public GitHub metadata and safe policy vocabulary', result.status === 'pass', failures, cases, result.status);
+  const unsafeTokenReport = targetPassReport();
+  unsafeTokenReport.safeMetadata = { tokenLabel: 'ghp_1234567890abcdef' };
+  result = evaluateWorkflowReport(unsafeTokenReport, { eventName: 'pull_request' });
+  assertCase('workflow runner rejects secret-like token values', result.status === 'fail', failures, cases, result.status);
+  assertCase('workflow runner emits safe reason labels only for token findings', !JSON.stringify(result).includes('ghp_1234567890abcdef'), failures, cases, result.status);
+  const credentialedUrlReport = targetPassReport();
+  credentialedUrlReport.safeMetadata = { publicUrl: 'https://user:pass@github.com/hiro4649/iris/pull/82' };
+  result = evaluateWorkflowReport(credentialedUrlReport, { eventName: 'pull_request' });
+  assertCase('workflow runner rejects credentialed URL values', result.status === 'fail', failures, cases, result.status);
+  assertCase('workflow runner does not print credentialed URL values', !JSON.stringify(result).includes('user:pass'), failures, cases, result.status);
+  const privatePathReport = targetPassReport();
+  privatePathReport.safeMetadata = { pathLabel: 'C:\\Users\\HIRO-001\\Documents\\secret.txt' };
+  result = evaluateWorkflowReport(privatePathReport, { eventName: 'pull_request' });
+  assertCase('workflow runner rejects private path values', result.status === 'fail', failures, cases, result.status);
+  assertCase('workflow runner does not print private path values', !JSON.stringify(result).includes('HIRO-001'), failures, cases, result.status);
+  const rawPayloadReport = targetPassReport();
+  rawPayloadReport.safeMetadata = { rawPayload: 'safe label only' };
+  result = evaluateWorkflowReport(rawPayloadReport, { eventName: 'pull_request' });
+  assertCase('workflow runner rejects rawPayload fields', result.status === 'fail', failures, cases, result.status);
+  const endpointValueReport = targetPassReport();
+  endpointValueReport.safeMetadata = { endpointValue: 'safe label only' };
+  result = evaluateWorkflowReport(endpointValueReport, { eventName: 'pull_request' });
+  assertCase('workflow runner rejects endpointValue fields', result.status === 'fail', failures, cases, result.status);
   const manualSource = sourcePassReport();
   manualSource.humanConfirmationObjectStatus = passStatus('manual_confirmation_required');
   result = evaluateWorkflowReport(manualSource, { eventName: 'pull_request' });

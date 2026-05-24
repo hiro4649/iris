@@ -97,11 +97,121 @@ const optionalNotApplicable = new Set([
   'hermesInvariantStatus',
 ]);
 
+const forbiddenWorkflowFieldNames = new Set([
+  'rawDiff',
+  'rawLogs',
+  'secretValue',
+  'endpointValue',
+  'privatePath',
+  'rawPayload',
+  'payload',
+  'productionData',
+  'personalData',
+  'rawCommand',
+  'raw_command',
+]);
+
+const safeLabelValues = new Set([
+  'pass',
+  'fail',
+  'warning',
+  'missing',
+  'not_applicable',
+  'not_required',
+  'manual_confirmation_required',
+  'workflow_runner_invalid_report',
+  'workflow_runner_failed',
+  'workflow_required_status_failure',
+  'workflow_runner_unsafe_field',
+  'workflow_runner_unsafe_value',
+  'workflow_runner_safe_metadata',
+  'safe_policy_vocabulary',
+  'local',
+  'remote_quality_gate',
+  'github_actions',
+  'npm test',
+]);
+
+function safePathLabel(pathLabel) {
+  return String(pathLabel || 'report')
+    .split('.')
+    .map((segment) => (/^[A-Za-z][A-Za-z0-9_[\]-]{0,80}$/.test(segment) ? segment : 'field'))
+    .join('.');
+}
+
+function safeReasonCode(value, fallback = 'quality_gate_failure') {
+  const text = String(value || fallback).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 96);
+  return text || fallback;
+}
+
+function isSafePublicGithubUrl(value) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.username || parsed.password) return false;
+    return parsed.protocol === 'https:' && ['github.com', 'api.github.com'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function workflowValueFindings(value, pathLabel) {
+  const text = String(value || '');
+  if (!text || safeLabelValues.has(text.trim())) return [];
+  const findings = [];
+  const urlMatches = text.match(/\b(?:https?|postgres(?:ql)?|mysql|mongodb):\/\/[^\s<>"'`]+/gi) || [];
+  for (const url of urlMatches) {
+    if (!isSafePublicGithubUrl(url)) {
+      findings.push({ reasonCode: 'workflow_runner_unsafe_value', path: safePathLabel(pathLabel) });
+    }
+  }
+  const concreteRules = [
+    /\b(?:gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-)[A-Za-z0-9_-]{8,}\b/,
+    /-----BEGIN [^-]+PRIVATE KEY-----/i,
+    /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/,
+    /\b[A-Za-z]:\\Users\\[^"'`\s]+|\/home\/[^"'`\s]+/i,
+  ];
+  for (const pattern of concreteRules) {
+    if (pattern.test(text)) findings.push({ reasonCode: 'workflow_runner_unsafe_value', path: safePathLabel(pathLabel) });
+  }
+  return findings;
+}
+
+function workflowReportUnsafeFindings(value, pathLabel = 'report') {
+  const findings = [];
+  const visit = (node, label) => {
+    if (node === null || node === undefined) return;
+    if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') {
+      findings.push(...workflowValueFindings(node, label));
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => visit(item, `${label}[${index}]`));
+      return;
+    }
+    if (typeof node === 'object') {
+      for (const [key, nested] of Object.entries(node)) {
+        const nestedLabel = `${label}.${key}`;
+        if (forbiddenWorkflowFieldNames.has(key)) {
+          findings.push({ reasonCode: 'workflow_runner_unsafe_field', path: safePathLabel(nestedLabel) });
+        }
+        visit(nested, nestedLabel);
+      }
+    }
+  };
+  visit(value, pathLabel);
+  return findings;
+}
+
+function safeFailureLabel(item) {
+  if (typeof item === 'string') return safeReasonCode(item);
+  if (!item || typeof item !== 'object') return 'quality_gate_failure';
+  return safeReasonCode(item.id || item.reasonCode);
+}
+
 function readReport(file) {
   if (!file) return { ok: false, report: null, reasonCode: 'workflow_runner_invalid_report' };
   try {
-    const report = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (scanObjectForUnsafe(report).length) return { ok: false, report: null, reasonCode: 'workflow_runner_invalid_report' };
+    const report = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
     return { ok: true, report };
   } catch {
     return { ok: false, report: null, reasonCode: 'workflow_runner_invalid_report' };
@@ -124,6 +234,8 @@ export function evaluateWorkflowReport(report, options = {}) {
   const mode = report.targetQualityScoreStatus && !report.sourceHarnessValidationStatus ? 'target' : 'source';
   const required = mode === 'target' ? targetRequiredPass : sourceRequiredPass;
   const failures = [];
+  const unsafeFindings = workflowReportUnsafeFindings(report);
+  for (const finding of unsafeFindings) failures.push(`${finding.reasonCode}:${finding.path}`);
   for (const key of required) {
     const status = report[key]?.status || 'missing';
     if (!statusAllowed(key, status, options.eventName || process.env.CODEX_EVENT_NAME)) failures.push(`${key}=${status}`);
@@ -157,16 +269,16 @@ export function evaluateWorkflowReport(report, options = {}) {
   };
   const failureReasons = [
     ...(Array.isArray(report.failures) ? report.failures : []).slice(0, 50).map((item) => ({
-      reasonCode: item.id || item.reasonCode || 'quality_gate_failure',
+      reasonCode: safeFailureLabel(item),
       gate: 'localQualityGate',
       severity: 'error',
-      safeMessage: item.message || 'Quality gate failure.',
+      safeMessage: 'Quality gate failure.',
     })),
     ...failures.map((item) => ({
       reasonCode: 'workflow_required_status_failure',
       gate: 'workflowQualityRunner',
       severity: 'error',
-      safeMessage: item,
+      safeMessage: safeReasonCode(item),
     })),
   ];
   if (scanObjectForUnsafe(safeSummary).length || scanObjectForUnsafe(failureReasons).length) {
