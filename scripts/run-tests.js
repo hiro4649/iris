@@ -814,6 +814,8 @@ import {
   assertLive2dSafeCollectorSummarySafe,
   assertLiveEvidenceCollectorManifestSafe,
   assertObsEvidenceCollectorContractSafe,
+  assertObsSafeCollectorHelperSafe,
+  assertObsSafeCollectorSummarySafe,
   assertProductionEvidenceSafeProvenanceCompositorSafe,
   assertProductionEvidenceSafeProvenanceSummarySafe,
   assertProductionGoPackageFixturePackSafe,
@@ -841,6 +843,9 @@ import {
   createLive2dSafeCollectorSummary,
   createLiveEvidenceCollectorManifest,
   createObsEvidenceCollectorContract,
+  createObsSafeCollectorEvidenceIntake,
+  createObsSafeCollectorHelper,
+  createObsSafeCollectorSummary,
   createProductionEvidenceSafeProvenanceCompositor,
   createProductionEvidenceSafeProvenanceSummary,
   createProductionGoPackage,
@@ -44432,6 +44437,340 @@ const tests = [
         "internal model path",
         "motion path",
         "renderer job",
+        "OS command",
+      ]) {
+        assert.equal(serialized.includes(forbiddenFragment), false);
+      }
+    },
+  ],
+  [
+    "OBS obs collector source allowlist status hash audit reference priority1 safe summary blocks fixture pass dry run placeholder stale missing heartbeat source pickup artifact unsafe material",
+    () => {
+      const helper = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "fresh",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 900,
+          source_type: "real_probe",
+          status_hash: "34567890abcdef12",
+          audit_reference: "audit_obs_safe",
+        },
+        nowMs: 1000,
+      });
+      const summary = createObsSafeCollectorSummary({ helper });
+      const evidence = createObsSafeCollectorEvidenceIntake({ helper });
+      const compositor = createProductionEvidenceSafeProvenanceCompositor({
+        realEvidence: [evidence],
+        requiredComponents: ["obs"],
+        nowMs: 1000,
+        componentThresholdsMs: { obs: 10_000 },
+        criticalBlockers: ["priority1_runtime_waiting"],
+      });
+      const helperFields = [
+        "schema",
+        "component_label",
+        "collector_label",
+        "status",
+        "freshness",
+        "source_type",
+        "browser_source_status",
+        "pickup_status",
+        "heartbeat_status",
+        "artifact_freshness",
+        "evidence_timestamp_ms",
+        "status_hash",
+        "audit_reference",
+        "blocker_count",
+        "safe_next_action_label",
+        "redaction_status",
+        "production_go_allowed",
+        "priority1_status",
+      ];
+
+      assertObsSafeCollectorHelperSafe(helper);
+      assertObsSafeCollectorSummarySafe(summary);
+      assertRealEvidenceIntakeSafe(evidence);
+      assertProductionEvidenceSafeProvenanceCompositorSafe(compositor);
+      assert.deepEqual(Object.keys(helper).sort(), [...helperFields].sort());
+      assert.equal(helper.schema, "iris_obs_safe_collector_helper_v1");
+      assert.equal(summary.schema, "iris_obs_safe_collector_summary_v1");
+      assert.equal(helper.component_label, "obs");
+      assert.equal(helper.collector_label, "obs_evidence_collector");
+      assert.equal(helper.status, "ready");
+      assert.equal(helper.freshness, "fresh");
+      assert.equal(helper.source_type, "real_probe");
+      assert.equal(helper.browser_source_status, "ready");
+      assert.equal(helper.pickup_status, "ready");
+      assert.equal(helper.heartbeat_status, "fresh");
+      assert.equal(helper.artifact_freshness, "fresh");
+      assert.equal(helper.status_hash, "34567890abcdef12");
+      assert.equal(helper.audit_reference, "audit_obs_safe");
+      assert.equal(helper.production_go_allowed, false);
+      assert.equal(helper.priority1_status, "BLOCKED");
+      assert.deepEqual(Object.keys(evidence).sort(), [
+        "audit_reference",
+        "collector",
+        "component",
+        "evidence_timestamp_ms",
+        "schema",
+        "source_type",
+        "status",
+        "status_hash",
+      ]);
+      assert.equal(evidence.component, "obs");
+      assert.equal(evidence.collector, "obs_evidence_collector");
+      assert.equal(evidence.status, "ready");
+      assert.equal(evidence.source_type, "real_probe");
+      assert.equal(evidence.status_hash, "34567890abcdef12");
+      assert.equal(evidence.audit_reference, "audit_obs_safe");
+      assert.equal(compositor.package_status, "blocked");
+      assert.equal(compositor.production_go_allowed, false);
+      assert.equal(compositor.priority1_status, "BLOCKED");
+
+      const fixturePass = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "fresh",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 900,
+        },
+        fixturePass: true,
+        nowMs: 1000,
+      });
+      const dryRun = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "fresh",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "dry_run",
+        dryRunOnly: true,
+        nowMs: 1000,
+      });
+      const placeholderEquivalent = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "fresh",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 900,
+        },
+        sourceType: "placeholder",
+        nowMs: 1000,
+      });
+      const missingHeartbeat = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "runtime_waiting",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 0,
+        },
+        nowMs: 1000,
+      });
+      const staleHeartbeat = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "stale",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 1,
+          status_hash: "fedcba9876543210",
+          audit_reference: "audit_obs_stale",
+        },
+        nowMs: 1000,
+        freshnessThresholdMs: 1,
+      });
+      const browserSourceWaiting = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "runtime_waiting",
+          pickup_status: "ready",
+          heartbeat_status: "fresh",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const pickupWaiting = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "runtime_waiting",
+          heartbeat_status: "fresh",
+          artifact_freshness: "fresh",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+      const artifactStale = createObsSafeCollectorHelper({
+        safeObsStatus: {
+          browser_source_status: "ready",
+          pickup_status: "ready",
+          heartbeat_status: "fresh",
+          artifact_freshness: "stale",
+          evidence_timestamp_ms: 900,
+        },
+        nowMs: 1000,
+      });
+
+      for (const blockedHelper of [
+        fixturePass,
+        dryRun,
+        placeholderEquivalent,
+        missingHeartbeat,
+        staleHeartbeat,
+        browserSourceWaiting,
+        pickupWaiting,
+        artifactStale,
+      ]) {
+        assertObsSafeCollectorHelperSafe(blockedHelper);
+        assert.equal(blockedHelper.status, "blocked");
+        assert.equal(blockedHelper.production_go_allowed, false);
+        assert.equal(blockedHelper.priority1_status, "BLOCKED");
+        assert.equal(createObsSafeCollectorEvidenceIntake({ helper: blockedHelper }), null);
+      }
+      assert.equal(fixturePass.blocker_count > 0, true);
+      assert.equal(dryRun.source_type, "dry_run");
+      assert.equal(placeholderEquivalent.source_type, "placeholder");
+      assert.equal(missingHeartbeat.heartbeat_status, "runtime_waiting");
+      assert.notEqual(staleHeartbeat.freshness, "fresh");
+      assert.equal(browserSourceWaiting.browser_source_status, "runtime_waiting");
+      assert.equal(pickupWaiting.pickup_status, "runtime_waiting");
+      assert.equal(artifactStale.artifact_freshness, "stale");
+
+      const handMadeReadyHelper = {
+        schema: "iris_obs_safe_collector_helper_v1",
+        component_label: "obs",
+        collector_label: "obs_evidence_collector",
+        status: "ready",
+        freshness: "fresh",
+        source_type: "real_probe",
+        browser_source_status: "ready",
+        pickup_status: "ready",
+        heartbeat_status: "fresh",
+        artifact_freshness: "fresh",
+        evidence_timestamp_ms: 900,
+        status_hash: "34567890abcdef12",
+        audit_reference: "audit_obs_safe",
+        blocker_count: 0,
+        safe_next_action_label: "collect_obs_pickup_evidence",
+        redaction_status: "redacted",
+        production_go_allowed: false,
+        priority1_status: "BLOCKED",
+      };
+      for (const tamperedHelper of [
+        { ...handMadeReadyHelper, heartbeat_status: "stale" },
+        { ...handMadeReadyHelper, browser_source_status: "runtime_waiting" },
+        { ...handMadeReadyHelper, pickup_status: "runtime_waiting" },
+        { ...handMadeReadyHelper, artifact_freshness: "stale" },
+        { ...handMadeReadyHelper, status: "blocked" },
+        { ...handMadeReadyHelper, freshness: "stale" },
+        { ...handMadeReadyHelper, source_type: "placeholder" },
+        { ...handMadeReadyHelper, source_type: "dry_run" },
+        { ...handMadeReadyHelper, source_type: "fixture" },
+        { ...handMadeReadyHelper, source_type: "audit_only" },
+      ]) {
+        assert.equal(createObsSafeCollectorEvidenceIntake({ helper: tamperedHelper }), null);
+      }
+
+      for (const forbiddenField of [
+        "obs_command",
+        "raw_obs",
+        "raw_obs_event",
+        "raw_event",
+        "obs_websocket_url",
+        "websocket_url",
+        "obs_url",
+        "obs_endpoint",
+        "endpoint",
+        "token",
+        "password",
+        "stream_key",
+        "scene_name",
+        "source_name",
+        "recording_path",
+        "screenshot_path",
+        "raw_payload",
+        "raw_command",
+        "raw_response",
+        "world_command",
+        "inner_intent",
+      ]) {
+        assert.throws(
+          () =>
+            createObsSafeCollectorHelper({
+              safeObsStatus: { [forbiddenField]: "blocked" },
+            }),
+          ContractError
+        );
+      }
+      assert.throws(
+        () =>
+          createObsSafeCollectorHelper({
+            safeObsStatus: { heartbeat_status: "https://blocked.example" },
+          }),
+        ContractError
+      );
+
+      const serialized = JSON.stringify({
+        helper,
+        summary,
+        evidence,
+        compositor,
+        fixturePass,
+        dryRun,
+        placeholderEquivalent,
+        missingHeartbeat,
+        staleHeartbeat,
+        browserSourceWaiting,
+        pickupWaiting,
+        artifactStale,
+      });
+      assert.equal(serialized.includes('"obs_command":'), false);
+      assert.equal(serialized.includes('"raw_obs":'), false);
+      assert.equal(serialized.includes('"raw_obs_event":'), false);
+      assert.equal(serialized.includes('"raw_event":'), false);
+      assert.equal(serialized.includes('"obs_websocket_url":'), false);
+      assert.equal(serialized.includes('"websocket_url":'), false);
+      assert.equal(serialized.includes('"obs_url":'), false);
+      assert.equal(serialized.includes('"obs_endpoint":'), false);
+      assert.equal(serialized.includes('"endpoint":'), false);
+      assert.equal(serialized.includes('"token":'), false);
+      assert.equal(serialized.includes('"password":'), false);
+      assert.equal(serialized.includes('"stream_key":'), false);
+      assert.equal(serialized.includes('"scene_name":'), false);
+      assert.equal(serialized.includes('"source_name":'), false);
+      assert.equal(serialized.includes('"recording_path":'), false);
+      assert.equal(serialized.includes('"screenshot_path":'), false);
+      assert.equal(serialized.includes('"raw_payload":'), false);
+      assert.equal(serialized.includes('"raw_command":'), false);
+      assert.equal(serialized.includes('"raw_response":'), false);
+      for (const forbiddenFragment of [
+        "secret",
+        "endpoint value",
+        "token",
+        "stream key",
+        "scene name",
+        "source name",
+        "raw path",
+        "local absolute path",
+        "raw obs",
+        "raw event",
+        "raw payload",
+        "raw command",
+        "raw response",
+        "obs command",
+        "world_command",
+        "inner_intent",
+        "connection string",
+        "password",
+        "URL value",
+        "recording path",
+        "screenshot path",
         "OS command",
       ]) {
         assert.equal(serialized.includes(forbiddenFragment), false);
