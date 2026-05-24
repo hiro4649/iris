@@ -150,6 +150,18 @@ const invalidReportReasons = new Set([
   'unknown_invalid_report',
 ]);
 
+const unsafeValuePathClassRules = [
+  ['workflow_run_metadata_value', /(?:^|[.\[])(?:workflow_run|workflow_runs|run_id|run_number|jobs_url)(?:$|[.\]\[])/i],
+  ['pr_metadata_value', /(?:^|[.\[])(?:pull_request|pr_number|pr_url|pr_metadata)(?:$|[.\]\[])/i],
+  ['commit_metadata_value', /(?:^|[.\[])(?:head_sha|base_sha|commit_sha|sha)(?:$|[.\]\[])/i],
+  ['artifact_metadata_value', /(?:^|[.\[])(?:artifact|artifacts|artifactName|path)(?:$|[.\]\[])/i],
+  ['command_label_value', /(?:^|[.\[])(?:command|commands|test_command|commandClass)(?:$|[.\]\[])/i],
+  ['reason_text_value', /(?:^|[.\[])(?:reason|reasonCode|reasonCodes|safeMessage)(?:$|[.\]\[])/i],
+  ['summary_text_value', /(?:^|[.\[])(?:summary|safeSummary|nextAction|topNextActions)(?:$|[.\]\[])/i],
+  ['evidence_source_value', /(?:^|[.\[])(?:source|evidenceSource|evidence_source)(?:$|[.\]\[])/i],
+  ['public_github_url_value', /(?:^|[.\[])(?:html_url|display_url|api_url|url)(?:$|[.\]\[])/i],
+];
+
 function uniqueSafeLabels(values) {
   const labels = values
     .filter((value) => typeof value === 'string' && /^[a-z0-9_]+$/.test(value))
@@ -196,6 +208,20 @@ function collectUnsafeReportFieldLabels(value) {
   return uniqueSafeLabels(labels);
 }
 
+function safeInvalidReportValuePathLabel(pathLabel) {
+  const safePath = String(pathLabel || '');
+  const matched = unsafeValuePathClassRules.find(([, pattern]) => pattern.test(safePath));
+  return matched?.[0] || 'unknown_value_path';
+}
+
+function collectUnsafeReportValuePathLabels(findings) {
+  return uniqueSafeLabels(
+    findings
+      .slice(0, 100)
+      .map((finding) => safeInvalidReportValuePathLabel(finding?.path))
+  );
+}
+
 function readReport(file) {
   if (!file) {
     return {
@@ -230,13 +256,14 @@ function readReport(file) {
     }
     const unsafeFindings = scanObjectForUnsafe(report);
     if (unsafeFindings.length) {
+      const unsafeValueLabels = collectUnsafeReportValuePathLabels(unsafeFindings);
       return {
         ok: false,
         report: null,
         reasonCode: 'workflow_runner_invalid_report',
         invalidReportDiagnostic: buildInvalidReportDiagnostic('workflow_runner_invalid_report', {
           safeInvalidReportReason: 'unsafe_report_value',
-          safeInvalidReportPathLabels: ['unsafe_value_detected'],
+          safeInvalidReportPathLabels: unsafeValueLabels,
           safeInvalidReportFindingCount: unsafeFindings.length,
         }),
       };
