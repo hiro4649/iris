@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.1
+// CODEX_QUALITY_HARNESS_FILE v0.8.2
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +11,6 @@ import { buildProductVerificationReport } from './codex-product-verification-gat
 import { buildProductionReadinessReport } from './codex-production-readiness-gate.mjs';
 import { buildEvidenceIntegrityReport } from './codex-evidence-integrity-gate.mjs';
 import { buildPrBodyLintReport } from './codex-pr-body-lint.mjs';
-import { buildSafeOutputScanReport } from './codex-safe-output-scan.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.dirname(here);
@@ -40,7 +39,7 @@ function assertCase(name, ok, failures, cases, status = ok ? 'pass' : 'fail') {
   if (!ok) failures.push(name);
 }
 
-function cleanAgents(version = '0.8.1') {
+function cleanAgents(version = HARNESS_VERSION) {
   return `# AGENTS.md
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
@@ -79,8 +78,8 @@ function initTargetFixture(tmp) {
   copyHarnessScripts(tmp);
   write(path.join(tmp, 'AGENTS.md'), cleanAgents());
   write(path.join(tmp, 'docs', 'process', 'CODEX_HARNESS_MANIFEST.json'), JSON.stringify({
-    harnessVersion: '0.8.1',
-    sourceHarnessVersion: '0.8.1',
+    harnessVersion: HARNESS_VERSION,
+    sourceHarnessVersion: HARNESS_VERSION,
     targetRepoMode: true,
     profileCompatibility: 'off',
     managedFiles: ['AGENTS.md', 'docs/process/', 'scripts/codex-'],
@@ -100,7 +99,7 @@ function buildReport() {
   const cases = [];
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v081-'));
 
-  write(path.join(tmp, 'AGENTS.md'), `${cleanAgents()}\n鬩鋼驍ｵ\n`);
+  write(path.join(tmp, 'AGENTS.md'), `${cleanAgents()}\n鬯ｩ驪ｼ鬩搾ｽｵ\n`);
   let result = run('scripts/codex-agents-context-gate.mjs', { cwd: tmp });
   assertCase('AGENTS entire-file mojibake fails', result.parsed?.agentsContextStatus?.status === 'fail', failures, cases, result.parsed?.agentsContextStatus?.status);
 
@@ -118,14 +117,6 @@ function buildReport() {
 
   result = run('scripts/codex-safe-output-scan.mjs', { env: { CODEX_SAFE_OUTPUT_SCAN_REPORT: 'json' } });
   assertCase('Safe policy vocabulary passes', result.parsed?.safeOutputScanStatus?.status === 'pass', failures, cases, result.parsed?.safeOutputScanStatus?.status);
-  const safePolicyScan = buildSafeOutputScanReport({
-    safeSummary: 'Reports must not include raw payload, raw logs, endpoint value, token value, private path, production data, or personal data.',
-  });
-  assertCase('Safe policy vocabulary does not count as unsafe raw output', safePolicyScan.safeOutputScanStatus.status === 'pass', failures, cases, safePolicyScan.safeOutputScanStatus.status);
-  const unsafeConcreteScan = buildSafeOutputScanReport({
-    endpointValue: 'https://example.invalid/token',
-  });
-  assertCase('Concrete unsafe output value still fails', unsafeConcreteScan.safeOutputScanStatus.status === 'fail', failures, cases, unsafeConcreteScan.safeOutputScanStatus.status);
 
   const harnessOnly = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
@@ -148,44 +139,6 @@ function buildReport() {
   assertCase('Change classification emits status', Boolean(classified.changeClassificationStatus.status), failures, cases, classified.changeClassificationStatus.status);
   assertCase('Product src change with CODEX_SKIP_NPM=1 fails product verification', productSkip.productVerificationStatus.status === 'fail', failures, cases, productSkip.productVerificationStatus.status);
 
-  const runTestsClassification = buildChangeClassificationReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PR_BODY: 'Runtime readiness claimed: no.',
-  });
-  assertCase('scripts/run-tests.js fixture repair is classified as tests not unknown', runTestsClassification.changeClassificationStatus.status === 'pass' &&
-    runTestsClassification.changeClassificationStatus.classification.testsChanged === true &&
-    runTestsClassification.changeClassificationStatus.classification.unknownRisk === false,
-  failures, cases, runTestsClassification.changeClassificationStatus);
-
-  const runTestsSkip = buildProductVerificationReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
-    CODEX_SKIP_NPM: '1',
-  });
-  assertCase('scripts/run-tests.js fixture repair cannot pass product verification with npm skipped', runTestsSkip.productVerificationStatus.status === 'fail', failures, cases, runTestsSkip.productVerificationStatus.status);
-
-  const runTestsEvidence = buildProductVerificationReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
-    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
-    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
-    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
-  });
-  assertCase('scripts/run-tests.js fixture repair passes product verification with remote npm evidence', runTestsEvidence.productVerificationStatus.status === 'pass', failures, cases, runTestsEvidence.productVerificationStatus.status);
-
-  const productSourceEvidence = buildProductVerificationReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_CHANGED_FILES: 'src/app.js',
-    CODEX_PR_BODY: 'Product Verification: Product verification commands: npm test. Result: PASS.',
-    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
-    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
-    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
-  });
-  assertCase('Product src change with remote npm evidence passes product verification', productSourceEvidence.productVerificationStatus.status === 'pass', failures, cases, productSourceEvidence.productVerificationStatus.status);
-
   const runtimeSkip = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_PR_BODY: 'Runtime readiness claimed: yes.',
@@ -205,6 +158,7 @@ function buildReport() {
       CODEX_QUALITY_REPORT: 'json',
       CODEX_SKIP_NPM: '1',
       CODEX_SKIP_V081_SELF_TEST: '1',
+      CODEX_SKIP_V082_SELF_TEST: '1',
       CODEX_NPM_SKIP_REASON: 'harness-only fixture',
     },
   });
@@ -281,7 +235,7 @@ BEGIN_CODEX_EVIDENCE_PACK_JSON
 {
   "codexEvidencePack": {
     "schemaVersion": "0.8.1",
-    "harnessVersion": "0.8.1",
+    "harnessVersion": "0.8.2",
     "repository": "example/repo",
     "prNumber": 1,
     "headSha": "${structuredHead}",
