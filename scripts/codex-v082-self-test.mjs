@@ -128,6 +128,52 @@ function targetPassReport() {
 
 function buildNpmSafeDiagnostic(logText, options = {}) {
   const text = String(logText || '');
+  const lines = text.split(/\r?\n/);
+  const testLines = lines.filter((line) => /^\s*(?:ok|not ok)\s+-\s+/i.test(line));
+  const nonTestText = lines.filter((line) => !/^\s*(?:ok|not ok)\s+-\s+/i.test(line)).join('\n');
+  const phaseMarkers = [...new Set((text.match(/^CODEX_SAFE_NPM_PHASE [a-z_]+$/gm) || [])
+    .map((line) => line.replace('CODEX_SAFE_NPM_PHASE ', '').trim())
+    .filter((label) => /^(?:npm_test_started|npm_test_completed)$/.test(label)))];
+  const finalCountMatch = text.match(/\bAll\s+(\d{1,5})\s+tests?\s+passed\b/i);
+  const countedTests = finalCountMatch ? Number.parseInt(finalCountMatch[1], 10) : (testLines.length || null);
+  const hasStarted = phaseMarkers.includes('npm_test_started');
+  const hasCompleted = phaseMarkers.includes('npm_test_completed');
+  const hasNodeRunner = />\s*node\s+scripts\/run-tests\.js\b/i.test(text);
+  const safePhaseMarkers = [...phaseMarkers];
+  if (hasNodeRunner) safePhaseMarkers.push('node_process_started');
+  if (hasNodeRunner) safePhaseMarkers.push('test_runner_started');
+  if (testLines.length) safePhaseMarkers.push('tests_started');
+  if (finalCountMatch) safePhaseMarkers.push('tests_completed');
+
+  function safeDurationBucket(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return 'unknown_duration';
+    if (seconds < 30) return 'under_30s';
+    if (seconds < 120) return '30s_to_2m';
+    if (seconds < 600) return '2m_to_10m';
+    return 'over_10m';
+  }
+
+  function safeTestLabelHint() {
+    const line = testLines[testLines.length - 1] || '';
+    const label = line.replace(/^\s*(?:ok|not ok)\s+-\s+/i, '').trim();
+    if (!label) return null;
+    if (/(?:https?:\/\/|[A-Za-z]:\\|\/home\/|gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-|[{}\[\]"])/i.test(label)) return null;
+    const cleaned = label.replace(/[^A-Za-z0-9 _:-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    return cleaned || null;
+  }
+
+  function safePhase() {
+    if (!hasStarted) return 'before_npm_test';
+    if (finalCountMatch) return 'tests_completed';
+    if (testLines.length) return 'tests_started';
+    if (hasNodeRunner) return 'test_runner_started';
+    if (hasCompleted) return 'npm_test_completed';
+    if (hasStarted) return 'npm_test_started';
+    return 'unknown_phase';
+  }
+
+  const killedSignal = /\b(?:SIGKILL|Killed|process terminated|exit code 137)\b/i.test(nonTestText);
+  const timeoutSignal = /\b(?:timed out|timeout|timeouted)\b/i.test(nonTestText);
   const markerRules = [
     ['bom_parse_failure', /\bBOM\b|\uFEFF|Unexpected token .* JSON at position 0/i],
     ['json_parse_failure', /JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i],
@@ -135,19 +181,36 @@ function buildNpmSafeDiagnostic(logText, options = {}) {
     ['missing_dependency', /Cannot find package|npm ERR! missing|ENOENT.*node_modules/i],
     ['node_syntax_check_failure', /SyntaxError|Unexpected token/i],
     ['permission_or_path_issue', /EACCES|EPERM|ENOENT/i],
-    ['timeout_or_killed', /timed out|timeout|SIGKILL|Killed/i],
+    ['timeout_or_killed', /\b(?:timed out|timeout|timeouted|SIGKILL|Killed|process terminated|exit code 137)\b/i],
     ['test_fixture_failure', /not ok|AssertionError|test failed|FAIL/i],
   ];
   let category = 'unknown_npm_failure';
   let markerCount = 0;
   for (const [label, pattern] of markerRules) {
-    if (pattern.test(text)) {
+    const haystack = label === 'timeout_or_killed' ? nonTestText : text;
+    if (pattern.test(haystack)) {
       markerCount += 1;
       if (category === 'unknown_npm_failure') category = label;
     }
   }
-  const testCountMatch = text.match(/\b(\d{1,5})\s+tests?\b/i);
-  const testCount = testCountMatch ? Number.parseInt(testCountMatch[1], 10) : null;
+  function failureSignal() {
+    if (killedSignal) return 'possible_killed_keyword';
+    if (timeoutSignal) return 'possible_timeout_keyword';
+    if (/JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i.test(text)) return 'json_failure_marker';
+    if (/ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i.test(text)) return 'module_failure_marker';
+    if (/not ok|AssertionError|test failed|FAIL/i.test(text)) return 'fixture_failure_marker';
+    if (!hasCompleted && !countedTests && Number(options.exitCode ?? 1) !== 0) return 'no_test_count_detected';
+    if (!hasCompleted) return 'no_completion_marker';
+    if (Number(options.exitCode ?? 1) !== 0) return 'process_exit_nonzero';
+    return 'unknown_signal';
+  }
+  function timeoutConfidence(signal) {
+    if (signal === 'possible_killed_keyword') return 'high';
+    if (signal === 'possible_timeout_keyword') return 'low';
+    if (!hasCompleted && !countedTests && Number(options.exitCode ?? 1) !== 0) return 'medium';
+    return 'unknown';
+  }
+  const signal = failureSignal();
   const platform = ['linux', 'win32', 'darwin'].includes(options.platform || process.platform)
     ? options.platform || process.platform
     : 'other';
@@ -162,9 +225,15 @@ function buildNpmSafeDiagnostic(logText, options = {}) {
     run_tests_js_exists: true,
     node_modules_exists: Boolean(options.nodeModulesExists),
     package_install_present: Boolean(options.nodeModulesExists),
-    test_count_detected: testCount,
+    test_count_detected: countedTests,
     safe_failure_category: category,
     safe_failure_marker_count: markerCount,
+    safe_phase: safePhase(),
+    safe_phase_markers: [...new Set(safePhaseMarkers)].filter((label) => /^(?:npm_test_started|npm_test_completed|node_process_started|test_runner_started|tests_started|tests_completed)$/.test(label)),
+    safe_failure_signal: signal,
+    safe_duration_bucket: safeDurationBucket(options.durationSeconds),
+    safe_timeout_confidence: timeoutConfidence(signal),
+    safe_test_label_hint: safeTestLabelHint(),
     raw_values_printed: false,
   };
 }
@@ -333,6 +402,23 @@ function buildReport() {
   assertCase('remote npm diagnostic does not upload raw npm log', !uploadBlock.includes('codex-npm-test-safe-hidden.log'), failures, cases, uploadBlock.includes('codex-npm-test-safe-hidden.log') ? 'fail' : 'pass');
   assertCase('remote npm diagnostic uploads safe summary artifact', uploadBlock.includes('codex-npm-test-safe-summary.json'), failures, cases, uploadBlock.includes('codex-npm-test-safe-summary.json') ? 'pass' : 'fail');
   assertCase('remote npm diagnostic includes exit code and safe category', moduleDiagnostic.npm_exit_code === 1 && moduleDiagnostic.safe_failure_category === 'module_not_found', failures, cases, moduleDiagnostic.safe_failure_category);
+  const testLabelTimeoutDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\n> node scripts/run-tests.js\nnot ok - safe timeout fixture label\nCODEX_SAFE_NPM_PHASE npm_test_completed', { exitCode: 1, durationSeconds: 45 });
+  assertCase('remote npm diagnostic distinguishes timeout keyword from actual kill', testLabelTimeoutDiagnostic.safe_failure_category === 'test_fixture_failure' && testLabelTimeoutDiagnostic.safe_timeout_confidence !== 'high', failures, cases, testLabelTimeoutDiagnostic.safe_failure_category);
+  assertCase('timeout keyword in test label only yields non-timeout signal', testLabelTimeoutDiagnostic.safe_failure_signal === 'fixture_failure_marker', failures, cases, testLabelTimeoutDiagnostic.safe_failure_signal);
+  assertCase('safe phase markers are parsed', testLabelTimeoutDiagnostic.safe_phase_markers.includes('npm_test_started') && testLabelTimeoutDiagnostic.safe_phase_markers.includes('tests_started'), failures, cases, testLabelTimeoutDiagnostic.safe_phase);
+  assertCase('safe phase does not include raw lines', ['before_npm_test', 'npm_test_started', 'node_process_started', 'test_runner_started', 'tests_started', 'tests_completed', 'npm_test_completed', 'unknown_phase'].includes(testLabelTimeoutDiagnostic.safe_phase), failures, cases, testLabelTimeoutDiagnostic.safe_phase);
+  assertCase('safe test label hint is sanitized', testLabelTimeoutDiagnostic.safe_test_label_hint === 'safe timeout fixture label', failures, cases, testLabelTimeoutDiagnostic.safe_test_label_hint);
+  assertCase('safe duration bucket is coarse only', testLabelTimeoutDiagnostic.safe_duration_bucket === '30s_to_2m', failures, cases, testLabelTimeoutDiagnostic.safe_duration_bucket);
+  const timeoutKeywordDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\noperation timed out before completion', { exitCode: 1 });
+  assertCase('timeout keyword only yields low confidence', timeoutKeywordDiagnostic.safe_failure_signal === 'possible_timeout_keyword' && timeoutKeywordDiagnostic.safe_timeout_confidence === 'low', failures, cases, timeoutKeywordDiagnostic.safe_timeout_confidence);
+  const killedDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\nSIGKILL process terminated', { exitCode: 1 });
+  assertCase('SIGKILL or Killed yields high confidence', killedDiagnostic.safe_failure_signal === 'possible_killed_keyword' && killedDiagnostic.safe_timeout_confidence === 'high', failures, cases, killedDiagnostic.safe_timeout_confidence);
+  const noCompletionDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\n> node scripts/run-tests.js', { exitCode: 1 });
+  assertCase('no completion marker and no test count yields medium confidence', noCompletionDiagnostic.safe_timeout_confidence === 'medium' && noCompletionDiagnostic.safe_failure_signal === 'no_test_count_detected', failures, cases, noCompletionDiagnostic.safe_timeout_confidence);
+  assertCase('private path in test label is omitted', buildNpmSafeDiagnostic('not ok - C:\\Users\\HIRO-001\\private').safe_test_label_hint === null, failures, cases);
+  assertCase('URL in test label is omitted', buildNpmSafeDiagnostic('not ok - https://example.test/private').safe_test_label_hint === null, failures, cases);
+  assertCase('token in test label is omitted', buildNpmSafeDiagnostic('not ok - ghp_1234567890abcdef').safe_test_label_hint === null, failures, cases);
+  assertCase('raw JSON in test label is omitted', buildNpmSafeDiagnostic('not ok - {"unsafe":"shape"}').safe_test_label_hint === null, failures, cases);
 
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
