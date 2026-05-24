@@ -222,6 +222,54 @@ function buildReport() {
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_SKIP_NPM: '1',
+    CODEX_CHANGED_FILES: 'README.md',
+    CODEX_NPM_SKIP_REASON: 'docs-only',
+  });
+  assertCase('docs-only change with CODEX_SKIP_NPM=1 and safe reason passes product verification', result.productVerificationStatus.status === 'pass', failures, cases, result.productVerificationStatus.status);
+  result = buildProductVerificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_SKIP_NPM: '1',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+  });
+  assertCase('scripts/run-tests.js target change with CODEX_SKIP_NPM=1 fails product verification', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
+  result = buildProductVerificationEvidenceReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_SKIP_NPM: '1',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+  });
+  assertCase('scripts/run-tests.js target change with CODEX_SKIP_NPM=1 fails normalized evidence', result.productVerificationEvidenceStatus.status === 'fail', failures, cases, result.productVerificationEvidenceStatus.status);
+  const remoteNpmPass = {
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+  };
+  result = buildProductVerificationReport(remoteNpmPass);
+  assertCase('product-relevant target change with remote npm evidence pass passes product verification', result.productVerificationStatus.status === 'pass', failures, cases, result.productVerificationStatus.status);
+  const remoteNpmEvidence = buildProductVerificationEvidenceReport(remoteNpmPass);
+  assertCase('product-relevant target change with remote npm evidence pass passes normalized evidence', remoteNpmEvidence.productVerificationEvidenceStatus.status === 'pass', failures, cases, remoteNpmEvidence.productVerificationEvidenceStatus.status);
+  const validProductTargetReport = targetPassReport();
+  validProductTargetReport.productVerificationStatus = result.productVerificationStatus;
+  validProductTargetReport.productVerificationEvidenceStatus = remoteNpmEvidence.productVerificationEvidenceStatus;
+  validProductTargetReport.reasonSummaryStatus = passStatus('pass');
+  validProductTargetReport.targetQualityScoreStatus = { status: 'pass', score: 95, safeSummaryOnly: true };
+  const validProductTargetResult = evaluateWorkflowReport(validProductTargetReport, { eventName: 'pull_request' });
+  assertCase('target runner remains pass when product evidence is valid', validProductTargetResult.status === 'pass', failures, cases, validProductTargetResult.status);
+  const remoteNpmFail = {
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'fail',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+  };
+  result = buildProductVerificationReport(remoteNpmFail);
+  assertCase('product-relevant target change with remote npm evidence fail fails product verification', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
+  result = buildProductVerificationEvidenceReport(remoteNpmFail);
+  assertCase('product-relevant target change with remote npm evidence fail fails normalized evidence', result.productVerificationEvidenceStatus.status === 'fail', failures, cases, result.productVerificationEvidenceStatus.status);
+  result = buildProductVerificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_SKIP_NPM: '1',
     CODEX_CHANGED_FILES: 'src/app.js',
   });
   assertCase('product src change with CODEX_SKIP_NPM=1 fails through normalized evidence', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
@@ -235,8 +283,9 @@ function buildReport() {
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_CHANGED_FILES: 'package-lock.json',
+    CODEX_SKIP_NPM: '1',
   });
-  assertCase('package/lockfile change without evidence fails', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
+  assertCase('package/lockfile change with CODEX_SKIP_NPM=1 fails', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_CHANGED_FILES: 'src/app.js',
