@@ -21885,7 +21885,9 @@ const tests = [
         );
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
-      const parseQualityReport = (result) => JSON.parse(result.stdout);
+      const parseJsonText = (text) => JSON.parse(String(text || "").replace(/^\uFEFF/u, ""));
+      const parseJsonStdout = (result) => parseJsonText(result.stdout);
+      const parseQualityReport = (result) => parseJsonStdout(result);
       const methodGateCompliantBody = (headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") => [
         "Scope:",
         "HARNESS081-NPM-BASELINE-FIX v0.8.1 method gate fixture repair only",
@@ -21979,7 +21981,7 @@ const tests = [
         "Stop condition: do not merge if quality gate fails or method gate fails.",
         "",
       ].join("\n");
-      const harnessManifest = JSON.parse(
+      const harnessManifest = parseJsonText(
         readFileSync(join(sourceRoot, "docs/process/CODEX_HARNESS_MANIFEST.json"), "utf8")
       );
       const methodGateSupportFiles = new Set([
@@ -22098,7 +22100,7 @@ const tests = [
             TEST_CURRENT_PR_BODY: methodGateCompliantBody(),
           },
         });
-        return JSON.parse(result.stdout);
+        return parseJsonStdout(result);
       };
       const runHarnessFixtureScopeCase = ({
         extraFileName = "",
