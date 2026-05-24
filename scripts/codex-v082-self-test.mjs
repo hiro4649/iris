@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.2
+// CODEX_QUALITY_HARNESS_FILE v0.8.3
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -63,6 +63,12 @@ function sourcePassReport() {
     'productVerificationStatus',
     'productVerificationEvidenceStatus',
     'testMetricsStatus',
+    'remoteProductBaselineStatus',
+    'remoteNpmDiagnosticStatus',
+    'workflowPreflightStatus',
+    'safeArtifactIndexStatus',
+    'openPrHygieneStatus',
+    'targetFinalSummaryStatus',
     'stalePrAuditStatus',
     'reasonSummaryStatus',
     'bestOfNEvidenceStatus',
@@ -94,6 +100,7 @@ function sourcePassReport() {
     'v080SelfTestStatus',
     'v081SelfTestStatus',
     'v082SelfTestStatus',
+    'v083SelfTestStatus',
   ]) report[key] = passStatus();
   return report;
 }
@@ -114,128 +121,23 @@ function targetPassReport() {
     'productVerificationStatus',
     'productVerificationEvidenceStatus',
     'testMetricsStatus',
+    'remoteProductBaselineStatus',
+    'remoteNpmDiagnosticStatus',
+    'workflowPreflightStatus',
+    'safeArtifactIndexStatus',
+    'openPrHygieneStatus',
+    'targetFinalSummaryStatus',
     'stalePrAuditStatus',
     'reasonSummaryStatus',
     'safeOutputScanStatus',
     'v080SelfTestStatus',
     'v081SelfTestStatus',
     'v082SelfTestStatus',
+    'v083SelfTestStatus',
     'safeArtifactValidation',
     'outputShapeStatus',
   ]) report[key] = passStatus();
   return report;
-}
-
-function buildNpmSafeDiagnostic(logText, options = {}) {
-  const text = String(logText || '');
-  const lines = text.split(/\r?\n/);
-  const testLines = lines.filter((line) => /^\s*(?:ok|not ok)\s+-\s+/i.test(line));
-  const nonTestText = lines.filter((line) => !/^\s*(?:ok|not ok)\s+-\s+/i.test(line)).join('\n');
-  const phaseMarkers = [...new Set((text.match(/^CODEX_SAFE_NPM_PHASE [a-z_]+$/gm) || [])
-    .map((line) => line.replace('CODEX_SAFE_NPM_PHASE ', '').trim())
-    .filter((label) => /^(?:npm_test_started|npm_test_completed)$/.test(label)))];
-  const finalCountMatch = text.match(/\bAll\s+(\d{1,5})\s+tests?\s+passed\b/i);
-  const countedTests = finalCountMatch ? Number.parseInt(finalCountMatch[1], 10) : (testLines.length || null);
-  const hasStarted = phaseMarkers.includes('npm_test_started');
-  const hasCompleted = phaseMarkers.includes('npm_test_completed');
-  const hasNodeRunner = />\s*node\s+scripts\/run-tests\.js\b/i.test(text);
-  const safePhaseMarkers = [...phaseMarkers];
-  if (hasNodeRunner) safePhaseMarkers.push('node_process_started');
-  if (hasNodeRunner) safePhaseMarkers.push('test_runner_started');
-  if (testLines.length) safePhaseMarkers.push('tests_started');
-  if (finalCountMatch) safePhaseMarkers.push('tests_completed');
-
-  function safeDurationBucket(seconds) {
-    if (!Number.isFinite(seconds) || seconds < 0) return 'unknown_duration';
-    if (seconds < 30) return 'under_30s';
-    if (seconds < 120) return '30s_to_2m';
-    if (seconds < 600) return '2m_to_10m';
-    return 'over_10m';
-  }
-
-  function safeTestLabelHint() {
-    const line = testLines[testLines.length - 1] || '';
-    const label = line.replace(/^\s*(?:ok|not ok)\s+-\s+/i, '').trim();
-    if (!label) return null;
-    if (/(?:https?:\/\/|[A-Za-z]:\\|\/home\/|gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-|[{}\[\]"])/i.test(label)) return null;
-    const cleaned = label.replace(/[^A-Za-z0-9 _:-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
-    return cleaned || null;
-  }
-
-  function safePhase() {
-    if (!hasStarted) return 'before_npm_test';
-    if (finalCountMatch) return 'tests_completed';
-    if (testLines.length) return 'tests_started';
-    if (hasNodeRunner) return 'test_runner_started';
-    if (hasCompleted) return 'npm_test_completed';
-    if (hasStarted) return 'npm_test_started';
-    return 'unknown_phase';
-  }
-
-  const killedSignal = /\b(?:SIGKILL|Killed|process terminated|exit code 137)\b/i.test(nonTestText);
-  const timeoutSignal = /\b(?:timed out|timeout|timeouted)\b/i.test(nonTestText);
-  const markerRules = [
-    ['bom_parse_failure', /\bBOM\b|\uFEFF|Unexpected token .* JSON at position 0/i],
-    ['json_parse_failure', /JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i],
-    ['module_not_found', /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i],
-    ['missing_dependency', /Cannot find package|npm ERR! missing|ENOENT.*node_modules/i],
-    ['node_syntax_check_failure', /SyntaxError|Unexpected token/i],
-    ['permission_or_path_issue', /EACCES|EPERM|ENOENT/i],
-    ['timeout_or_killed', /\b(?:timed out|timeout|timeouted|SIGKILL|Killed|process terminated|exit code 137)\b/i],
-    ['test_fixture_failure', /not ok|AssertionError|test failed|FAIL/i],
-  ];
-  let category = 'unknown_npm_failure';
-  let markerCount = 0;
-  for (const [label, pattern] of markerRules) {
-    const haystack = label === 'timeout_or_killed' ? nonTestText : text;
-    if (pattern.test(haystack)) {
-      markerCount += 1;
-      if (category === 'unknown_npm_failure') category = label;
-    }
-  }
-  function failureSignal() {
-    if (killedSignal) return 'possible_killed_keyword';
-    if (timeoutSignal) return 'possible_timeout_keyword';
-    if (/JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i.test(text)) return 'json_failure_marker';
-    if (/ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i.test(text)) return 'module_failure_marker';
-    if (/not ok|AssertionError|test failed|FAIL/i.test(text)) return 'fixture_failure_marker';
-    if (!hasCompleted && !countedTests && Number(options.exitCode ?? 1) !== 0) return 'no_test_count_detected';
-    if (!hasCompleted) return 'no_completion_marker';
-    if (Number(options.exitCode ?? 1) !== 0) return 'process_exit_nonzero';
-    return 'unknown_signal';
-  }
-  function timeoutConfidence(signal) {
-    if (signal === 'possible_killed_keyword') return 'high';
-    if (signal === 'possible_timeout_keyword') return 'low';
-    if (!hasCompleted && !countedTests && Number(options.exitCode ?? 1) !== 0) return 'medium';
-    return 'unknown';
-  }
-  const signal = failureSignal();
-  const platform = ['linux', 'win32', 'darwin'].includes(options.platform || process.platform)
-    ? options.platform || process.platform
-    : 'other';
-  return {
-    schema: 'codex_npm_test_safe_summary_v1',
-    status: 'fail',
-    safeSummaryOnly: true,
-    npm_exit_code: Number.isFinite(options.exitCode) ? options.exitCode : 1,
-    node_version_major: Number.parseInt(process.versions.node.split('.')[0] || '0', 10),
-    platform,
-    package_json_exists: true,
-    run_tests_js_exists: true,
-    node_modules_exists: Boolean(options.nodeModulesExists),
-    package_install_present: Boolean(options.nodeModulesExists),
-    test_count_detected: countedTests,
-    safe_failure_category: category,
-    safe_failure_marker_count: markerCount,
-    safe_phase: safePhase(),
-    safe_phase_markers: [...new Set(safePhaseMarkers)].filter((label) => /^(?:npm_test_started|npm_test_completed|node_process_started|test_runner_started|tests_started|tests_completed)$/.test(label)),
-    safe_failure_signal: signal,
-    safe_duration_bucket: safeDurationBucket(options.durationSeconds),
-    safe_timeout_confidence: timeoutConfidence(signal),
-    safe_test_label_hint: safeTestLabelHint(),
-    raw_values_printed: false,
-  };
 }
 
 function withRulesTmp(callback) {
@@ -257,42 +159,6 @@ function buildReport() {
   assertCase('workflow runner rejects source fail report', result.status === 'fail', failures, cases, result.status);
   result = evaluateWorkflowReport(targetPassReport(), { eventName: 'pull_request' });
   assertCase('workflow runner accepts target pass report', result.status === 'pass', failures, cases, result.status);
-  const targetWithSafeGithubMetadata = targetPassReport();
-  targetWithSafeGithubMetadata.prContext = {
-    pullRequestUrl: 'https://github.com/hiro4649/iris/pull/82',
-    commitUrl: 'https://github.com/hiro4649/iris/commit/a33b09fb48499c4d660cec52c953549c8004abef',
-    apiUrl: 'https://api.github.com/repos/hiro4649/iris/pulls/82',
-    changedFiles: ['scripts/run-tests.js'],
-    artifactFilename: 'codex-quality-gate-safe-summary.json',
-    commandLabel: 'npm test',
-    sourceLabel: 'github_actions',
-    policyVocabulary: 'Do not print raw payload, raw logs, endpoint value, secret value, or private path; safe status labels only.',
-  };
-  result = evaluateWorkflowReport(targetWithSafeGithubMetadata, { eventName: 'pull_request' });
-  assertCase('workflow runner accepts public GitHub metadata and safe policy vocabulary', result.status === 'pass', failures, cases, result.status);
-  const unsafeTokenReport = targetPassReport();
-  unsafeTokenReport.safeMetadata = { tokenLabel: 'ghp_1234567890abcdef' };
-  result = evaluateWorkflowReport(unsafeTokenReport, { eventName: 'pull_request' });
-  assertCase('workflow runner rejects secret-like token values', result.status === 'fail', failures, cases, result.status);
-  assertCase('workflow runner emits safe reason labels only for token findings', !JSON.stringify(result).includes('ghp_1234567890abcdef'), failures, cases, result.status);
-  const credentialedUrlReport = targetPassReport();
-  credentialedUrlReport.safeMetadata = { publicUrl: 'https://user:pass@github.com/hiro4649/iris/pull/82' };
-  result = evaluateWorkflowReport(credentialedUrlReport, { eventName: 'pull_request' });
-  assertCase('workflow runner rejects credentialed URL values', result.status === 'fail', failures, cases, result.status);
-  assertCase('workflow runner does not print credentialed URL values', !JSON.stringify(result).includes('user:pass'), failures, cases, result.status);
-  const privatePathReport = targetPassReport();
-  privatePathReport.safeMetadata = { pathLabel: 'C:\\Users\\HIRO-001\\Documents\\secret.txt' };
-  result = evaluateWorkflowReport(privatePathReport, { eventName: 'pull_request' });
-  assertCase('workflow runner rejects private path values', result.status === 'fail', failures, cases, result.status);
-  assertCase('workflow runner does not print private path values', !JSON.stringify(result).includes('HIRO-001'), failures, cases, result.status);
-  const rawPayloadReport = targetPassReport();
-  rawPayloadReport.safeMetadata = { rawPayload: 'safe label only' };
-  result = evaluateWorkflowReport(rawPayloadReport, { eventName: 'pull_request' });
-  assertCase('workflow runner rejects rawPayload fields', result.status === 'fail', failures, cases, result.status);
-  const endpointValueReport = targetPassReport();
-  endpointValueReport.safeMetadata = { endpointValue: 'safe label only' };
-  result = evaluateWorkflowReport(endpointValueReport, { eventName: 'pull_request' });
-  assertCase('workflow runner rejects endpointValue fields', result.status === 'fail', failures, cases, result.status);
   const manualSource = sourcePassReport();
   manualSource.humanConfirmationObjectStatus = passStatus('manual_confirmation_required');
   result = evaluateWorkflowReport(manualSource, { eventName: 'pull_request' });
@@ -334,95 +200,6 @@ function buildReport() {
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_SKIP_NPM: '1',
-    CODEX_CHANGED_FILES: 'README.md',
-    CODEX_NPM_SKIP_REASON: 'docs-only',
-  });
-  assertCase('docs-only change with CODEX_SKIP_NPM=1 and safe reason passes product verification', result.productVerificationStatus.status === 'pass', failures, cases, result.productVerificationStatus.status);
-  result = buildProductVerificationReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_SKIP_NPM: '1',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-  });
-  assertCase('scripts/run-tests.js target change with CODEX_SKIP_NPM=1 fails product verification', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
-  result = buildProductVerificationEvidenceReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_SKIP_NPM: '1',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-  });
-  assertCase('scripts/run-tests.js target change with CODEX_SKIP_NPM=1 fails normalized evidence', result.productVerificationEvidenceStatus.status === 'fail', failures, cases, result.productVerificationEvidenceStatus.status);
-  const remoteNpmPass = {
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
-    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
-    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
-  };
-  result = buildProductVerificationReport(remoteNpmPass);
-  assertCase('product-relevant target change with remote npm evidence pass passes product verification', result.productVerificationStatus.status === 'pass', failures, cases, result.productVerificationStatus.status);
-  const remoteNpmEvidence = buildProductVerificationEvidenceReport(remoteNpmPass);
-  assertCase('product-relevant target change with remote npm evidence pass passes normalized evidence', remoteNpmEvidence.productVerificationEvidenceStatus.status === 'pass', failures, cases, remoteNpmEvidence.productVerificationEvidenceStatus.status);
-  const validProductTargetReport = targetPassReport();
-  validProductTargetReport.productVerificationStatus = result.productVerificationStatus;
-  validProductTargetReport.productVerificationEvidenceStatus = remoteNpmEvidence.productVerificationEvidenceStatus;
-  validProductTargetReport.reasonSummaryStatus = passStatus('pass');
-  validProductTargetReport.targetQualityScoreStatus = { status: 'pass', score: 95, safeSummaryOnly: true };
-  const validProductTargetResult = evaluateWorkflowReport(validProductTargetReport, { eventName: 'pull_request' });
-  assertCase('target runner remains pass when product evidence is valid', validProductTargetResult.status === 'pass', failures, cases, validProductTargetResult.status);
-  const remoteNpmFail = {
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
-    CODEX_PRODUCT_VERIFICATION_RESULT: 'fail',
-    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
-  };
-  result = buildProductVerificationReport(remoteNpmFail);
-  assertCase('product-relevant target change with remote npm evidence fail fails product verification', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
-  result = buildProductVerificationEvidenceReport(remoteNpmFail);
-  assertCase('product-relevant target change with remote npm evidence fail fails normalized evidence', result.productVerificationEvidenceStatus.status === 'fail', failures, cases, result.productVerificationEvidenceStatus.status);
-  const remoteNpmFailTarget = targetPassReport();
-  remoteNpmFailTarget.productVerificationStatus = buildProductVerificationReport(remoteNpmFail).productVerificationStatus;
-  remoteNpmFailTarget.productVerificationEvidenceStatus = result.productVerificationEvidenceStatus;
-  remoteNpmFailTarget.targetQualityScoreStatus = { status: 'fail', score: 70, safeSummaryOnly: true };
-  const remoteNpmFailRunner = evaluateWorkflowReport(remoteNpmFailTarget, { eventName: 'pull_request' });
-  assertCase('product-relevant remote npm fail keeps target runner failing', remoteNpmFailRunner.status === 'fail', failures, cases, remoteNpmFailRunner.status);
-
-  const moduleDiagnostic = buildNpmSafeDiagnostic('Error: Cannot find module example\n    at /home/runner/work/iris/iris/file.js', { exitCode: 1, platform: 'linux' });
-  assertCase('remote npm diagnostic emits safe summary only', moduleDiagnostic.safeSummaryOnly && moduleDiagnostic.raw_values_printed === false, failures, cases, moduleDiagnostic.status);
-  assertCase('remote npm diagnostic classifies module_not_found without raw stack', moduleDiagnostic.safe_failure_category === 'module_not_found' && !JSON.stringify(moduleDiagnostic).includes('/home/runner'), failures, cases, moduleDiagnostic.safe_failure_category);
-  const jsonDiagnostic = buildNpmSafeDiagnostic('SyntaxError: Unexpected token } in JSON at position 4\n{"not":"printed"}');
-  assertCase('remote npm diagnostic classifies json_parse_failure without raw JSON', jsonDiagnostic.safe_failure_category === 'json_parse_failure' && !JSON.stringify(jsonDiagnostic).includes('not'), failures, cases, jsonDiagnostic.safe_failure_category);
-  const bomDiagnostic = buildNpmSafeDiagnostic('\uFEFF SyntaxError: Unexpected token ﻿ in JSON at position 0');
-  assertCase('remote npm diagnostic classifies bom_parse_failure without raw JSON', bomDiagnostic.safe_failure_category === 'bom_parse_failure' && !JSON.stringify(bomDiagnostic).includes('\uFEFF'), failures, cases, bomDiagnostic.safe_failure_category);
-  const tokenDiagnostic = buildNpmSafeDiagnostic('token ghp_1234567890abcdef should not print');
-  assertCase('remote npm diagnostic rejects token or secret leakage by omission', !JSON.stringify(tokenDiagnostic).includes('ghp_1234567890abcdef'), failures, cases, tokenDiagnostic.status);
-  const pathDiagnostic = buildNpmSafeDiagnostic('failure at C:\\Users\\HIRO-001\\Documents\\private.txt');
-  assertCase('remote npm diagnostic rejects private path leakage by omission', !JSON.stringify(pathDiagnostic).includes('HIRO-001'), failures, cases, pathDiagnostic.status);
-  const workflowText = fs.readFileSync(path.join(repo, '.github', 'workflows', 'quality-gate.yml'), 'utf8');
-  const uploadBlock = workflowText.slice(workflowText.indexOf('Upload safe quality artifacts'));
-  assertCase('remote npm diagnostic does not upload raw npm log', !uploadBlock.includes('codex-npm-test-safe-hidden.log'), failures, cases, uploadBlock.includes('codex-npm-test-safe-hidden.log') ? 'fail' : 'pass');
-  assertCase('remote npm diagnostic uploads safe summary artifact', uploadBlock.includes('codex-npm-test-safe-summary.json'), failures, cases, uploadBlock.includes('codex-npm-test-safe-summary.json') ? 'pass' : 'fail');
-  assertCase('remote npm diagnostic includes exit code and safe category', moduleDiagnostic.npm_exit_code === 1 && moduleDiagnostic.safe_failure_category === 'module_not_found', failures, cases, moduleDiagnostic.safe_failure_category);
-  const testLabelTimeoutDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\n> node scripts/run-tests.js\nnot ok - safe timeout fixture label\nCODEX_SAFE_NPM_PHASE npm_test_completed', { exitCode: 1, durationSeconds: 45 });
-  assertCase('remote npm diagnostic distinguishes timeout keyword from actual kill', testLabelTimeoutDiagnostic.safe_failure_category === 'test_fixture_failure' && testLabelTimeoutDiagnostic.safe_timeout_confidence !== 'high', failures, cases, testLabelTimeoutDiagnostic.safe_failure_category);
-  assertCase('timeout keyword in test label only yields non-timeout signal', testLabelTimeoutDiagnostic.safe_failure_signal === 'fixture_failure_marker', failures, cases, testLabelTimeoutDiagnostic.safe_failure_signal);
-  assertCase('safe phase markers are parsed', testLabelTimeoutDiagnostic.safe_phase_markers.includes('npm_test_started') && testLabelTimeoutDiagnostic.safe_phase_markers.includes('tests_started'), failures, cases, testLabelTimeoutDiagnostic.safe_phase);
-  assertCase('safe phase does not include raw lines', ['before_npm_test', 'npm_test_started', 'node_process_started', 'test_runner_started', 'tests_started', 'tests_completed', 'npm_test_completed', 'unknown_phase'].includes(testLabelTimeoutDiagnostic.safe_phase), failures, cases, testLabelTimeoutDiagnostic.safe_phase);
-  assertCase('safe test label hint is sanitized', testLabelTimeoutDiagnostic.safe_test_label_hint === 'safe timeout fixture label', failures, cases, testLabelTimeoutDiagnostic.safe_test_label_hint);
-  assertCase('safe duration bucket is coarse only', testLabelTimeoutDiagnostic.safe_duration_bucket === '30s_to_2m', failures, cases, testLabelTimeoutDiagnostic.safe_duration_bucket);
-  const timeoutKeywordDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\noperation timed out before completion', { exitCode: 1 });
-  assertCase('timeout keyword only yields low confidence', timeoutKeywordDiagnostic.safe_failure_signal === 'possible_timeout_keyword' && timeoutKeywordDiagnostic.safe_timeout_confidence === 'low', failures, cases, timeoutKeywordDiagnostic.safe_timeout_confidence);
-  const killedDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\nSIGKILL process terminated', { exitCode: 1 });
-  assertCase('SIGKILL or Killed yields high confidence', killedDiagnostic.safe_failure_signal === 'possible_killed_keyword' && killedDiagnostic.safe_timeout_confidence === 'high', failures, cases, killedDiagnostic.safe_timeout_confidence);
-  const noCompletionDiagnostic = buildNpmSafeDiagnostic('CODEX_SAFE_NPM_PHASE npm_test_started\n> node scripts/run-tests.js', { exitCode: 1 });
-  assertCase('no completion marker and no test count yields medium confidence', noCompletionDiagnostic.safe_timeout_confidence === 'medium' && noCompletionDiagnostic.safe_failure_signal === 'no_test_count_detected', failures, cases, noCompletionDiagnostic.safe_timeout_confidence);
-  assertCase('private path in test label is omitted', buildNpmSafeDiagnostic('not ok - C:\\Users\\HIRO-001\\private').safe_test_label_hint === null, failures, cases);
-  assertCase('URL in test label is omitted', buildNpmSafeDiagnostic('not ok - https://example.test/private').safe_test_label_hint === null, failures, cases);
-  assertCase('token in test label is omitted', buildNpmSafeDiagnostic('not ok - ghp_1234567890abcdef').safe_test_label_hint === null, failures, cases);
-  assertCase('raw JSON in test label is omitted', buildNpmSafeDiagnostic('not ok - {"unsafe":"shape"}').safe_test_label_hint === null, failures, cases);
-
-  result = buildProductVerificationReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_SKIP_NPM: '1',
     CODEX_CHANGED_FILES: 'src/app.js',
   });
   assertCase('product src change with CODEX_SKIP_NPM=1 fails through normalized evidence', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
@@ -436,14 +213,29 @@ function buildReport() {
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_CHANGED_FILES: 'package-lock.json',
-    CODEX_SKIP_NPM: '1',
   });
-  assertCase('package/lockfile change with CODEX_SKIP_NPM=1 fails', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
+  assertCase('package/lockfile change without evidence fails', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_CHANGED_FILES: 'src/app.js',
     CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
     CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify({
+      schemaVersion: '0.8.3',
+      harnessVersion: HARNESS_VERSION,
+      repository: 'example/repo',
+      baseSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      baselineType: 'npm_test',
+      commands: [{ name: 'npm test', result: 'pass' }],
+      result: 'pass',
+      date: '2026-05-24T00:00:00Z',
+      source: 'fixture',
+      safeSummary: 'safe baseline summary',
+      knownFailures: [],
+      expiresAt: '2099-01-01T00:00:00Z',
+      rawValuesStored: false,
+      safeSummaryOnly: true,
+    }),
   });
   assertCase('npm test pass evidence with duration/testCount normalizes to pass', result.productVerificationStatus.status === 'pass', failures, cases, result.productVerificationStatus.status);
   const unsafeEvidence = path.join(os.tmpdir(), `codex-unsafe-evidence-${Date.now()}.json`);

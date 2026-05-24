@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.8.2
+﻿# CODEX_QUALITY_HARNESS_FILE v0.8.3
 name: quality-gate
 
 on:
@@ -40,158 +40,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          classification_exit=0
-          node scripts/codex-change-classification-gate.mjs --json > "$RUNNER_TEMP/codex-change-classification.json" || classification_exit=$?
-          needs_npm="$(node - "$RUNNER_TEMP/codex-change-classification.json" <<'NODE'
-          const fs = require('fs');
-          const file = process.argv[2];
-          let report = null;
-          try { report = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-          const status = report?.changeClassificationStatus || {};
-          const needs = Boolean(status.productRelevantChanged || status.runtimeReadinessClaimed || status.packageOrLockfileChanged);
-          process.stdout.write(needs ? 'true' : 'false');
-          NODE
-          )"
-          if [ "$needs_npm" = "true" ]; then
-            unset CODEX_SKIP_NPM
-            unset CODEX_NPM_SKIP_REASON
-            npm_exit=0
-            npm_start_epoch="$(date +%s)"
-            {
-              echo "CODEX_SAFE_NPM_PHASE npm_test_started"
-              npm test || npm_exit=$?
-              echo "CODEX_SAFE_NPM_PHASE npm_test_completed"
-            } > "$RUNNER_TEMP/codex-npm-test-safe-hidden.log" 2>&1
-            npm_end_epoch="$(date +%s)"
-            npm_duration_seconds="$((npm_end_epoch - npm_start_epoch))"
-            if [ "$npm_exit" -ne 0 ]; then
-              node - "$RUNNER_TEMP/codex-npm-test-safe-hidden.log" "$npm_exit" "$npm_duration_seconds" <<'NODE' > codex-npm-test-safe-summary.json
-          const fs = require('fs');
-          const logFile = process.argv[2];
-          const npmExitCode = Number.parseInt(process.argv[3] || '1', 10);
-          const durationSeconds = Number.parseInt(process.argv[4] || '', 10);
-          let text = '';
-          try { text = fs.readFileSync(logFile, 'utf8'); } catch {}
-          const lines = text.split(/\r?\n/);
-          const testLines = lines.filter((line) => /^\s*(?:ok|not ok)\s+-\s+/i.test(line));
-          const nonTestText = lines.filter((line) => !/^\s*(?:ok|not ok)\s+-\s+/i.test(line)).join('\n');
-          const phaseMarkers = [...new Set((text.match(/^CODEX_SAFE_NPM_PHASE [a-z_]+$/gm) || [])
-            .map((line) => line.replace('CODEX_SAFE_NPM_PHASE ', '').trim())
-            .filter((label) => /^(?:npm_test_started|npm_test_completed)$/.test(label)))];
-          const finalCountMatch = text.match(/\bAll\s+(\d{1,5})\s+tests?\s+passed\b/i);
-          const countedTests = finalCountMatch ? Number.parseInt(finalCountMatch[1], 10) : (testLines.length || null);
-          const hasStarted = phaseMarkers.includes('npm_test_started');
-          const hasCompleted = phaseMarkers.includes('npm_test_completed');
-          const hasNodeRunner = />\s*node\s+scripts\/run-tests\.js\b/i.test(text);
-          const safePhaseMarkers = [...phaseMarkers];
-          if (hasNodeRunner) safePhaseMarkers.push('node_process_started');
-          if (hasNodeRunner) safePhaseMarkers.push('test_runner_started');
-          if (testLines.length) safePhaseMarkers.push('tests_started');
-          if (finalCountMatch) safePhaseMarkers.push('tests_completed');
-          function safeDurationBucket(seconds) {
-            if (!Number.isFinite(seconds) || seconds < 0) return 'unknown_duration';
-            if (seconds < 30) return 'under_30s';
-            if (seconds < 120) return '30s_to_2m';
-            if (seconds < 600) return '2m_to_10m';
-            return 'over_10m';
-          }
-          function safeTestLabelHint() {
-            const line = testLines[testLines.length - 1] || '';
-            const label = line.replace(/^\s*(?:ok|not ok)\s+-\s+/i, '').trim();
-            if (!label) return null;
-            if (/(?:https?:\/\/|[A-Za-z]:\\|\/home\/|gh[pousr]_|sk-|AKIA|glpat-|npm_|xox[baprs]-|[{}\[\]"])/i.test(label)) return null;
-            const cleaned = label.replace(/[^A-Za-z0-9 _:-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
-            return cleaned || null;
-          }
-          function safePhase() {
-            if (!hasStarted) return 'before_npm_test';
-            if (finalCountMatch) return 'tests_completed';
-            if (testLines.length) return 'tests_started';
-            if (hasNodeRunner) return 'test_runner_started';
-            if (hasCompleted) return 'npm_test_completed';
-            if (hasStarted) return 'npm_test_started';
-            return 'unknown_phase';
-          }
-          const killedSignal = /\b(?:SIGKILL|Killed|process terminated|exit code 137)\b/i.test(nonTestText);
-          const timeoutSignal = /\b(?:timed out|timeout|timeouted)\b/i.test(nonTestText);
-          const markerRules = [
-            ['bom_parse_failure', /\bBOM\b|\uFEFF|Unexpected token .* JSON at position 0/i],
-            ['json_parse_failure', /JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i],
-            ['module_not_found', /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i],
-            ['missing_dependency', /Cannot find package|npm ERR! missing|ENOENT.*node_modules/i],
-            ['node_syntax_check_failure', /SyntaxError|Unexpected token/i],
-            ['permission_or_path_issue', /EACCES|EPERM|ENOENT/i],
-            ['timeout_or_killed', /\b(?:timed out|timeout|timeouted|SIGKILL|Killed|process terminated|exit code 137)\b/i],
-            ['test_fixture_failure', /not ok|AssertionError|test failed|FAIL/i],
-          ];
-          let category = 'unknown_npm_failure';
-          let markerCount = 0;
-          for (const [label, pattern] of markerRules) {
-            const haystack = label === 'timeout_or_killed' ? nonTestText : text;
-            if (pattern.test(haystack)) {
-              markerCount += 1;
-              if (category === 'unknown_npm_failure') category = label;
-            }
-          }
-          function failureSignal() {
-            if (killedSignal) return 'possible_killed_keyword';
-            if (timeoutSignal) return 'possible_timeout_keyword';
-            if (/JSON\.parse|Unexpected token .*JSON|Unexpected end of JSON|SyntaxError.*JSON/i.test(text)) return 'json_failure_marker';
-            if (/ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find module/i.test(text)) return 'module_failure_marker';
-            if (/not ok|AssertionError|test failed|FAIL/i.test(text)) return 'fixture_failure_marker';
-            if (!hasCompleted && !countedTests && npmExitCode !== 0) return 'no_test_count_detected';
-            if (!hasCompleted) return 'no_completion_marker';
-            if (npmExitCode !== 0) return 'process_exit_nonzero';
-            return 'unknown_signal';
-          }
-          function timeoutConfidence(signal) {
-            if (signal === 'possible_killed_keyword') return 'high';
-            if (signal === 'possible_timeout_keyword') return 'low';
-            if (!hasCompleted && !countedTests && npmExitCode !== 0) return 'medium';
-            return 'unknown';
-          }
-          const signal = failureSignal();
-          const platform = ['linux', 'win32', 'darwin'].includes(process.platform) ? process.platform : 'other';
-          const report = {
-            schema: 'codex_npm_test_safe_summary_v1',
-            status: 'fail',
-            safeSummaryOnly: true,
-            npm_exit_code: Number.isFinite(npmExitCode) ? npmExitCode : 1,
-            node_version_major: Number.parseInt(process.versions.node.split('.')[0] || '0', 10),
-            platform,
-            package_json_exists: fs.existsSync('package.json'),
-            run_tests_js_exists: fs.existsSync('scripts/run-tests.js'),
-            node_modules_exists: fs.existsSync('node_modules'),
-            package_install_present: fs.existsSync('node_modules'),
-            test_count_detected: countedTests,
-            safe_failure_category: category,
-            safe_failure_marker_count: markerCount,
-            safe_phase: safePhase(),
-            safe_phase_markers: [...new Set(safePhaseMarkers)].filter((label) => /^(?:npm_test_started|npm_test_completed|node_process_started|test_runner_started|tests_started|tests_completed)$/.test(label)),
-            safe_failure_signal: signal,
-            safe_duration_bucket: safeDurationBucket(durationSeconds),
-            safe_timeout_confidence: timeoutConfidence(signal),
-            safe_test_label_hint: safeTestLabelHint(),
-            raw_values_printed: false,
-          };
-          process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-          NODE
-            fi
-            export CODEX_PRODUCT_VERIFICATION_COMMANDS="npm test"
-            export CODEX_PRODUCT_VERIFICATION_SOURCE="remote_quality_gate"
-            if [ "$npm_exit" -eq 0 ]; then
-              export CODEX_PRODUCT_VERIFICATION_RESULT="pass"
-              echo "remote npm test result: pass"
-            else
-              export CODEX_PRODUCT_VERIFICATION_RESULT="fail"
-              echo "remote npm test result: fail"
-            fi
-          else
-            export CODEX_SKIP_NPM="1"
-            export CODEX_NPM_SKIP_REASON="harness-only or docs-only target workflow"
-          fi
+          node scripts/codex-workflow-preflight.mjs > "$RUNNER_TEMP/codex-workflow-preflight.json"
           gate_exit=0
           node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json" || gate_exit=$?
+          node scripts/codex-workflow-preflight.mjs --write-artifact > "$RUNNER_TEMP/codex-workflow-preflight-artifact.json"
           node scripts/codex-workflow-quality-runner.mjs --report "$RUNNER_TEMP/codex-quality-gate.json" --gate-exit "$gate_exit"
       - name: Write safe target summary
         if: always()
@@ -206,8 +58,9 @@ jobs:
           }
           const summary = readJson('codex-quality-gate-safe-summary.json');
           const target = readJson('codex-target-quality-summary.json');
+          const finalSummary = readJson('codex-target-final-summary.json');
+          const reasonSummary = readJson('codex-reason-summary.json');
           const reasons = readJson('codex-failure-reasons.json') || [];
-          const npmSummary = readJson('codex-npm-test-safe-summary.json');
           console.log('## Codex target quality gate safe summary');
           if (summary) {
             console.log(`- status: ${summary.status || 'missing'}`);
@@ -217,18 +70,15 @@ jobs:
             console.log(`- targetQualityScore: ${target?.targetQualityScoreStatus?.score ?? summary.targetQualityScoreStatus?.score ?? 'missing'}`);
             console.log(`- agentsContextStatus: ${summary.agentsContextStatus?.status || 'missing'}`);
             console.log(`- productVerificationStatus: ${summary.productVerificationStatus?.status || 'missing'}`);
+            console.log(`- remoteProductBaselineStatus: ${summary.remoteProductBaselineStatus?.status || 'missing'}`);
+            console.log(`- remoteNpmDiagnosticStatus: ${summary.remoteNpmDiagnosticStatus?.status || 'missing'}`);
+            console.log(`- workflowPreflightStatus: ${summary.workflowPreflightStatus?.status || 'missing'}`);
+            console.log(`- safeArtifactIndexStatus: ${summary.safeArtifactIndexStatus?.status || 'missing'}`);
+            console.log(`- reasonSummaryStatus: ${summary.reasonSummaryStatus?.status || reasonSummary?.status || 'missing'}`);
+            console.log(`- targetFinalSummaryStatus: ${summary.targetFinalSummaryStatus?.status || finalSummary?.status || 'missing'}`);
             console.log(`- secretScan: ${summary.secretScan?.status || 'missing'}`);
           } else {
             console.log('- status: summary_missing');
-          }
-          if (npmSummary) {
-            console.log(`- npmDiagnosticStatus: ${npmSummary.status || 'missing'}`);
-            console.log(`- npmFailureCategory: ${npmSummary.safe_failure_category || 'missing'}`);
-            console.log(`- npmFailureSignal: ${npmSummary.safe_failure_signal || 'missing'}`);
-            console.log(`- npmPhase: ${npmSummary.safe_phase || 'missing'}`);
-            console.log(`- npmTimeoutConfidence: ${npmSummary.safe_timeout_confidence || 'missing'}`);
-            console.log(`- npmFailureMarkerCount: ${npmSummary.safe_failure_marker_count ?? 'missing'}`);
-            console.log(`- npmExitCode: ${npmSummary.npm_exit_code ?? 'missing'}`);
           }
           console.log(`- failureReasonCount: ${Array.isArray(reasons) ? reasons.length : 0}`);
           for (const item of Array.isArray(reasons) ? reasons.slice(0, 20) : []) {
@@ -247,6 +97,10 @@ jobs:
             codex-evidence-pack.normalized.json
             codex-failure-reasons.json
             codex-target-quality-summary.json
+            codex-source-final-summary.json
+            codex-target-final-summary.json
+            codex-reason-summary.json
+            codex-safe-artifact-index.json
+            codex-workflow-preflight.safe.json
             codex-test-metrics.safe.json
-            codex-npm-test-safe-summary.json
           if-no-files-found: ignore
