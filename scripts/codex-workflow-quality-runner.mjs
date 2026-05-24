@@ -131,7 +131,53 @@ const unsafeReportFieldNames = new Set([
   'rawCommand',
 ]);
 
-function hasUnsafeReportField(value) {
+const unsafeReportFieldLabels = new Map([
+  ['rawPayload', 'raw_payload_field'],
+  ['payload', 'raw_payload_field'],
+  ['rawLogs', 'raw_logs_field'],
+  ['rawDiff', 'raw_diff_field'],
+  ['secretValue', 'secret_value_field'],
+  ['endpointValue', 'endpoint_value_field'],
+  ['privatePath', 'private_path_field'],
+  ['rawCommand', 'raw_command_field'],
+]);
+
+const invalidReportReasons = new Set([
+  'unsafe_report_field',
+  'unsafe_report_value',
+  'quality_report_parse_failed',
+  'quality_report_missing',
+  'unknown_invalid_report',
+]);
+
+function uniqueSafeLabels(values) {
+  const labels = values
+    .filter((value) => typeof value === 'string' && /^[a-z0-9_]+$/.test(value))
+    .slice(0, 20);
+  return [...new Set(labels)].slice(0, 10);
+}
+
+function buildInvalidReportDiagnostic(reasonCode, options = {}) {
+  const safeReason = invalidReportReasons.has(options.safeInvalidReportReason)
+    ? options.safeInvalidReportReason
+    : reasonCode === 'quality_report_missing'
+      ? 'quality_report_missing'
+      : reasonCode === 'quality_report_parse_failed'
+        ? 'quality_report_parse_failed'
+        : 'unknown_invalid_report';
+  const labels = uniqueSafeLabels(options.safeInvalidReportPathLabels || []);
+  return {
+    safeInvalidReportReason: safeReason,
+    safeInvalidReportPathLabels: labels.length ? labels : ['unknown_report_path'],
+    safeInvalidReportFindingCount: Number.isFinite(options.safeInvalidReportFindingCount)
+      ? Math.max(0, Math.min(100, Math.trunc(options.safeInvalidReportFindingCount)))
+      : labels.length,
+    safeSummaryOnly: true,
+  };
+}
+
+function collectUnsafeReportFieldLabels(value) {
+  const labels = [];
   const stack = [value];
   while (stack.length) {
     const node = stack.pop();
@@ -141,23 +187,68 @@ function hasUnsafeReportField(value) {
       continue;
     }
     for (const [key, nested] of Object.entries(node)) {
-      if (unsafeReportFieldNames.has(key)) return true;
+      if (unsafeReportFieldNames.has(key)) {
+        labels.push(unsafeReportFieldLabels.get(key) || 'unknown_report_path');
+      }
       stack.push(nested);
     }
   }
-  return false;
+  return uniqueSafeLabels(labels);
 }
 
 function readReport(file) {
-  if (!file) return { ok: false, report: null, reasonCode: 'quality_report_missing' };
-  if (!fs.existsSync(file)) return { ok: false, report: null, reasonCode: 'quality_report_missing' };
+  if (!file) {
+    return {
+      ok: false,
+      report: null,
+      reasonCode: 'quality_report_missing',
+      invalidReportDiagnostic: buildInvalidReportDiagnostic('quality_report_missing'),
+    };
+  }
+  if (!fs.existsSync(file)) {
+    return {
+      ok: false,
+      report: null,
+      reasonCode: 'quality_report_missing',
+      invalidReportDiagnostic: buildInvalidReportDiagnostic('quality_report_missing'),
+    };
+  }
   try {
     const report = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (hasUnsafeReportField(report)) return { ok: false, report: null, reasonCode: 'workflow_runner_invalid_report' };
-    if (scanObjectForUnsafe(report).length) return { ok: false, report: null, reasonCode: 'workflow_runner_invalid_report' };
+    const unsafeFieldLabels = collectUnsafeReportFieldLabels(report);
+    if (unsafeFieldLabels.length) {
+      return {
+        ok: false,
+        report: null,
+        reasonCode: 'workflow_runner_invalid_report',
+        invalidReportDiagnostic: buildInvalidReportDiagnostic('workflow_runner_invalid_report', {
+          safeInvalidReportReason: 'unsafe_report_field',
+          safeInvalidReportPathLabels: unsafeFieldLabels,
+          safeInvalidReportFindingCount: unsafeFieldLabels.length,
+        }),
+      };
+    }
+    const unsafeFindings = scanObjectForUnsafe(report);
+    if (unsafeFindings.length) {
+      return {
+        ok: false,
+        report: null,
+        reasonCode: 'workflow_runner_invalid_report',
+        invalidReportDiagnostic: buildInvalidReportDiagnostic('workflow_runner_invalid_report', {
+          safeInvalidReportReason: 'unsafe_report_value',
+          safeInvalidReportPathLabels: ['unsafe_value_detected'],
+          safeInvalidReportFindingCount: unsafeFindings.length,
+        }),
+      };
+    }
     return { ok: true, report };
   } catch {
-    return { ok: false, report: null, reasonCode: 'quality_report_parse_failed' };
+    return {
+      ok: false,
+      report: null,
+      reasonCode: 'quality_report_parse_failed',
+      invalidReportDiagnostic: buildInvalidReportDiagnostic('quality_report_parse_failed'),
+    };
   }
 }
 
@@ -285,8 +376,14 @@ function writeArtifacts(result, report) {
   fs.writeFileSync('codex-safe-artifact-index.json', JSON.stringify(index, null, 2));
 }
 
-export function buildFallbackWorkflowArtifacts(reasonCode = 'workflow_runner_invalid_report', mode = 'target') {
+export function buildFallbackWorkflowArtifacts(reasonCode = 'workflow_runner_invalid_report', mode = 'target', invalidReportDiagnostic = null) {
   const safeCode = safeReasonCode(reasonCode);
+  const diagnostic = invalidReportDiagnostic || buildInvalidReportDiagnostic(safeCode);
+  const workflowRunnerStatus = {
+    status: 'fail',
+    reasonCodes: [safeCode],
+    ...diagnostic,
+  };
   const report = {
     status: 'fail',
     mergeReady: false,
@@ -323,6 +420,8 @@ export function buildFallbackWorkflowArtifacts(reasonCode = 'workflow_runner_inv
       reasonCodes: [],
       safeSummaryOnly: true,
     },
+    workflowRunnerStatus,
+    workflowQualityRunnerStatus: workflowRunnerStatus,
     failures: [{ id: safeCode, message: 'Workflow quality runner could not read a safe quality report.' }],
     warnings: [],
   };
@@ -338,6 +437,7 @@ export function buildFallbackWorkflowArtifacts(reasonCode = 'workflow_runner_inv
       targetMergeReady: false,
       humanReviewRequired: true,
       qualityScoreStatus: report.targetQualityScoreStatus,
+      workflowRunnerStatus,
       reasonSummary: report.reasonSummaryStatus.summary,
       failureCount: 1,
       warningCount: 0,
@@ -348,14 +448,15 @@ export function buildFallbackWorkflowArtifacts(reasonCode = 'workflow_runner_inv
       gate: 'workflowQualityRunner',
       severity: 'error',
       safeMessage: 'Workflow quality runner could not read a safe quality report.',
+      ...diagnostic,
     }],
     status: 'fail',
   };
   return { report, result };
 }
 
-export function writeFallbackArtifacts(reasonCode = 'workflow_runner_invalid_report', mode = 'target') {
-  const fallback = buildFallbackWorkflowArtifacts(reasonCode, mode);
+export function writeFallbackArtifacts(reasonCode = 'workflow_runner_invalid_report', mode = 'target', invalidReportDiagnostic = null) {
+  const fallback = buildFallbackWorkflowArtifacts(reasonCode, mode, invalidReportDiagnostic);
   writeArtifacts(fallback.result, fallback.report);
   return fallback;
 }
@@ -374,9 +475,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const file = args.report || process.env.CODEX_WORKFLOW_REPORT_PATH || process.argv[2];
   const loaded = readReport(file);
   if (!loaded.ok) {
-    const report = simpleStatus('workflowQualityRunnerStatus', 'fail', { reasonCodes: [loaded.reasonCode] });
+    const report = simpleStatus('workflowQualityRunnerStatus', 'fail', {
+      reasonCodes: [loaded.reasonCode],
+      ...(loaded.invalidReportDiagnostic || buildInvalidReportDiagnostic(loaded.reasonCode)),
+    });
     try {
-      writeFallbackArtifacts(loaded.reasonCode, process.env.CODEX_HARNESS_MODE === 'source' ? 'source' : 'target');
+      writeFallbackArtifacts(
+        loaded.reasonCode,
+        process.env.CODEX_HARNESS_MODE === 'source' ? 'source' : 'target',
+        loaded.invalidReportDiagnostic
+      );
     } catch {
       fs.writeFileSync('codex-failure-reasons.json', JSON.stringify([{
         reasonCode: 'safe_artifact_write_failed',

@@ -228,6 +228,10 @@ function runWorkflowRunnerFixture(reportText) {
   });
 }
 
+function invalidReportFixture(value) {
+  return runWorkflowRunnerFixture(JSON.stringify(value));
+}
+
 function buildReport() {
   const failures = [];
   const cases = [];
@@ -325,11 +329,35 @@ function buildReport() {
   assertCase('workflow runner writes safe artifacts when quality report JSON parse fails', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
   assertCase('workflow runner parse failure remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.reasonCodes?.includes('quality_report_parse_failed'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
 
-  result = runWorkflowRunnerFixture(JSON.stringify({ status: 'fail', rawPayload: 'unsafe value' }));
+  result = invalidReportFixture({ status: 'fail', rawPayload: 'unsafe value' });
   assertCase('workflow runner writes safe artifacts when report is invalid or unsafe', Object.values(result.artifacts).every(Boolean), failures, cases, JSON.stringify(result.artifacts));
   assertCase('workflow runner unsafe report remains failure', result.code !== 0 && result.parsed?.workflowQualityRunnerStatus?.reasonCodes?.includes('workflow_runner_invalid_report'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.status);
+  assertCase('invalid report with rawPayload yields safe label raw_payload_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('raw_payload_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
+  assertCase('invalid report fallback artifact includes safeInvalidReportReason', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportReason === 'unsafe_report_field', failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportReason);
+  assertCase('invalid report fallback artifact includes safeInvalidReportPathLabels', result.failureReasons?.some((item) => item.safeInvalidReportPathLabels?.includes('raw_payload_field')) === true, failures, cases);
   const unsafeEcho = `${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`;
   assertCase('workflow runner fallback artifacts do not print raw report values', !unsafeEcho.includes('rawPayload') && !unsafeEcho.includes('unsafe value'), failures, cases);
+  assertCase('safe artifact index still generated for invalid report', Array.isArray(result.index?.artifacts) && result.index.artifacts.length > 0, failures, cases, result.index?.status);
+
+  result = invalidReportFixture({ status: 'fail', rawLogs: 'unsafe value' });
+  assertCase('invalid report with rawLogs yields safe label raw_logs_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('raw_logs_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
+
+  result = invalidReportFixture({ status: 'fail', endpointValue: 'unsafe value' });
+  assertCase('invalid report with endpointValue yields safe label endpoint_value_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('endpoint_value_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
+
+  result = invalidReportFixture({ status: 'fail', privatePath: 'unsafe value' });
+  assertCase('invalid report with privatePath yields safe label private_path_field', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('private_path_field'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
+
+  const tokenLikeValue = ['g', 'hp', '_', 'A'.repeat(12)].join('');
+  result = invalidReportFixture({ status: 'fail', safeLabel: tokenLikeValue });
+  assertCase('invalid report with unsafe concrete token yields unsafe_value_detected', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('unsafe_value_detected'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
+  assertCase('invalid report with unsafe concrete token omits token value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes(tokenLikeValue), failures, cases);
+
+  const urlLikeValue = ['https', '://', 'example.invalid', '/safe'].join('');
+  result = invalidReportFixture({ status: 'fail', safeLabel: urlLikeValue });
+  assertCase('invalid report with URL value yields unsafe_value_detected', result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.includes('unsafe_value_detected'), failures, cases, result.parsed?.workflowQualityRunnerStatus?.safeInvalidReportPathLabels?.join(','));
+  assertCase('invalid report with URL value omits URL value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes(urlLikeValue), failures, cases);
+  assertCase('invalid report diagnostic does not print raw value', !`${result.stdout}\n${result.stderr}\n${result.serializedArtifacts}`.includes('unsafe value'), failures, cases);
 
   result = run('scripts/codex-v082-self-test.mjs', { CODEX_QUALITY_REPORT: 'json', CODEX_SKIP_V083_SELF_TEST: '1' });
   assertCase('v0.8.2 behavior still passes', result.parsed?.v082SelfTestStatus?.status === 'pass', failures, cases, result.parsed?.v082SelfTestStatus?.status);
