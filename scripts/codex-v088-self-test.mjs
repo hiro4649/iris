@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v0.8.8
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { HARNESS_VERSION, marker, simpleStatus, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { buildComplexityGovernanceReport, buildComplexityEvalSuiteReport } from './codex-complexity-governance-gate.mjs';
 
@@ -19,6 +20,149 @@ function prEnv(overrides = {}) {
     CODEX_PR_BODY: 'Task mode: docs_only\nGoal: docs update\nVerification: static check pass',
     ...overrides,
   };
+}
+
+function runLocalGate(overrides = {}) {
+  const result = spawnSync('node', ['scripts/codex-local-quality-gate.mjs'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CODEX_QUALITY_REPORT: 'json',
+      CODEX_HARNESS_MODE: 'target',
+      CODEX_PROFILE_COMPAT_MODE: 'off',
+      CODEX_EVENT_NAME: 'pull_request',
+      CODEX_PR_NUMBER: '88',
+      CODEX_PR_HEAD_SHA: 'v088-fixture-head',
+      CODEX_PR_BASE_SHA: '',
+      CODEX_COMPLEXITY_GOVERNANCE_MODE: 'enforce',
+      CODEX_SKIP_NPM: '',
+      CODEX_NPM_SKIP_REASON: '',
+      CODEX_PRODUCT_VERIFICATION_COMMANDS: '',
+      CODEX_PRODUCT_VERIFICATION_RESULT: '',
+      CODEX_PRODUCT_VERIFICATION_SOURCE: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_RESULT: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_SOURCE: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_JSON: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_PATH: '',
+      CODEX_TEST_METRICS_COMMAND: '',
+      CODEX_TEST_METRICS_RESULT: '',
+      CODEX_TEST_METRICS_SOURCE: '',
+      CODEX_TEST_METRICS_TEST_COUNT: '',
+      CODEX_SKIP_V081_SELF_TEST: '1',
+      CODEX_SKIP_V082_SELF_TEST: '1',
+      CODEX_SKIP_V083_SELF_TEST: '1',
+      CODEX_SKIP_V084_SELF_TEST: '1',
+      CODEX_SKIP_V085_SELF_TEST: '1',
+      CODEX_SKIP_V086_SELF_TEST: '1',
+      CODEX_SKIP_V087_SELF_TEST: '1',
+      CODEX_SKIP_V088_SELF_TEST: '1',
+      ...overrides,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    return { status: result.status, report: JSON.parse(result.stdout || '{}') };
+  } catch {
+    return { status: result.status, report: { status: 'fail' } };
+  }
+}
+
+function productCoverageBody(result = 'PASS') {
+  return `PR profile: product_minor_r2
+
+Task mode: test_coverage
+
+Goal:
+Import smoke coverage.
+
+Files or scope:
+scripts/run-tests.js test coverage evidence path only.
+
+Product verification:
+npm test ${result}.
+
+Tests or checks run:
+npm test ${result}.
+
+## Task Contract
+Goal: validate product-relevant test coverage evidence path.
+Done criteria: product verification pass evidence and remote baseline pass evidence produce target quality pass.
+Verification surface: local target gate simulation.
+Risk surface: product evidence interpretation and target score.
+Allowed scope: test coverage evidence path.
+Forbidden scope: product runtime implementation and external-p1 implementation areas.
+Stop condition: stop if product verification, remote baseline, or target score fails.
+
+## Load-bearing evidence
+Component: product evidence simulation.
+Failure mode caught: product-relevant pass evidence failing to clear product verification or remote baseline.
+Not covered by existing gates: v0.8.8 product evidence hydration in self-test context.
+Negative fixture: skip-only evidence remains fail.
+Positive fixture: pass evidence reaches target score 95.
+Runtime cost: low.
+Default mode: enforce for PR context.
+
+## Complexity Governance
+Complexity regime: high.
+Oracle required: yes.
+Oracle provided: local target gate simulation, v088 self-test.
+Split required: no, self-test fixture only.
+
+Residual risks:
+Runtime behavior not proven.
+
+Human confirmation needed:
+yes.`;
+}
+
+function harnessWorkflowBody() {
+  return `PR profile: harness_workflow_r3
+
+Task mode: harness_change
+
+Risk level:
+R3
+
+Goal:
+Restore v0.8.8 remote product evidence path.
+
+Files or scope:
+Harness workflow and gate files.
+
+Evidence Integrity:
+Safe evidence only.
+
+Validation commands:
+v088 self-test PASS.
+
+Best of N Evidence:
+Candidate count: 2
+Selected candidate: restore remote product evidence path.
+Reason selected: product-relevant changes need trustworthy remote evidence.
+Rejected candidate: proceed to npm baseline first.
+Reason rejected: remote product evidence path is required before product-relevant baseline repair.
+
+Complexity Governance:
+Complexity regime: high
+Oracle required: yes
+Oracle provided: v088 self-test; simulation A/B/C; local target gate
+Split required: no, harness evidence path only
+
+Task Contract:
+Goal: restore remote product evidence path
+Done criteria: v088 self-test pass; simulations pass
+Verification surface: harness self-tests and local gate simulations
+Risk surface: workflow evidence path
+Allowed scope: workflow/local gate/v088 self-test
+Forbidden scope: product runtime/admin/auth/DB/Live2D
+Stop condition: stop if target gate fails
+
+Residual risks:
+NPM baseline repair remains pending.
+
+Human confirmation needed:
+yes.`;
 }
 
 function sourceHarnessPrBody() {
@@ -162,6 +306,66 @@ export function buildV088SelfTestReport() {
     CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'fail', reasonCodes: ['product_verification_failed'], safeSummaryOnly: true } }),
   })).complexityGovernanceStatus;
   assertCase('product_verification_fail_remains_fail', result.status === 'fail' && result.reasonCodes.includes('product_verification_failed'), failures, cases, result.reasonCodes?.join(','));
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+    CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS: 'npm test',
+    CODEX_REMOTE_PRODUCT_BASELINE_RESULT: 'pass',
+    CODEX_REMOTE_PRODUCT_BASELINE_SOURCE: 'remote_quality_gate',
+    CODEX_TEST_METRICS_COMMAND: 'npm test',
+    CODEX_TEST_METRICS_RESULT: 'pass',
+    CODEX_TEST_METRICS_SOURCE: 'remote',
+    CODEX_TEST_METRICS_TEST_COUNT: '467',
+    CODEX_PR_BODY: productCoverageBody('PASS'),
+  }).report;
+  assertCase('v088 product-relevant remote npm pass evidence passes product verification', result.productVerificationStatus?.status === 'pass', failures, cases, result.productVerificationStatus?.status);
+  assertCase('v088 product-relevant remote npm pass evidence passes remote baseline', result.remoteProductBaselineStatus?.status === 'pass', failures, cases, result.remoteProductBaselineStatus?.status);
+  assertCase('v088 pass evidence target gate reaches score 95', result.targetQualityScoreStatus?.status === 'pass' && result.targetQualityScoreStatus?.score === 95, failures, cases, `${result.targetQualityScoreStatus?.status}/${result.targetQualityScoreStatus?.score}`);
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '1',
+    CODEX_NPM_SKIP_REASON: 'unsafe skip attempt',
+    CODEX_PR_BODY: productCoverageBody('not run'),
+  }).report;
+  assertCase('v088 product-relevant CODEX_SKIP_NPM only fails', result.productVerificationStatus?.status === 'fail' && result.targetQualityScoreStatus?.status === 'fail', failures, cases, `${result.productVerificationStatus?.status}/${result.targetQualityScoreStatus?.status}`);
+  assertCase('v088 product evidence explain reports skip_not_allowed safely', result.v085StabilityStatus?.productEvidenceExplainStatus?.explanation?.skipNotAllowed === true, failures, cases, result.v085StabilityStatus?.productEvidenceExplainStatus?.nextBestFix);
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'fail',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+    CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS: 'npm test',
+    CODEX_REMOTE_PRODUCT_BASELINE_RESULT: 'fail',
+    CODEX_REMOTE_PRODUCT_BASELINE_SOURCE: 'remote_quality_gate',
+    CODEX_TEST_METRICS_COMMAND: 'npm test',
+    CODEX_TEST_METRICS_RESULT: 'fail',
+    CODEX_TEST_METRICS_SOURCE: 'remote',
+    CODEX_PR_BODY: productCoverageBody('FAIL'),
+  }).report;
+  assertCase('v088 remote npm fail evidence remains failure score 70', result.productVerificationStatus?.status === 'fail' && result.remoteProductBaselineStatus?.status === 'fail' && result.targetQualityScoreStatus?.status === 'fail' && result.targetQualityScoreStatus?.score === 70, failures, cases, `${result.productVerificationStatus?.status}/${result.remoteProductBaselineStatus?.status}/${result.targetQualityScoreStatus?.score}`);
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+    CODEX_PR_BODY: productCoverageBody('PASS'),
+  }).report;
+  assertCase('v088 product evidence explain reports missing_baseline safely', result.productVerificationStatus?.reasonCodes?.includes('remote_product_baseline_missing') && result.v085StabilityStatus?.productEvidenceExplainStatus?.explanation?.remoteBaselineMissing === true, failures, cases, result.productVerificationStatus?.reasonCodes?.join(','));
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: '.github/workflows/quality-gate.yml,scripts/codex-local-quality-gate.mjs,scripts/codex-v088-self-test.mjs',
+    CODEX_SKIP_NPM: '1',
+    CODEX_NPM_SKIP_REASON: 'harness-only remote product evidence fix',
+    CODEX_PR_BODY: harnessWorkflowBody(),
+  }).report;
+  assertCase('v088 harness-only fast path can skip npm with safe reason', result.productVerificationStatus?.status === 'pass' && result.fastPathStatus?.status === 'pass', failures, cases, `${result.productVerificationStatus?.status}/${result.fastPathStatus?.status}`);
+  assertCase('v088 raw values are not emitted by local gate simulations', result.valuesPrinted !== true, failures, cases, String(result.valuesPrinted));
 
   const evalSuite = buildComplexityEvalSuiteReport().complexityEvalSuiteStatus;
   assertCase('complexity eval suite fixtures -> pass', evalSuite.status === 'pass', failures, cases, evalSuite.failures?.join(','));

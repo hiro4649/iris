@@ -194,6 +194,78 @@ function runGateScript(script, field, envName, baseEnv = process.env) {
     return { status: 'fail', failures: [`${field}=invalid_json`], safeSummaryOnly: true };
   }
 }
+function splitSafeCommandLabels(value) {
+  return String(value || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+function safeResult(value) {
+  return ['pass', 'fail', 'warning'].includes(String(value || '')) ? String(value) : 'fail';
+}
+function safeTestResult(value) {
+  return ['pass', 'fail', 'not_run'].includes(String(value || '')) ? String(value) : 'not_run';
+}
+function safeNumberOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function buildRemoteProductBaselineJsonFromEnv(env) {
+  if (env.CODEX_REMOTE_PRODUCT_BASELINE_JSON || env.CODEX_REMOTE_PRODUCT_BASELINE_PATH) return null;
+  const commands = splitSafeCommandLabels(env.CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS);
+  if (!commands.length) return null;
+  const result = safeResult(env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT || env.CODEX_PRODUCT_VERIFICATION_RESULT);
+  const source = String(env.CODEX_REMOTE_PRODUCT_BASELINE_SOURCE || env.CODEX_PRODUCT_VERIFICATION_SOURCE || 'remote_quality_gate')
+    .replace(/[^A-Za-z0-9_.:-]/g, '_')
+    .slice(0, 80) || 'remote_quality_gate';
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const testCount = safeNumberOrNull(env.CODEX_TEST_METRICS_TEST_COUNT);
+  return JSON.stringify({
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    repository: String(env.CODEX_REPOSITORY || 'local_repo').slice(0, 120) || 'local_repo',
+    baseSha: String(env.CODEX_PR_BASE_SHA || env.GITHUB_BASE_SHA || 'baseline_sha_unset').slice(0, 80),
+    baselineType: 'product_verification',
+    commands: commands.map((name) => ({
+      name: String(name).slice(0, 80),
+      result: safeTestResult(env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT || env.CODEX_PRODUCT_VERIFICATION_RESULT),
+      source,
+      testCount,
+    })),
+    result,
+    date: now.toISOString(),
+    source,
+    safeSummary: result === 'pass' ? 'remote product baseline pass' : 'remote product baseline fail',
+    knownFailures: result === 'fail' ? ['remote_npm_failed'] : [],
+    expiresAt: expiresAt.toISOString(),
+    rawValuesStored: false,
+    safeSummaryOnly: true,
+  });
+}
+function hydrateRemoteProductEvidenceEnv(env) {
+  const baselineJson = buildRemoteProductBaselineJsonFromEnv(env);
+  if (baselineJson) env.CODEX_REMOTE_PRODUCT_BASELINE_JSON = baselineJson;
+  return env;
+}
+function addReasonCodes(status, codes) {
+  return {
+    ...status,
+    reasonCodes: [...new Set([...(status?.reasonCodes || []), ...codes])],
+    safeSummaryOnly: true,
+  };
+}
+function enforceRemoteNpmFailureStatus(report, env) {
+  const remoteNpmFailed = env.CODEX_PRODUCT_VERIFICATION_RESULT === 'fail' ||
+    env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT === 'fail' ||
+    env.CODEX_TEST_METRICS_RESULT === 'fail';
+  if (!remoteNpmFailed) return;
+  report.productVerificationStatus = {
+    ...addReasonCodes(report.productVerificationStatus, ['baseline_failure']),
+    status: 'fail',
+  };
+  report.remoteProductBaselineStatus = {
+    ...addReasonCodes(report.remoteProductBaselineStatus, ['remote_product_baseline_failing']),
+    status: 'fail',
+  };
+}
 function runJsonScript(script, cwd, failures, warnings) {
   const before = git(['status', '--porcelain=v1']);
   const result = spawn('node', [script], { cwd, stdio: 'pipe' });
@@ -1017,7 +1089,7 @@ async function runSourceHarnessGate() {
   const warnings = [];
   if (!jsonReport) console.log('== Codex source harness quality gate ==');
   const remoteContext = await resolveRemoteGateContext(process.env);
-  const gateEnv = { ...process.env, ...remoteContext.env };
+  const gateEnv = hydrateRemoteProductEvidenceEnv({ ...process.env, ...remoteContext.env });
   const secretSelfTest = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { env: { CODEX_SECRET_SCAN_SELF_TEST: '1' }, stdio: 'pipe' });
   if (secretSelfTest.status !== 0) failures.push({ id: 'secretScan.selfTest', message: 'secret scan self-test failed' });
   const secretScan = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { stdio: 'pipe' });
@@ -1118,6 +1190,7 @@ async function runSourceHarnessGate() {
   report.productVerificationEvidenceStatus = runGateScript('scripts/codex-product-verification-evidence-normalize.mjs', 'productVerificationEvidenceStatus', 'CODEX_PRODUCT_VERIFICATION_EVIDENCE_REPORT', gateEnv);
   report.testMetricsStatus = runGateScript('scripts/codex-test-metrics-collect.mjs', 'testMetricsStatus', 'CODEX_TEST_METRICS_REPORT', gateEnv);
   report.remoteProductBaselineStatus = runGateScript('scripts/codex-remote-product-baseline-gate.mjs', 'remoteProductBaselineStatus', 'CODEX_REMOTE_PRODUCT_BASELINE_REPORT', gateEnv);
+  enforceRemoteNpmFailureStatus(report, gateEnv);
   report.remoteNpmDiagnosticStatus = runGateScript('scripts/codex-remote-npm-diagnostic-classify.mjs', 'remoteNpmDiagnosticStatus', 'CODEX_REMOTE_NPM_DIAGNOSTIC_REPORT', gateEnv);
   report.workflowPreflightStatus = runGateScript('scripts/codex-workflow-preflight.mjs', 'workflowPreflightStatus', 'CODEX_WORKFLOW_PREFLIGHT_REPORT', gateEnv);
   const fastPathEnv = { ...gateEnv, CODEX_CHANGE_CLASSIFICATION_JSON: JSON.stringify(report.changeClassificationStatus) };
@@ -1398,7 +1471,7 @@ async function runTargetHarnessGate() {
   const secretScan = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { stdio: 'pipe' });
   if (secretScan.status !== 0) failures.push({ id: 'secretScan.failed', message: 'secret safety scan failed' });
 
-  const gateEnv = { ...process.env };
+  const gateEnv = hydrateRemoteProductEvidenceEnv({ ...process.env });
   const report = {
     marker: MARKER,
     harnessVersion: HARNESS_VERSION,
@@ -1466,6 +1539,7 @@ async function runTargetHarnessGate() {
   report.productVerificationEvidenceStatus = runGateScript('scripts/codex-product-verification-evidence-normalize.mjs', 'productVerificationEvidenceStatus', 'CODEX_PRODUCT_VERIFICATION_EVIDENCE_REPORT', gateEnv);
   report.testMetricsStatus = runGateScript('scripts/codex-test-metrics-collect.mjs', 'testMetricsStatus', 'CODEX_TEST_METRICS_REPORT', gateEnv);
   report.remoteProductBaselineStatus = runGateScript('scripts/codex-remote-product-baseline-gate.mjs', 'remoteProductBaselineStatus', 'CODEX_REMOTE_PRODUCT_BASELINE_REPORT', gateEnv);
+  enforceRemoteNpmFailureStatus(report, gateEnv);
   report.remoteNpmDiagnosticStatus = runGateScript('scripts/codex-remote-npm-diagnostic-classify.mjs', 'remoteNpmDiagnosticStatus', 'CODEX_REMOTE_NPM_DIAGNOSTIC_REPORT', gateEnv);
   report.workflowPreflightStatus = runGateScript('scripts/codex-workflow-preflight.mjs', 'workflowPreflightStatus', 'CODEX_WORKFLOW_PREFLIGHT_REPORT', gateEnv);
   const fastPathEnv = { ...gateEnv, CODEX_CHANGE_CLASSIFICATION_JSON: JSON.stringify(report.changeClassificationStatus) };

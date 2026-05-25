@@ -45,6 +45,16 @@ function lowerText(files, body) {
   return `${files.join('\n')}\n${body}`.toLowerCase();
 }
 
+function scrubNegatedRuntimeRiskText(text) {
+  return String(text || '')
+    .replace(/^\s*forbidden scope\s*:.*$/gim, '')
+    .replace(/\biris runtime behavior (?:is )?not proven\b/gi, '')
+    .replace(/\bruntime behavior (?:is )?not proven\b/gi, '')
+    .replace(/\bruntime behavior changed\s*:\s*no\b/gi, '')
+    .replace(/\bruntime readiness claimed\s*:\s*(?:no|false)\b/gi, '')
+    .replace(/\bno runtime readiness claim\b/gi, '');
+}
+
 function isDocsFile(file) {
   return /^(readme\.md|docs\/|.*\.md$)/i.test(file);
 }
@@ -71,7 +81,7 @@ function productVerificationStatus(env = process.env) {
 }
 
 function contractProvided(body, env = process.env) {
-  return Boolean(env.CODEX_TASK_CONTRACT_JSON || /##\s+Task Contract/i.test(body));
+  return Boolean(env.CODEX_TASK_CONTRACT_JSON || /##\s+Task Contract/i.test(body) || /^\s*Task Contract\s*:/im.test(body));
 }
 
 function fieldPresent(body, label) {
@@ -119,7 +129,7 @@ function artifactType(body) {
 }
 
 function surfaceSummary(files, body) {
-  const text = lowerText(files, body);
+  const text = scrubNegatedRuntimeRiskText(lowerText(files, body));
   return {
     auth: /\bauth|security|permission|role|session|token|login|oauth\b/.test(text),
     storage: /\bstorage|database|postgres|sqlite|migration|schema|concurrency|json-store|repository\b/.test(text),
