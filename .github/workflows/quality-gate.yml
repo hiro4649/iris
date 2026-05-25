@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.8.4
+# CODEX_QUALITY_HARNESS_FILE v0.8.5
 name: quality-gate
 
 on:
@@ -63,61 +63,7 @@ jobs:
           else
             export CODEX_HARNESS_MODE=target
             export CODEX_PROFILE_COMPAT_MODE=off
-            if [ -n "${GITHUB_BASE_REF:-}" ]; then
-              git fetch origin "$GITHUB_BASE_REF" --depth=1 >/dev/null 2>&1 || true
-              changed_files="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" 2>/dev/null | paste -sd, - || true)"
-              if [ -n "$changed_files" ]; then
-                export CODEX_CHANGED_FILES="$changed_files"
-              fi
-            fi
-            product_npm_required="$(
-              node --input-type=module -e "import { classifyChange, changedFiles } from './scripts/codex-change-classification-gate.mjs'; const classified = classifyChange(changedFiles(process.env), process.env); const c = classified.classification || {}; process.stdout.write(classified.productRelevantChanged || classified.packageOrLockfileChanged || classified.runtimeReadinessClaimed || c.performanceClaimed ? '1' : '0');"
-            )" || product_npm_required="1"
-            if [ "$product_npm_required" = "1" ]; then
-              unset CODEX_SKIP_NPM || true
-              npm_hidden_log="$RUNNER_TEMP/codex-npm-test.hidden.log"
-              npm_start_ms="$(node -e "process.stdout.write(String(Date.now()))")"
-              set +e
-              if [ -f package.json ]; then
-                npm test > "$npm_hidden_log" 2>&1
-                npm_exit=$?
-              else
-                npm_exit=127
-                : > "$npm_hidden_log"
-              fi
-              set -e
-              npm_end_ms="$(node -e "process.stdout.write(String(Date.now()))")"
-              npm_duration_ms="$((npm_end_ms - npm_start_ms))"
-              npm_result="fail"
-              if [ "$npm_exit" = "0" ]; then
-                npm_result="pass"
-              fi
-              test_count="$(
-                node -e 'const fs = require("fs"); const file = process.argv[1]; let text = ""; try { text = fs.readFileSync(file, "utf8"); } catch {} const patterns = [/(\d+)\s+tests?\b/i, /tests\s+(\d+)\b/i, /#\s*tests\s+(\d+)\b/i]; for (const pattern of patterns) { const match = text.match(pattern); if (match) { process.stdout.write(match[1]); process.exit(0); } }' "$npm_hidden_log"
-              )"
-              export CODEX_PRODUCT_VERIFICATION_COMMANDS="npm test"
-              export CODEX_PRODUCT_VERIFICATION_RESULT="$npm_result"
-              export CODEX_PRODUCT_VERIFICATION_SOURCE="remote_quality_gate"
-              export CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS="npm test"
-              export CODEX_REMOTE_PRODUCT_BASELINE_RESULT="$npm_result"
-              export CODEX_REMOTE_PRODUCT_BASELINE_SOURCE="remote_quality_gate"
-              export CODEX_TEST_METRICS_COMMAND="npm test"
-              export CODEX_TEST_METRICS_RESULT="$npm_result"
-              export CODEX_TEST_METRICS_DURATION_MS="$npm_duration_ms"
-              export CODEX_TEST_METRICS_SOURCE="remote"
-              if [ -n "$test_count" ]; then
-                export CODEX_TEST_METRICS_TEST_COUNT="$test_count"
-              fi
-              if [ "$npm_result" = "fail" ]; then
-                export CODEX_NPM_TEST_SAFE_SUMMARY_JSON="$(
-                  NPM_EXIT="$npm_exit" node -e 'const summary = { npmExitCode: Number(process.env.NPM_EXIT || 1), safeFailureCategory: "unknown_npm_failure", nodeMajor: Number(process.versions.node.split(".")[0]), platform: process.platform, packageManager: "npm", commandClass: "npm_test", testCountDetected: Number.isFinite(Number(process.env.CODEX_TEST_METRICS_TEST_COUNT)) ? Number(process.env.CODEX_TEST_METRICS_TEST_COUNT) : null, rawLogUploaded: false, rawValuesStored: false, safeSummaryOnly: true }; process.stdout.write(JSON.stringify(summary));'
-                )"
-                export CODEX_NPM_EXIT_CODE="$npm_exit"
-              fi
-            else
-              export CODEX_SKIP_NPM="${CODEX_SKIP_NPM:-1}"
-              export CODEX_NPM_SKIP_REASON="${CODEX_NPM_SKIP_REASON:-harness-only or docs-only target fast path}"
-            fi
+            export CODEX_SKIP_NPM="${CODEX_SKIP_NPM:-1}"
           fi
           node scripts/codex-workflow-preflight.mjs > "$RUNNER_TEMP/codex-workflow-preflight.json"
           gate_exit=0

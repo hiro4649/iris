@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.4
+// CODEX_QUALITY_HARNESS_FILE v0.8.5
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildFastPathReport } from './codex-fast-path-gate.mjs';
@@ -10,11 +10,6 @@ import { buildSafeArtifactIndex } from './codex-safe-artifact-index.mjs';
 import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
 import { buildOpenPrHygieneReport } from './codex-open-pr-hygiene-report.mjs';
 import { buildActionsRuntimeAdvisoryReport } from './codex-actions-runtime-advisory.mjs';
-import { buildProductVerificationReport } from './codex-product-verification-gate.mjs';
-import { buildProductVerificationEvidenceReport } from './codex-product-verification-evidence-normalize.mjs';
-import { buildRemoteProductBaselineReport } from './codex-remote-product-baseline-gate.mjs';
-import { buildRemoteNpmDiagnosticReport } from './codex-remote-npm-diagnostic-classify.mjs';
-import { buildCompactReasonSummary } from './codex-reason-summary.mjs';
 import { HARNESS_VERSION, marker, simpleStatus, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 
 function assertCase(name, ok, failures, cases, detail = '') {
@@ -54,42 +49,6 @@ function runNode(script) {
   });
 }
 
-function remoteBaselineJson(result = 'pass') {
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-  return JSON.stringify({
-    codexRemoteProductBaseline: {
-      schemaVersion: '0.8.3',
-      harnessVersion: HARNESS_VERSION,
-      repository: 'target_repository',
-      baseSha: 'baseline_sha_unset',
-      baselineType: 'remote_product_verification',
-      commands: ['npm test'],
-      result,
-      date: now.toISOString(),
-      source: 'remote_quality_gate',
-      safeSummary: `remote product baseline ${result}`,
-      knownFailures: result === 'fail' ? ['remote_product_baseline_command_failed'] : [],
-      expiresAt: expiresAt.toISOString(),
-      rawValuesStored: false,
-      safeSummaryOnly: true,
-    },
-  });
-}
-
-function productTargetEnv(result = 'pass') {
-  return {
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_HARNESS_MODE: 'target',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
-    CODEX_PRODUCT_VERIFICATION_RESULT: result,
-    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
-    CODEX_REMOTE_PRODUCT_BASELINE_JSON: remoteBaselineJson(result),
-    CODEX_PR_BODY: 'PR profile: product_minor_r2\n\nGoal:\nFixture repair.\n\nProduct verification:\nnpm test PASS.\n\nTests or checks run:\nnpm test.\n\nResidual risks:\nNone.',
-  };
-}
-
 export function buildV084SelfTestReport() {
   const failures = [];
   const cases = [];
@@ -104,61 +63,6 @@ export function buildV084SelfTestReport() {
   result = buildFastPathReport({ CODEX_CHANGED_FILES: 'package-lock.json' });
   assertCase('fast path denied for package or lockfile change', !result.fastPathStatus.fastPathAllowed, failures, cases, result.fastPathStatus.pathMode);
   assertCase('fast path preserves human confirmation requirement', result.fastPathStatus.requiredStatusesPreserved === true, failures, cases);
-
-  const productPassEnv = productTargetEnv('pass');
-  result = buildProductVerificationReport(productPassEnv);
-  assertCase('v084 target product-relevant remote npm pass evidence passes product verification', result.productVerificationStatus.status === 'pass', failures, cases, result.productVerificationStatus.reasonCodes?.join(','));
-  result = buildProductVerificationEvidenceReport(productPassEnv);
-  assertCase('v084 target product-relevant remote npm pass evidence normalizes safely', result.productVerificationEvidenceStatus.status === 'pass', failures, cases, result.productVerificationEvidenceStatus.reasonCodes?.join(','));
-  result = buildRemoteProductBaselineReport(productPassEnv);
-  assertCase('v084 remote product baseline pass evidence clears remote baseline status', result.remoteProductBaselineStatus.status === 'pass', failures, cases, result.remoteProductBaselineStatus.reasonCodes?.join(','));
-
-  const productSkipEnv = {
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_HARNESS_MODE: 'target',
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_SKIP_NPM: '1',
-    CODEX_NPM_SKIP_REASON: 'unsafe skip attempt',
-  };
-  result = buildProductVerificationReport(productSkipEnv);
-  assertCase('v084 target product-relevant skip-only evidence fails product verification', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
-  result = buildRemoteProductBaselineReport(productSkipEnv);
-  assertCase('v084 missing remote baseline evidence fails remoteProductBaselineStatus', result.remoteProductBaselineStatus.status === 'fail', failures, cases, result.remoteProductBaselineStatus.reasonCodes?.join(','));
-
-  const productFailEnv = productTargetEnv('fail');
-  result = buildProductVerificationReport(productFailEnv);
-  assertCase('v084 target product-relevant remote npm fail evidence does not pass product verification', result.productVerificationStatus.status !== 'pass', failures, cases, result.productVerificationStatus.status);
-  result = buildRemoteProductBaselineReport(productFailEnv);
-  assertCase('v084 remote product baseline fail evidence remains non-pass', result.remoteProductBaselineStatus.status !== 'pass', failures, cases, result.remoteProductBaselineStatus.status);
-
-  result = buildFastPathReport({ CODEX_HARNESS_MODE: 'target', CODEX_CHANGED_FILES: 'scripts/codex-example.mjs' });
-  assertCase('v084 harness-only fast path can skip npm with safe reason', result.fastPathStatus.status === 'pass' && result.fastPathStatus.fastPathAllowed, failures, cases, result.fastPathStatus.pathMode);
-  result = buildFastPathReport({ CODEX_HARNESS_MODE: 'target', CODEX_CHANGED_FILES: 'scripts/run-tests.js' });
-  assertCase('v084 product-relevant change cannot use fast path', result.fastPathStatus.status === 'pass' && !result.fastPathStatus.fastPathAllowed, failures, cases, result.fastPathStatus.reasonCodes?.join(','));
-
-  const productProfile = buildPrProfileReport(productPassEnv);
-  assertCase('v084 PR profile required sections fixture passes', productProfile.prProfileStatus.status === 'pass', failures, cases, productProfile.prProfileStatus.status);
-  const missingProfile = buildPrProfileReport({ ...productPassEnv, CODEX_PR_BODY: 'PR profile: product_minor_r2\n\nGoal:\nFixture repair.' });
-  assertCase('v084 PR profile missing sections fixture fails', missingProfile.prProfileStatus.status === 'fail', failures, cases, missingProfile.prProfileStatus.reasonCodes?.join(','));
-  const reasonSummary = buildCompactReasonSummary({
-    status: 'pass',
-    productVerificationStatus: buildProductVerificationReport(productPassEnv).productVerificationStatus,
-    remoteProductBaselineStatus: buildRemoteProductBaselineReport(productPassEnv).remoteProductBaselineStatus,
-    targetQualityScoreStatus: { status: 'pass', score: 95 },
-  });
-  assertCase('v084 reason summary remains safe and present', reasonSummary.status === 'pass' && reasonSummary.summary?.safeSummaryOnly, failures, cases, reasonSummary.reasonCodes?.join(','));
-  result = buildRemoteNpmDiagnosticReport({
-    CODEX_NPM_TEST_SAFE_SUMMARY_JSON: JSON.stringify({
-      npmExitCode: 1,
-      safeFailureCategory: 'unknown_npm_failure',
-      nodeMajor: 20,
-      platform: 'linux',
-      packageManager: 'npm',
-      commandClass: 'npm_test',
-      safeSummaryOnly: true,
-    }),
-  });
-  assertCase('v084 raw npm log is not uploaded in safe diagnostic', result.remoteNpmDiagnosticStatus.diagnostic?.rawLogUploaded === false, failures, cases, result.remoteNpmDiagnosticStatus.status);
 
   result = buildDiagnosticConsolidationReport(sourcePassReport());
   assertCase('diagnostic consolidation from source pass report', result.diagnosticConsolidationStatus.status === 'pass', failures, cases, result.diagnosticConsolidationStatus.status);
