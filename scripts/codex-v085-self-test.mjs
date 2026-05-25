@@ -49,6 +49,44 @@ function runNode(script) {
   });
 }
 
+function runLocalGate(overrides = {}) {
+  const result = spawnSync('node', ['scripts/codex-local-quality-gate.mjs'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CODEX_QUALITY_REPORT: 'json',
+      CODEX_HARNESS_MODE: 'target',
+      CODEX_PROFILE_COMPAT_MODE: 'off',
+      CODEX_SKIP_NPM: '',
+      CODEX_NPM_SKIP_REASON: '',
+      CODEX_PRODUCT_VERIFICATION_COMMANDS: '',
+      CODEX_PRODUCT_VERIFICATION_RESULT: '',
+      CODEX_PRODUCT_VERIFICATION_SOURCE: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_RESULT: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_SOURCE: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_JSON: '',
+      CODEX_REMOTE_PRODUCT_BASELINE_PATH: '',
+      CODEX_TEST_METRICS_COMMAND: '',
+      CODEX_TEST_METRICS_RESULT: '',
+      CODEX_TEST_METRICS_SOURCE: '',
+      CODEX_TEST_METRICS_TEST_COUNT: '',
+      CODEX_SKIP_V081_SELF_TEST: '1',
+      CODEX_SKIP_V082_SELF_TEST: '1',
+      CODEX_SKIP_V083_SELF_TEST: '1',
+      CODEX_SKIP_V084_SELF_TEST: '1',
+      CODEX_SKIP_V085_SELF_TEST: '1',
+      ...overrides,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    return { status: result.status, report: JSON.parse(result.stdout || '{}') };
+  } catch {
+    return { status: result.status, report: { status: 'fail' } };
+  }
+}
+
 export async function buildV085SelfTestReport() {
   const failures = [];
   const cases = [];
@@ -164,6 +202,41 @@ export async function buildV085SelfTestReport() {
     CODEX_PRODUCT_VERIFICATION_JSON: productStatus({ status: 'fail', reasonCodes: ['npm_skip_not_allowed_for_product_change'] }),
   });
   assertCase('product verification fail -> productEvidenceExplainStatus includes one clear failure class', result.productEvidenceExplainStatus.explanation.skipNotAllowed === true, failures, cases, result.productEvidenceExplainStatus.nextBestFix);
+
+  const productCoverageBody = 'PR profile: product_minor_r2\n\nTask mode: test_coverage\n\nGoal:\nImport smoke coverage.\n\nProduct verification:\nnpm test PASS.\n\nTests or checks run:\nnpm test PASS.\n\nResidual risks:\nRuntime behavior not proven.';
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+    CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS: 'npm test',
+    CODEX_REMOTE_PRODUCT_BASELINE_RESULT: 'pass',
+    CODEX_REMOTE_PRODUCT_BASELINE_SOURCE: 'remote_quality_gate',
+    CODEX_PR_BODY: productCoverageBody,
+  }).report;
+  assertCase('v085 product-relevant remote npm pass evidence passes product verification', result.productVerificationStatus?.status === 'pass', failures, cases, result.productVerificationStatus?.status);
+  assertCase('v085 product-relevant remote npm pass evidence passes remote baseline', result.remoteProductBaselineStatus?.status === 'pass', failures, cases, result.remoteProductBaselineStatus?.status);
+  assertCase('v085 pass evidence target gate reaches score 95', result.targetQualityScoreStatus?.status === 'pass' && result.targetQualityScoreStatus?.score === 95, failures, cases, result.targetQualityScoreStatus?.score);
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '1',
+    CODEX_NPM_SKIP_REASON: 'unsafe skip attempt',
+    CODEX_PR_BODY: productCoverageBody.replace('npm test PASS.', 'not run.'),
+  }).report;
+  assertCase('v085 product-relevant CODEX_SKIP_NPM only fails', result.productVerificationStatus?.status === 'fail' && result.targetQualityScoreStatus?.status === 'fail', failures, cases, result.productVerificationStatus?.status);
+
+  result = runLocalGate({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'fail',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote_quality_gate',
+    CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS: 'npm test',
+    CODEX_REMOTE_PRODUCT_BASELINE_RESULT: 'fail',
+    CODEX_REMOTE_PRODUCT_BASELINE_SOURCE: 'remote_quality_gate',
+    CODEX_PR_BODY: productCoverageBody.replaceAll('PASS', 'FAIL'),
+  }).report;
+  assertCase('v085 remote npm fail evidence remains failure score 70', result.productVerificationStatus?.status === 'fail' && result.targetQualityScoreStatus?.status === 'fail' && result.targetQualityScoreStatus?.score === 70, failures, cases, result.targetQualityScoreStatus?.score);
 
   const fast = buildFastPathReport({ CODEX_CHANGED_FILES: 'src/example.ts', CODEX_HARNESS_MODE: 'target' }).fastPathStatus;
   assertCase('fast path denied -> decision=denied_full_verification_required', fast.decision === 'denied_full_verification_required' && fast.mergeInterpretation === 'full_verification_required', failures, cases, fast.decision);

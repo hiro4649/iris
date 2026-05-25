@@ -65,6 +65,60 @@ jobs:
             export CODEX_PROFILE_COMPAT_MODE=off
             export CODEX_SKIP_NPM="${CODEX_SKIP_NPM:-1}"
           fi
+          if [ "$CODEX_HARNESS_MODE" = "target" ]; then
+            node --input-type=module <<'NODE' > "$RUNNER_TEMP/codex-product-npm-required.env"
+          import { classifyChange, changedFiles } from './scripts/codex-change-classification-gate.mjs';
+          const files = changedFiles();
+          const classified = classifyChange(files);
+          const c = classified.classification || {};
+          const required = Boolean(
+            classified.productRelevantChanged ||
+            classified.packageOrLockfileChanged ||
+            classified.runtimeReadinessClaimed ||
+            c.performanceClaimed
+          );
+          const safeFiles = files
+            .map((file) => String(file).replace(/[^A-Za-z0-9_./:-]/g, '_'))
+            .join(',');
+          console.log(`CODEX_PRODUCT_NPM_REQUIRED=${required ? '1' : '0'}`);
+          console.log(`CODEX_CHANGED_FILES=${safeFiles}`);
+          NODE
+            source "$RUNNER_TEMP/codex-product-npm-required.env"
+            export CODEX_PRODUCT_NPM_REQUIRED CODEX_CHANGED_FILES
+            if [ "$CODEX_PRODUCT_NPM_REQUIRED" = "1" ]; then
+              unset CODEX_SKIP_NPM
+              npm_exit=0
+              npm test > "$RUNNER_TEMP/codex-npm-test.hidden.log" 2>&1 || npm_exit=$?
+              if [ "$npm_exit" = "0" ]; then
+                npm_result="pass"
+              else
+                npm_result="fail"
+              fi
+              test_count="$(node - "$RUNNER_TEMP/codex-npm-test.hidden.log" <<'NODE'
+          const fs = require('fs');
+          const file = process.argv[2];
+          const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+          const matches = [...text.matchAll(/(?:All\s+)?(\d+)\s+(?:tests?|passing)\b/gi)].map((match) => Number(match[1])).filter(Number.isFinite);
+          process.stdout.write(matches.length ? String(Math.max(...matches)) : '');
+          NODE
+          )"
+              export CODEX_PRODUCT_VERIFICATION_COMMANDS="npm test"
+              export CODEX_PRODUCT_VERIFICATION_RESULT="$npm_result"
+              export CODEX_PRODUCT_VERIFICATION_SOURCE="remote_quality_gate"
+              export CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS="npm test"
+              export CODEX_REMOTE_PRODUCT_BASELINE_RESULT="$npm_result"
+              export CODEX_REMOTE_PRODUCT_BASELINE_SOURCE="remote_quality_gate"
+              export CODEX_TEST_METRICS_COMMAND="npm test"
+              export CODEX_TEST_METRICS_RESULT="$npm_result"
+              export CODEX_TEST_METRICS_SOURCE="remote"
+              if [ -n "$test_count" ]; then
+                export CODEX_TEST_METRICS_TEST_COUNT="$test_count"
+              fi
+            else
+              export CODEX_SKIP_NPM="${CODEX_SKIP_NPM:-1}"
+              export CODEX_NPM_SKIP_REASON="${CODEX_NPM_SKIP_REASON:-harness_or_docs_only_remote_quality_gate_skip}"
+            fi
+          fi
           node scripts/codex-workflow-preflight.mjs > "$RUNNER_TEMP/codex-workflow-preflight.json"
           gate_exit=0
           node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json" || gate_exit=$?
