@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.5
+// CODEX_QUALITY_HARNESS_FILE v0.8.8
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -183,9 +183,19 @@ function buildReport() {
 
   result = withTempCwd((tmp) => {
     fs.mkdirSync(path.join(tmp, 'scripts'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'docs', 'process'), { recursive: true });
     fs.writeFileSync(path.join(tmp, 'scripts', 'codex-local-quality-gate.mjs'), '');
     fs.writeFileSync(path.join(tmp, 'scripts', 'codex-workflow-quality-runner.mjs'), '');
-    fs.writeFileSync(path.join(tmp, 'CODEX_SOURCE_HARNESS_MANIFEST.json'), '{}');
+    fs.writeFileSync(path.join(tmp, 'CODEX_SOURCE_HARNESS_MANIFEST.json'), JSON.stringify({
+      marker,
+      harnessVersion: HARNESS_VERSION,
+      sourceRepoMode: true,
+      safeSummaryOnly: true,
+    }));
+    fs.copyFileSync(
+      path.join(repo, 'docs', 'process', 'CODEX_CHANGE_CLASSIFICATION_RULES.json'),
+      path.join(tmp, 'docs', 'process', 'CODEX_CHANGE_CLASSIFICATION_RULES.json'),
+    );
     return buildWorkflowPreflight({ CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' });
   });
   assertCase('workflow preflight source mode pass', result.workflowPreflightStatus.status === 'pass', failures, cases, result.workflowPreflightStatus.status);

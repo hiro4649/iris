@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.5
+// CODEX_QUALITY_HARNESS_FILE v0.8.8
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { HARNESS_VERSION, marker, parseArgs, simpleStatus, writeJsonReport } from './codex-v080-lib.mjs';
@@ -32,6 +32,11 @@ const sourceRequiredPass = [
   'prProfileStatus',
   'actionsRuntimeAdvisoryStatus',
   'v085StabilityStatus',
+  'codeReviewMonitorStatus',
+  'promptGovernanceStatus',
+  'knowledgeGovernanceStatus',
+  'contractGovernanceStatus',
+  'complexityGovernanceStatus',
   'openPrHygieneStatus',
   'targetFinalSummaryStatus',
   'stalePrAuditStatus',
@@ -68,6 +73,9 @@ const sourceRequiredPass = [
   'v083SelfTestStatus',
   'v084SelfTestStatus',
   'v085SelfTestStatus',
+  'v086SelfTestStatus',
+  'v087SelfTestStatus',
+  'v088SelfTestStatus',
   'qualityScoreStatus',
 ];
 
@@ -91,6 +99,11 @@ const targetRequiredPass = [
   'prProfileStatus',
   'actionsRuntimeAdvisoryStatus',
   'v085StabilityStatus',
+  'codeReviewMonitorStatus',
+  'promptGovernanceStatus',
+  'knowledgeGovernanceStatus',
+  'contractGovernanceStatus',
+  'complexityGovernanceStatus',
   'openPrHygieneStatus',
   'targetFinalSummaryStatus',
   'stalePrAuditStatus',
@@ -102,6 +115,9 @@ const targetRequiredPass = [
   'v083SelfTestStatus',
   'v084SelfTestStatus',
   'v085SelfTestStatus',
+  'v086SelfTestStatus',
+  'v087SelfTestStatus',
+  'v088SelfTestStatus',
   'safeArtifactValidation',
   'outputShapeStatus',
   'targetQualityScoreStatus',
@@ -132,6 +148,11 @@ const optionalNotApplicable = new Set([
   'unsafeValueActionMatrixStatus',
   'prProfileStatus',
   'actionsRuntimeAdvisoryStatus',
+  'codeReviewMonitorStatus',
+  'promptGovernanceStatus',
+  'knowledgeGovernanceStatus',
+  'contractGovernanceStatus',
+  'complexityGovernanceStatus',
   'openPrHygieneStatus',
   'targetFinalSummaryStatus',
   'stalePrAuditStatus',
@@ -192,11 +213,31 @@ export function evaluateWorkflowReport(report, options = {}) {
     'v085StabilityStatus',
     'v085SelfTestStatus',
   ]);
+  const v086Fields = new Set([
+    'codeReviewMonitorStatus',
+    'v086SelfTestStatus',
+  ]);
+  const v087Fields = new Set([
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'v087SelfTestStatus',
+  ]);
+  const v088Fields = new Set([
+    'complexityGovernanceStatus',
+    'v088SelfTestStatus',
+  ]);
   const hasV084Shape = report.harnessVersion === HARNESS_VERSION || [...v084Fields].some((key) => report[key]);
   const hasV085Shape = report.harnessVersion === HARNESS_VERSION || [...v085Fields].some((key) => report[key]);
+  const hasV086Shape = report.harnessVersion === HARNESS_VERSION || [...v086Fields].some((key) => report[key]);
+  const hasV087Shape = report.harnessVersion === HARNESS_VERSION || [...v087Fields].some((key) => report[key]);
+  const hasV088Shape = report.harnessVersion === HARNESS_VERSION || [...v088Fields].some((key) => report[key]);
   const required = (mode === 'target' ? targetRequiredPass : sourceRequiredPass)
     .filter((key) => hasV084Shape || !v084Fields.has(key))
-    .filter((key) => hasV085Shape || !v085Fields.has(key));
+    .filter((key) => hasV085Shape || !v085Fields.has(key))
+    .filter((key) => hasV086Shape || !v086Fields.has(key))
+    .filter((key) => hasV087Shape || !v087Fields.has(key))
+    .filter((key) => hasV088Shape || !v088Fields.has(key));
   const failures = [];
   for (const key of required) {
     const status = report[key]?.status || 'missing';
@@ -226,6 +267,11 @@ export function evaluateWorkflowReport(report, options = {}) {
     qualityScoreStatus: report.qualityScoreStatus || report.targetQualityScoreStatus || { status: 'missing' },
     reasonSummary,
     v085StabilityStatus: report.v085StabilityStatus || { status: 'missing' },
+    codeReviewMonitorStatus: report.codeReviewMonitorStatus || { status: 'missing' },
+    promptGovernanceStatus: report.promptGovernanceStatus || { status: 'missing' },
+    knowledgeGovernanceStatus: report.knowledgeGovernanceStatus || { status: 'missing' },
+    contractGovernanceStatus: report.contractGovernanceStatus || { status: 'missing' },
+    complexityGovernanceStatus: report.complexityGovernanceStatus || { status: 'missing' },
     failureCount: Array.isArray(report.failures) ? report.failures.length : 0,
     warningCount: Array.isArray(report.warnings) ? report.warnings.length : 0,
     safeSummaryOnly: true,
