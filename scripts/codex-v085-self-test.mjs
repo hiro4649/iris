@@ -97,7 +97,8 @@ export async function buildV085SelfTestReport() {
 
   result = await runV085({
     CODEX_EVENT_NAME: 'pull_request',
-    CODEX_PR_BODY: 'PR profile: harness_workflow_r3\n\nTask mode: harness_change\n\nGoal:\nHarness.\n\nRisk level:\nR3\n\nFiles or scope:\nHarness files.\n\nEvidence Integrity:\nCurrent head evidence.\n\nValidation commands:\nSelf-test pass.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
+    CODEX_CHANGED_FILES: '.github/workflows/quality-gate.yml',
+    CODEX_PR_BODY: 'PR profile: harness_workflow_r3\n\nTask mode: harness_change\n\nGoal:\nHarness.\n\nRisk level:\nR3\n\nFiles or scope:\nHarness files.\n\nEvidence Integrity:\nCurrent head evidence.\n\nValidation commands:\nSelf-test pass.\n\nBest of N Evidence:\nCandidate count: 2\nSelected candidate: keep harness-only fast path strict.\nReason selected: validates v0.8.5 harness workflow profile without product bypass.\nRejected candidate: skip profile evidence.\nReason rejected: R3 harness workflow requires profile-complete evidence.\nBest of N used or skipped: used with two candidates.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
     CODEX_CHANGE_CLASSIFICATION_JSON: classification({ status: 'pass', classification: { harnessOnly: true }, productRelevantChanged: false }),
     CODEX_FAST_PATH_JSON: fastPath({ status: 'pass', fastPathAllowed: true, pathMode: 'target_harness_fast_path' }),
   });
