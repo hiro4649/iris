@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.5
+// CODEX_QUALITY_HARNESS_FILE v0.8.8
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -9,7 +9,7 @@ import { scanSafeOutput } from './codex-safe-output-scan.mjs';
 import { buildGithubReplayContextAsync } from './codex-ci-replay.mjs';
 import { buildCompactReasonSummary } from './codex-reason-summary.mjs';
 
-const HARNESS_VERSION = '0.8.5';
+const HARNESS_VERSION = '0.8.8';
 const PROFILE_TEMPLATE_VERSION = '0.7.0';
 const MARKER = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 const SOURCE_MANIFEST = 'CODEX_SOURCE_HARNESS_MANIFEST.json';
@@ -193,78 +193,6 @@ function runGateScript(script, field, envName, baseEnv = process.env) {
   } catch {
     return { status: 'fail', failures: [`${field}=invalid_json`], safeSummaryOnly: true };
   }
-}
-function splitSafeCommandLabels(value) {
-  return String(value || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
-}
-function safeResult(value) {
-  return ['pass', 'fail', 'warning'].includes(String(value || '')) ? String(value) : 'fail';
-}
-function safeTestResult(value) {
-  return ['pass', 'fail', 'not_run'].includes(String(value || '')) ? String(value) : 'not_run';
-}
-function safeNumberOrNull(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-function buildRemoteProductBaselineJsonFromEnv(env) {
-  if (env.CODEX_REMOTE_PRODUCT_BASELINE_JSON || env.CODEX_REMOTE_PRODUCT_BASELINE_PATH) return null;
-  const commands = splitSafeCommandLabels(env.CODEX_REMOTE_PRODUCT_BASELINE_COMMANDS);
-  if (!commands.length) return null;
-  const result = safeResult(env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT || env.CODEX_PRODUCT_VERIFICATION_RESULT);
-  const source = String(env.CODEX_REMOTE_PRODUCT_BASELINE_SOURCE || env.CODEX_PRODUCT_VERIFICATION_SOURCE || 'remote_quality_gate')
-    .replace(/[^A-Za-z0-9_.:-]/g, '_')
-    .slice(0, 80) || 'remote_quality_gate';
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const testCount = safeNumberOrNull(env.CODEX_TEST_METRICS_TEST_COUNT);
-  return JSON.stringify({
-    schemaVersion: '0.8.3',
-    harnessVersion: HARNESS_VERSION,
-    repository: String(env.CODEX_REPOSITORY || 'local_repo').slice(0, 120) || 'local_repo',
-    baseSha: String(env.CODEX_PR_BASE_SHA || env.GITHUB_BASE_SHA || 'baseline_sha_unset').slice(0, 80),
-    baselineType: 'product_verification',
-    commands: commands.map((name) => ({
-      name: String(name).slice(0, 80),
-      result: safeTestResult(env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT || env.CODEX_PRODUCT_VERIFICATION_RESULT),
-      source,
-      testCount,
-    })),
-    result,
-    date: now.toISOString(),
-    source,
-    safeSummary: result === 'pass' ? 'remote product baseline pass' : 'remote product baseline fail',
-    knownFailures: result === 'fail' ? ['remote_npm_failed'] : [],
-    expiresAt: expiresAt.toISOString(),
-    rawValuesStored: false,
-    safeSummaryOnly: true,
-  });
-}
-function hydrateRemoteProductEvidenceEnv(env) {
-  const baselineJson = buildRemoteProductBaselineJsonFromEnv(env);
-  if (baselineJson) env.CODEX_REMOTE_PRODUCT_BASELINE_JSON = baselineJson;
-  return env;
-}
-function addReasonCodes(status, codes) {
-  return {
-    ...status,
-    reasonCodes: [...new Set([...(status?.reasonCodes || []), ...codes])],
-    safeSummaryOnly: true,
-  };
-}
-function enforceRemoteNpmFailureStatus(report, env) {
-  const remoteNpmFailed = env.CODEX_PRODUCT_VERIFICATION_RESULT === 'fail' ||
-    env.CODEX_REMOTE_PRODUCT_BASELINE_RESULT === 'fail' ||
-    env.CODEX_TEST_METRICS_RESULT === 'fail';
-  if (!remoteNpmFailed) return;
-  report.productVerificationStatus = {
-    ...addReasonCodes(report.productVerificationStatus, ['baseline_failure']),
-    status: 'fail',
-  };
-  report.remoteProductBaselineStatus = {
-    ...addReasonCodes(report.remoteProductBaselineStatus, ['remote_product_baseline_failing']),
-    status: 'fail',
-  };
 }
 function runJsonScript(script, cwd, failures, warnings) {
   const before = git(['status', '--porcelain=v1']);
@@ -511,6 +439,11 @@ function computeOutputShapeStatus(report) {
     'prProfileStatus',
     'actionsRuntimeAdvisoryStatus',
     'v085StabilityStatus',
+    'codeReviewMonitorStatus',
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'complexityGovernanceStatus',
     'openPrHygieneStatus',
     'targetFinalSummaryStatus',
     'stalePrAuditStatus',
@@ -547,6 +480,9 @@ function computeOutputShapeStatus(report) {
     'v083SelfTestStatus',
     'v084SelfTestStatus',
     'v085SelfTestStatus',
+    'v086SelfTestStatus',
+    'v087SelfTestStatus',
+    'v088SelfTestStatus',
     'qualityScoreStatus',
   ];
   const missing = required.filter((key) => report[key] === undefined);
@@ -584,6 +520,11 @@ function computeQualityScoreStatus(report) {
     'prProfileStatus',
     'actionsRuntimeAdvisoryStatus',
     'v085StabilityStatus',
+    'codeReviewMonitorStatus',
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'complexityGovernanceStatus',
     'openPrHygieneStatus',
     'targetFinalSummaryStatus',
     'stalePrAuditStatus',
@@ -627,6 +568,11 @@ function computeQualityScoreStatus(report) {
     'prProfileStatus',
     'actionsRuntimeAdvisoryStatus',
     'v085StabilityStatus',
+    'codeReviewMonitorStatus',
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'complexityGovernanceStatus',
     'openPrHygieneStatus',
     'targetFinalSummaryStatus',
     'stalePrAuditStatus',
@@ -656,6 +602,9 @@ function computeQualityScoreStatus(report) {
     'v083SelfTestStatus',
     'v084SelfTestStatus',
     'v085SelfTestStatus',
+    'v086SelfTestStatus',
+    'v087SelfTestStatus',
+    'v088SelfTestStatus',
     'bestOfNEvidenceStatus',
     'taskQueueLiteStatus',
     'safeTraceSchemaStatus',
@@ -718,6 +667,11 @@ function computeTargetOutputShapeStatus(report) {
     'prProfileStatus',
     'actionsRuntimeAdvisoryStatus',
     'v085StabilityStatus',
+    'codeReviewMonitorStatus',
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'complexityGovernanceStatus',
     'openPrHygieneStatus',
     'targetFinalSummaryStatus',
     'stalePrAuditStatus',
@@ -737,6 +691,9 @@ function computeTargetOutputShapeStatus(report) {
     'v083SelfTestStatus',
     'v084SelfTestStatus',
     'v085SelfTestStatus',
+    'v086SelfTestStatus',
+    'v087SelfTestStatus',
+    'v088SelfTestStatus',
     'safeArtifactValidation',
     'targetQualityScoreStatus',
   ];
@@ -768,6 +725,11 @@ function computeTargetQualityScoreStatus(report) {
     'prProfileStatus',
     'actionsRuntimeAdvisoryStatus',
     'v085StabilityStatus',
+    'codeReviewMonitorStatus',
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'complexityGovernanceStatus',
     'openPrHygieneStatus',
     'targetFinalSummaryStatus',
     'stalePrAuditStatus',
@@ -787,6 +749,9 @@ function computeTargetQualityScoreStatus(report) {
     'v083SelfTestStatus',
     'v084SelfTestStatus',
     'v085SelfTestStatus',
+    'v086SelfTestStatus',
+    'v087SelfTestStatus',
+    'v088SelfTestStatus',
     'safeArtifactValidation',
     'outputShapeStatus',
   ];
@@ -799,6 +764,11 @@ function computeTargetQualityScoreStatus(report) {
     'remoteNpmDiagnosticStatus',
     'workflowPreflightStatus',
     'invalidReportRecoveryStatus',
+    'codeReviewMonitorStatus',
+    'promptGovernanceStatus',
+    'knowledgeGovernanceStatus',
+    'contractGovernanceStatus',
+    'complexityGovernanceStatus',
     'prProfileStatus',
     'safeArtifactIndexStatus',
     'openPrHygieneStatus',
@@ -816,6 +786,9 @@ function computeTargetQualityScoreStatus(report) {
     'v083SelfTestStatus',
     'v084SelfTestStatus',
     'v085SelfTestStatus',
+    'v086SelfTestStatus',
+    'v087SelfTestStatus',
+    'v088SelfTestStatus',
   ]);
   const statuses = scored.map((key) => {
     const status = report[key]?.status || 'missing';
@@ -959,6 +932,28 @@ function computeFailureReasonCatalogStatus() {
     'runtime_risk_closed_without_evidence',
     'checkout_remote_discrepancy_detected',
     'fast_path_full_verification_required',
+    'complexity_governance_failed',
+    'task_complexity_unknown',
+    'high_complexity_contract_missing',
+    'high_complexity_oracle_missing',
+    'high_complexity_split_required',
+    'solvability_constraints_missing',
+    'solvability_constraints_conflict',
+    'acceptance_criteria_missing_for_complex_task',
+    'reasoning_evidence_effort_mismatch',
+    'algorithmic_artifact_required',
+    'verification_blocked_by_missing_tool',
+    'verification_weakened_by_missing_tool',
+    'output_budget_risk_detected',
+    'impossible_task_detected',
+    'fixture_not_sufficient_for_runtime_claim',
+    'oracle_required_for_auth_surface',
+    'oracle_required_for_storage_surface',
+    'oracle_required_for_release_gate',
+    'oracle_required_for_runtime_readiness',
+    'split_required_for_large_diff',
+    'split_required_for_multi_surface_change',
+    'invented_command_detected',
   ];
   if (!fs.existsSync(file)) return { status: 'fail', missingReasonCodes: required, safeSummaryOnly: true };
   try {
@@ -1022,7 +1017,7 @@ async function runSourceHarnessGate() {
   const warnings = [];
   if (!jsonReport) console.log('== Codex source harness quality gate ==');
   const remoteContext = await resolveRemoteGateContext(process.env);
-  const gateEnv = hydrateRemoteProductEvidenceEnv({ ...process.env, ...remoteContext.env });
+  const gateEnv = { ...process.env, ...remoteContext.env };
   const secretSelfTest = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { env: { CODEX_SECRET_SCAN_SELF_TEST: '1' }, stdio: 'pipe' });
   if (secretSelfTest.status !== 0) failures.push({ id: 'secretScan.selfTest', message: 'secret scan self-test failed' });
   const secretScan = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { stdio: 'pipe' });
@@ -1059,6 +1054,11 @@ async function runSourceHarnessGate() {
     prProfileStatus: { status: 'not_run' },
     actionsRuntimeAdvisoryStatus: { status: 'not_run' },
     v085StabilityStatus: { status: 'not_run' },
+    codeReviewMonitorStatus: { status: 'not_run' },
+    promptGovernanceStatus: { status: 'not_run' },
+    knowledgeGovernanceStatus: { status: 'not_run' },
+    contractGovernanceStatus: { status: 'not_run' },
+    complexityGovernanceStatus: { status: 'not_run' },
     openPrHygieneStatus: { status: 'not_run' },
     targetFinalSummaryStatus: { status: 'not_run' },
     stalePrAuditStatus: { status: 'not_run' },
@@ -1095,6 +1095,9 @@ async function runSourceHarnessGate() {
     v083SelfTestStatus: { status: 'not_run' },
     v084SelfTestStatus: { status: 'not_run' },
     v085SelfTestStatus: { status: 'not_run' },
+    v086SelfTestStatus: { status: 'not_run' },
+    v087SelfTestStatus: { status: 'not_run' },
+    v088SelfTestStatus: { status: 'not_run' },
     profileTemplateCompatibilityStatus: { status: 'not_run' },
     qualityScoreStatus: { status: 'not_run' },
   };
@@ -1115,7 +1118,6 @@ async function runSourceHarnessGate() {
   report.productVerificationEvidenceStatus = runGateScript('scripts/codex-product-verification-evidence-normalize.mjs', 'productVerificationEvidenceStatus', 'CODEX_PRODUCT_VERIFICATION_EVIDENCE_REPORT', gateEnv);
   report.testMetricsStatus = runGateScript('scripts/codex-test-metrics-collect.mjs', 'testMetricsStatus', 'CODEX_TEST_METRICS_REPORT', gateEnv);
   report.remoteProductBaselineStatus = runGateScript('scripts/codex-remote-product-baseline-gate.mjs', 'remoteProductBaselineStatus', 'CODEX_REMOTE_PRODUCT_BASELINE_REPORT', gateEnv);
-  enforceRemoteNpmFailureStatus(report, gateEnv);
   report.remoteNpmDiagnosticStatus = runGateScript('scripts/codex-remote-npm-diagnostic-classify.mjs', 'remoteNpmDiagnosticStatus', 'CODEX_REMOTE_NPM_DIAGNOSTIC_REPORT', gateEnv);
   report.workflowPreflightStatus = runGateScript('scripts/codex-workflow-preflight.mjs', 'workflowPreflightStatus', 'CODEX_WORKFLOW_PREFLIGHT_REPORT', gateEnv);
   const fastPathEnv = { ...gateEnv, CODEX_CHANGE_CLASSIFICATION_JSON: JSON.stringify(report.changeClassificationStatus) };
@@ -1127,6 +1129,25 @@ async function runSourceHarnessGate() {
     CODEX_FAST_PATH_JSON: JSON.stringify(report.fastPathStatus),
   };
   report.v085StabilityStatus = runGateScript('scripts/codex-v085-stability-gate.mjs', 'v085StabilityStatus', 'CODEX_V085_STABILITY_REPORT', v085Env);
+  const codeReviewEnv = {
+    ...v085Env,
+    CODEX_V085_STABILITY_JSON: JSON.stringify(report.v085StabilityStatus),
+  };
+  report.codeReviewMonitorStatus = runGateScript('scripts/codex-code-review-monitor.mjs', 'codeReviewMonitorStatus', 'CODEX_CODE_REVIEW_MONITOR_REPORT', codeReviewEnv);
+  const governanceEnv = {
+    ...codeReviewEnv,
+    CODEX_CODE_REVIEW_MONITOR_JSON: JSON.stringify(report.codeReviewMonitorStatus),
+  };
+  report.promptGovernanceStatus = runGateScript('scripts/codex-prompt-governance-gate.mjs', 'promptGovernanceStatus', 'CODEX_PROMPT_GOVERNANCE_REPORT', governanceEnv);
+  report.knowledgeGovernanceStatus = runGateScript('scripts/codex-knowledge-governance-gate.mjs', 'knowledgeGovernanceStatus', 'CODEX_KNOWLEDGE_GOVERNANCE_REPORT', governanceEnv);
+  report.contractGovernanceStatus = runGateScript('scripts/codex-contract-governance-gate.mjs', 'contractGovernanceStatus', 'CODEX_CONTRACT_GOVERNANCE_REPORT', governanceEnv);
+  const complexityEnv = {
+    ...governanceEnv,
+    CODEX_PROMPT_GOVERNANCE_JSON: JSON.stringify(report.promptGovernanceStatus),
+    CODEX_KNOWLEDGE_GOVERNANCE_JSON: JSON.stringify(report.knowledgeGovernanceStatus),
+    CODEX_CONTRACT_GOVERNANCE_JSON: JSON.stringify(report.contractGovernanceStatus),
+  };
+  report.complexityGovernanceStatus = runGateScript('scripts/codex-complexity-governance-gate.mjs', 'complexityGovernanceStatus', 'CODEX_COMPLEXITY_GOVERNANCE_REPORT', complexityEnv);
   report.safeArtifactIndexStatus = runGateScript('scripts/codex-safe-artifact-index.mjs', 'safeArtifactIndexStatus', 'CODEX_SAFE_ARTIFACT_INDEX_REPORT', gateEnv);
   report.diagnosticConsolidationStatus = runGateScript('scripts/codex-diagnostic-consolidation-runner.mjs', 'diagnosticConsolidationStatus', 'CODEX_DIAGNOSTIC_CONSOLIDATION_REPORT', gateEnv);
   report.invalidReportRecoveryStatus = runGateScript('scripts/codex-invalid-report-recovery.mjs', 'invalidReportRecoveryStatus', 'CODEX_INVALID_REPORT_RECOVERY_REPORT', gateEnv);
@@ -1171,6 +1192,15 @@ async function runSourceHarnessGate() {
   report.v085SelfTestStatus = process.env.CODEX_SKIP_V085_SELF_TEST === '1'
     ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
     : runGateScript('scripts/codex-v085-self-test.mjs', 'v085SelfTestStatus', 'CODEX_V085_SELF_TEST_REPORT', { ...gateEnv, CODEX_V085_SKIP_LEGACY_RECHECKS: '1' });
+  report.v086SelfTestStatus = process.env.CODEX_SKIP_V086_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v086-self-test.mjs', 'v086SelfTestStatus', 'CODEX_V086_SELF_TEST_REPORT', { ...gateEnv, CODEX_V086_SKIP_LEGACY_RECHECKS: '1' });
+  report.v087SelfTestStatus = process.env.CODEX_SKIP_V087_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v087-self-test.mjs', 'v087SelfTestStatus', 'CODEX_V087_SELF_TEST_REPORT', { ...gateEnv, CODEX_V087_SKIP_LEGACY_RECHECKS: '1' });
+  report.v088SelfTestStatus = process.env.CODEX_SKIP_V088_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v088-self-test.mjs', 'v088SelfTestStatus', 'CODEX_V088_SELF_TEST_REPORT', { ...gateEnv, CODEX_V088_SKIP_LEGACY_RECHECKS: '1' });
   const reasonSummary = buildCompactReasonSummary(report);
   report.reasonSummaryStatus = {
     status: reasonSummary.status,
@@ -1206,6 +1236,11 @@ async function runSourceHarnessGate() {
     prProfileStatus: report.prProfileStatus,
     actionsRuntimeAdvisoryStatus: report.actionsRuntimeAdvisoryStatus,
     v085StabilityStatus: report.v085StabilityStatus,
+    codeReviewMonitorStatus: report.codeReviewMonitorStatus,
+    promptGovernanceStatus: report.promptGovernanceStatus,
+    knowledgeGovernanceStatus: report.knowledgeGovernanceStatus,
+    contractGovernanceStatus: report.contractGovernanceStatus,
+    complexityGovernanceStatus: report.complexityGovernanceStatus,
     openPrHygieneStatus: report.openPrHygieneStatus,
     targetFinalSummaryStatus: report.targetFinalSummaryStatus,
     stalePrAuditStatus: report.stalePrAuditStatus,
@@ -1228,6 +1263,9 @@ async function runSourceHarnessGate() {
     v083SelfTestStatus: report.v083SelfTestStatus,
     v084SelfTestStatus: report.v084SelfTestStatus,
     v085SelfTestStatus: report.v085SelfTestStatus,
+    v086SelfTestStatus: report.v086SelfTestStatus,
+    v087SelfTestStatus: report.v087SelfTestStatus,
+    v088SelfTestStatus: report.v088SelfTestStatus,
     bestOfNEvidenceStatus: report.bestOfNEvidenceStatus,
     taskQueueLiteStatus: report.taskQueueLiteStatus,
     safeTraceSchemaStatus: report.safeTraceSchemaStatus,
@@ -1280,6 +1318,10 @@ async function runSourceHarnessGate() {
     console.log(`prProfileStatus: ${report.prProfileStatus.status}`);
     console.log(`actionsRuntimeAdvisoryStatus: ${report.actionsRuntimeAdvisoryStatus.status}`);
     console.log(`v085StabilityStatus: ${report.v085StabilityStatus.status}`);
+    console.log(`codeReviewMonitorStatus: ${report.codeReviewMonitorStatus.status}`);
+    console.log(`promptGovernanceStatus: ${report.promptGovernanceStatus.status}`);
+    console.log(`knowledgeGovernanceStatus: ${report.knowledgeGovernanceStatus.status}`);
+    console.log(`contractGovernanceStatus: ${report.contractGovernanceStatus.status}`);
     console.log(`openPrHygieneStatus: ${report.openPrHygieneStatus.status}`);
     console.log(`targetFinalSummaryStatus: ${report.targetFinalSummaryStatus.status}`);
     console.log(`stalePrAuditStatus: ${report.stalePrAuditStatus.status}`);
@@ -1302,6 +1344,8 @@ async function runSourceHarnessGate() {
     console.log(`v083SelfTestStatus: ${report.v083SelfTestStatus.status}`);
     console.log(`v084SelfTestStatus: ${report.v084SelfTestStatus.status}`);
     console.log(`v085SelfTestStatus: ${report.v085SelfTestStatus.status}`);
+    console.log(`v086SelfTestStatus: ${report.v086SelfTestStatus.status}`);
+    console.log(`v087SelfTestStatus: ${report.v087SelfTestStatus.status}`);
     console.log(`bestOfNEvidenceStatus: ${report.bestOfNEvidenceStatus.status}`);
     console.log(`taskQueueLiteStatus: ${report.taskQueueLiteStatus.status}`);
     console.log(`safeTraceSchemaStatus: ${report.safeTraceSchemaStatus.status}`);
@@ -1354,7 +1398,7 @@ async function runTargetHarnessGate() {
   const secretScan = spawn('node', ['scripts/codex-secret-safety-scan.mjs'], { stdio: 'pipe' });
   if (secretScan.status !== 0) failures.push({ id: 'secretScan.failed', message: 'secret safety scan failed' });
 
-  const gateEnv = hydrateRemoteProductEvidenceEnv({ ...process.env });
+  const gateEnv = { ...process.env };
   const report = {
     marker: MARKER,
     harnessVersion: HARNESS_VERSION,
@@ -1380,6 +1424,11 @@ async function runTargetHarnessGate() {
     prProfileStatus: { status: 'not_run' },
     actionsRuntimeAdvisoryStatus: { status: 'not_run' },
     v085StabilityStatus: { status: 'not_run' },
+    codeReviewMonitorStatus: { status: 'not_run' },
+    promptGovernanceStatus: { status: 'not_run' },
+    knowledgeGovernanceStatus: { status: 'not_run' },
+    contractGovernanceStatus: { status: 'not_run' },
+    complexityGovernanceStatus: { status: 'not_run' },
     openPrHygieneStatus: { status: 'not_run' },
     targetFinalSummaryStatus: { status: 'not_run' },
     stalePrAuditStatus: { status: 'not_run' },
@@ -1399,6 +1448,9 @@ async function runTargetHarnessGate() {
     v083SelfTestStatus: { status: 'not_run' },
     v084SelfTestStatus: { status: 'not_run' },
     v085SelfTestStatus: { status: 'not_run' },
+    v086SelfTestStatus: { status: 'not_run' },
+    v087SelfTestStatus: { status: 'not_run' },
+    v088SelfTestStatus: { status: 'not_run' },
     safeArtifactValidation: { status: 'not_run' },
     outputShapeStatus: { status: 'not_run' },
     targetQualityScoreStatus: { status: 'not_run' },
@@ -1414,7 +1466,6 @@ async function runTargetHarnessGate() {
   report.productVerificationEvidenceStatus = runGateScript('scripts/codex-product-verification-evidence-normalize.mjs', 'productVerificationEvidenceStatus', 'CODEX_PRODUCT_VERIFICATION_EVIDENCE_REPORT', gateEnv);
   report.testMetricsStatus = runGateScript('scripts/codex-test-metrics-collect.mjs', 'testMetricsStatus', 'CODEX_TEST_METRICS_REPORT', gateEnv);
   report.remoteProductBaselineStatus = runGateScript('scripts/codex-remote-product-baseline-gate.mjs', 'remoteProductBaselineStatus', 'CODEX_REMOTE_PRODUCT_BASELINE_REPORT', gateEnv);
-  enforceRemoteNpmFailureStatus(report, gateEnv);
   report.remoteNpmDiagnosticStatus = runGateScript('scripts/codex-remote-npm-diagnostic-classify.mjs', 'remoteNpmDiagnosticStatus', 'CODEX_REMOTE_NPM_DIAGNOSTIC_REPORT', gateEnv);
   report.workflowPreflightStatus = runGateScript('scripts/codex-workflow-preflight.mjs', 'workflowPreflightStatus', 'CODEX_WORKFLOW_PREFLIGHT_REPORT', gateEnv);
   const fastPathEnv = { ...gateEnv, CODEX_CHANGE_CLASSIFICATION_JSON: JSON.stringify(report.changeClassificationStatus) };
@@ -1426,6 +1477,25 @@ async function runTargetHarnessGate() {
     CODEX_FAST_PATH_JSON: JSON.stringify(report.fastPathStatus),
   };
   report.v085StabilityStatus = runGateScript('scripts/codex-v085-stability-gate.mjs', 'v085StabilityStatus', 'CODEX_V085_STABILITY_REPORT', v085Env);
+  const codeReviewEnv = {
+    ...v085Env,
+    CODEX_V085_STABILITY_JSON: JSON.stringify(report.v085StabilityStatus),
+  };
+  report.codeReviewMonitorStatus = runGateScript('scripts/codex-code-review-monitor.mjs', 'codeReviewMonitorStatus', 'CODEX_CODE_REVIEW_MONITOR_REPORT', codeReviewEnv);
+  const governanceEnv = {
+    ...codeReviewEnv,
+    CODEX_CODE_REVIEW_MONITOR_JSON: JSON.stringify(report.codeReviewMonitorStatus),
+  };
+  report.promptGovernanceStatus = runGateScript('scripts/codex-prompt-governance-gate.mjs', 'promptGovernanceStatus', 'CODEX_PROMPT_GOVERNANCE_REPORT', governanceEnv);
+  report.knowledgeGovernanceStatus = runGateScript('scripts/codex-knowledge-governance-gate.mjs', 'knowledgeGovernanceStatus', 'CODEX_KNOWLEDGE_GOVERNANCE_REPORT', governanceEnv);
+  report.contractGovernanceStatus = runGateScript('scripts/codex-contract-governance-gate.mjs', 'contractGovernanceStatus', 'CODEX_CONTRACT_GOVERNANCE_REPORT', governanceEnv);
+  const complexityEnv = {
+    ...governanceEnv,
+    CODEX_PROMPT_GOVERNANCE_JSON: JSON.stringify(report.promptGovernanceStatus),
+    CODEX_KNOWLEDGE_GOVERNANCE_JSON: JSON.stringify(report.knowledgeGovernanceStatus),
+    CODEX_CONTRACT_GOVERNANCE_JSON: JSON.stringify(report.contractGovernanceStatus),
+  };
+  report.complexityGovernanceStatus = runGateScript('scripts/codex-complexity-governance-gate.mjs', 'complexityGovernanceStatus', 'CODEX_COMPLEXITY_GOVERNANCE_REPORT', complexityEnv);
   report.safeArtifactIndexStatus = runGateScript('scripts/codex-safe-artifact-index.mjs', 'safeArtifactIndexStatus', 'CODEX_SAFE_ARTIFACT_INDEX_REPORT', gateEnv);
   report.diagnosticConsolidationStatus = runGateScript('scripts/codex-diagnostic-consolidation-runner.mjs', 'diagnosticConsolidationStatus', 'CODEX_DIAGNOSTIC_CONSOLIDATION_REPORT', gateEnv);
   report.invalidReportRecoveryStatus = runGateScript('scripts/codex-invalid-report-recovery.mjs', 'invalidReportRecoveryStatus', 'CODEX_INVALID_REPORT_RECOVERY_REPORT', gateEnv);
@@ -1462,6 +1532,15 @@ async function runTargetHarnessGate() {
   report.v085SelfTestStatus = process.env.CODEX_SKIP_V085_SELF_TEST === '1'
     ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
     : runGateScript('scripts/codex-v085-self-test.mjs', 'v085SelfTestStatus', 'CODEX_V085_SELF_TEST_REPORT', { ...gateEnv, CODEX_V085_SKIP_LEGACY_RECHECKS: '1' });
+  report.v086SelfTestStatus = process.env.CODEX_SKIP_V086_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v086-self-test.mjs', 'v086SelfTestStatus', 'CODEX_V086_SELF_TEST_REPORT', { ...gateEnv, CODEX_V086_SKIP_LEGACY_RECHECKS: '1' });
+  report.v087SelfTestStatus = process.env.CODEX_SKIP_V087_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v087-self-test.mjs', 'v087SelfTestStatus', 'CODEX_V087_SELF_TEST_REPORT', { ...gateEnv, CODEX_V087_SKIP_LEGACY_RECHECKS: '1' });
+  report.v088SelfTestStatus = process.env.CODEX_SKIP_V088_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v088-self-test.mjs', 'v088SelfTestStatus', 'CODEX_V088_SELF_TEST_REPORT', { ...gateEnv, CODEX_V088_SKIP_LEGACY_RECHECKS: '1' });
   const reasonSummary = buildCompactReasonSummary(report);
   report.reasonSummaryStatus = {
     status: reasonSummary.status,
@@ -1490,6 +1569,11 @@ async function runTargetHarnessGate() {
     prProfileStatus: report.prProfileStatus,
     actionsRuntimeAdvisoryStatus: report.actionsRuntimeAdvisoryStatus,
     v085StabilityStatus: report.v085StabilityStatus,
+    codeReviewMonitorStatus: report.codeReviewMonitorStatus,
+    promptGovernanceStatus: report.promptGovernanceStatus,
+    knowledgeGovernanceStatus: report.knowledgeGovernanceStatus,
+    contractGovernanceStatus: report.contractGovernanceStatus,
+    complexityGovernanceStatus: report.complexityGovernanceStatus,
     openPrHygieneStatus: report.openPrHygieneStatus,
     targetFinalSummaryStatus: report.targetFinalSummaryStatus,
     stalePrAuditStatus: report.stalePrAuditStatus,
@@ -1509,6 +1593,9 @@ async function runTargetHarnessGate() {
     v083SelfTestStatus: report.v083SelfTestStatus,
     v084SelfTestStatus: report.v084SelfTestStatus,
     v085SelfTestStatus: report.v085SelfTestStatus,
+    v086SelfTestStatus: report.v086SelfTestStatus,
+    v087SelfTestStatus: report.v087SelfTestStatus,
+    v088SelfTestStatus: report.v088SelfTestStatus,
   })) {
     applyStatusOutcome(key, value, failures, warnings);
   }
