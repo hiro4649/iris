@@ -76,14 +76,44 @@ Task mode: test_coverage
 Goal:
 Import smoke coverage.
 
+Files or scope:
+scripts/run-tests.js test coverage evidence path only.
+
 Product verification:
 npm test ${result}.
 
 Tests or checks run:
 npm test ${result}.
 
+## Task Contract
+Goal: validate product-relevant test coverage evidence path.
+Done criteria: product verification pass evidence and remote baseline pass evidence produce target quality pass.
+Verification surface: local target gate simulation.
+Risk surface: product evidence interpretation and target score.
+Allowed scope: test coverage evidence path.
+Forbidden scope: product runtime implementation and external-p1 implementation areas.
+Stop condition: stop if product verification, remote baseline, or target score fails.
+
+## Load-bearing evidence
+Component: product evidence simulation.
+Failure mode caught: product-relevant pass evidence failing to clear product verification or remote baseline.
+Not covered by existing gates: v0.8.8 product evidence hydration in self-test context.
+Negative fixture: skip-only evidence remains fail.
+Positive fixture: pass evidence reaches target score 95.
+Runtime cost: low.
+Default mode: enforce for PR context.
+
+## Complexity Governance
+Complexity regime: high.
+Oracle required: yes.
+Oracle provided: local target gate simulation, v088 self-test.
+Split required: no, self-test fixture only.
+
 Residual risks:
-Runtime behavior not proven.`;
+Runtime behavior not proven.
+
+Human confirmation needed:
+yes.`;
 }
 
 function harnessWorkflowBody() {
