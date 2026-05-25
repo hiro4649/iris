@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 ## IRIS Authority Boundary
 
@@ -14,11 +14,11 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v0.8.4
+CODEX_QUALITY_HARNESS_FILE v0.8.5
 
 ## Codex Target Harness Boundary
 
-Source harness boundary: this target repository consumes Codex Development Harness v0.8.4 through docs/process/CODEX_HARNESS_MANIFEST.json, not CODEX_SOURCE_HARNESS_MANIFEST.json.
+Source harness boundary: this target repository consumes Codex Development Harness v0.8.5 through docs/process/CODEX_HARNESS_MANIFEST.json, not CODEX_SOURCE_HARNESS_MANIFEST.json.
 Plan-first: use a short plan for R3, workflow, product-relevant, security, release, or ambiguous changes before editing.
 Safe output: reports and artifacts must be safe-summary only, with no raw PR body, comments, payloads, diffs, logs, endpoint values, private paths, production data, personal data, tokens, or secrets.
 Merge-ready claim: do not claim merge readiness unless the current target gate, evidence, and required confirmations all support it.
@@ -33,16 +33,16 @@ Current target-mode requirements:
 - allow CODEX_SKIP_NPM=1 only when change classification and product verification policy allow it;
 - require product verification when product-relevant files, package files, runtime readiness claims, or performance claims are present.
 
-v0.8.4 preserves v0.8.3 diagnostics and adds the Fast Path and Diagnostic Consolidation Gate:
-- Harness Fast Path Gate;
-- Diagnostic Consolidation Runner;
-- Unsafe Value Class Action Matrix;
-- Invalid Report Recovery v2;
-- Artifact Budget and Index v2;
-- PR Body Profile Optimizer;
-- Open PR Hygiene v2;
-- Node Actions Runtime Advisory;
-- v0.8.4 self-test.
+v0.8.5 preserves v0.8.4 safety and adds the Execution Stability and Runtime Evidence Clarity Gate:
+- v085 stability gate;
+- v085 self-test;
+- codex-bugfix skill;
+- Task Discipline routing;
+- BugFix evidence minimal requirements;
+- Product Evidence Auto-Explain safe summary;
+- Import Smoke Micro config-gated behavior;
+- Critical Runtime Risk Register generic target behavior;
+- Fast Path Explainability fields.
 
 Do not add Agentmemory, Hermes runtime, GEPA, MCP, SQLite memory, LLM judge, automatic skill rewriting, auto commit, or auto push as part of this harness block.
 Do not treat targetQualityScoreStatus or a passing harness gate as product runtime readiness.
