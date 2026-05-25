@@ -1468,6 +1468,38 @@ const SAFE_GAME_OBSERVATION_TRUTH_BOUNDARY = {
 
 const tests = [
   [
+    "runtime import smoke httpPostAdapter runtimeAdapters main",
+    async () => {
+      async function importForSmoke(label, specifier) {
+        try {
+          return await import(specifier);
+        } catch (error) {
+          const safeName = error?.name || "ImportError";
+          const safePrefix = String(error?.message || "")
+            .replace(/https?:\/\/\S+/gi, "[redacted-url]")
+            .replace(/[A-Za-z]:\\[^\s'"]+/g, "[redacted-path]")
+            .replace(/\/home\/[^\s'"]+/g, "[redacted-path]")
+            .slice(0, 120);
+          throw new Error(`runtime_import_smoke_failed:${label}:${safeName}:${safePrefix}`);
+        }
+      }
+
+      const httpPostAdapterModule = await importForSmoke(
+        "httpPostAdapter",
+        "../src/adapters/httpPostAdapter.js"
+      );
+      assert.equal(typeof httpPostAdapterModule.createHttpPostAdapter, "function");
+
+      const runtimeAdaptersModule = await importForSmoke(
+        "runtimeAdapters",
+        "../src/adapters/runtimeAdapters.js"
+      );
+      assert.equal(typeof runtimeAdaptersModule.createRuntimeAdaptersFromEnv, "function");
+
+      await importForSmoke("main", "../src/main.js");
+    },
+  ],
+  [
     "public report boundary audit covers dev scripts without exposing internals",
     async () => {
       const report = createPublicReportBoundaryAuditReport();
