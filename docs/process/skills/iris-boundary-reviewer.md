@@ -1,4 +1,4 @@
-<!-- CODEX_QUALITY_HARNESS_FILE v0.8.1 -->
+<!-- CODEX_QUALITY_HARNESS_FILE v0.8.9 -->
 # Skill: IRIS Boundary Reviewer
 
 ## title
