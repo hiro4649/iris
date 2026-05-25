@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.8.8
+// CODEX_QUALITY_HARNESS_FILE v0.8.9
 import { fileURLToPath } from 'node:url';
 import {
   HARNESS_VERSION,
@@ -14,6 +14,7 @@ import {
   exitFor,
 } from './codex-v080-lib.mjs';
 import { changedFiles } from './codex-change-classification-gate.mjs';
+import { effectiveSurfacesForComplexity } from './codex-pr-body-surface-normalizer.mjs';
 
 const allowedModes = new Set(['off', 'report', 'enforce', 'strict']);
 const allowedStatuses = new Set(['pass', 'warning', 'manual_confirmation_required', 'fail', 'not_applicable']);
@@ -45,16 +46,6 @@ function lowerText(files, body) {
   return `${files.join('\n')}\n${body}`.toLowerCase();
 }
 
-function scrubNegatedRuntimeRiskText(text) {
-  return String(text || '')
-    .replace(/^\s*forbidden scope\s*:.*$/gim, '')
-    .replace(/\biris runtime behavior (?:is )?not proven\b/gi, '')
-    .replace(/\bruntime behavior (?:is )?not proven\b/gi, '')
-    .replace(/\bruntime behavior changed\s*:\s*no\b/gi, '')
-    .replace(/\bruntime readiness claimed\s*:\s*(?:no|false)\b/gi, '')
-    .replace(/\bno runtime readiness claim\b/gi, '');
-}
-
 function isDocsFile(file) {
   return /^(readme\.md|docs\/|.*\.md$)/i.test(file);
 }
@@ -81,7 +72,7 @@ function productVerificationStatus(env = process.env) {
 }
 
 function contractProvided(body, env = process.env) {
-  return Boolean(env.CODEX_TASK_CONTRACT_JSON || /##\s+Task Contract/i.test(body) || /^\s*Task Contract\s*:/im.test(body));
+  return Boolean(env.CODEX_TASK_CONTRACT_JSON || /##\s+Task Contract/i.test(body));
 }
 
 function fieldPresent(body, label) {
@@ -129,13 +120,13 @@ function artifactType(body) {
 }
 
 function surfaceSummary(files, body) {
-  const text = scrubNegatedRuntimeRiskText(lowerText(files, body));
+  const normalized = effectiveSurfacesForComplexity(files, body);
   return {
-    auth: /\bauth|security|permission|role|session|token|login|oauth\b/.test(text),
-    storage: /\bstorage|database|postgres|sqlite|migration|schema|concurrency|json-store|repository\b/.test(text),
-    api: /\bapi|route|controller|handler|request\/response|request response|compatibility\b/.test(text),
-    runtime: /\bruntime|worker|adapter|queue|server|client|readiness\b/.test(text),
-    release: /\brelease_gate|release|deploy|production|go\/no-go|go no-go\b/.test(text),
+    auth: normalized.auth,
+    storage: normalized.storage,
+    api: normalized.api,
+    runtime: normalized.runtime,
+    release: normalized.release,
     harness: files.some(isHarnessFile),
     product: files.some(isProductFile),
     pkg: files.some(isPackageFile),
