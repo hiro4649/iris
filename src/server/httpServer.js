@@ -125,6 +125,72 @@ const SAFE_HTTP_ERROR_KINDS = new Set([
   "contract_error",
   "internal_error",
 ]);
+const ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME = "IRIS_ADMIN_API_TOKEN";
+const ADMIN_CONTROL_AUTH_PROTECTED_POST_PATHS = new Set([
+  "/idle/start",
+  "/idle/stop",
+  "/idle-tick",
+  "/ingest/start",
+  "/ingest/stop",
+  "/ingest/tick",
+  "/scenario/run",
+  "/candidate-reviews/clear",
+  "/integrations/probe",
+  "/production/probe",
+]);
+
+export function createAdminControlAuthConfig(env = process.env) {
+  return {
+    schema: "iris_admin_control_auth_config_v1",
+    token_env_name: ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME,
+    token_configured:
+      String(env?.[ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME] ?? "").trim().length > 0,
+    boundary_policy: adminControlAuthBoundaryPolicy(),
+  };
+}
+
+export function isLoopbackHost(host) {
+  const normalized = String(host ?? "").trim().toLowerCase();
+  return (
+    normalized === "" ||
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized === "[::1]"
+  );
+}
+
+export function isPublicHost(host) {
+  const normalized = String(host ?? "").trim().toLowerCase();
+  if (!normalized) return false;
+  if (isLoopbackHost(normalized)) return false;
+  return true;
+}
+
+export function createAdminControlStartupGuard({ host, env = process.env } = {}) {
+  const config = createAdminControlAuthConfig(env);
+  const publicHost = isPublicHost(host);
+  if (publicHost && !config.token_configured) {
+    return {
+      ok: false,
+      schema: "iris_admin_control_startup_guard_v1",
+      error: "admin_auth_not_configured",
+      error_kind: "admin_auth_not_configured",
+      public_host_guard: "blocked",
+      required_env_names: ["IRIS_HTTP_HOST", ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME],
+      boundary_policy: adminControlAuthBoundaryPolicy(),
+    };
+  }
+  return {
+    ok: true,
+    schema: "iris_admin_control_startup_guard_v1",
+    public_host_guard: publicHost ? "token_configured" : "loopback_or_local",
+    required_env_names: publicHost
+      ? ["IRIS_HTTP_HOST", ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME]
+      : ["IRIS_HTTP_HOST"],
+    boundary_policy: adminControlAuthBoundaryPolicy(),
+  };
+}
 
 export function createIrisHttpServer({
   runtime,
@@ -152,6 +218,10 @@ export function createIrisHttpServer({
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://127.0.0.1");
+      const adminControlAuth = authorizeAdminControlRequest(request, url, env);
+      if (adminControlAuth.required && !adminControlAuth.ok) {
+        return sendAdminAuthFailure(response, adminControlAuth);
+      }
       if (request.method === "GET" && url.pathname === "/health") {
         return sendJson(response, 200, { ok: true, service: "iris" });
       }
@@ -2143,7 +2213,10 @@ export function createIrisHttpServer({
           ok: true,
           schema: "iris_operator_policy_admin_async_save_gate_http_v1",
           operator_policy_admin_async_save_gate:
-            await operatorPolicyAsyncSaveGate({ body }),
+            await operatorPolicyAsyncSaveGate({
+              body,
+              authContext: adminControlAuth.authContext,
+            }),
           boundary_policy: createOperatorPolicyAsyncSaveHttpBoundary(),
         });
       }
@@ -2879,6 +2952,88 @@ export function listen(server, { port = 8787, host = "127.0.0.1" } = {}) {
       resolve(server.address());
     });
   });
+}
+
+function authorizeAdminControlRequest(request, url, env) {
+  if (!isAdminControlProtectedRequest(request, url)) {
+    return {
+      required: false,
+      ok: true,
+      authContext: { admin_authenticated: false },
+    };
+  }
+  const config = createAdminControlAuthConfig(env);
+  if (!config.token_configured) {
+    return createAdminAuthFailure("admin_auth_not_configured", 403);
+  }
+  const header = request.headers?.authorization;
+  if (typeof header !== "string" || !header.trim()) {
+    return createAdminAuthFailure("admin_auth_required", 401);
+  }
+  const match = /^Bearer ([^\s]+)$/.exec(header.trim());
+  if (!match || !adminControlTokenMatches(match[1], env)) {
+    return createAdminAuthFailure("admin_auth_invalid", 403);
+  }
+  return {
+    required: true,
+    ok: true,
+    statusCode: 200,
+    auth_status: "admin_auth_valid",
+    authContext: { admin_authenticated: true },
+  };
+}
+
+function isAdminControlProtectedRequest(request, url) {
+  if (request.method !== "POST") return false;
+  if (url.pathname.startsWith("/admin/")) return true;
+  return ADMIN_CONTROL_AUTH_PROTECTED_POST_PATHS.has(url.pathname);
+}
+
+function adminControlTokenMatches(candidateToken, env) {
+  const expectedToken = String(env?.[ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME] ?? "");
+  if (!expectedToken) return false;
+  const candidate = String(candidateToken ?? "");
+  if (candidate.length !== expectedToken.length) return false;
+  let diff = 0;
+  for (let index = 0; index < expectedToken.length; index += 1) {
+    diff |= expectedToken.charCodeAt(index) ^ candidate.charCodeAt(index);
+  }
+  return diff === 0;
+}
+
+function createAdminAuthFailure(error, statusCode) {
+  return {
+    required: true,
+    ok: false,
+    statusCode,
+    error,
+    error_kind: error,
+    auth_status: error,
+    authContext: { admin_authenticated: false },
+  };
+}
+
+function sendAdminAuthFailure(response, authResult) {
+  return sendJson(response, authResult.statusCode, {
+    ok: false,
+    schema: "iris_admin_control_auth_failure_v1",
+    error: authResult.error,
+    error_kind: authResult.error_kind,
+    auth_status: authResult.auth_status,
+    required_env_name: ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME,
+    boundary_policy: adminControlAuthBoundaryPolicy(),
+  });
+}
+
+function adminControlAuthBoundaryPolicy() {
+  return {
+    no_secret_values: true,
+    no_token_values: true,
+    no_endpoint_values: true,
+    no_request_payloads: true,
+    no_raw_headers: true,
+    safe_auth_status_only: true,
+  };
 }
 
 function sendJson(response, statusCode, body) {
