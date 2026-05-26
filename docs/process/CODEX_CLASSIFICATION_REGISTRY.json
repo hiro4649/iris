@@ -13,6 +13,7 @@
     { "pathPattern": "README.md", "classification": "docs", "surface": "docs", "risk": "R1", "requiresProductVerification": false, "allowsFastPath": false, "notes": "Repository overview." },
     { "pathPattern": "CODEX_SOURCE_HARNESS_MANIFEST.json", "classification": "harness_managed", "surface": "harness", "risk": "R3", "requiresProductVerification": false, "allowsFastPath": false, "notes": "Source manifest." },
     { "pathPattern": "scripts/dev-server.js", "classification": "dev_server_entrypoint", "surface": "dev_server", "risk": "R3", "requiresProductVerification": true, "allowsFastPath": false, "notes": "Known dev server entrypoint, not a Codex harness script." },
+    { "pathPattern": "scripts/run-tests.js", "classification": "test", "surface": "test", "risk": "R3", "requiresProductVerification": true, "allowsFastPath": false, "notes": "Central product test runner. Product verification is required." },
     { "pathPattern": "src/**", "classification": "product_source", "surface": "runtime", "risk": "R3", "requiresProductVerification": true, "allowsFastPath": false, "notes": "Product source." },
     { "pathPattern": "apps/**", "classification": "product_source", "surface": "runtime", "risk": "R3", "requiresProductVerification": true, "allowsFastPath": false, "notes": "Product app source." },
     { "pathPattern": "contracts/**", "classification": "product_source", "surface": "api", "risk": "R3", "requiresProductVerification": true, "allowsFastPath": false, "notes": "Contracts and API surfaces." },

@@ -164,8 +164,21 @@ function buildV090SelfTestReport() {
   classified = classifyFileWithRegistry('scripts/dev-server.js', registry);
   assertCase('classification_registry_dev_server_entrypoint', classified.classification === 'dev_server_entrypoint', failures, cases, classified.classification, []);
 
+  classified = classifyFileWithRegistry('scripts/run-tests.js', registry);
+  assertCase('classification_registry_run_tests_is_test', classified.classification === 'test', failures, cases, classified.classification, []);
+  assertCase('classification_registry_run_tests_surface_test', classified.surface === 'test', failures, cases, classified.surface, []);
+  assertCase('classification_registry_run_tests_requires_product_verification', classified.requiresProductVerification === true, failures, cases, String(classified.requiresProductVerification), []);
+  assertCase('classification_registry_run_tests_fast_path_denied', classified.allowsFastPath === false, failures, cases, String(classified.allowsFastPath), []);
+  assertCase('classification_registry_run_tests_not_harness_managed', classified.classification !== 'harness_managed', failures, cases, classified.classification, []);
+
+  report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/run-tests.js']) }));
+  assertCase('classification_run_tests_file_set_passes', report.classificationCoverageStatus.status === 'pass' && report.classificationCoverageStatus.unknownCount === 0, failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
+
   report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['tools/new-entrypoint.js']) }));
   assertCase('classification_unknown_file_fails_with_hint', report.classificationCoverageStatus.status === 'fail' && report.classificationCoverageStatus.suggestedRegistryEntries.length > 0, failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
+
+  report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/not-classified-random-entry.js']) }));
+  assertCase('classification_unknown_random_script_still_fails', report.classificationCoverageStatus.status === 'fail' && report.classificationCoverageStatus.reasonCodes.includes('classification_unknown_file'), failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
 
   report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/codex-new-gate.mjs']) }));
   assertCase('classification_scripts_all_not_product', report.classificationCoverageStatus.status === 'pass', failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);

@@ -16,7 +16,7 @@ function env(overrides = {}) {
     CODEX_QUALITY_REPORT: 'json',
     CODEX_HARNESS_MODE: 'target',
     CODEX_PR_BODY: '',
-    CODEX_CHANGED_FILES: '',
+    CODEX_CHANGED_FILES: 'scripts/codex-v085-self-test.mjs',
     ...overrides,
   };
 }
@@ -43,6 +43,9 @@ function runNode(script) {
     env: {
       ...process.env,
       CODEX_QUALITY_REPORT: 'json',
+      CODEX_EVENT_NAME: '',
+      CODEX_PR_BODY: '',
+      CODEX_CHANGED_FILES: 'scripts/codex-v084-self-test.mjs',
       CODEX_SKIP_V085_SELF_TEST: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
