@@ -15,6 +15,7 @@ import { buildGateDecisionTrace } from './codex-gate-decision-trace.mjs';
 import { filterSourceValidationChangedFiles } from './codex-local-quality-gate.mjs';
 import { buildHumanConfirmationObjectReport } from './codex-human-confirmation-validate.mjs';
 import { buildEvidencePackReport } from './codex-evidence-pack-validate.mjs';
+import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
 
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   const status = condition ? 'pass' : 'fail';
@@ -147,6 +148,14 @@ function buildV090SelfTestReport() {
   assertCase('pull_request_still_requires_evidence_pack', ['fail', 'manual_confirmation_required'].includes(strictPrEvidenceStatus), failures, cases, strictPrEvidenceStatus, []);
   assertCase('workflow_dispatch_source_core_remote_verification_pass', workflowText.includes('CODEX_REMOTE_VERIFICATION_MODE="${CODEX_REMOTE_VERIFICATION_MODE:-source_main_workflow_dispatch}"') && workflowText.includes('CODEX_EVIDENCE_PACK_STRICT="${CODEX_EVIDENCE_PACK_STRICT:-0}"') && workflowText.includes('CODEX_HUMAN_CONFIRMATION_STRICT="${CODEX_HUMAN_CONFIRMATION_STRICT:-0}"'), failures, cases, 'pass', []);
   assertCase('pull_request_strictness_not_weakened', workflowText.includes('if [ "${CODEX_EVENT_NAME:-}" = "pull_request" ]; then') && workflowText.includes('export CODEX_EVIDENCE_PACK_STRICT=1') && workflowText.includes('export CODEX_HUMAN_CONFIRMATION_STRICT=1'), failures, cases, 'pass', []);
+  assertCase('remote_product_pr_context_prepare_step_present', workflowText.includes('- name: Prepare remote product verification context'), failures, cases, 'pass', []);
+  assertCase('remote_product_pr_context_runs_npm_for_product', workflowText.includes('requiresProductNpm') && workflowText.includes('CODEX_SKIP_NPM=0') && workflowText.includes('npm test > "$npm_log" 2>&1'), failures, cases, 'pass', []);
+  assertCase('remote_product_pr_context_harness_skip_path_preserved', workflowText.includes('CODEX_SKIP_NPM=1') && workflowText.includes('CODEX_NPM_SKIP_REASON=non_product_target_change'), failures, cases, 'pass', []);
+  assertCase('remote_product_pr_context_writes_product_evidence_path', workflowText.includes('CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH=$product_evidence') && workflowText.includes('codex-product-verification-evidence.safe.json'), failures, cases, 'pass', []);
+  assertCase('remote_product_pr_context_writes_remote_baseline_path', workflowText.includes('CODEX_REMOTE_PRODUCT_BASELINE_PATH=$remote_baseline') && workflowText.includes('codex-remote-product-baseline.safe.json'), failures, cases, 'pass', []);
+  assertCase('remote_product_pr_context_failure_not_sweetened', workflowText.includes('product_result="fail"') && workflowText.includes('if [ "$npm_exit" -eq 0 ]; then') && workflowText.includes('knownFailures: result === \'pass\' ? []'), failures, cases, 'pass', []);
+  const uploadArtifactSection = workflowText.slice(workflowText.indexOf('- name: Upload safe quality artifacts'));
+  assertCase('remote_product_pr_context_does_not_upload_npm_log', !uploadArtifactSection.includes('codex-npm-test.log'), failures, cases, 'pass', []);
 
   const registry = JSON.parse(fs.readFileSync('docs/process/CODEX_CLASSIFICATION_REGISTRY.json', 'utf8')).entries;
   let classified = classifyFileWithRegistry('scripts/codex-local-quality-gate.mjs', registry);
@@ -160,6 +169,18 @@ function buildV090SelfTestReport() {
 
   report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/codex-new-gate.mjs']) }));
   assertCase('classification_scripts_all_not_product', report.classificationCoverageStatus.status === 'pass', failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
+
+  report = buildPrProfileReport(prEnv({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: 'PR profile: product_r3\n\nRisk level: R3\n\nGoal:\nFixture.\n\nProduct verification:\nPASS.\n\nAffected entrypoints:\nSafe label.\n\nFailure paths considered:\nSafe label.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
+  }));
+  assertCase('pr_profile_body_risk_r3_infers_product_r3_without_env', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prEnv({
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: 'PR profile: product_r3\n\nRisk level: R2\n\nGoal:\nFixture.\n\nProduct verification:\nPASS.\n\nAffected entrypoints:\nSafe label.\n\nFailure paths considered:\nSafe label.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
+  }));
+  assertCase('pr_profile_product_r3_conflicts_when_body_risk_lower', report.prProfileStatus.status === 'warning' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
 
   report = buildRemoteLocalParityReport(prEnv({
     CODEX_LOCAL_CONTEXT_JSON: JSON.stringify({ changedFiles: ['scripts/codex-new-gate.mjs'], classificationCoverageStatus: { unknownClasses: [] } }),
