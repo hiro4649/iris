@@ -119,12 +119,17 @@ import {
 } from "./localBridgeServer.js";
 
 const SAFE_HTTP_ERROR_KINDS = new Set([
-  "invalid_json",
+  "request_payload_invalid",
   "request_body_too_large",
+  "server_pressure_overload",
+  "request_pressure_guard_unavailable",
+  "request_rejected_safely",
   "unsafe_payload",
   "contract_error",
   "internal_error",
 ]);
+const DEFAULT_JSON_POST_BODY_MAX_BYTES = 64_000;
+const DEFAULT_MAX_ACTIVE_PRESSURE_REQUESTS = 128;
 const ADMIN_CONTROL_AUTH_TOKEN_ENV_NAME = "IRIS_ADMIN_API_TOKEN";
 const ADMIN_CONTROL_AUTH_PROTECTED_POST_PATHS = new Set([
   "/idle/start",
@@ -203,11 +208,25 @@ export function createIrisHttpServer({
   overlayEventBus = createOverlayEventBus(),
   env = process.env,
   logger = console,
+  maxJsonBodyBytes = null,
+  maxActivePressureRequests = null,
 } = {}) {
   if (!runtime) throw new Error("createIrisHttpServer requires runtime");
   if (!streamState) throw new Error("createIrisHttpServer requires streamState");
   const reviewDecisionStore =
     adminReviewDecisionStore ?? createAdminReviewDecisionStoreFromEnv(env);
+  const requestPressureGuard = createHttpRequestPressureGuard({
+    maxActiveRequests:
+      maxActivePressureRequests ?? env?.IRIS_HTTP_MAX_ACTIVE_REQUESTS,
+  });
+  const jsonBodyMaxBytes = normalizeBoundedInteger(
+    maxJsonBodyBytes ?? env?.IRIS_HTTP_JSON_BODY_MAX_BYTES,
+    1_024,
+    1_048_576,
+    DEFAULT_JSON_POST_BODY_MAX_BYTES
+  );
+  const readJsonBody = (request) =>
+    readJson(request, { maxBytes: jsonBodyMaxBytes });
 
   function updateStateFromResult(result) {
     const state = streamState.updateFromRuntimeResult(result);
@@ -216,11 +235,25 @@ export function createIrisHttpServer({
   }
 
   const server = createServer(async (request, response) => {
+    let pressurePermit = null;
     try {
       const url = new URL(request.url, "http://127.0.0.1");
       const adminControlAuth = authorizeAdminControlRequest(request, url, env);
       if (adminControlAuth.required && !adminControlAuth.ok) {
         return sendAdminAuthFailure(response, adminControlAuth);
+      }
+      if (isPressureGuardedRequest(request)) {
+        const pressureDecision = requestPressureGuard.enter();
+        if (!pressureDecision.ok) {
+          return sendJson(
+            response,
+            503,
+            createSafeHttpErrorResponse("server_pressure_overload", {
+              requestPressure: pressureDecision.request_pressure,
+            })
+          );
+        }
+        pressurePermit = pressureDecision;
       }
       if (request.method === "GET" && url.pathname === "/health") {
         return sendJson(response, 200, { ok: true, service: "iris" });
@@ -1791,7 +1824,7 @@ export function createIrisHttpServer({
         request.method === "POST" &&
         url.pathname === "/admin/character-voice-settings/apply-plan"
       ) {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         return sendJson(response, 200, {
           ok: true,
           schema: "iris_admin_character_voice_settings_apply_plan_http_v1",
@@ -1868,7 +1901,7 @@ export function createIrisHttpServer({
         });
       }
       if (request.method === "POST" && url.pathname === "/admin/review-queue/action-plan") {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         return sendJson(response, 200, {
           ok: true,
           schema: "iris_admin_review_queue_action_plan_http_v1",
@@ -1885,7 +1918,7 @@ export function createIrisHttpServer({
         });
       }
       if (request.method === "POST" && url.pathname === "/admin/review-queue/decision") {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const result = applyAdminReviewQueueDecision({
           store: reviewDecisionStore,
           body,
@@ -2011,7 +2044,7 @@ export function createIrisHttpServer({
         });
       }
       if (request.method === "POST" && url.pathname === "/admin/safety-controls/action") {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const result = applyAdminSafetyControlAction({
           store: adminSafetyControlStore,
           action: body?.action,
@@ -2169,7 +2202,7 @@ export function createIrisHttpServer({
         request.method === "POST" &&
         url.pathname === "/admin/operator-policy/apply-plan"
       ) {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         return sendJson(response, 200, {
           ok: true,
           schema: "iris_operator_policy_admin_apply_plan_http_v1",
@@ -2199,7 +2232,7 @@ export function createIrisHttpServer({
         request.method === "POST" &&
         url.pathname === "/admin/operator-policy/async-save-gate"
       ) {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         if (typeof operatorPolicyAsyncSaveGate !== "function") {
           return sendJson(response, 503, {
             ok: false,
@@ -2321,7 +2354,7 @@ export function createIrisHttpServer({
         });
       }
       if (request.method === "POST" && url.pathname === "/production/probe") {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const mode = body?.mode === "fixture_post" ? "fixture_post" : "dry_run";
         return sendJson(response, 200, {
           ok: true,
@@ -2372,7 +2405,7 @@ export function createIrisHttpServer({
         });
       }
       if (request.method === "POST" && url.pathname === "/integrations/probe") {
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const mode = body?.mode === "fixture_post" ? "fixture_post" : "dry_run";
         return sendJson(response, 200, {
           ok: true,
@@ -2603,7 +2636,7 @@ export function createIrisHttpServer({
         if (isYouTubeIngestPaused()) {
           return sendJson(response, 409, createYouTubeIngestPausedResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const event = normalizeYouTubeComment({
           ...body,
           display_name: body.display_name ?? "http_viewer",
@@ -2623,7 +2656,7 @@ export function createIrisHttpServer({
         if (isGameObservationPaused()) {
           return sendJson(response, 409, createGameObservationPausedResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const event = normalizeGameObservation(body);
         const result = await runtime.processEvent(event);
         const state = updateStateFromResult(result);
@@ -2641,7 +2674,7 @@ export function createIrisHttpServer({
         if (isSupportIngestPaused()) {
           return sendJson(response, 409, createSupportIngestPausedResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const event = normalizeYouTubeDonation(body);
         const result = await runtime.processEvent(event);
         const state = updateStateFromResult(result);
@@ -2656,7 +2689,7 @@ export function createIrisHttpServer({
         if (isMediaWatchIngestPaused()) {
           return sendJson(response, 409, createMediaWatchIngestPausedResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const event = normalizeMediaWatchObservation(body);
         const result = await runtime.processEvent(event);
         const state = updateStateFromResult(result);
@@ -2671,7 +2704,7 @@ export function createIrisHttpServer({
         if (isExternalTopicIngestPaused()) {
           return sendJson(response, 409, createExternalTopicIngestPausedResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const event = normalizeExternalTopicObservation(body);
         const result = await runtime.processEvent(event);
         const state = updateStateFromResult(result);
@@ -2686,7 +2719,7 @@ export function createIrisHttpServer({
         if (isEmergencyStopActive()) {
           return sendJson(response, 409, createEmergencyStopActiveResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const scheduled = idleScheduler
           ? await idleScheduler.tickNow?.(body.idle_reason ?? "manual_http_idle_tick")
           : null;
@@ -2722,7 +2755,7 @@ export function createIrisHttpServer({
         if (isEmergencyStopActive()) {
           return sendJson(response, 409, createEmergencyStopActiveResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const tick = await httpIngestScheduler?.tickNow?.(
           body.reason ?? "manual_http_ingest_tick"
         );
@@ -2753,7 +2786,7 @@ export function createIrisHttpServer({
         if (isEmergencyStopActive()) {
           return sendJson(response, 409, createEmergencyStopActiveResponse());
         }
-        const body = await readJson(request);
+        const body = await readJsonBody(request);
         const scenario = normalizeScenarioRequest(body);
         let latestState = streamState.get();
         const scenarioResult = await runScenario(runtime, scenario, {
@@ -2777,6 +2810,8 @@ export function createIrisHttpServer({
       const statusCode = getHttpServerErrorStatusCode(error, errorKind);
       if (statusCode >= 500) logger.error?.(error);
       return sendJson(response, statusCode, createSafeHttpErrorResponse(errorKind));
+    } finally {
+      pressurePermit?.release?.();
     }
   });
 
@@ -3084,20 +3119,24 @@ function createPublicLocalBridgeRenderManifestStoreStatus(status) {
   return publicStatus;
 }
 
-function createSafeHttpErrorResponse(errorKind) {
+function createSafeHttpErrorResponse(errorKind, { requestPressure = null } = {}) {
   const safeErrorKind = SAFE_HTTP_ERROR_KINDS.has(errorKind) ? errorKind : "internal_error";
   return {
     ok: false,
     error: safeErrorKind,
     error_kind: safeErrorKind,
+    ...(requestPressure ? { request_pressure: requestPressure } : {}),
     boundary_policy: {
       no_raw_error_messages: true,
       no_request_payloads: true,
+      no_raw_headers: true,
+      no_authorization_values: true,
       no_text_payloads: true,
       no_endpoint_values: true,
       no_candidates: true,
       no_commands: true,
       no_secret_values: true,
+      safe_counters_only: true,
     },
     adapter_validation_required: true,
   };
@@ -3105,7 +3144,7 @@ function createSafeHttpErrorResponse(errorKind) {
 
 function classifyHttpServerError(error) {
   const message = String(error?.message ?? "");
-  if (message === "invalid_json") return "invalid_json";
+  if (message === "invalid_json") return "request_payload_invalid";
   if (message === "request_body_too_large") return "request_body_too_large";
   if (error instanceof ContractError) {
     const lowered = message.toLowerCase();
@@ -3210,9 +3249,10 @@ function youtubeIngestPreflightHttpBoundaryPolicy() {
 }
 
 function getHttpServerErrorStatusCode(error, errorKind) {
+  if (errorKind === "server_pressure_overload") return 503;
+  if (errorKind === "request_body_too_large") return 413;
   if (
-    errorKind === "invalid_json" ||
-    errorKind === "request_body_too_large" ||
+    errorKind === "request_payload_invalid" ||
     errorKind === "unsafe_payload" ||
     errorKind === "contract_error"
   ) {
@@ -3225,26 +3265,101 @@ function getHttpServerErrorStatusCode(error, errorKind) {
   return 500;
 }
 
-function readJson(request) {
+function createHttpRequestPressureGuard({ maxActiveRequests } = {}) {
+  const maxActive = normalizeBoundedInteger(
+    maxActiveRequests,
+    0,
+    10_000,
+    DEFAULT_MAX_ACTIVE_PRESSURE_REQUESTS
+  );
+  let active = 0;
+  const safeStatus = (status) => ({
+    schema: "iris_http_request_pressure_v1",
+    status,
+    active_request_count: active,
+    max_active_request_count: maxActive,
+    queue_depth: 0,
+    rejected_safely: status === "overloaded",
+  });
+  return {
+    enter() {
+      if (active >= maxActive) {
+        return {
+          ok: false,
+          error: "server_pressure_overload",
+          request_pressure: safeStatus("overloaded"),
+        };
+      }
+      active += 1;
+      let released = false;
+      return {
+        ok: true,
+        request_pressure: safeStatus("accepted"),
+        release() {
+          if (released) return;
+          released = true;
+          active = Math.max(0, active - 1);
+        },
+      };
+    },
+  };
+}
+
+function isPressureGuardedRequest(request) {
+  return request.method === "POST";
+}
+
+function normalizeBoundedInteger(value, min, max, fallback) {
+  if (value === null || value === undefined || String(value).trim() === "") {
+    return fallback;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(number)));
+}
+
+function readJson(request, { maxBytes = DEFAULT_JSON_POST_BODY_MAX_BYTES } = {}) {
   return new Promise((resolve, reject) => {
     let raw = "";
-    request.setEncoding("utf8");
-    request.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > 64_000) {
-        reject(new Error("request_body_too_large"));
-        request.destroy();
+    let byteLength = 0;
+    let settled = false;
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      request.off("data", onData);
+      request.off("end", onEnd);
+      request.off("error", onError);
+      request.resume();
+      reject(error);
+    };
+    const onError = (error) => fail(error);
+    const onData = (chunk) => {
+      byteLength += Buffer.byteLength(chunk, "utf8");
+      if (byteLength > maxBytes) {
+        fail(new Error("request_body_too_large"));
+        return;
       }
-    });
-    request.on("end", () => {
+      raw += chunk;
+    };
+    const onEnd = () => {
+      if (settled) return;
+      settled = true;
       if (!raw.trim()) return resolve({});
       try {
         resolve(JSON.parse(raw));
       } catch {
         reject(new Error("invalid_json"));
       }
-    });
-    request.on("error", reject);
+    };
+    const declaredLength = Number(request.headers?.["content-length"]);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      fail(new Error("request_body_too_large"));
+      return;
+    }
+    request.setEncoding("utf8");
+    request.on("data", onData);
+    request.on("end", onEnd);
+    request.on("error", onError);
   });
 }
 
