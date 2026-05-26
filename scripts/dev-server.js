@@ -5,7 +5,11 @@ import { createIdleScheduler } from "../src/runtime/idleScheduler.js";
 import { createHttpIngestScheduler } from "../src/runtime/httpIngestScheduler.js";
 import { createRuntimeConfig } from "../src/runtime/runtimeConfig.js";
 import { createStreamState } from "../src/runtime/streamState.js";
-import { createIrisHttpServer, listen } from "../src/server/httpServer.js";
+import {
+  createAdminControlStartupGuard,
+  createIrisHttpServer,
+  listen,
+} from "../src/server/httpServer.js";
 import {
   createOverlayDisplayEvent,
   createOverlayEventBus,
@@ -17,6 +21,14 @@ import { createMockPostgresPersistenceAdapter } from "../src/services/persistenc
 
 const port = clampInteger(process.env.IRIS_HTTP_PORT ?? 8787, 0, 65_535, 8787);
 const host = process.env.IRIS_HTTP_HOST ?? "127.0.0.1";
+const adminControlStartupGuard = createAdminControlStartupGuard({
+  host,
+  env: process.env,
+});
+if (!adminControlStartupGuard.ok) {
+  console.error(JSON.stringify(adminControlStartupGuard, null, 2));
+  process.exit(1);
+}
 const enableIdleScheduler = process.env.IRIS_ENABLE_IDLE_SCHEDULER === "true";
 const idleIntervalMs = Number(process.env.IRIS_IDLE_INTERVAL_MS ?? 8000);
 const httpIngestSchedulerSetting = process.env.IRIS_ENABLE_HTTP_INGEST_SCHEDULER;
@@ -125,7 +137,7 @@ console.log(
         "IRIS_HTTP_INGEST_CONTINUE_ON_SOURCE_ERROR",
         "IRIS_OPERATOR_POLICY_ASYNC_SAVE_GATE_ENABLED",
         "IRIS_OPERATOR_POLICY_POSTGRES_MOCK_SAVE_ENABLED",
-        "IRIS_OPERATOR_POLICY_ADMIN_AUTHENTICATED",
+        "IRIS_ADMIN_API_TOKEN",
         "IRIS_OPERATOR_POLICY_STORE_PATH",
         "IRIS_OPERATOR_POLICY_AUDIT_LOG_PATH",
       ],
@@ -299,12 +311,11 @@ function createOperatorPolicyAsyncSaveGateSetupFromEnv(env) {
   const auditLog = createJsonOperatorPolicyAuditLog(auditPath);
   const postgresAdapter = createMockPostgresPersistenceAdapter();
   return {
-    gate: ({ body }) =>
+    gate: ({ body, authContext = {} } = {}) =>
       createOperatorPolicyAdminAsyncSaveGate({
         body,
         authContext: {
-          admin_authenticated:
-            env.IRIS_OPERATOR_POLICY_ADMIN_AUTHENTICATED === "true",
+          admin_authenticated: authContext?.admin_authenticated === true,
         },
         policyStore,
         auditLog,

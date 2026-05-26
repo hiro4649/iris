@@ -956,7 +956,11 @@ import { createIrisRuntime } from "../src/runtime/irisRuntime.js";
 import { createRuntimeConfig } from "../src/runtime/runtimeConfig.js";
 import { assertScenarioSafe, runScenario } from "../src/runtime/scenarioRunner.js";
 import { createStreamState } from "../src/runtime/streamState.js";
-import { createIrisHttpServer, listen } from "../src/server/httpServer.js";
+import {
+  createAdminControlStartupGuard,
+  createIrisHttpServer,
+  listen,
+} from "../src/server/httpServer.js";
 import {
   assertOverlayDisplayEventSafe,
   assertOverlayEventStreamStatusSafe,
@@ -66276,10 +66280,273 @@ const tests = [
     },
   ],
   [
+    "admin control HTTP routes require request-level auth",
+    async () => {
+      const adminToken = "admin-control-boundary-token";
+      const validAuthHeaders = { authorization: `Bearer ${adminToken}` };
+      const validJsonHeaders = {
+        "content-type": "application/json",
+        ...validAuthHeaders,
+      };
+      const invalidJsonHeaders = {
+        "content-type": "application/json",
+        authorization: "Bearer invalid-admin-control-token",
+      };
+      const reviewItems = [
+        createSafeReviewItem({
+          reviewId: "review:admin-control-auth0:memory",
+          itemKind: "memory_candidate_review",
+          sourceCandidateKind: "experience_log",
+          publicSummary: "safe admin control auth review summary",
+          subjectHint: "Hiro",
+          riskTags: ["memory_write_boundary"],
+          reviewRoute: "approved_memory_writer_only",
+          createdAtMs: 1000,
+        }),
+      ];
+      const runtime = createIrisRuntime({
+        runtimeConfig: { hasOpened: true, enablePersistence: false },
+        ttsAdapter() {
+          return { spoken: true };
+        },
+        live2dAdapter() {
+          return { sent: true };
+        },
+        logger: { log() {} },
+      });
+      runtime.candidateReviewItems = () => reviewItems;
+      const streamState = createStreamState();
+      const reviewDecisionStore = createInMemoryAdminReviewDecisionStore();
+      const idleScheduler = {
+        start() {
+          return { running: true };
+        },
+        stop() {
+          return { running: false };
+        },
+      };
+      const httpIngestScheduler = {
+        start() {
+          return { running: true };
+        },
+        stop() {
+          return { running: false };
+        },
+      };
+      const operatorPolicyGateCalls = [];
+      const server = createIrisHttpServer({
+        runtime,
+        streamState,
+        idleScheduler,
+        httpIngestScheduler,
+        adminReviewDecisionStore: reviewDecisionStore,
+        operatorPolicyAsyncSaveGate: async ({ authContext }) => {
+          operatorPolicyGateCalls.push(authContext);
+          return {
+            schema: "iris_operator_policy_admin_async_save_gate_test_v1",
+            save_status:
+              authContext?.admin_authenticated === true ? "saved" : "blocked",
+            admin_authenticated: authContext?.admin_authenticated === true,
+            boundary_policy: {
+              safe_auth_status_only: true,
+              no_secret_values: true,
+              no_policy_payloads: true,
+            },
+          };
+        },
+        env: {
+          IRIS_ADMIN_API_TOKEN: adminToken,
+          IRIS_OPERATOR_POLICY_ADMIN_AUTHENTICATED: "true",
+        },
+        logger: { error() {} },
+      });
+      const address = await listen(server, { port: 0, host: "127.0.0.1" });
+      const baseUrl = `http://${address.address}:${address.port}`;
+      try {
+        const publicHostGuard = createAdminControlStartupGuard({
+          host: "0.0.0.0",
+          env: {},
+        });
+        assert.equal(publicHostGuard.ok, false);
+        assert.equal(publicHostGuard.error, "admin_auth_not_configured");
+        assert.deepEqual(publicHostGuard.required_env_names, [
+          "IRIS_HTTP_HOST",
+          "IRIS_ADMIN_API_TOKEN",
+        ]);
+        assert.equal(publicHostGuard.boundary_policy.no_token_values, true);
+        assert.equal(JSON.stringify(publicHostGuard).includes("0.0.0.0"), false);
+
+        const loopbackGuard = createAdminControlStartupGuard({
+          host: "127.0.0.1",
+          env: {},
+        });
+        assert.equal(loopbackGuard.ok, true);
+        assert.equal(loopbackGuard.public_host_guard, "loopback_or_local");
+
+        const tokenlessServer = createIrisHttpServer({
+          runtime,
+          streamState,
+          logger: { error() {} },
+        });
+        const tokenlessAddress = await listen(tokenlessServer, {
+          port: 0,
+          host: "127.0.0.1",
+        });
+        try {
+          const missingConfig = await fetch(
+            `http://${tokenlessAddress.address}:${tokenlessAddress.port}/idle/start`,
+            { method: "POST" }
+          );
+          const missingConfigBody = await missingConfig.json();
+          assert.equal(missingConfig.status, 403);
+          assert.equal(missingConfigBody.error, "admin_auth_not_configured");
+          assert.equal(missingConfigBody.boundary_policy.no_request_payloads, true);
+        } finally {
+          await closeServer(tokenlessServer);
+        }
+
+        const unauthSafety = await fetch(
+          `${baseUrl}/admin/safety-controls/action`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "pause_tts", confirmed: true }),
+          }
+        );
+        const unauthSafetyBody = await unauthSafety.json();
+        assert.equal(unauthSafety.status, 401);
+        assert.equal(unauthSafetyBody.error, "admin_auth_required");
+        assert.equal(unauthSafetyBody.boundary_policy.no_raw_headers, true);
+
+        const invalidSafety = await fetch(
+          `${baseUrl}/admin/safety-controls/action`,
+          {
+            method: "POST",
+            headers: invalidJsonHeaders,
+            body: JSON.stringify({ action: "pause_tts", confirmed: true }),
+          }
+        );
+        const invalidSafetyBody = await invalidSafety.json();
+        const serializedInvalidSafetyBody = JSON.stringify(invalidSafetyBody);
+        assert.equal(invalidSafety.status, 403);
+        assert.equal(invalidSafetyBody.error, "admin_auth_invalid");
+        assert.equal(serializedInvalidSafetyBody.includes(adminToken), false);
+        assert.equal(
+          serializedInvalidSafetyBody.includes("invalid-admin-control-token"),
+          false
+        );
+
+        const validSafety = await fetch(
+          `${baseUrl}/admin/safety-controls/action`,
+          {
+            method: "POST",
+            headers: validJsonHeaders,
+            body: JSON.stringify({ action: "pause_tts", confirmed: true }),
+          }
+        );
+        const validSafetyBody = await validSafety.json();
+        assert.equal(validSafety.status, 200);
+        assert.equal(validSafetyBody.ok, true);
+        assert.equal(validSafetyBody.admin_safety_control_action.applied, true);
+
+        const unauthDecision = await fetch(
+          `${baseUrl}/admin/review-queue/decision`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              action: "approve_memory_candidate",
+              review_id: reviewItems[0].review_id,
+              actor_role: "owner",
+              confirmed: true,
+            }),
+          }
+        );
+        assert.equal(unauthDecision.status, 401);
+
+        const validDecision = await fetch(
+          `${baseUrl}/admin/review-queue/decision`,
+          {
+            method: "POST",
+            headers: validJsonHeaders,
+            body: JSON.stringify({
+              action: "approve_memory_candidate",
+              review_id: reviewItems[0].review_id,
+              actor_role: "owner",
+              confirmed: true,
+            }),
+          }
+        );
+        const validDecisionBody = await validDecision.json();
+        assert.equal(validDecision.status, 200);
+        assert.equal(validDecisionBody.admin_review_queue_decision.recorded, true);
+        assert.equal(reviewDecisionStore.summary().decision_count, 1);
+
+        const envOnlyOperatorGate = await fetch(
+          `${baseUrl}/admin/operator-policy/async-save-gate`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ setting_id: "game_control_mode" }),
+          }
+        );
+        const envOnlyOperatorGateBody = await envOnlyOperatorGate.json();
+        assert.equal(envOnlyOperatorGate.status, 401);
+        assert.equal(envOnlyOperatorGateBody.error, "admin_auth_required");
+        assert.equal(operatorPolicyGateCalls.length, 0);
+
+        const validOperatorGate = await fetch(
+          `${baseUrl}/admin/operator-policy/async-save-gate`,
+          {
+            method: "POST",
+            headers: validJsonHeaders,
+            body: JSON.stringify({ setting_id: "game_control_mode" }),
+          }
+        );
+        const validOperatorGateBody = await validOperatorGate.json();
+        assert.equal(validOperatorGate.status, 200);
+        assert.equal(
+          validOperatorGateBody.operator_policy_admin_async_save_gate
+            .admin_authenticated,
+          true
+        );
+        assert.equal(operatorPolicyGateCalls.length, 1);
+        assert.equal(operatorPolicyGateCalls[0].admin_authenticated, true);
+
+        for (const route of ["/idle/start", "/ingest/start", "/scenario/run"]) {
+          const response = await fetch(`${baseUrl}${route}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: route === "/scenario/run" ? JSON.stringify({ steps: [] }) : undefined,
+          });
+          const body = await response.json();
+          assert.equal(response.status, 401);
+          assert.equal(body.error, "admin_auth_required");
+        }
+
+        const publicComment = await fetch(`${baseUrl}/comment`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text: "IRIS, public route remains open" }),
+        });
+        assert.equal(publicComment.status, 200);
+        assert.equal((await publicComment.json()).ok, true);
+      } finally {
+        await closeServer(server);
+      }
+    },
+  ],
+  [
     "HTTP server accepts comments and updates overlay state",
     async () => {
       const tempDir = mkdtempSync(join(tmpdir(), "iris-http-server-render-"));
       const artifactDir = join(tempDir, "artifacts");
+      const adminToken = "admin-control-test-token";
+      const adminHeaders = { authorization: `Bearer ${adminToken}` };
+      const adminJsonHeaders = {
+        "content-type": "application/json",
+        ...adminHeaders,
+      };
       createRenderManifestFixture(artifactDir, {
         createdAtMs: Date.now(),
         eventId: "http-server-render-event",
@@ -66329,6 +66596,7 @@ const tests = [
           IRIS_LOCAL_BRIDGE_ARTIFACT_DIR: artifactDir,
           IRIS_LOCAL_BRIDGE_RENDER_MANIFEST_MAX_AGE_MS: "60000",
           IRIS_LOCAL_BRIDGE_RENDER_ARTIFACT_MAX_SKEW_MS: "1500",
+          IRIS_ADMIN_API_TOKEN: adminToken,
         },
         logger: { error() {} },
       });
@@ -68382,7 +68650,7 @@ const tests = [
           `${baseUrl}/admin/review-queue/action-plan`,
           {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: adminJsonHeaders,
             body: JSON.stringify({
               action: "http://127.0.0.1/private-action",
               review_id: "review:unsafe-action-plan-id",
@@ -68433,7 +68701,7 @@ const tests = [
           `${baseUrl}/admin/review-queue/decision`,
           {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: adminJsonHeaders,
             body: JSON.stringify({
               action: "http://127.0.0.1/private-decision",
               review_id: "review:unsafe-decision-id",
@@ -71901,7 +72169,7 @@ const tests = [
           `${baseUrl}/admin/operator-policy/apply-plan`,
           {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: adminJsonHeaders,
             body: JSON.stringify({
               dry_run: true,
               setting_id: "game_control_mode",
@@ -71939,7 +72207,7 @@ const tests = [
           `${baseUrl}/admin/operator-policy/async-save-gate`,
           {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: adminJsonHeaders,
             body: JSON.stringify({
               setting_id: "donation_amount_proportional_formula",
               setting_group: "relationship_delta",
@@ -72837,7 +73105,7 @@ const tests = [
 
         const probe = await fetch(`${baseUrl}/integrations/probe`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: adminJsonHeaders,
           body: JSON.stringify({ mode: "dry_run" }),
         });
         assert.equal(probe.status, 200);
@@ -73049,7 +73317,7 @@ const tests = [
 
         const idle = await fetch(`${baseUrl}/idle-tick`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: adminJsonHeaders,
           body: JSON.stringify({ idle_reason: "http_test" }),
         });
         const idleBody = await idle.json();
@@ -73080,7 +73348,7 @@ const tests = [
 
         const ingestTick = await fetch(`${baseUrl}/ingest/tick`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: adminJsonHeaders,
           body: JSON.stringify({ reason: "http_test_ingest" }),
         });
         const ingestTickBody = await ingestTick.json();
@@ -73090,25 +73358,37 @@ const tests = [
         assert.equal(ingestTickBody.processed[0].source, "test_live_chat");
         assert.equal(ingestTickBody.status.processed_count, 1);
 
-        const ingestStart = await fetch(`${baseUrl}/ingest/start`, { method: "POST" });
+        const ingestStart = await fetch(`${baseUrl}/ingest/start`, {
+          method: "POST",
+          headers: adminHeaders,
+        });
         assert.equal(ingestStart.status, 200);
         assert.equal((await ingestStart.json()).http_ingest_scheduler.running, true);
 
-        const ingestStop = await fetch(`${baseUrl}/ingest/stop`, { method: "POST" });
+        const ingestStop = await fetch(`${baseUrl}/ingest/stop`, {
+          method: "POST",
+          headers: adminHeaders,
+        });
         assert.equal(ingestStop.status, 200);
         assert.equal((await ingestStop.json()).http_ingest_scheduler.running, false);
 
-        const idleStart = await fetch(`${baseUrl}/idle/start`, { method: "POST" });
+        const idleStart = await fetch(`${baseUrl}/idle/start`, {
+          method: "POST",
+          headers: adminHeaders,
+        });
         assert.equal(idleStart.status, 200);
         assert.equal((await idleStart.json()).idle_scheduler.running, true);
 
-        const idleStop = await fetch(`${baseUrl}/idle/stop`, { method: "POST" });
+        const idleStop = await fetch(`${baseUrl}/idle/stop`, {
+          method: "POST",
+          headers: adminHeaders,
+        });
         assert.equal(idleStop.status, 200);
         assert.equal((await idleStop.json()).idle_scheduler.running, false);
 
         const scenario = await fetch(`${baseUrl}/scenario/run`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: adminJsonHeaders,
           body: JSON.stringify({
             name: "http-scenario",
             steps: [
@@ -73144,7 +73424,7 @@ const tests = [
 
         const unsafeScenario = await fetch(`${baseUrl}/scenario/run`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: adminJsonHeaders,
           body: JSON.stringify({
             steps: [{ kind: "comment", text: "IRIS, unsafe", execute: "press_w" }],
           }),
