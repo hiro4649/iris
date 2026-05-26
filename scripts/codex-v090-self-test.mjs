@@ -16,6 +16,7 @@ import { filterSourceValidationChangedFiles } from './codex-local-quality-gate.m
 import { buildHumanConfirmationObjectReport } from './codex-human-confirmation-validate.mjs';
 import { buildEvidencePackReport } from './codex-evidence-pack-validate.mjs';
 import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
+import { classifyChange } from './codex-change-classification-gate.mjs';
 
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   const status = condition ? 'pass' : 'fail';
@@ -170,6 +171,24 @@ function buildV090SelfTestReport() {
   assertCase('classification_registry_run_tests_requires_product_verification', classified.requiresProductVerification === true, failures, cases, String(classified.requiresProductVerification), []);
   assertCase('classification_registry_run_tests_fast_path_denied', classified.allowsFastPath === false, failures, cases, String(classified.allowsFastPath), []);
   assertCase('classification_registry_run_tests_not_harness_managed', classified.classification !== 'harness_managed', failures, cases, classified.classification, []);
+
+  let legacyClassification = classifyChange(['scripts/dev-server.js'], prEnv());
+  assertCase('legacy_classification_dev_server_passes', legacyClassification.status === 'pass', failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
+  assertCase('legacy_classification_dev_server_product_relevant', legacyClassification.productRelevantChanged === true, failures, cases, String(legacyClassification.productRelevantChanged), legacyClassification.reasonCodes);
+  assertCase('legacy_classification_dev_server_product_source', legacyClassification.classification.productSourceChanged === true, failures, cases, String(legacyClassification.classification.productSourceChanged), legacyClassification.reasonCodes);
+  assertCase('legacy_classification_dev_server_not_unknown', legacyClassification.classification.unknownRisk === false && !legacyClassification.reasonCodes.includes('change_classification_unknown'), failures, cases, String(legacyClassification.classification.unknownRisk), legacyClassification.reasonCodes);
+
+  legacyClassification = classifyChange(['src/server/httpServer.js', 'scripts/dev-server.js', 'scripts/run-tests.js'], prEnv());
+  assertCase('legacy_classification_pr103_file_set_passes', legacyClassification.status === 'pass' && legacyClassification.productRelevantChanged === true && legacyClassification.classification.unknownRisk === false, failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
+
+  legacyClassification = classifyChange(['scripts/not-classified-random-entry.js'], prEnv());
+  assertCase('legacy_classification_unknown_random_script_still_fails', legacyClassification.status === 'fail' && legacyClassification.reasonCodes.includes('change_classification_unknown'), failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
+
+  legacyClassification = classifyChange(['scripts/codex-local-quality-gate.mjs'], prEnv());
+  assertCase('legacy_classification_codex_script_harness_only', legacyClassification.status === 'pass' && legacyClassification.classification.harnessOnly === true && legacyClassification.productRelevantChanged === false, failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
+
+  legacyClassification = classifyChange(['scripts/run-tests.js'], prEnv());
+  assertCase('legacy_classification_run_tests_product_relevant_test_surface', legacyClassification.status === 'pass' && legacyClassification.classification.testsChanged === true && legacyClassification.productRelevantChanged === true && legacyClassification.classification.harnessOnly === false, failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
 
   report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/run-tests.js']) }));
   assertCase('classification_run_tests_file_set_passes', report.classificationCoverageStatus.status === 'pass' && report.classificationCoverageStatus.unknownCount === 0, failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);

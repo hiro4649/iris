@@ -19,6 +19,7 @@
   ],
   "productSourceFiles": [
     "src/",
+    "scripts/dev-server.js",
     "apps/",
     "contracts/",
     "packages/",
