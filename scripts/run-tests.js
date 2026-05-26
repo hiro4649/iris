@@ -21900,6 +21900,23 @@ const tests = [
           "utf8"
         );
       };
+      const hasGlobPattern = (relativePath) => /[*?[\]]/.test(relativePath);
+      const expandRepoPattern = (relativePath) => {
+        if (!hasGlobPattern(relativePath)) return [relativePath];
+        const result = spawnSync("git", ["ls-files", "--", relativePath], {
+          cwd: sourceRoot,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        const matches = result.status === 0
+          ? result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+          : [];
+        assert.ok(
+          matches.length > 0,
+          `method gate support glob matched no required files: ${relativePath}`
+        );
+        return matches;
+      };
       const commitAll = (message) => {
         run("git", ["add", "."], { cwd: tempDir });
         run(
@@ -22135,13 +22152,15 @@ const tests = [
         "scripts/codex-openai-method-gate.mjs",
       ]);
       const writeMethodGateSupportFile = (relativePath) => {
-        writeFromRepo(relativePath);
-        if (relativePath === "AGENTS.md") {
-          writeFileSync(
-            join(tempDir, relativePath),
-            `${readFileSync(join(tempDir, relativePath), "utf8")}\nSee docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md and docs/process/code_review.md for fixture method compliance.\n`,
-            "utf8"
-          );
+        for (const expandedPath of expandRepoPattern(relativePath)) {
+          writeFromRepo(expandedPath);
+          if (expandedPath === "AGENTS.md") {
+            writeFileSync(
+              join(tempDir, expandedPath),
+              `${readFileSync(join(tempDir, expandedPath), "utf8")}\nSee docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md and docs/process/code_review.md for fixture method compliance.\n`,
+              "utf8"
+            );
+          }
         }
       };
       const runCase = ({ fileName, addedLine, withManualConfirmation, changedFilesOverride = "" }) => {
