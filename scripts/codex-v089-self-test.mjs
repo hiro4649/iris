@@ -3,6 +3,7 @@
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { buildBaselineHealthReport } from './codex-baseline-health-gate.mjs';
+import { classifyChange } from './codex-change-classification-gate.mjs';
 import { buildEvidenceContinuityReport } from './codex-evidence-continuity-gate.mjs';
 import { buildPrBodySurfaceNormalizerReport } from './codex-pr-body-surface-normalizer.mjs';
 import { buildSelfTestCaseExportReport } from './codex-self-test-case-export.mjs';
@@ -65,6 +66,10 @@ function prEnv(extra = {}) {
     CODEX_PR_HEAD_SHA: '1234567890abcdef1234567890abcdef12345678',
     ...extra,
   };
+}
+
+function hasReason(report, reasonCode) {
+  return (report.reasonCodes || []).includes(reasonCode);
 }
 
 function buildV089SelfTestReport() {
@@ -141,6 +146,58 @@ function buildV089SelfTestReport() {
 
   const markerStatus = oldMarkerFixture([{ path: 'scripts/codex-local-quality-gate.mjs', marker: `CODEX_QUALITY_HARNESS_FILE v${'0.8.8'}` }]);
   assertCase('old_harness_marker_source_managed_fails', markerStatus.status === 'fail' && markerStatus.reasonCodes.includes('old_source_marker_detected'), failures, cases, markerStatus.status, markerStatus.reasonCodes);
+
+  let classified = classifyChange(['scripts/dev-server.js'], prEnv());
+  assertCase(
+    'classification_dev_server_known_product_surface',
+    classified.status === 'pass' &&
+      classified.productRelevantChanged &&
+      classified.classification.productSourceChanged &&
+      !classified.classification.unknownRisk &&
+      !hasReason(classified, 'change_classification_unknown'),
+    failures,
+    cases,
+    classified.status,
+    classified.reasonCodes,
+  );
+
+  classified = classifyChange(['src/server/httpServer.js', 'scripts/dev-server.js', 'scripts/run-tests.js'], prEnv());
+  assertCase(
+    'classification_admin_control_pr103_file_set_passes',
+    classified.status === 'pass' &&
+      classified.productRelevantChanged &&
+      !classified.classification.unknownRisk &&
+      !hasReason(classified, 'classification_unknown_in_pr_context'),
+    failures,
+    cases,
+    classified.status,
+    classified.reasonCodes,
+  );
+
+  classified = classifyChange(['scripts/not-classified-random-entry.js'], prEnv());
+  assertCase(
+    'classification_unknown_script_still_fails',
+    classified.status === 'fail' &&
+      classified.classification.unknownRisk &&
+      hasReason(classified, 'change_classification_unknown'),
+    failures,
+    cases,
+    classified.status,
+    classified.reasonCodes,
+  );
+
+  classified = classifyChange(['scripts/codex-local-quality-gate.mjs'], prEnv());
+  assertCase(
+    'classification_codex_script_remains_harness_only',
+    classified.status === 'pass' &&
+      classified.classification.harnessOnly &&
+      !classified.productRelevantChanged &&
+      !classified.classification.unknownRisk,
+    failures,
+    cases,
+    classified.status,
+    classified.reasonCodes,
+  );
 
   const prBody = [
     'PR profile: harness_workflow_r3',
