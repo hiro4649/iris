@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v0.9.2
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { buildVersionLineageReport } from './codex-version-lineage-gate.mjs';
@@ -13,6 +15,9 @@ import { buildBestOfNDecisionReport } from './codex-best-of-n-decision-record.mj
 import { buildEnvironmentProfileReport } from './codex-environment-profile-gate.mjs';
 import { buildAgentsContextBudgetReport } from './codex-agents-context-budget-gate.mjs';
 import { buildEvidenceAutoRepairHintReport } from './codex-evidence-auto-repair-hint.mjs';
+import { classifyChange } from './codex-change-classification-gate.mjs';
+import { normalizeProductVerificationEvidence } from './codex-product-verification-evidence-normalize.mjs';
+import { buildRemoteProductBaselineReport } from './codex-remote-product-baseline-gate.mjs';
 
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   cases.push({ id, status: condition ? 'pass' : 'fail', expectedStatus: 'pass', actualStatus, reasonCodes, safeSummaryOnly: true });
@@ -28,6 +33,75 @@ function prEnv(extra = {}) {
     CODEX_REPOSITORY: 'owner/repo',
     ...extra,
   };
+}
+
+function remoteProductContextDecision(changedFiles, npmExitCode = 0) {
+  const env = prEnv({
+    CODEX_HARNESS_MODE: 'target',
+    CODEX_PROFILE_COMPAT_MODE: 'off',
+    CODEX_CHANGED_FILES: changedFiles.join(','),
+  });
+  const classified = classifyChange(changedFiles, env);
+  const c = classified.classification || {};
+  const productRequired = Boolean(
+    classified.productRelevantChanged ||
+    classified.packageOrLockfileChanged ||
+    c.runtimeReadinessClaimed ||
+    c.performanceClaimed
+  );
+  return {
+    productRequired,
+    skipNpm: productRequired ? '0' : '1',
+    evidencePathPresent: productRequired,
+    baselinePathPresent: productRequired,
+    productVerificationResult: npmExitCode === 0 ? 'pass' : 'fail',
+    forcedGateExit: productRequired && npmExitCode !== 0 ? 1 : 0,
+    safeSummaryOnly: true,
+  };
+}
+
+function writeSafeProductEvidence(tmpDir, result = 'pass') {
+  const evidencePath = path.join(tmpDir, 'codex-product-verification-evidence.safe.json');
+  const baselinePath = path.join(tmpDir, 'codex-remote-product-baseline.safe.json');
+  const command = {
+    name: 'npm test',
+    required: true,
+    result,
+    source: 'remote',
+    durationMs: null,
+    testCount: null,
+    safeSummary: result === 'pass' ? 'remote npm product verification passed' : 'remote npm product verification failed safely',
+  };
+  const evidence = {
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    repository: 'owner/repo',
+    prNumber: '92',
+    headSha: '1234567890abcdef1234567890abcdef12345678',
+    commands: [command],
+    npmExitCode: result === 'pass' ? 0 : 1,
+    rawValuesStored: false,
+    safeSummaryOnly: true,
+  };
+  const baseline = {
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    repository: 'owner/repo',
+    baseSha: 'abcdef1234567890abcdef1234567890abcdef12',
+    baselineType: 'product_verification',
+    commands: ['npm test'],
+    result,
+    date: new Date().toISOString(),
+    source: 'github_actions',
+    safeSummary: command.safeSummary,
+    knownFailures: result === 'pass' ? [] : ['remote_npm_test_failed'],
+    expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    rawValuesStored: false,
+    safeSummaryOnly: true,
+  };
+  fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
+  fs.writeFileSync(baselinePath, JSON.stringify(baseline, null, 2));
+  return { evidencePath, baselinePath, evidence, baseline };
 }
 
 function buildV092SelfTestReport() {
@@ -128,6 +202,49 @@ function buildV092SelfTestReport() {
 
   report = buildEvidenceAutoRepairHintReport({ expectedFieldName: 'Runtime readiness claimed', wouldWeakenGate: true });
   assertCase('evidence_auto_repair_hint_does_not_weaken_gate', report.evidenceAutoRepairHintStatus.status === 'fail', failures, cases, report.evidenceAutoRepairHintStatus.status, report.evidenceAutoRepairHintStatus.reasonCodes);
+
+  const pr112Files = ['docs/process/CODEX_HARNESS_MANIFEST.json', 'scripts/run-tests.js'];
+  const pr112Classification = classifyChange(pr112Files, prEnv({ CODEX_CHANGED_FILES: pr112Files.join(',') }));
+  assertCase('remote_product_context_pr112_like_run_tests_requires_evidence', pr112Classification.productRelevantChanged === true, failures, cases, pr112Classification.status, pr112Classification.reasonCodes);
+
+  let decision = remoteProductContextDecision(pr112Files, 0);
+  assertCase('remote_product_context_product_pr_unsets_skip_npm', decision.productRequired && decision.skipNpm === '0', failures, cases, decision.skipNpm, []);
+  assertCase('remote_product_context_product_pr_sets_evidence_path', decision.evidencePathPresent, failures, cases, 'missing', []);
+  assertCase('remote_product_context_product_pr_sets_baseline_path', decision.baselinePathPresent, failures, cases, 'missing', []);
+
+  decision = remoteProductContextDecision(['docs/process/CODEX_HARNESS_MANIFEST.json'], 0);
+  assertCase('remote_product_context_harness_only_allows_skip', !decision.productRequired && decision.skipNpm === '1', failures, cases, decision.skipNpm, []);
+
+  decision = remoteProductContextDecision(pr112Files, 1);
+  assertCase('remote_product_context_npm_failure_forces_gate_failure', decision.productVerificationResult === 'fail' && decision.forcedGateExit === 1, failures, cases, decision.productVerificationResult, []);
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v092-product-context-'));
+  try {
+    const safeEvidence = writeSafeProductEvidence(tmpDir, 'pass');
+    report = normalizeProductVerificationEvidence(prEnv({
+      CODEX_HARNESS_MODE: 'target',
+      CODEX_CHANGED_FILES: pr112Files.join(','),
+      CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: safeEvidence.evidencePath,
+      CODEX_REMOTE_PRODUCT_BASELINE_PATH: safeEvidence.baselinePath,
+      CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+      CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+      CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote',
+    }));
+    assertCase('remote_product_context_safe_evidence_normalizes_pass', report.status === 'pass' && report.normalized.commands.some((item) => item.source === 'remote'), failures, cases, report.status, report.reasonCodes);
+    const baselineReport = buildRemoteProductBaselineReport(prEnv({
+      CODEX_CHANGED_FILES: pr112Files.join(','),
+      CODEX_REMOTE_PRODUCT_BASELINE_PATH: safeEvidence.baselinePath,
+    }));
+    assertCase('remote_product_context_remote_baseline_path_passes', baselineReport.remoteProductBaselineStatus.status === 'pass', failures, cases, baselineReport.remoteProductBaselineStatus.status, baselineReport.remoteProductBaselineStatus.reasonCodes);
+    assertCase('remote_product_context_safe_evidence_has_no_unsafe_values', scanObjectForUnsafe(safeEvidence.evidence).length === 0 && scanObjectForUnsafe(safeEvidence.baseline).length === 0, failures, cases, 'unsafe', ['unsafe_output_detected']);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  const workflowText = fs.readFileSync('.github/workflows/quality-gate.yml', 'utf8');
+  assertCase('remote_product_context_workflow_exports_required_paths', /Prepare remote product verification context/.test(workflowText) && /CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH/.test(workflowText) && /CODEX_REMOTE_PRODUCT_BASELINE_PATH/.test(workflowText), failures, cases, 'missing', []);
+  assertCase('remote_product_context_workflow_forces_failed_npm_gate_exit', /CODEX_PRODUCT_VERIFICATION_RESULT:-/.test(workflowText) && /gate_exit=1/.test(workflowText), failures, cases, 'missing', []);
+  assertCase('remote_product_context_workflow_uploads_no_raw_npm_log', !/npm[^\n]*(raw|log|output)/i.test(workflowText.split('Upload safe quality artifacts')[1] || ''), failures, cases, 'raw_log_upload', ['unsafe_output_detected']);
 
   report = renderPrEvidenceBlocks({
     repository: 'owner/repo',
