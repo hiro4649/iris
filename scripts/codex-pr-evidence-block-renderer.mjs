@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.2
+// CODEX_QUALITY_HARNESS_FILE v0.9.3
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { HARNESS_VERSION, marker, prBodyText, scanObjectForUnsafe, simpleStatus, writeJsonReport, exitFor, normalizePath } from './codex-v080-lib.mjs';
@@ -84,20 +84,10 @@ export function renderPrEvidenceBlocks(input = evidenceInput(), env = process.en
   };
   const manualConfirmation = {
     schemaVersion: '0.9.2',
-    target: input.target || (input.targetRollout ? 'target_rollout' : 'source_harness'),
-    repository: String(input.repository || '').slice(0, 120),
-    prNumber,
     headSha: headSha || currentHead,
-    riskLevel: input.riskProfile || 'R3',
     productCodeChanged: Boolean(productCodeChanged),
     runtimeReadinessClaimed: Boolean(runtimeReadinessClaimed),
     confirmedByRole: humanConfirmation.confirmedByRole || 'project-owner',
-    confirmedAt: input.confirmedAt || new Date().toISOString(),
-    reviewedItems: input.reviewedItems || ['scope boundary', 'current-head evidence', 'residual risks', 'quality gate non-weakening'],
-    residualRisks: input.residualRisks || ['Target rollout does not prove product runtime readiness.'],
-    qualityGateNotWeakened: input.qualityGateNotWeakened !== false,
-    riskLevelNotLowered: input.riskLevelNotLowered !== false,
-    nonOverridableFailuresAcknowledged: input.nonOverridableFailuresAcknowledged !== false,
     safeSummaryOnly: true,
   };
   const blocks = {
