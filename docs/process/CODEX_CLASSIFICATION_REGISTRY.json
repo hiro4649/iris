@@ -19,7 +19,7 @@
       "risk": "R3",
       "requiresProductVerification": true,
       "allowsFastPath": false,
-      "notes": "Target-specific test runner script; not a Codex harness script."
+      "notes": "Repository npm test runner and product-relevant test surface; not a Codex harness script."
     },
     {
       "pathPattern": "docs/process/**",
@@ -29,6 +29,15 @@
       "requiresProductVerification": false,
       "allowsFastPath": false,
       "notes": "Harness policies, schemas, fixtures, and knowledge map."
+    },
+    {
+      "pathPattern": "docs/iris/**",
+      "classification": "docs",
+      "surface": "spec",
+      "risk": "R3",
+      "requiresProductVerification": false,
+      "allowsFastPath": false,
+      "notes": "IRIS product/specification documents. Runtime behavior is unchanged, but safety/spec changes require explicit review."
     },
     {
       "pathPattern": "docs/codex/**",
