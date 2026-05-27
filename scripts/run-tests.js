@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
 import {
   assertProductionAttentionDigestSafe,
   createProductionAttentionDigestReport,
@@ -1303,6 +1304,23 @@ function createApprovedRelationshipRecordFixture(overrides = {}) {
     committed_at_ms: committedAtMs,
     ...overrides,
   };
+}
+
+function runModuleWorker(source, workerData) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      new URL(`data:text/javascript,${encodeURIComponent(source)}`),
+      { type: "module", workerData }
+    );
+    worker.once("message", (message) => {
+      if (message?.ok === true) resolve(message);
+      else reject(new Error("worker_failed_safely"));
+    });
+    worker.once("error", () => reject(new Error("worker_failed_safely")));
+    worker.once("exit", (code) => {
+      if (code !== 0) reject(new Error("worker_failed_safely"));
+    });
+  });
 }
 
 function createSafeReviewItem({
@@ -6789,6 +6807,220 @@ const tests = [
         );
         assert.equal(
           readdirSync(relationshipDir).some((name) => name.includes(".tmp-")),
+          false
+        );
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  ],
+  [
+    "JSON memory and relationship stores preserve concurrent fixture writes safely",
+    async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "iris-json-store-concurrency-"));
+      try {
+        const memoryPath = join(tempDir, "memory.json");
+        const relationshipPath = join(tempDir, "relationship.json");
+        const memoryModuleUrl = pathToFileURL(
+          join(process.cwd(), "src", "services", "persistence", "jsonMemoryStore.js")
+        ).href;
+        const relationshipModuleUrl = pathToFileURL(
+          join(process.cwd(), "src", "services", "persistence", "jsonRelationshipStore.js")
+        ).href;
+        const workerCount = 8;
+        const memoryWorkerSource = `
+          import { parentPort, workerData } from "node:worker_threads";
+          import { createJsonMemoryStore } from ${JSON.stringify(memoryModuleUrl)};
+          try {
+            const index = workerData.index;
+            createJsonMemoryStore(workerData.filePath).append({
+              schema: "approved_memory_record",
+              approved: true,
+              trace_id: "concurrent-memory-trace-" + index,
+              event_id: "concurrent-memory-" + index,
+              memory_id: "concurrent-memory-" + index,
+              store: "long_term_memory",
+              summary: "Concurrent memory safe summary " + index,
+              memory_type: "stream_experience",
+              owner_scope: "viewer",
+              source_phase: "phase26",
+              source_candidate_kind: "memory_carryover_candidate",
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot-concurrent-memory-" + index,
+              rollback_pointer_id: "rollback-concurrent-memory-" + index,
+              moderation_precheck_status: "allowed",
+              committed_at_ms: 1000 + index
+            });
+            parentPort.postMessage({ ok: true });
+          } catch {
+            parentPort.postMessage({ ok: false });
+          }
+        `;
+        const relationshipWorkerSource = `
+          import { parentPort, workerData } from "node:worker_threads";
+          import { createJsonRelationshipStore } from ${JSON.stringify(relationshipModuleUrl)};
+          try {
+            const index = workerData.index;
+            createJsonRelationshipStore(workerData.filePath).upsertApproved({
+              schema: "approved_relationship_record",
+              approved: true,
+              trace_id: "concurrent-relationship-trace-" + index,
+              event_id: "concurrent-relationship-" + index,
+              linked_identity_id: "viewer:concurrent-" + index,
+              display_name: "Concurrent Viewer " + index,
+              store: "relationship_memory",
+              affinity_delta: 0.05,
+              familiarity_delta: 0.05,
+              topic_key: "json_store_concurrency",
+              summary: "Concurrent relationship safe summary " + index,
+              source_phase: "phase20",
+              source_candidate_kind: "relationship_deepening",
+              audit_status: "approved",
+              commit_snapshot_id: "snapshot-concurrent-relationship-" + index,
+              rollback_pointer_id: "rollback-concurrent-relationship-" + index,
+              moderation_precheck_status: "allowed",
+              committed_at_ms: 2000 + index
+            });
+            parentPort.postMessage({ ok: true });
+          } catch {
+            parentPort.postMessage({ ok: false });
+          }
+        `;
+
+        await Promise.all([
+          ...Array.from({ length: workerCount }, (_, index) =>
+            runModuleWorker(memoryWorkerSource, { filePath: memoryPath, index })
+          ),
+          ...Array.from({ length: workerCount }, (_, index) =>
+            runModuleWorker(relationshipWorkerSource, { filePath: relationshipPath, index })
+          ),
+        ]);
+
+        const memoryStore = createJsonMemoryStore(memoryPath);
+        const relationshipStore = createJsonRelationshipStore(relationshipPath);
+        const memoryRecords = memoryStore.list();
+        const relationshipProfiles = relationshipStore.listProfiles();
+
+        assert.equal(memoryRecords.length, workerCount);
+        assert.deepEqual(
+          memoryRecords.map((record) => record.memory_id).sort(),
+          Array.from({ length: workerCount }, (_, index) => `concurrent-memory-${index}`)
+        );
+        assert.equal(relationshipProfiles.length, workerCount);
+        assert.deepEqual(
+          relationshipProfiles
+            .map((profile) => profile.linked_identity_id)
+            .sort(),
+          Array.from({ length: workerCount }, (_, index) => `viewer:concurrent-${index}`)
+        );
+        assert.equal(
+          readdirSync(tempDir).some((name) => name.includes(".tmp-") || name.endsWith(".lock")),
+          false
+        );
+        assertJsonMemoryStoreStatusSafe(memoryStore.status());
+        assertJsonRelationshipStoreStatusSafe(relationshipStore.status());
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  ],
+  [
+    "JSON memory and relationship stores reject corrupt JSON safely without leaking values",
+    async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "iris-json-store-corrupt-safe-"));
+      try {
+        const memoryPath = join(tempDir, "memory.json");
+        const relationshipPath = join(tempDir, "relationship.json");
+        const memoryStore = createJsonMemoryStore(memoryPath);
+        const relationshipStore = createJsonRelationshipStore(relationshipPath);
+        const unsafeMarkers = [
+          "leak-marker-memory-token",
+          "leak-marker-endpoint",
+          "leak-marker-private-location",
+          "leak-marker-world_command",
+          "leak-marker-input_action_candidate",
+          "leak-marker-raw-payload",
+        ];
+
+        writeFileSync(
+          memoryPath,
+          `{ broken memory json ${unsafeMarkers.join(" ")} `,
+          "utf8"
+        );
+        writeFileSync(
+          relationshipPath,
+          `{ broken relationship json ${unsafeMarkers.join(" ")} `,
+          "utf8"
+        );
+
+        assert.throws(
+          () =>
+            memoryStore.append(createApprovedMemoryRecordFixture({
+              event_id: "corrupt-memory-write",
+              source_phase: "phase26",
+              source_candidate_kind: "memory_carryover_candidate",
+              summary: "Corrupt memory write should fail safely.",
+              committed_at_ms: 3000,
+            })),
+          SyntaxError
+        );
+        assert.throws(
+          () =>
+            relationshipStore.upsertApproved(createApprovedRelationshipRecordFixture({
+              event_id: "corrupt-relationship-write",
+              linked_identity_id: "viewer:corrupt-write",
+              display_name: "Corrupt Write Viewer",
+              topic_key: "corrupt_json_write",
+              summary: "Corrupt relationship write should fail safely.",
+              committed_at_ms: 3000,
+            })),
+          SyntaxError
+        );
+
+        const memoryStatus = memoryStore.status();
+        const relationshipStatus = relationshipStore.status();
+        const serialized = JSON.stringify({ memoryStatus, relationshipStatus });
+
+        assert.equal(memoryStatus.health, "attention");
+        assert.equal(memoryStatus.read_error, true);
+        assert.equal(memoryStatus.error_kind, "store_parse_failed");
+        assert.equal(memoryStatus.record_count, 0);
+        assert.equal(memoryStatus.persistence_operation_status.operation_health, "attention");
+        assert.equal(memoryStatus.persistence_operation_status.attempt_count, 1);
+        assert.equal(memoryStatus.persistence_operation_status.success_count, 0);
+        assert.equal(memoryStatus.persistence_operation_status.error_count, 1);
+        assert.equal(memoryStatus.persistence_operation_status.last_error_kind, "store_parse_failed");
+        assert.equal(memoryStatus.durability.recovered_from_backup, false);
+        assert.equal(memoryStatus.durability.primary_read_error, true);
+        assert.equal(memoryStatus.durability.primary_error_kind, "store_parse_failed");
+        assert.equal(relationshipStatus.health, "attention");
+        assert.equal(relationshipStatus.read_error, true);
+        assert.equal(relationshipStatus.error_kind, "store_parse_failed");
+        assert.equal(relationshipStatus.profile_count, 0);
+        assert.equal(
+          relationshipStatus.persistence_operation_status.operation_health,
+          "attention"
+        );
+        assert.equal(relationshipStatus.persistence_operation_status.attempt_count, 1);
+        assert.equal(relationshipStatus.persistence_operation_status.success_count, 0);
+        assert.equal(relationshipStatus.persistence_operation_status.error_count, 1);
+        assert.equal(
+          relationshipStatus.persistence_operation_status.last_error_kind,
+          "store_parse_failed"
+        );
+        assert.equal(relationshipStatus.durability.recovered_from_backup, false);
+        assert.equal(relationshipStatus.durability.primary_read_error, true);
+        assert.equal(relationshipStatus.durability.primary_error_kind, "store_parse_failed");
+        assertJsonMemoryStoreStatusSafe(memoryStatus);
+        assertJsonRelationshipStoreStatusSafe(relationshipStatus);
+        for (const marker of unsafeMarkers) {
+          assert.equal(serialized.includes(marker), false);
+        }
+        assert.equal(serialized.includes(tempDir), false);
+        assert.equal(serialized.includes(memoryPath), false);
+        assert.equal(serialized.includes(relationshipPath), false);
+        assert.equal(
+          readdirSync(tempDir).some((name) => name.includes(".tmp-") || name.endsWith(".lock")),
           false
         );
       } finally {

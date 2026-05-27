@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { assertCandidateNotExecutable, ContractError } from "../../core/contracts.js";
 import { inferSensitivityLevel, redactSensitiveText } from "../safety/privacyGuards.js";
 import { classifyStoreReadError } from "./storeStatusErrors.js";
+import { withJsonStoreWriteLock, writeJsonFileAtomic } from "./jsonStoreWriteSafety.js";
 
 const FORBIDDEN_MEMORY_PUBLIC_FIELDS = new Set([
   "world_command",
@@ -109,9 +110,11 @@ export function createJsonMemoryStore(
       assertApprovedMemoryRecordShape(record, "JSON memory store append");
       markPersistenceOperationAttempt(persistenceOperation);
       try {
-        const existing = readRecordsWithRecovery(filePath).records;
-        const records = applyRetention([...existing, record], retention);
-        writeRecords(filePath, records, backupWriteOperation);
+        withJsonStoreWriteLock(filePath, () => {
+          const existing = readRecordsWithRecovery(filePath).records;
+          const records = applyRetention([...existing, record], retention);
+          writeRecords(filePath, records, backupWriteOperation);
+        });
         markPersistenceOperationSuccess(persistenceOperation);
         return record;
       } catch (error) {
@@ -574,9 +577,7 @@ function latestRecordTime(records) {
 }
 
 function writeJsonAtomic(filePath, value) {
-  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(tempPath, filePath);
+  writeJsonFileAtomic(filePath, value);
 }
 
 function assertApprovedMemoryRecordShape(record, context) {
