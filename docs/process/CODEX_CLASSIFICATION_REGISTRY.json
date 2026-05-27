@@ -40,6 +40,15 @@
       "notes": "Harness usage docs."
     },
     {
+      "pathPattern": "docs/iris/**",
+      "classification": "docs",
+      "surface": "spec",
+      "risk": "R3",
+      "requiresProductVerification": false,
+      "allowsFastPath": false,
+      "notes": "IRIS product/specification documents. Runtime behavior is unchanged, but safety/spec changes require explicit review."
+    },
+    {
       "pathPattern": ".github/workflows/**",
       "classification": "workflow",
       "surface": "workflow",
