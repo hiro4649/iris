@@ -73446,10 +73446,105 @@ const tests = [
         const invalidJsonBody = await invalidJson.json();
         const serializedInvalidJsonBody = JSON.stringify(invalidJsonBody);
         assert.equal(invalidJson.status, 400);
-        assert.equal(invalidJsonBody.error, "invalid_json");
+        assert.equal(invalidJsonBody.error, "request_payload_invalid");
         assert.equal(invalidJsonBody.boundary_policy.no_request_payloads, true);
         assert.equal(serializedInvalidJsonBody.includes("http_secret_token"), false);
         assert.equal(serializedInvalidJsonBody.includes("Unexpected token"), false);
+
+        const oversizedPayloadMarker = "oversized_http_secret_token";
+        const oversizedBody = JSON.stringify({
+          text: "x".repeat(70_000),
+          authorization: `Bearer ${oversizedPayloadMarker}`,
+          endpoint: "http://unsafe.example/ingest",
+          private_path: "C:\\private\\iris\\payload.json",
+          world_command: "press_w",
+          input_action_candidate: { execute: "press_w" },
+        });
+        const oversized = await fetch(`${baseUrl}/comment`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${oversizedPayloadMarker}`,
+          },
+          body: oversizedBody,
+        });
+        const oversizedBodyJson = await oversized.json();
+        const serializedOversizedBody = JSON.stringify(oversizedBodyJson);
+        assert.equal(oversized.status, 413);
+        assert.equal(oversizedBodyJson.error, "request_body_too_large");
+        assert.equal(oversizedBodyJson.boundary_policy.no_request_payloads, true);
+        assert.equal(oversizedBodyJson.boundary_policy.no_raw_headers, true);
+        assert.equal(
+          oversizedBodyJson.boundary_policy.no_authorization_values,
+          true
+        );
+        assert.equal(serializedOversizedBody.includes(oversizedPayloadMarker), false);
+        assert.equal(serializedOversizedBody.includes("Authorization"), false);
+        assert.equal(serializedOversizedBody.includes("http://unsafe.example"), false);
+        assert.equal(serializedOversizedBody.includes("C:\\private\\iris"), false);
+        assert.equal(serializedOversizedBody.includes("world_command"), false);
+        assert.equal(serializedOversizedBody.includes("input_action_candidate"), false);
+        assert.equal(serializedOversizedBody.includes("press_w"), false);
+
+        const pressureServer = createIrisHttpServer({
+          runtime,
+          streamState,
+          maxActivePressureRequests: 0,
+          env: { IRIS_ADMIN_API_TOKEN: adminToken },
+          logger: { error() {} },
+        });
+        const pressureAddress = await listen(pressureServer, {
+          port: 0,
+          host: "127.0.0.1",
+        });
+        const pressureBaseUrl = `http://${pressureAddress.address}:${pressureAddress.port}`;
+        try {
+          const overloaded = await fetch(`${pressureBaseUrl}/comment`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: "Bearer overload-secret-token",
+            },
+            body: JSON.stringify({
+              text: "IRIS, overload fixture",
+              token: "overload-secret-token",
+              endpoint: "http://unsafe.example/pressure",
+              private_path: "C:\\private\\iris\\pressure.json",
+              world_command: "press_w",
+              candidate: "unsafe_candidate_payload",
+            }),
+          });
+          const overloadedBody = await overloaded.json();
+          const serializedOverloadedBody = JSON.stringify(overloadedBody);
+          assert.equal(overloaded.status, 503);
+          assert.equal(overloadedBody.error, "server_pressure_overload");
+          assert.equal(
+            overloadedBody.request_pressure.schema,
+            "iris_http_request_pressure_v1"
+          );
+          assert.equal(overloadedBody.request_pressure.status, "overloaded");
+          assert.equal(overloadedBody.request_pressure.active_request_count, 0);
+          assert.equal(overloadedBody.request_pressure.max_active_request_count, 0);
+          assert.equal(overloadedBody.request_pressure.queue_depth, 0);
+          assert.equal(overloadedBody.request_pressure.rejected_safely, true);
+          assert.equal(overloadedBody.boundary_policy.safe_counters_only, true);
+          assert.equal(serializedOverloadedBody.includes("overload-secret-token"), false);
+          assert.equal(serializedOverloadedBody.includes("Authorization"), false);
+          assert.equal(serializedOverloadedBody.includes("http://unsafe.example"), false);
+          assert.equal(serializedOverloadedBody.includes("C:\\private\\iris"), false);
+          assert.equal(serializedOverloadedBody.includes("world_command"), false);
+          assert.equal(serializedOverloadedBody.includes("unsafe_candidate_payload"), false);
+          assert.equal(serializedOverloadedBody.includes("press_w"), false);
+
+          const protectedWithoutAuth = await fetch(`${pressureBaseUrl}/idle/start`, {
+            method: "POST",
+          });
+          const protectedWithoutAuthBody = await protectedWithoutAuth.json();
+          assert.equal(protectedWithoutAuth.status, 401);
+          assert.equal(protectedWithoutAuthBody.error, "admin_auth_required");
+        } finally {
+          await closeServer(pressureServer);
+        }
       } finally {
         idleScheduler.stop();
         httpIngestScheduler.stop();
