@@ -19,6 +19,7 @@ CODEX_QUALITY_HARNESS_FILE v0.9.2
 ## Codex Target Harness Boundary
 
 Source harness boundary: this target repository consumes Codex Development Harness v0.9.2 through docs/process/CODEX_HARNESS_MANIFEST.json, not CODEX_SOURCE_HARNESS_MANIFEST.json.
+Method reference: use docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md and docs/process/code_review.md for Codex method and review evidence expectations.
 Plan-first: use a short plan for R3, workflow, product-relevant, security, release, or ambiguous changes before editing.
 Safe output: reports and artifacts must be safe-summary only. Do not print raw logs, raw diffs, raw payloads, raw PR body, comments, endpoint values, private paths, production data, personal data, tokens, or secrets.
 Merge-ready claim: do not claim merge readiness unless the current target gate, evidence, and required confirmations all support it.
@@ -35,11 +36,11 @@ Current target-mode requirements:
 - allow CODEX_SKIP_NPM=1 only when change classification and product verification policy allow it;
 - require product verification when product-relevant files, package files, runtime readiness claims, or performance claims are present.
 
-v0.9.2 preserves v0.8.9 safety and adds Remote Parity, Classification Registry, and Artifact Lifeboat:
+v0.9.2 preserves v0.9.0 remote reliability and adds Security Lifecycle, Evidence Automation, and Review Independence:
 - pre-checkout safe artifact lifeboat and no-artifact failure classification;
 - registry-backed classification coverage and remote/local parity checks;
 - PR template compiler hints and gate decision trace;
-- v090 self-test.
+- version lineage, PR evidence rendering, safe artifact classification, security lifecycle, review independence, task brief compiler, environment profile, AGENTS context budget, evidence repair hints, and v092 self-test.
 
 Do not add Agentmemory, Hermes runtime, GEPA, DSPy, MCP, SQLite memory, LLM judge, hidden chain-of-thought inspection, automatic skill rewriting, auto commit, auto push, or prompt auto-apply as part of this harness block.
 Do not treat targetQualityScoreStatus or a passing harness gate as product runtime readiness.
