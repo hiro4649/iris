@@ -12,6 +12,7 @@ import { buildBestOfNDecisionReport } from './codex-best-of-n-decision-record.mj
 import { buildEnvironmentProfileReport } from './codex-environment-profile-gate.mjs';
 import { buildAgentsContextBudgetReport } from './codex-agents-context-budget-gate.mjs';
 import { buildEvidenceAutoRepairHintReport } from './codex-evidence-auto-repair-hint.mjs';
+import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
 
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   cases.push({ id, status: condition ? 'pass' : 'fail', expectedStatus: 'pass', actualStatus, reasonCodes, safeSummaryOnly: true });
@@ -27,6 +28,41 @@ function prEnv(extra = {}) {
     CODEX_REPOSITORY: 'owner/repo',
     ...extra,
   };
+}
+
+const productR3Body = `PR profile: product_r3
+
+Risk level: R3
+
+Goal:
+Fix product-relevant harness fixture.
+
+Product verification:
+npm test PASS.
+
+Affected entrypoints:
+scripts/run-tests.js test surface only.
+
+Failure paths considered:
+profile inference drift.
+
+Residual risks:
+Runtime readiness claimed: no.
+
+Human confirmation needed:
+yes.`;
+
+function prProfileEnv(extra = {}) {
+  return prEnv({
+    CODEX_CHANGED_FILES: [
+      'docs/process/CODEX_CLASSIFICATION_REGISTRY.json',
+      'docs/process/CODEX_HARNESS_MANIFEST.json',
+      'scripts/codex-v085-self-test.mjs',
+      'scripts/run-tests.js',
+    ].join('\n'),
+    CODEX_PR_BODY: productR3Body,
+    ...extra,
+  });
 }
 
 function buildV092SelfTestReport() {
@@ -127,6 +163,41 @@ function buildV092SelfTestReport() {
 
   report = buildEvidenceAutoRepairHintReport({ expectedFieldName: 'Runtime readiness claimed', wouldWeakenGate: true });
   assertCase('evidence_auto_repair_hint_does_not_weaken_gate', report.evidenceAutoRepairHintStatus.status === 'fail', failures, cases, report.evidenceAutoRepairHintStatus.status, report.evidenceAutoRepairHintStatus.reasonCodes);
+
+  report = buildPrProfileReport(prProfileEnv({
+    CODEX_PR_BODY: productR3Body.replace('PR profile: product_r3\n\n', ''),
+  }));
+  assertCase('pr_profile_body_r3_product_relevant_infers_product_r3', report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prProfileEnv({
+    CODEX_PR_BODY: productR3Body.replace('Risk level: R3', 'Risk level: R2'),
+  }));
+  assertCase('pr_profile_body_r2_declared_product_r3_conflicts', report.prProfileStatus.status === 'warning' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prProfileEnv({
+    CODEX_RISK_LEVEL: 'R3',
+    CODEX_PR_BODY: productR3Body.replace('Risk level: R3', 'Risk level: R2'),
+  }));
+  assertCase('pr_profile_env_risk_overrides_body_risk', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prEnv({
+    CODEX_CHANGED_FILES: '.github/workflows/quality-gate.yml',
+    CODEX_PR_BODY: 'Goal:\nHarness workflow repair.\n\nRisk level:\nR3\n\nFiles or scope:\nworkflow only.\n\nEvidence Integrity:\ncurrent head.\n\nValidation commands:\nself-test PASS.\n\nResidual risks:\nnone.\n\nHuman confirmation needed:\nyes.',
+  }));
+  assertCase('pr_profile_harness_workflow_r3_still_infers', report.prProfileStatus.inferredProfile === 'harness_workflow_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prProfileEnv({
+    CODEX_PR_BODY: productR3Body.replace('Risk level: R3', 'Risk level: high'),
+  }));
+  assertCase('pr_profile_invalid_body_risk_does_not_infer_r3', report.prProfileStatus.inferredProfile !== 'product_r3' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prProfileEnv());
+  assertCase('pr_profile_pr112_like_body_r3_product_r3_passes', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport(prProfileEnv({
+    CODEX_PR_BODY: productR3Body.replace(/\nAffected entrypoints:[\s\S]*?\nFailure paths considered:/, '\nFailure paths considered:'),
+  }));
+  assertCase('pr_profile_product_r3_required_sections_remain_enforced', report.prProfileStatus.status === 'fail' && report.prProfileStatus.reasonCodes.includes('missing_required_method_sections'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
 
   report = renderPrEvidenceBlocks({
     repository: 'owner/repo',
