@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { assertCandidateNotExecutable, ContractError } from "../../core/contracts.js";
 import { inferSensitivityLevel, redactSensitiveText } from "../safety/privacyGuards.js";
 import { classifyStoreReadError } from "./storeStatusErrors.js";
+import { withJsonStoreWriteLock, writeJsonFileAtomic } from "./jsonStoreWriteSafety.js";
 
 const STORE_SCHEMA = "iris_relationship_store_v1";
 const UNSAFE_PUBLIC_RELATIONSHIP_TEXT_PATTERN =
@@ -154,38 +155,40 @@ export function createJsonRelationshipStore(
       assertApprovedRelationshipRecordShape(record, "JSON relationship store upsert");
       markPersistenceOperationAttempt(persistenceOperation);
       try {
-        const state = readStateWithRecovery(filePath).state;
-        const existing = state.profiles[record.linked_identity_id] ?? createEmptyProfile(record);
-        const recordKey = relationshipRecordKey(record);
-        const committedRecordKeys = Array.isArray(existing.committed_record_keys)
-          ? existing.committed_record_keys
-          : [];
-        if (recordKey && committedRecordKeys.includes(recordKey)) {
-          markPersistenceOperationSuccess(persistenceOperation);
-          return {
+        return withJsonStoreWriteLock(filePath, () => {
+          const state = readStateWithRecovery(filePath).state;
+          const existing = state.profiles[record.linked_identity_id] ?? createEmptyProfile(record);
+          const recordKey = relationshipRecordKey(record);
+          const committedRecordKeys = Array.isArray(existing.committed_record_keys)
+            ? existing.committed_record_keys
+            : [];
+          if (recordKey && committedRecordKeys.includes(recordKey)) {
+            markPersistenceOperationSuccess(persistenceOperation);
+            return {
+              ...existing,
+              committed_record_keys: committedRecordKeys,
+              duplicate_record_ignored: true,
+            };
+          }
+          const updated = {
             ...existing,
-            committed_record_keys: committedRecordKeys,
-            duplicate_record_ignored: true,
+            display_name: record.display_name ?? existing.display_name,
+            affinity_score: clamp01(existing.affinity_score + record.affinity_delta),
+            familiarity_score: clamp01(existing.familiarity_score + record.familiarity_delta),
+            interaction_count: existing.interaction_count + 1,
+            last_interaction_at_ms: record.committed_at_ms,
+            recent_summaries: [...existing.recent_summaries, record.summary]
+              .filter(Boolean)
+              .slice(-retention.recentSummaryLimit),
+            committed_record_keys: recordKey
+              ? [...committedRecordKeys, recordKey].slice(-retention.maxProfiles)
+              : committedRecordKeys,
           };
-        }
-        const updated = {
-          ...existing,
-          display_name: record.display_name ?? existing.display_name,
-          affinity_score: clamp01(existing.affinity_score + record.affinity_delta),
-          familiarity_score: clamp01(existing.familiarity_score + record.familiarity_delta),
-          interaction_count: existing.interaction_count + 1,
-          last_interaction_at_ms: record.committed_at_ms,
-          recent_summaries: [...existing.recent_summaries, record.summary]
-            .filter(Boolean)
-            .slice(-retention.recentSummaryLimit),
-          committed_record_keys: recordKey
-            ? [...committedRecordKeys, recordKey].slice(-retention.maxProfiles)
-            : committedRecordKeys,
-        };
-        state.profiles[record.linked_identity_id] = updated;
-        writeState(filePath, applyProfileRetention(state, retention), backupWriteOperation);
-        markPersistenceOperationSuccess(persistenceOperation);
-        return updated;
+          state.profiles[record.linked_identity_id] = updated;
+          writeState(filePath, applyProfileRetention(state, retention), backupWriteOperation);
+          markPersistenceOperationSuccess(persistenceOperation);
+          return updated;
+        });
       } catch (error) {
         markPersistenceOperationError(persistenceOperation, error);
         throw error;
@@ -838,9 +841,7 @@ function applyProfileRetention(state, { maxProfiles }) {
 }
 
 function writeJsonAtomic(filePath, value) {
-  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(tempPath, filePath);
+  writeJsonFileAtomic(filePath, value);
 }
 
 function clamp01(value) {

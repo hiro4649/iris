@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { ContractError } from "../../core/contracts.js";
 import { classifyStoreReadError } from "./storeStatusErrors.js";
+import { withJsonStoreWriteLock, writeJsonFileAtomic } from "./jsonStoreWriteSafety.js";
 
 const STORE_SCHEMA = "iris_operator_policy_audit_log_v1";
 const ENTRY_SCHEMA = "iris_operator_policy_audit_entry_v1";
@@ -119,9 +120,11 @@ export function createJsonOperatorPolicyAuditLog(filePath, { maxEntries = 5000 }
     filePath,
     append(entry) {
       assertOperatorPolicyAuditEntrySafe(entry, "operator policy audit append");
-      const entries = readEntriesWithRecovery(filePath).entries;
-      const next = [...entries, entry].slice(-retention.maxEntries);
-      writeEntries(filePath, next);
+      withJsonStoreWriteLock(filePath, () => {
+        const entries = readEntriesWithRecovery(filePath).entries;
+        const next = [...entries, entry].slice(-retention.maxEntries);
+        writeEntries(filePath, next);
+      });
       return sanitizeOperatorPolicyAuditEntryForPublicState(entry);
     },
     listEntries() {
@@ -528,11 +531,9 @@ function parseEntries(raw) {
 
 function writeEntries(filePath, entries) {
   mkdirSync(dirname(filePath), { recursive: true });
-  const payload = JSON.stringify({ schema: STORE_SCHEMA, entries }, null, 2);
-  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmpPath, payload);
-  renameSync(tmpPath, filePath);
-  writeFileSync(`${filePath}.bak`, payload);
+  const state = { schema: STORE_SCHEMA, entries };
+  writeJsonFileAtomic(filePath, state);
+  writeJsonFileAtomic(`${filePath}.bak`, state);
 }
 
 function countDecisions(entries) {

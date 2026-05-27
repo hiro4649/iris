@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { ContractError } from "../../core/contracts.js";
 import { classifyStoreReadError } from "./storeStatusErrors.js";
+import { withJsonStoreWriteLock, writeJsonFileAtomic } from "./jsonStoreWriteSafety.js";
 
 const STORE_SCHEMA = "iris_operator_policy_store_v1";
 const APPROVED_RECORD_SCHEMA = "approved_operator_policy_record";
@@ -97,9 +98,11 @@ export function createJsonOperatorPolicyStore(
     },
     upsertApproved(record) {
       assertApprovedOperatorPolicyRecordSafe(record, "JSON operator policy store upsert");
-      const existing = readRecordsWithRecovery(filePath).records;
-      const nextRecords = upsertRecord(existing, record).slice(-retention.maxRecords);
-      writeRecords(filePath, nextRecords);
+      withJsonStoreWriteLock(filePath, () => {
+        const existing = readRecordsWithRecovery(filePath).records;
+        const nextRecords = upsertRecord(existing, record).slice(-retention.maxRecords);
+        writeRecords(filePath, nextRecords);
+      });
       return sanitizeOperatorPolicyRecordForPublicState(record);
     },
     status() {
@@ -351,11 +354,9 @@ function parseRecords(raw) {
 
 function writeRecords(filePath, records) {
   mkdirSync(dirname(filePath), { recursive: true });
-  const payload = JSON.stringify({ schema: STORE_SCHEMA, records }, null, 2);
-  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmpPath, payload);
-  renameSync(tmpPath, filePath);
-  writeFileSync(`${filePath}.bak`, payload);
+  const state = { schema: STORE_SCHEMA, records };
+  writeJsonFileAtomic(filePath, state);
+  writeJsonFileAtomic(`${filePath}.bak`, state);
 }
 
 function clonePolicyConfig(value) {
