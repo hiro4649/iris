@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.3
+// CODEX_QUALITY_HARNESS_FILE v0.9.4
 import { fileURLToPath } from 'node:url';
 import { HARNESS_VERSION, marker, isPrContext, prBodyText, simpleStatus, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { classifyChange, changedFiles } from './codex-change-classification-gate.mjs';
@@ -15,28 +15,9 @@ const profiles = {
   readiness_claim_r3: ['Goal', 'Risk level', 'Readiness claim', 'Environment evidence', 'Residual risks', 'Human confirmation needed'],
 };
 
-const riskLevels = new Set(['R1', 'R2', 'R3', 'R4']);
-
 function declaredProfile(body) {
   const match = String(body || '').match(/(?:PR profile|Profile)\s*:\s*([a-z0-9_]+)/i);
   return match ? match[1] : null;
-}
-
-function normalizeRiskLevel(value) {
-  const normalized = String(value || '').trim().toUpperCase();
-  return riskLevels.has(normalized) ? normalized : '';
-}
-
-function bodyRiskLevel(body) {
-  const match = String(body || '').match(/^\s*Risk level\s*:\s*(?:\r?\n\s*)?(R[1-4])\s*$/im);
-  return match ? normalizeRiskLevel(match[1]) : '';
-}
-
-function inferredRiskLevel(env = process.env, body = prBodyText(env)) {
-  if (env.CODEX_RISK_LEVEL !== undefined && String(env.CODEX_RISK_LEVEL).trim() !== '') {
-    return normalizeRiskLevel(env.CODEX_RISK_LEVEL);
-  }
-  return bodyRiskLevel(body);
 }
 
 function sectionPresent(body, section) {
@@ -62,14 +43,13 @@ function inferProfile(env = process.env) {
   const files = changedFiles(env);
   const classified = classifyChange(files, env);
   const c = classified.classification;
-  const riskLevel = inferredRiskLevel(env);
   if (c.runtimeReadinessClaimed) return 'readiness_claim_r3';
-  if (classified.productRelevantChanged) return riskLevel === 'R3' ? 'product_r3' : 'product_minor_r2';
+  if (classified.productRelevantChanged) return env.CODEX_RISK_LEVEL === 'R3' ? 'product_r3' : 'product_minor_r2';
   if (c.workflowChanged || harnessManagedChange(files)) {
-    return riskLevel === 'R2' ? 'harness_only_r2' : 'harness_workflow_r3';
+    return env.CODEX_RISK_LEVEL === 'R2' ? 'harness_only_r2' : 'harness_workflow_r3';
   }
   if (c.docsOnly) return 'docs_only_r1_r2';
-  if (c.harnessOnly && riskLevel === 'R2') return 'harness_only_r2';
+  if (c.harnessOnly && env.CODEX_RISK_LEVEL === 'R2') return 'harness_only_r2';
   return 'harness_workflow_r3';
 }
 
