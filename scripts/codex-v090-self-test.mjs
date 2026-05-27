@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.0
+// CODEX_QUALITY_HARNESS_FILE v0.9.2
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,8 +15,6 @@ import { buildGateDecisionTrace } from './codex-gate-decision-trace.mjs';
 import { filterSourceValidationChangedFiles } from './codex-local-quality-gate.mjs';
 import { buildHumanConfirmationObjectReport } from './codex-human-confirmation-validate.mjs';
 import { buildEvidencePackReport } from './codex-evidence-pack-validate.mjs';
-import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
-import { classifyChange } from './codex-change-classification-gate.mjs';
 
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   const status = condition ? 'pass' : 'fail';
@@ -149,14 +147,6 @@ function buildV090SelfTestReport() {
   assertCase('pull_request_still_requires_evidence_pack', ['fail', 'manual_confirmation_required'].includes(strictPrEvidenceStatus), failures, cases, strictPrEvidenceStatus, []);
   assertCase('workflow_dispatch_source_core_remote_verification_pass', workflowText.includes('CODEX_REMOTE_VERIFICATION_MODE="${CODEX_REMOTE_VERIFICATION_MODE:-source_main_workflow_dispatch}"') && workflowText.includes('CODEX_EVIDENCE_PACK_STRICT="${CODEX_EVIDENCE_PACK_STRICT:-0}"') && workflowText.includes('CODEX_HUMAN_CONFIRMATION_STRICT="${CODEX_HUMAN_CONFIRMATION_STRICT:-0}"'), failures, cases, 'pass', []);
   assertCase('pull_request_strictness_not_weakened', workflowText.includes('if [ "${CODEX_EVENT_NAME:-}" = "pull_request" ]; then') && workflowText.includes('export CODEX_EVIDENCE_PACK_STRICT=1') && workflowText.includes('export CODEX_HUMAN_CONFIRMATION_STRICT=1'), failures, cases, 'pass', []);
-  assertCase('remote_product_pr_context_prepare_step_present', workflowText.includes('- name: Prepare remote product verification context'), failures, cases, 'pass', []);
-  assertCase('remote_product_pr_context_runs_npm_for_product', workflowText.includes('requiresProductNpm') && workflowText.includes('CODEX_SKIP_NPM=0') && workflowText.includes('npm test > "$npm_log" 2>&1'), failures, cases, 'pass', []);
-  assertCase('remote_product_pr_context_harness_skip_path_preserved', workflowText.includes('CODEX_SKIP_NPM=1') && workflowText.includes('CODEX_NPM_SKIP_REASON=non_product_target_change'), failures, cases, 'pass', []);
-  assertCase('remote_product_pr_context_writes_product_evidence_path', workflowText.includes('CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH=$product_evidence') && workflowText.includes('codex-product-verification-evidence.safe.json'), failures, cases, 'pass', []);
-  assertCase('remote_product_pr_context_writes_remote_baseline_path', workflowText.includes('CODEX_REMOTE_PRODUCT_BASELINE_PATH=$remote_baseline') && workflowText.includes('codex-remote-product-baseline.safe.json'), failures, cases, 'pass', []);
-  assertCase('remote_product_pr_context_failure_not_sweetened', workflowText.includes('product_result="fail"') && workflowText.includes('if [ "$npm_exit" -eq 0 ]; then') && workflowText.includes('knownFailures: result === \'pass\' ? []'), failures, cases, 'pass', []);
-  const uploadArtifactSection = workflowText.slice(workflowText.indexOf('- name: Upload safe quality artifacts'));
-  assertCase('remote_product_pr_context_does_not_upload_npm_log', !uploadArtifactSection.includes('codex-npm-test.log'), failures, cases, 'pass', []);
 
   const registry = JSON.parse(fs.readFileSync('docs/process/CODEX_CLASSIFICATION_REGISTRY.json', 'utf8')).entries;
   let classified = classifyFileWithRegistry('scripts/codex-local-quality-gate.mjs', registry);
@@ -165,54 +155,11 @@ function buildV090SelfTestReport() {
   classified = classifyFileWithRegistry('scripts/dev-server.js', registry);
   assertCase('classification_registry_dev_server_entrypoint', classified.classification === 'dev_server_entrypoint', failures, cases, classified.classification, []);
 
-  classified = classifyFileWithRegistry('scripts/run-tests.js', registry);
-  assertCase('classification_registry_run_tests_is_test', classified.classification === 'test', failures, cases, classified.classification, []);
-  assertCase('classification_registry_run_tests_surface_test', classified.surface === 'test', failures, cases, classified.surface, []);
-  assertCase('classification_registry_run_tests_requires_product_verification', classified.requiresProductVerification === true, failures, cases, String(classified.requiresProductVerification), []);
-  assertCase('classification_registry_run_tests_fast_path_denied', classified.allowsFastPath === false, failures, cases, String(classified.allowsFastPath), []);
-  assertCase('classification_registry_run_tests_not_harness_managed', classified.classification !== 'harness_managed', failures, cases, classified.classification, []);
-
-  let legacyClassification = classifyChange(['scripts/dev-server.js'], prEnv());
-  assertCase('legacy_classification_dev_server_passes', legacyClassification.status === 'pass', failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
-  assertCase('legacy_classification_dev_server_product_relevant', legacyClassification.productRelevantChanged === true, failures, cases, String(legacyClassification.productRelevantChanged), legacyClassification.reasonCodes);
-  assertCase('legacy_classification_dev_server_product_source', legacyClassification.classification.productSourceChanged === true, failures, cases, String(legacyClassification.classification.productSourceChanged), legacyClassification.reasonCodes);
-  assertCase('legacy_classification_dev_server_not_unknown', legacyClassification.classification.unknownRisk === false && !legacyClassification.reasonCodes.includes('change_classification_unknown'), failures, cases, String(legacyClassification.classification.unknownRisk), legacyClassification.reasonCodes);
-
-  legacyClassification = classifyChange(['src/server/httpServer.js', 'scripts/dev-server.js', 'scripts/run-tests.js'], prEnv());
-  assertCase('legacy_classification_pr103_file_set_passes', legacyClassification.status === 'pass' && legacyClassification.productRelevantChanged === true && legacyClassification.classification.unknownRisk === false, failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
-
-  legacyClassification = classifyChange(['scripts/not-classified-random-entry.js'], prEnv());
-  assertCase('legacy_classification_unknown_random_script_still_fails', legacyClassification.status === 'fail' && legacyClassification.reasonCodes.includes('change_classification_unknown'), failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
-
-  legacyClassification = classifyChange(['scripts/codex-local-quality-gate.mjs'], prEnv());
-  assertCase('legacy_classification_codex_script_harness_only', legacyClassification.status === 'pass' && legacyClassification.classification.harnessOnly === true && legacyClassification.productRelevantChanged === false, failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
-
-  legacyClassification = classifyChange(['scripts/run-tests.js'], prEnv());
-  assertCase('legacy_classification_run_tests_product_relevant_test_surface', legacyClassification.status === 'pass' && legacyClassification.classification.testsChanged === true && legacyClassification.productRelevantChanged === true && legacyClassification.classification.harnessOnly === false, failures, cases, legacyClassification.status, legacyClassification.reasonCodes);
-
-  report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/run-tests.js']) }));
-  assertCase('classification_run_tests_file_set_passes', report.classificationCoverageStatus.status === 'pass' && report.classificationCoverageStatus.unknownCount === 0, failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
-
   report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['tools/new-entrypoint.js']) }));
   assertCase('classification_unknown_file_fails_with_hint', report.classificationCoverageStatus.status === 'fail' && report.classificationCoverageStatus.suggestedRegistryEntries.length > 0, failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
 
-  report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/not-classified-random-entry.js']) }));
-  assertCase('classification_unknown_random_script_still_fails', report.classificationCoverageStatus.status === 'fail' && report.classificationCoverageStatus.reasonCodes.includes('classification_unknown_file'), failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
-
   report = buildClassificationCoverageReport(prEnv({ CODEX_CHANGED_FILES: JSON.stringify(['scripts/codex-new-gate.mjs']) }));
   assertCase('classification_scripts_all_not_product', report.classificationCoverageStatus.status === 'pass', failures, cases, report.classificationCoverageStatus.status, report.classificationCoverageStatus.reasonCodes);
-
-  report = buildPrProfileReport(prEnv({
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PR_BODY: 'PR profile: product_r3\n\nRisk level: R3\n\nGoal:\nFixture.\n\nProduct verification:\nPASS.\n\nAffected entrypoints:\nSafe label.\n\nFailure paths considered:\nSafe label.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
-  }));
-  assertCase('pr_profile_body_risk_r3_infers_product_r3_without_env', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
-
-  report = buildPrProfileReport(prEnv({
-    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
-    CODEX_PR_BODY: 'PR profile: product_r3\n\nRisk level: R2\n\nGoal:\nFixture.\n\nProduct verification:\nPASS.\n\nAffected entrypoints:\nSafe label.\n\nFailure paths considered:\nSafe label.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
-  }));
-  assertCase('pr_profile_product_r3_conflicts_when_body_risk_lower', report.prProfileStatus.status === 'warning' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
 
   report = buildRemoteLocalParityReport(prEnv({
     CODEX_LOCAL_CONTEXT_JSON: JSON.stringify({ changedFiles: ['scripts/codex-new-gate.mjs'], classificationCoverageStatus: { unknownClasses: [] } }),

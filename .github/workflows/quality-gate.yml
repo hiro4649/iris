@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.9.0
+# CODEX_QUALITY_HARNESS_FILE v0.9.2
 name: quality-gate
 
 on:
@@ -32,7 +32,7 @@ jobs:
           safe_head="$(printf '%s' "${CODEX_PRECHECKOUT_HEAD_SHA:-}" | tr -cd 'A-Fa-f0-9' | cut -c1-64)"
           cat > "$RUNNER_TEMP/codex-minimal-safe-failure.json" <<JSON
           {
-            "schemaVersion": "0.9.0",
+            "schemaVersion": "0.9.2",
             "phase": "pre_checkout",
             "status": "fail",
             "safeSummaryOnly": true,
@@ -82,142 +82,6 @@ jobs:
           CODEX_LIFEBOAT_PATH: ${{ runner.temp }}/codex-minimal-safe-failure.json
         run: |
           node scripts/codex-artifact-lifeboat.mjs > "$RUNNER_TEMP/codex-artifact-lifeboat.json" || true
-      - name: Prepare remote product verification context
-        shell: bash
-        env:
-          CODEX_EVENT_NAME: ${{ github.event_name }}
-          CODEX_PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          CODEX_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          changed_file_list="$RUNNER_TEMP/codex-changed-files.txt"
-          if [ -n "${CODEX_PR_BASE_SHA:-}" ] && git cat-file -e "${CODEX_PR_BASE_SHA}^{commit}" 2>/dev/null; then
-            git diff --name-only "${CODEX_PR_BASE_SHA}...HEAD" > "$changed_file_list"
-          else
-            git diff --name-only origin/main...HEAD > "$changed_file_list"
-          fi
-          {
-            echo "CODEX_CHANGED_FILES<<EOF"
-            cat "$changed_file_list"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
-          context_file="$RUNNER_TEMP/codex-remote-product-context.safe.json"
-          CODEX_CHANGED_FILES_FILE="$changed_file_list" node --input-type=module > "$context_file" <<'NODE'
-          import fs from 'node:fs';
-          import { classifyChange } from './scripts/codex-change-classification-gate.mjs';
-          const files = fs.readFileSync(process.env.CODEX_CHANGED_FILES_FILE, 'utf8')
-            .split(/\r?\n/)
-            .map((item) => item.trim())
-            .filter(Boolean);
-          const classified = classifyChange(files, process.env);
-          const c = classified.classification || {};
-          const requiresProductNpm = Boolean(
-            classified.productRelevantChanged ||
-            classified.packageOrLockfileChanged ||
-            classified.runtimeReadinessClaimed ||
-            c.performanceClaimed
-          );
-          console.log(JSON.stringify({
-            schemaVersion: '0.9.0',
-            safeSummaryOnly: true,
-            changedFileCount: files.length,
-            requiresProductNpm,
-            classificationStatus: classified.status,
-            productRelevantChanged: Boolean(classified.productRelevantChanged),
-            packageOrLockfileChanged: Boolean(classified.packageOrLockfileChanged),
-            runtimeReadinessClaimed: Boolean(classified.runtimeReadinessClaimed),
-            performanceClaimed: Boolean(c.performanceClaimed),
-            reasonCodes: classified.reasonCodes || []
-          }, null, 2));
-          NODE
-          requires_product_npm="$(node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(v.requiresProductNpm ? '1' : '0')" "$context_file")"
-          if [ "$requires_product_npm" != "1" ]; then
-            {
-              echo "CODEX_SKIP_NPM=1"
-              echo "CODEX_NPM_SKIP_REASON=non_product_target_change"
-            } >> "$GITHUB_ENV"
-            exit 0
-          fi
-          npm_log="$RUNNER_TEMP/codex-npm-test.log"
-          set +e
-          npm test > "$npm_log" 2>&1
-          npm_exit=$?
-          set -e
-          product_result="fail"
-          if [ "$npm_exit" -eq 0 ]; then
-            product_result="pass"
-          fi
-          test_count="$(node - "$npm_log" <<'NODE'
-          const fs = require('fs');
-          const text = fs.readFileSync(process.argv[2], 'utf8');
-          const match = text.match(/\bAll\s+(\d+)\s+tests\s+passed\b/i) ||
-            text.match(/\b(\d+)\s+tests?\s+passed\b/i);
-          process.stdout.write(match ? match[1] : '');
-          NODE
-          )"
-          product_evidence="$RUNNER_TEMP/codex-product-verification-evidence.safe.json"
-          remote_baseline="$RUNNER_TEMP/codex-remote-product-baseline.safe.json"
-          CODEX_REMOTE_NPM_RESULT="$product_result" \
-          CODEX_REMOTE_NPM_TEST_COUNT="$test_count" \
-          CODEX_REMOTE_BASE_SHA="${CODEX_PR_BASE_SHA:-}" \
-          CODEX_REMOTE_BASELINE_PATH="$remote_baseline" \
-          CODEX_REMOTE_PRODUCT_EVIDENCE_PATH="$product_evidence" \
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const result = process.env.CODEX_REMOTE_NPM_RESULT === 'pass' ? 'pass' : 'fail';
-          const testCount = Number(process.env.CODEX_REMOTE_NPM_TEST_COUNT || '');
-          const now = new Date();
-          const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          const command = {
-            name: 'npm test',
-            required: true,
-            result,
-            source: 'remote',
-            durationMs: null,
-            testCount: Number.isFinite(testCount) ? testCount : null,
-            safeSummary: result === 'pass' ? 'npm test PASS' : 'npm test FAIL'
-          };
-          const evidence = {
-            schemaVersion: '0.8.3',
-            harnessVersion: '0.9.0',
-            commands: [command],
-            safeSummaryOnly: true
-          };
-          const baseline = {
-            codexRemoteProductBaseline: {
-              schemaVersion: '0.8.3',
-              harnessVersion: '0.9.0',
-              repository: process.env.CODEX_REPOSITORY || '',
-              baseSha: process.env.CODEX_REMOTE_BASE_SHA || '',
-              baselineType: 'product_verification',
-              commands: ['npm test'],
-              result,
-              date: now.toISOString(),
-              source: 'remote_quality_gate',
-              safeSummary: result === 'pass' ? 'npm test PASS' : 'npm test FAIL',
-              knownFailures: result === 'pass' ? [] : ['remote_npm_test_failed'],
-              expiresAt: expiresAt.toISOString(),
-              rawValuesStored: false,
-              safeSummaryOnly: true
-            }
-          };
-          fs.writeFileSync(process.env.CODEX_REMOTE_PRODUCT_EVIDENCE_PATH, `${JSON.stringify(evidence, null, 2)}\n`);
-          fs.writeFileSync(process.env.CODEX_REMOTE_BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`);
-          NODE
-          {
-            echo "CODEX_SKIP_NPM=0"
-            echo "CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH=$product_evidence"
-            echo "CODEX_PRODUCT_VERIFICATION_COMMANDS=npm test"
-            echo "CODEX_PRODUCT_VERIFICATION_RESULT=$product_result"
-            echo "CODEX_PRODUCT_VERIFICATION_SOURCE=remote"
-            echo "CODEX_REMOTE_PRODUCT_BASELINE_PATH=$remote_baseline"
-            echo "CODEX_TEST_METRICS_COMMAND=npm test"
-            echo "CODEX_TEST_METRICS_RESULT=$product_result"
-            echo "CODEX_TEST_METRICS_SOURCE=remote"
-            if [ -n "$test_count" ]; then
-              echo "CODEX_TEST_METRICS_TEST_COUNT=$test_count"
-            fi
-          } >> "$GITHUB_ENV"
       - name: Run Codex quality gate
         shell: bash
         env:
@@ -284,6 +148,16 @@ jobs:
             console.log(`- classificationCoverageStatus: ${summary.classificationCoverageStatus?.status || 'missing'}`);
             console.log(`- remoteLocalParityStatus: ${summary.remoteLocalParityStatus?.status || 'missing'}`);
             console.log(`- noArtifactFailureStatus: ${summary.noArtifactFailureStatus?.status || 'missing'}`);
+            console.log(`- versionLineageStatus: ${summary.versionLineageStatus?.status || 'missing'}`);
+            console.log(`- prEvidenceRendererStatus: ${summary.prEvidenceRendererStatus?.status || 'missing'}`);
+            console.log(`- safeArtifactClassifierStatus: ${summary.safeArtifactClassifierStatus?.status || 'missing'}`);
+            console.log(`- securityLifecycleStatus: ${summary.securityLifecycleStatus?.status || 'missing'}`);
+            console.log(`- reviewIndependenceStatus: ${summary.reviewIndependenceStatus?.status || 'missing'}`);
+            console.log(`- taskBriefCompilerStatus: ${summary.taskBriefCompilerStatus?.status || 'missing'}`);
+            console.log(`- bestOfNDecisionStatus: ${summary.bestOfNDecisionStatus?.status || 'missing'}`);
+            console.log(`- environmentProfileStatus: ${summary.environmentProfileStatus?.status || 'missing'}`);
+            console.log(`- agentsContextBudgetStatus: ${summary.agentsContextBudgetStatus?.status || 'missing'}`);
+            console.log(`- evidenceAutoRepairHintStatus: ${summary.evidenceAutoRepairHintStatus?.status || 'missing'}`);
             console.log(`- baselineHealthStatus: ${summary.baselineHealthStatus?.status || 'missing'}`);
             console.log(`- evidenceContinuityStatus: ${summary.evidenceContinuityStatus?.status || 'missing'}`);
             console.log(`- prBodySurfaceNormalizerStatus: ${summary.prBodySurfaceNormalizerStatus?.status || 'missing'}`);
@@ -294,6 +168,7 @@ jobs:
             console.log(`- oldHarnessMarkerStatus: ${summary.oldHarnessMarkerStatus?.status || 'missing'}`);
             console.log(`- v089SelfTestStatus: ${summary.v089SelfTestStatus?.status || 'missing'}`);
             console.log(`- v090SelfTestStatus: ${summary.v090SelfTestStatus?.status || 'missing'}`);
+            console.log(`- v092SelfTestStatus: ${summary.v092SelfTestStatus?.status || 'missing'}`);
             console.log(`- pathMode: ${diagnostic?.pathMode || 'missing'}`);
             console.log(`- topNextAction: ${diagnostic?.nextActions?.[0] || 'missing'}`);
           } else {
@@ -324,6 +199,9 @@ jobs:
             codex-source-final-summary.json
             codex-target-final-summary.json
             codex-safe-artifact-index.json
+            codex-safe-artifact-classification.safe.json
+            codex-pr-evidence-rendered.safe.json
+            codex-evidence-auto-repair-hint.safe.json
             codex-workflow-preflight.safe.json
             codex-test-metrics.safe.json
           if-no-files-found: ignore

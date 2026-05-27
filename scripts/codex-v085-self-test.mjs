@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.0
+// CODEX_QUALITY_HARNESS_FILE v0.9.2
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { HARNESS_VERSION, marker, simpleStatus, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
@@ -16,7 +16,7 @@ function env(overrides = {}) {
     CODEX_QUALITY_REPORT: 'json',
     CODEX_HARNESS_MODE: 'target',
     CODEX_PR_BODY: '',
-    CODEX_CHANGED_FILES: 'scripts/codex-v085-self-test.mjs',
+    CODEX_CHANGED_FILES: '',
     ...overrides,
   };
 }
@@ -43,9 +43,6 @@ function runNode(script) {
     env: {
       ...process.env,
       CODEX_QUALITY_REPORT: 'json',
-      CODEX_EVENT_NAME: '',
-      CODEX_PR_BODY: '',
-      CODEX_CHANGED_FILES: 'scripts/codex-v084-self-test.mjs',
       CODEX_SKIP_V085_SELF_TEST: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
