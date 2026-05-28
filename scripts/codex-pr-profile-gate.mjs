@@ -26,6 +26,30 @@ function sectionPresent(body, section) {
     new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*$`, 'im').test(body);
 }
 
+function normalizeRiskLevel(value) {
+  const normalized = String(value || '').trim();
+  return /^R[1-4]$/.test(normalized) ? normalized : '';
+}
+
+function bodyRiskLevel(body) {
+  const lines = String(body || '').split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const inline = line.match(/^\s*(?:#{1,6}\s*)?Risk level\s*:\s*(R[1-4])\s*$/);
+    if (inline) return inline[1];
+    if (/^\s*(?:#{1,6}\s*)?Risk level\s*:?\s*$/.test(line)) {
+      const next = lines.slice(i + 1).find((candidate) => candidate.trim());
+      const risk = normalizeRiskLevel(next);
+      if (risk) return risk;
+    }
+  }
+  return '';
+}
+
+function riskLevel(env = process.env, body = '') {
+  return normalizeRiskLevel(env.CODEX_RISK_LEVEL) || bodyRiskLevel(body);
+}
+
 function harnessManagedChange(files = []) {
   return files.some((raw) => {
     const file = String(raw || '').replace(/\\/g, '/');
@@ -40,16 +64,18 @@ function harnessManagedChange(files = []) {
 }
 
 function inferProfile(env = process.env) {
+  const body = prBodyText(env);
+  const risk = riskLevel(env, body);
   const files = changedFiles(env);
   const classified = classifyChange(files, env);
   const c = classified.classification;
   if (c.runtimeReadinessClaimed) return 'readiness_claim_r3';
-  if (classified.productRelevantChanged) return env.CODEX_RISK_LEVEL === 'R3' ? 'product_r3' : 'product_minor_r2';
+  if (classified.productRelevantChanged) return risk === 'R3' ? 'product_r3' : 'product_minor_r2';
   if (c.workflowChanged || harnessManagedChange(files)) {
-    return env.CODEX_RISK_LEVEL === 'R2' ? 'harness_only_r2' : 'harness_workflow_r3';
+    return risk === 'R2' ? 'harness_only_r2' : 'harness_workflow_r3';
   }
   if (c.docsOnly) return 'docs_only_r1_r2';
-  if (c.harnessOnly && env.CODEX_RISK_LEVEL === 'R2') return 'harness_only_r2';
+  if (c.harnessOnly && risk === 'R2') return 'harness_only_r2';
   return 'harness_workflow_r3';
 }
 
