@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.5
+// CODEX_QUALITY_HARNESS_FILE v0.9.6
 import { fileURLToPath } from 'node:url';
 import { HARNESS_VERSION, marker, isPrContext, prBodyText, simpleStatus, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { classifyChange, changedFiles } from './codex-change-classification-gate.mjs';
@@ -20,46 +20,10 @@ function declaredProfile(body) {
   return match ? match[1] : null;
 }
 
-const sectionAliases = {
-  'Import Smoke Config': ['Import Smoke Configuration'],
-  'Import Smoke Configuration': ['Import Smoke Config'],
-  Solvability: ['Solvability Constraints'],
-  'Solvability Constraints': ['Solvability'],
-};
-
 function sectionPresent(body, section) {
-  const candidates = [section, ...(sectionAliases[section] || [])];
-  return candidates.some((candidate) => sectionHeadingPresent(body, candidate));
-}
-
-function sectionHeadingPresent(body, section) {
   const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*:`, 'im').test(body) ||
     new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*$`, 'im').test(body);
-}
-
-function normalizeRiskLevel(value) {
-  const normalized = String(value || '').trim();
-  return /^R[1-4]$/.test(normalized) ? normalized : '';
-}
-
-function bodyRiskLevel(body) {
-  const lines = String(body || '').split(/\r?\n/);
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const inline = line.match(/^\s*(?:#{1,6}\s*)?Risk level\s*:\s*(R[1-4])\s*$/);
-    if (inline) return inline[1];
-    if (/^\s*(?:#{1,6}\s*)?Risk level\s*:?\s*$/.test(line)) {
-      const next = lines.slice(i + 1).find((candidate) => candidate.trim());
-      const risk = normalizeRiskLevel(next);
-      if (risk) return risk;
-    }
-  }
-  return '';
-}
-
-function riskLevel(env = process.env, body = '') {
-  return normalizeRiskLevel(env.CODEX_RISK_LEVEL) || bodyRiskLevel(body);
 }
 
 function harnessManagedChange(files = []) {
@@ -76,18 +40,16 @@ function harnessManagedChange(files = []) {
 }
 
 function inferProfile(env = process.env) {
-  const body = prBodyText(env);
-  const risk = riskLevel(env, body);
   const files = changedFiles(env);
   const classified = classifyChange(files, env);
   const c = classified.classification;
   if (c.runtimeReadinessClaimed) return 'readiness_claim_r3';
-  if (classified.productRelevantChanged) return risk === 'R3' ? 'product_r3' : 'product_minor_r2';
+  if (classified.productRelevantChanged) return env.CODEX_RISK_LEVEL === 'R3' ? 'product_r3' : 'product_minor_r2';
   if (c.workflowChanged || harnessManagedChange(files)) {
-    return risk === 'R2' ? 'harness_only_r2' : 'harness_workflow_r3';
+    return env.CODEX_RISK_LEVEL === 'R2' ? 'harness_only_r2' : 'harness_workflow_r3';
   }
   if (c.docsOnly) return 'docs_only_r1_r2';
-  if (c.harnessOnly && risk === 'R2') return 'harness_only_r2';
+  if (c.harnessOnly && env.CODEX_RISK_LEVEL === 'R2') return 'harness_only_r2';
   return 'harness_workflow_r3';
 }
 

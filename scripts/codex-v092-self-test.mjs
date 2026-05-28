@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.5
+// CODEX_QUALITY_HARNESS_FILE v0.9.6
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { buildVersionLineageReport } from './codex-version-lineage-gate.mjs';
@@ -33,9 +34,9 @@ function buildV092SelfTestReport() {
   const failures = [];
   const cases = [];
 
-  const lineageEnv = process.env.CODEX_HARNESS_MODE === 'target'
-    ? { CODEX_HARNESS_MODE: 'target' }
-    : { CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' };
+  const lineageEnv = fs.existsSync('CODEX_SOURCE_HARNESS_MANIFEST.json')
+    ? { CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' }
+    : { CODEX_HARNESS_MODE: 'target' };
   let report = buildVersionLineageReport(lineageEnv);
   assertCase('version_lineage_all_active_markers_match_092', report.versionLineageStatus.status === 'pass', failures, cases, report.versionLineageStatus.status, report.versionLineageStatus.reasonCodes);
   const oldMarkerFixtureFails = !/^0\.9\.2$/.test('0.9.0');
