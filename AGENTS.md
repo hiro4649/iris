@@ -31,6 +31,8 @@ and never more than five. Use `docs/process/CODEX_AGENTS_DOCTRINE_POLICY.md`,
 `docs/process/CODEX_SKILL_ROUTING_POLICY.md`,
 `docs/process/CODEX_SUBAGENT_GOVERNANCE_POLICY.md`, and related v0.9.5/v0.9.6
 files for detailed rules.
+Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` for Codex Method
+requirements.
 
 ## Target Safety Rules
 
