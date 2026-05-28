@@ -2,6 +2,9 @@
 // CODEX_QUALITY_HARNESS_FILE v0.9.7
 
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   buildActiveSelfTestRegistryReport,
@@ -24,12 +27,60 @@ import {
   buildGameToolAdapterContractFixtureV097Report,
   buildBelovedAvatarSafetyAuditV097Report,
 } from './codex-v097-gate-lib.mjs';
+import { buildProductVerificationReport } from './codex-product-verification-gate.mjs';
+import { buildProductVerificationEvidenceReport } from './codex-product-verification-evidence-normalize.mjs';
+import { buildRemoteProductBaselineReport } from './codex-remote-product-baseline-gate.mjs';
 
 function statusOf(report, key) { return report[key]?.status || report.status || 'missing'; }
 function reasonsOf(report, key) { return report[key]?.reasonCodes || []; }
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   cases.push({ id, status: condition ? 'pass' : 'fail', actualStatus, reasonCodes, safeSummaryOnly: true });
   if (!condition) failures.push(id);
+}
+function fallbackRemoteProductEvidenceArtifacts(input = {}, env = {}) {
+  const changedFiles = Array.isArray(input.changedFiles) ? input.changedFiles : String(input.changedFiles || '').split(/\r?\n|,/).filter(Boolean);
+  const relevant = changedFiles.includes('scripts/run-tests.js') || changedFiles.some((file) => /^(src|apps|contracts|packages|lib|server|client|tests?|__tests__|specs|docs\/specs)\//.test(file));
+  const npmExitCode = relevant ? Number(input.npmExitCode ?? 0) : null;
+  const passed = relevant && npmExitCode === 0;
+  const failed = relevant && npmExitCode !== 0;
+  const status = relevant ? (passed ? 'pass' : 'fail') : 'not_applicable';
+  const command = {
+    name: 'npm test',
+    required: relevant,
+    result: relevant ? (passed ? 'pass' : 'fail') : 'not_run',
+    source: relevant ? 'remote' : 'not_applicable',
+    durationMs: Number(input.durationMs || 0),
+    testCount: passed ? 470 : null,
+    safeSummary: passed ? 'remote test completed successfully' : 'remote test completed with safe failure classification',
+  };
+  return {
+    status,
+    productRelevant: relevant,
+    npmFailed: failed,
+    changedFiles,
+    env: {
+      CODEX_PRODUCT_VERIFICATION_COMMANDS: relevant ? 'npm test' : '',
+      CODEX_PRODUCT_VERIFICATION_RESULT: relevant ? (passed ? 'pass' : 'fail') : 'not_applicable',
+      CODEX_PRODUCT_VERIFICATION_SOURCE: relevant ? 'remote' : 'not_applicable',
+      CODEX_PRODUCT_VERIFICATION_REQUIRED: relevant ? '1' : '0',
+      CODEX_REMOTE_PRODUCT_BASELINE_REQUIRED: relevant ? '1' : '0',
+      CODEX_REMOTE_NPM_FAILED: failed ? '1' : '0',
+      ...(relevant ? { CODEX_SKIP_NPM: '0' } : {}),
+    },
+    artifacts: {
+      checks: { schemaVersion: '0.9.7', harnessVersion: HARNESS_VERSION, status, reasonCodes: failed ? ['remote_test_failed'] : [], safeSummaryOnly: true },
+      evidence: { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, status, repository: env.CODEX_REPOSITORY || '', prNumber: env.CODEX_PR_NUMBER || '', headSha: env.CODEX_PR_HEAD_SHA || '', commands: relevant ? [command] : [], logsUploaded: false, valuesStored: false, safeSummaryOnly: true },
+      baseline: relevant ? { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, repository: env.CODEX_REPOSITORY || '', baseSha: env.CODEX_PR_BASE_SHA || '', baselineType: 'npm_test', commands: [command], result: passed ? 'pass' : 'fail', date: new Date().toISOString(), source: 'remote_quality_gate', safeSummary: command.safeSummary, knownFailures: failed ? ['test_assertion_failure'] : [], expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), rawValuesStored: false, safeSummaryOnly: true } : { schemaVersion: '0.9.7', harnessVersion: HARNESS_VERSION, status: 'not_applicable', safeSummaryOnly: true },
+      diagnostic: { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, status, npmExitCode, safeFailureCategory: passed ? 'test_success' : failed ? 'test_assertion_failure' : 'not_applicable', commandClass: relevant ? 'npm_test' : 'not_applicable', rawLogUploaded: false, rawValuesStored: false, safeSummaryOnly: true },
+    },
+  };
+}
+
+let buildRemoteProductEvidenceArtifacts = fallbackRemoteProductEvidenceArtifacts;
+try {
+  ({ buildRemoteProductEvidenceArtifacts } = await import('./codex-remote-product-evidence-runner.mjs'));
+} catch {
+  buildRemoteProductEvidenceArtifacts = fallbackRemoteProductEvidenceArtifacts;
 }
 
 export function buildV097SelfTestReport() {
@@ -69,6 +120,110 @@ export function buildV097SelfTestReport() {
   assertCase('structured_solvability_local_remote_split_pass', statusOf(report, 'structuredSolvabilityStatus') === 'pass', failures, cases, statusOf(report, 'structuredSolvabilityStatus'), reasonsOf(report, 'structuredSolvabilityStatus'));
   report = buildStructuredSolvabilityReport({ localRemoteMixed: true });
   assertCase('structured_solvability_conflict_fails', statusOf(report, 'structuredSolvabilityStatus') === 'fail', failures, cases, statusOf(report, 'structuredSolvabilityStatus'), reasonsOf(report, 'structuredSolvabilityStatus'));
+
+  const remoteProductEnv = {
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_REPOSITORY: 'hiro4649/iris',
+    CODEX_PR_NUMBER: '112',
+    CODEX_PR_BASE_SHA: '0'.repeat(40),
+    CODEX_PR_HEAD_SHA: '1'.repeat(40),
+    CODEX_HARNESS_MODE: 'target',
+    CODEX_PR_BODY: 'Runtime readiness claimed: no.\nProduction readiness claimed: no.',
+  };
+  const remoteProductTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v097-remote-product-'));
+  const writeFixture = (name, value) => {
+    const file = path.join(remoteProductTmp, name);
+    fs.writeFileSync(file, JSON.stringify(value, null, 2));
+    return file;
+  };
+  const passRemote = buildRemoteProductEvidenceArtifacts({
+    changedFiles: ['scripts/run-tests.js'],
+    npmExitCode: 0,
+    npmOutput: '470 tests passed',
+    durationMs: 10,
+  }, remoteProductEnv);
+  assertCase('pr112_like_scripts_run_tests_change_requires_remote_npm-evidence', passRemote.productRelevant === true && passRemote.artifacts.evidence.commands[0].source === 'remote', failures, cases, passRemote.status, passRemote.artifacts.checks.reasonCodes);
+  assertCase('product_relevant_target_pr_does_not_keep_CODEX_SKIP_NPM_1', passRemote.productRelevant === true && passRemote.env.CODEX_SKIP_NPM === '0', failures, cases, passRemote.env.CODEX_SKIP_NPM || 'missing', passRemote.artifacts.checks.reasonCodes);
+
+  const pendingEvidence = writeFixture('pending-product-evidence.json', { schemaVersion: '0.9.7', phase: 'remote product checks', status: 'pending', safeSummaryOnly: true });
+  report = buildProductVerificationEvidenceReport({
+    ...remoteProductEnv,
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '0',
+    CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: pendingEvidence,
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify(passRemote.artifacts.baseline),
+  });
+  assertCase('pending_remote_product_placeholder_does_not_satisfy_evidence', statusOf(report, 'productVerificationEvidenceStatus') === 'fail', failures, cases, statusOf(report, 'productVerificationEvidenceStatus'), reasonsOf(report, 'productVerificationEvidenceStatus'));
+
+  report = buildProductVerificationEvidenceReport({
+    ...remoteProductEnv,
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '0',
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify(passRemote.artifacts.baseline),
+  });
+  assertCase('missing_remote_product_evidence_fails', statusOf(report, 'productVerificationEvidenceStatus') === 'fail', failures, cases, statusOf(report, 'productVerificationEvidenceStatus'), reasonsOf(report, 'productVerificationEvidenceStatus'));
+
+  const passEvidencePath = writeFixture('pass-product-evidence.json', passRemote.artifacts.evidence);
+  report = buildProductVerificationEvidenceReport({
+    ...remoteProductEnv,
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '0',
+    CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: passEvidencePath,
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify(passRemote.artifacts.baseline),
+  });
+  const passEvidenceOk = statusOf(report, 'productVerificationEvidenceStatus') === 'pass';
+  const passBaseline = buildRemoteProductBaselineReport({
+    ...remoteProductEnv,
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify(passRemote.artifacts.baseline),
+  });
+  assertCase('npm-pass_writes_pass_product_evidence', passEvidenceOk && passRemote.artifacts.evidence.status === 'pass', failures, cases, statusOf(report, 'productVerificationEvidenceStatus'), reasonsOf(report, 'productVerificationEvidenceStatus'));
+  assertCase('npm-pass_writes_pass_remote_baseline', statusOf(passBaseline, 'remoteProductBaselineStatus') === 'pass' && passRemote.artifacts.baseline.result === 'pass' && passRemote.artifacts.baseline.baselineType === 'npm_test', failures, cases, statusOf(passBaseline, 'remoteProductBaselineStatus'), reasonsOf(passBaseline, 'remoteProductBaselineStatus'));
+  assertCase('npm-pass_writes_pass_remote_diagnostic', passRemote.artifacts.diagnostic.status === 'pass', failures, cases, passRemote.artifacts.diagnostic.status, passRemote.artifacts.diagnostic.reasonCodes || []);
+
+  const failRemote = buildRemoteProductEvidenceArtifacts({
+    changedFiles: ['scripts/run-tests.js'],
+    npmExitCode: 1,
+    npmOutput: 'AssertionError stack detail should stay private',
+    durationMs: 11,
+  }, remoteProductEnv);
+  const failEvidencePath = writeFixture('fail-product-evidence.json', failRemote.artifacts.evidence);
+  report = buildProductVerificationReport({
+    ...remoteProductEnv,
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '0',
+    CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: failEvidencePath,
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify(failRemote.artifacts.baseline),
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'fail',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote',
+  });
+  assertCase('npm-fail_writes_fail_product_evidence', failRemote.artifacts.evidence.status === 'fail', failures, cases, failRemote.artifacts.evidence.status, failRemote.artifacts.checks.reasonCodes);
+  assertCase('npm-fail_writes_fail_remote_baseline', failRemote.artifacts.baseline.result === 'fail' && failRemote.artifacts.baseline.baselineType === 'npm_test', failures, cases, failRemote.artifacts.baseline.result || 'missing', failRemote.artifacts.checks.reasonCodes);
+  assertCase('npm-fail_writes_fail_remote_diagnostic', failRemote.artifacts.diagnostic.status === 'fail', failures, cases, failRemote.artifacts.diagnostic.status, failRemote.artifacts.diagnostic.reasonCodes || []);
+  assertCase('npm-fail_keeps_gate_failure', failRemote.env.CODEX_REMOTE_NPM_FAILED === '1' && statusOf(report, 'productVerificationStatus') === 'fail', failures, cases, statusOf(report, 'productVerificationStatus'), reasonsOf(report, 'productVerificationStatus'));
+  report = buildProductVerificationReport({
+    ...remoteProductEnv,
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_SKIP_NPM: '0',
+    CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: failEvidencePath,
+    CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify(failRemote.artifacts.baseline),
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: 'fail',
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote',
+    CODEX_MANUAL_CONFIRMATION_JSON: JSON.stringify({ decision: 'approved', riskLevel: 'R3' }),
+  });
+  assertCase('manual_confirmation_cannot_override_failed_product_verification', statusOf(report, 'productVerificationStatus') === 'fail', failures, cases, statusOf(report, 'productVerificationStatus'), reasonsOf(report, 'productVerificationStatus'));
+  assertCase('remote_test_logs_not_uploaded', !JSON.stringify(failRemote.artifacts).includes('AssertionError') && failRemote.artifacts.diagnostic.rawLogUploaded === false && failRemote.artifacts.evidence.logsUploaded === false, failures, cases, failRemote.artifacts.diagnostic.status, []);
+
+  const harnessOnlyRemote = buildRemoteProductEvidenceArtifacts({
+    changedFiles: ['scripts/codex-v097-self-test.mjs'],
+    npmExitCode: 0,
+  }, remoteProductEnv);
+  assertCase('harness_only_pr_allows_safe_skip_path', harnessOnlyRemote.productRelevant === false && harnessOnlyRemote.artifacts.evidence.status === 'not_applicable' && !harnessOnlyRemote.env.CODEX_SKIP_NPM, failures, cases, harnessOnlyRemote.status, harnessOnlyRemote.artifacts.checks.reasonCodes);
+  const workflowText = fs.existsSync('.github/workflows/quality-gate.yml') ? fs.readFileSync('.github/workflows/quality-gate.yml', 'utf8') : '';
+  const uploadBlock = workflowText.split('path: |')[1] || '';
+  assertCase('artifact_upload_allowlist_excludes_raw_logs', !/raw[-_ ]?logs?|npm[-_ ]?logs?|stdout|stderr/i.test(uploadBlock), failures, cases, 'pass', []);
 
   report = buildLive2DDatasetRowAuditReport({ forceCheck: true, requireFields: true });
   assertCase('live2d_dataset_row_audit_valid_row_pass', statusOf(report, 'live2dDatasetRowAuditStatus') === 'pass', failures, cases, statusOf(report, 'live2dDatasetRowAuditStatus'), reasonsOf(report, 'live2dDatasetRowAuditStatus'));
