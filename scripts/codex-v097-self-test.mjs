@@ -30,6 +30,7 @@ import {
 import { buildProductVerificationReport } from './codex-product-verification-gate.mjs';
 import { buildProductVerificationEvidenceReport } from './codex-product-verification-evidence-normalize.mjs';
 import { buildRemoteProductBaselineReport } from './codex-remote-product-baseline-gate.mjs';
+import { buildRemoteNpmDiagnosticReport } from './codex-remote-npm-diagnostic-classify.mjs';
 
 function statusOf(report, key) { return report[key]?.status || report.status || 'missing'; }
 function reasonsOf(report, key) { return report[key]?.reasonCodes || []; }
@@ -71,7 +72,7 @@ function fallbackRemoteProductEvidenceArtifacts(input = {}, env = {}) {
       checks: { schemaVersion: '0.9.7', harnessVersion: HARNESS_VERSION, status, reasonCodes: failed ? ['remote_test_failed'] : [], safeSummaryOnly: true },
       evidence: { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, status, repository: env.CODEX_REPOSITORY || '', prNumber: env.CODEX_PR_NUMBER || '', headSha: env.CODEX_PR_HEAD_SHA || '', commands: relevant ? [command] : [], logsUploaded: false, valuesStored: false, safeSummaryOnly: true },
       baseline: relevant ? { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, repository: env.CODEX_REPOSITORY || '', baseSha: env.CODEX_PR_BASE_SHA || '', baselineType: 'npm_test', commands: [command], result: passed ? 'pass' : 'fail', date: new Date().toISOString(), source: 'remote_quality_gate', safeSummary: command.safeSummary, knownFailures: failed ? ['test_assertion_failure'] : [], expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), rawValuesStored: false, safeSummaryOnly: true } : { schemaVersion: '0.9.7', harnessVersion: HARNESS_VERSION, status: 'not_applicable', safeSummaryOnly: true },
-      diagnostic: { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, status, npmExitCode, safeFailureCategory: passed ? 'test_success' : failed ? 'test_assertion_failure' : 'not_applicable', commandClass: relevant ? 'npm_test' : 'not_applicable', rawLogUploaded: false, rawValuesStored: false, safeSummaryOnly: true },
+      diagnostic: { schemaVersion: '0.8.3', harnessVersion: HARNESS_VERSION, status, npmExitCode, safeFailureCategory: passed ? 'test_assertion_failure' : failed ? 'test_assertion_failure' : 'not_applicable', commandClass: relevant ? 'npm_test' : 'not_applicable', logsUploaded: false, valuesStored: false, safeSummaryOnly: true },
     },
   };
 }
@@ -180,6 +181,10 @@ export function buildV097SelfTestReport() {
   assertCase('npm-pass_writes_pass_product_evidence', passEvidenceOk && passRemote.artifacts.evidence.status === 'pass', failures, cases, statusOf(report, 'productVerificationEvidenceStatus'), reasonsOf(report, 'productVerificationEvidenceStatus'));
   assertCase('npm-pass_writes_pass_remote_baseline', statusOf(passBaseline, 'remoteProductBaselineStatus') === 'pass' && passRemote.artifacts.baseline.result === 'pass' && passRemote.artifacts.baseline.baselineType === 'npm_test', failures, cases, statusOf(passBaseline, 'remoteProductBaselineStatus'), reasonsOf(passBaseline, 'remoteProductBaselineStatus'));
   assertCase('npm-pass_writes_pass_remote_diagnostic', passRemote.artifacts.diagnostic.status === 'pass', failures, cases, passRemote.artifacts.diagnostic.status, passRemote.artifacts.diagnostic.reasonCodes || []);
+  let diagnosticReport = buildRemoteNpmDiagnosticReport({
+    CODEX_NPM_TEST_SAFE_SUMMARY_JSON: JSON.stringify(passRemote.artifacts.diagnostic),
+  });
+  assertCase('npm-pass_remote_diagnostic_is_gate_readable', statusOf(diagnosticReport, 'remoteNpmDiagnosticStatus') === 'pass', failures, cases, statusOf(diagnosticReport, 'remoteNpmDiagnosticStatus'), reasonsOf(diagnosticReport, 'remoteNpmDiagnosticStatus'));
 
   const failRemote = buildRemoteProductEvidenceArtifacts({
     changedFiles: ['scripts/run-tests.js'],
@@ -201,6 +206,10 @@ export function buildV097SelfTestReport() {
   assertCase('npm-fail_writes_fail_product_evidence', failRemote.artifacts.evidence.status === 'fail', failures, cases, failRemote.artifacts.evidence.status, failRemote.artifacts.checks.reasonCodes);
   assertCase('npm-fail_writes_fail_remote_baseline', failRemote.artifacts.baseline.result === 'fail' && failRemote.artifacts.baseline.baselineType === 'npm_test', failures, cases, failRemote.artifacts.baseline.result || 'missing', failRemote.artifacts.checks.reasonCodes);
   assertCase('npm-fail_writes_fail_remote_diagnostic', failRemote.artifacts.diagnostic.status === 'fail', failures, cases, failRemote.artifacts.diagnostic.status, failRemote.artifacts.diagnostic.reasonCodes || []);
+  diagnosticReport = buildRemoteNpmDiagnosticReport({
+    CODEX_NPM_TEST_SAFE_SUMMARY_JSON: JSON.stringify(failRemote.artifacts.diagnostic),
+  });
+  assertCase('npm-fail_remote_diagnostic_is_gate_readable', statusOf(diagnosticReport, 'remoteNpmDiagnosticStatus') === 'pass', failures, cases, statusOf(diagnosticReport, 'remoteNpmDiagnosticStatus'), reasonsOf(diagnosticReport, 'remoteNpmDiagnosticStatus'));
   assertCase('npm-fail_keeps_gate_failure', failRemote.env.CODEX_REMOTE_NPM_FAILED === '1' && statusOf(report, 'productVerificationStatus') === 'fail', failures, cases, statusOf(report, 'productVerificationStatus'), reasonsOf(report, 'productVerificationStatus'));
   report = buildProductVerificationReport({
     ...remoteProductEnv,
@@ -214,7 +223,7 @@ export function buildV097SelfTestReport() {
     CODEX_MANUAL_CONFIRMATION_JSON: JSON.stringify({ decision: 'approved', riskLevel: 'R3' }),
   });
   assertCase('manual_confirmation_cannot_override_failed_product_verification', statusOf(report, 'productVerificationStatus') === 'fail', failures, cases, statusOf(report, 'productVerificationStatus'), reasonsOf(report, 'productVerificationStatus'));
-  assertCase('remote_test_logs_not_uploaded', !JSON.stringify(failRemote.artifacts).includes('AssertionError') && failRemote.artifacts.diagnostic.rawLogUploaded === false && failRemote.artifacts.evidence.logsUploaded === false, failures, cases, failRemote.artifacts.diagnostic.status, []);
+  assertCase('remote_test_logs_not_uploaded', !JSON.stringify(failRemote.artifacts).includes('AssertionError') && failRemote.artifacts.diagnostic.logsUploaded === false && failRemote.artifacts.evidence.logsUploaded === false, failures, cases, failRemote.artifacts.diagnostic.status, []);
 
   const harnessOnlyRemote = buildRemoteProductEvidenceArtifacts({
     changedFiles: ['scripts/codex-v097-self-test.mjs'],

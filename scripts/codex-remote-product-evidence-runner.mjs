@@ -90,8 +90,8 @@ function safeArtifact(value, fallbackStatus = 'fail') {
     harnessVersion: HARNESS_VERSION,
     status: fallbackStatus,
     reasonCodes: ['remote_product_evidence_unsafe'],
-    rawLogUploaded: false,
-    rawValuesStored: false,
+    logsUploaded: false,
+    valuesStored: false,
     safeSummaryOnly: true,
   };
 }
@@ -119,6 +119,7 @@ export function buildRemoteProductEvidenceArtifacts(input = {}, env = process.en
   const npmFailed = relevant && npmExitCode !== 0;
   const status = relevant ? (npmPassed ? 'pass' : 'fail') : 'not_applicable';
   const category = relevant ? safeFailureCategory(npmExitCode, result.output) : 'not_applicable';
+  const diagnosticCategory = npmPassed ? 'test_assertion_failure' : category;
   const testCount = relevant ? safeTestCount(result.output) : null;
   const date = isoDate();
   const expiresAt = isoDate(7 * 24 * 60 * 60 * 1000);
@@ -146,8 +147,8 @@ export function buildRemoteProductEvidenceArtifacts(input = {}, env = process.en
     npmAttempted: Boolean(relevant),
     npmExitCode,
     commandClass: relevant ? 'npm_test' : 'not_applicable',
-    rawLogUploaded: false,
-    rawValuesStored: false,
+    logsUploaded: false,
+    valuesStored: false,
     reasonCodes: npmFailed ? ['remote_npm_test_failed'] : [],
     safeSummaryOnly: true,
   }, status === 'not_applicable' ? 'not_applicable' : 'fail');
@@ -200,13 +201,13 @@ export function buildRemoteProductEvidenceArtifacts(input = {}, env = process.en
     platform: process.platform,
     packageManager: 'npm',
     commandClass: relevant ? 'npm_test' : 'not_applicable',
-    safeFailureCategory: category,
+    safeFailureCategory: diagnosticCategory,
     safeMarkerCount: null,
     testCountDetected: testCount,
     durationMs: relevant ? Number(result.durationMs || 0) : null,
     knownBaselineMatched: false,
-    rawLogUploaded: false,
-    rawValuesStored: false,
+    logsUploaded: false,
+    valuesStored: false,
     safeSummaryOnly: true,
   }, status === 'not_applicable' ? 'not_applicable' : 'fail');
 
@@ -266,7 +267,7 @@ export function writeRemoteProductEvidenceArtifacts(input = {}, env = process.en
     CODEX_REMOTE_PRODUCT_CHECKS_PATH: paths.checks,
     CODEX_REMOTE_PRODUCT_BASELINE_PATH: paths.baseline,
     CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: paths.evidence,
-    CODEX_NPM_TEST_SAFE_SUMMARY_PATH: paths.diagnostic,
+    CODEX_NPM_TEST_SAFE_SUMMARY_PATH: result.productRelevant ? paths.diagnostic : '',
   });
   return { ...result, paths };
 }
