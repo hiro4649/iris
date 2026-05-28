@@ -1,8 +1,16 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v0.9.5
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
+import { classifyChange } from './codex-change-classification-gate.mjs';
+import { buildProductVerificationEvidenceReport } from './codex-product-verification-evidence-normalize.mjs';
+import { buildProductVerificationReport } from './codex-product-verification-gate.mjs';
+import { buildRemoteProductBaselineReport } from './codex-remote-product-baseline-gate.mjs';
+import { buildRemoteNpmDiagnosticReport } from './codex-remote-npm-diagnostic-classify.mjs';
 import {
   buildAgentsDoctrineReport,
   buildSkillRoutingReport,
@@ -25,6 +33,11 @@ import {
   buildSkillEvidenceLinkReport,
 } from './codex-v095-gate-lib.mjs';
 
+const HEAD = '1234567890abcdef1234567890abcdef12345678';
+const OTHER = 'abcdef1234567890abcdef1234567890abcdef12';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.dirname(here);
+
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   cases.push({ id, status: condition ? 'pass' : 'fail', actualStatus, reasonCodes, safeSummaryOnly: true });
   if (!condition) failures.push(id);
@@ -36,6 +49,82 @@ function statusOf(report, key) {
 
 function reasonsOf(report, key) {
   return report[key]?.reasonCodes || [];
+}
+
+function productEvidence(result = 'pass') {
+  return {
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    repository: 'example/repo',
+    prNumber: '112',
+    headSha: HEAD,
+    source: 'remote',
+    commands: [{
+      name: 'npm test',
+      required: true,
+      result,
+      source: 'remote',
+      durationMs: 1000,
+      testCount: null,
+      safeSummary: result === 'pass'
+        ? 'remote product verification completed with safe pass status'
+        : 'remote product verification completed with safe fail status',
+    }],
+    safeSummaryOnly: true,
+    rawValuesStored: false,
+  };
+}
+
+function remoteBaseline(result = 'pass') {
+  return {
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    repository: 'example/repo',
+    baseSha: OTHER,
+    baselineType: 'npm_test',
+    commands: [{ name: 'npm test', result }],
+    result,
+    date: '2026-05-28T00:00:00.000Z',
+    source: 'remote',
+    safeSummary: result === 'pass'
+      ? 'remote product baseline completed with safe pass status'
+      : 'remote product baseline completed with safe fail status',
+    knownFailures: result === 'fail' ? ['test_assertion_failure'] : [],
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    rawValuesStored: false,
+    safeSummaryOnly: true,
+  };
+}
+
+function withRemoteProductEvidence(result, callback) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v095-product-evidence-'));
+  const evidencePath = path.join(tmp, 'codex-product-verification-evidence.safe.json');
+  const baselinePath = path.join(tmp, 'codex-remote-product-baseline.safe.json');
+  fs.writeFileSync(evidencePath, JSON.stringify(productEvidence(result), null, 2));
+  fs.writeFileSync(baselinePath, JSON.stringify(remoteBaseline(result), null, 2));
+  const env = {
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_REPOSITORY: 'example/repo',
+    CODEX_PR_NUMBER: '112',
+    CODEX_PR_HEAD_SHA: HEAD,
+    CODEX_PR_BASE_SHA: OTHER,
+    CODEX_SKIP_NPM: '0',
+    CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: evidencePath,
+    CODEX_REMOTE_PRODUCT_BASELINE_PATH: baselinePath,
+    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
+    CODEX_PRODUCT_VERIFICATION_RESULT: result,
+    CODEX_PRODUCT_VERIFICATION_SOURCE: 'remote',
+  };
+  try {
+    return callback(env);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+function workflowText() {
+  return fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'quality-gate.yml'), 'utf8');
 }
 
 export function buildV095SelfTestReport() {
@@ -136,6 +225,61 @@ export function buildV095SelfTestReport() {
   assertCase('skill_evidence_link_missing_fails', statusOf(report, 'skillEvidenceLinkStatus') === 'fail', failures, cases, statusOf(report, 'skillEvidenceLinkStatus'), reasonsOf(report, 'skillEvidenceLinkStatus'));
   report = buildSkillEvidenceLinkReport({ oldEvidence: true });
   assertCase('skill_evidence_obsolete_warning', statusOf(report, 'skillEvidenceLinkStatus') === 'warning', failures, cases, statusOf(report, 'skillEvidenceLinkStatus'), reasonsOf(report, 'skillEvidenceLinkStatus'));
+
+  const workflow = workflowText();
+  const uploadBlock = workflow.slice(workflow.indexOf('Upload safe quality artifacts'));
+  assertCase('remote_product_evidence_step_present', workflow.includes('Prepare remote product verification context'), failures, cases);
+  assertCase('product_relevant_target_pr_clears_skip_npm', workflow.includes('CODEX_SKIP_NPM=0') && workflow.includes('productRequired'), failures, cases);
+  assertCase('product_relevant_target_pr_gets_evidence_path', workflow.includes('CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH='), failures, cases);
+  assertCase('product_relevant_target_pr_gets_remote_baseline_path', workflow.includes('CODEX_REMOTE_PRODUCT_BASELINE_PATH='), failures, cases);
+  assertCase('product_relevant_target_pr_gets_remote_package_diagnostic_path', workflow.includes('CODEX_REMOTE_NPM_DIAGNOSTIC_PATH='), failures, cases);
+  assertCase('uploaded_artifact_allowlist_excludes_raw_package_log', !/(raw[-_ ]?npm|npm[-_ ]?(?:raw[-_ ]?)?log|remote-npm-output)/i.test(uploadBlock), failures, cases);
+  assertCase('uploaded_artifact_allowlist_includes_product_evidence', uploadBlock.includes('codex-product-verification-evidence.safe.json'), failures, cases);
+  assertCase('uploaded_artifact_allowlist_includes_remote_baseline', uploadBlock.includes('codex-remote-product-baseline.safe.json'), failures, cases);
+  assertCase('uploaded_artifact_allowlist_includes_remote_npm_diagnostic', uploadBlock.includes('codex-remote-npm-diagnostic.safe.json'), failures, cases);
+
+  const pr112Classification = classifyChange(['scripts/run-tests.js'], { CODEX_EVENT_NAME: 'pull_request' });
+  assertCase('pr112_like_changed_files_require_remote_product_evidence', pr112Classification.productRelevantChanged === true, failures, cases, pr112Classification.status, pr112Classification.reasonCodes);
+  assertCase('safe_product_evidence_contains_no_unsafe_values', scanObjectForUnsafe(productEvidence('pass')).length === 0 && scanObjectForUnsafe(remoteBaseline('pass')).length === 0, failures, cases);
+
+  withRemoteProductEvidence('pass', (env) => {
+    report = buildProductVerificationEvidenceReport(env);
+    assertCase('package_test_pass_fixture_writes_pass_evidence', report.productVerificationEvidenceStatus.status === 'pass', failures, cases, report.productVerificationEvidenceStatus.status, report.productVerificationEvidenceStatus.reasonCodes);
+    report = buildRemoteProductBaselineReport(env);
+    assertCase('package_test_pass_fixture_writes_pass_baseline', report.remoteProductBaselineStatus.status === 'pass' && report.remoteProductBaselineStatus.baselineResult === 'pass', failures, cases, report.remoteProductBaselineStatus.status, report.remoteProductBaselineStatus.reasonCodes);
+    report = buildProductVerificationReport(env);
+    assertCase('product_relevant_remote_evidence_passes_without_skip', report.productVerificationStatus.status === 'pass' && env.CODEX_SKIP_NPM !== '1', failures, cases, report.productVerificationStatus.status, report.productVerificationStatus.reasonCodes);
+  });
+
+  withRemoteProductEvidence('fail', (env) => {
+    report = buildProductVerificationEvidenceReport(env);
+    const failedCommand = report.productVerificationEvidenceStatus.normalizedEvidence?.commands?.some((item) => item.result === 'fail');
+    assertCase('package_test_fail_fixture_writes_fail_evidence', failedCommand === true, failures, cases, report.productVerificationEvidenceStatus.status, report.productVerificationEvidenceStatus.reasonCodes);
+    report = buildRemoteProductBaselineReport(env);
+    assertCase('package_test_fail_fixture_writes_fail_baseline', report.remoteProductBaselineStatus.baselineResult === 'fail', failures, cases, report.remoteProductBaselineStatus.status, report.remoteProductBaselineStatus.reasonCodes);
+    report = buildProductVerificationReport(env);
+    assertCase('package_test_fail_fixture_forces_gate_failure', report.productVerificationStatus.status !== 'pass' && report.productVerificationStatus.reasonCodes.includes('baseline_failure'), failures, cases, report.productVerificationStatus.status, report.productVerificationStatus.reasonCodes);
+  });
+
+  report = buildRemoteNpmDiagnosticReport({
+    CODEX_NPM_TEST_SAFE_SUMMARY_JSON: JSON.stringify({
+      npmExitCode: 1,
+      safeFailureCategory: 'test_assertion_failure',
+      nodeMajor: 20,
+      platform: 'ubuntu-latest',
+      packageManager: 'npm',
+      commandClass: 'npm_test',
+      safeSummaryOnly: true,
+    }),
+  });
+  assertCase('remote_package_diagnostic_safe_object_passes', report.remoteNpmDiagnosticStatus.status === 'pass', failures, cases, report.remoteNpmDiagnosticStatus.status, report.remoteNpmDiagnosticStatus.reasonCodes);
+
+  report = buildProductVerificationReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/codex-local-quality-gate.mjs',
+    CODEX_SKIP_NPM: '1',
+  });
+  assertCase('harness_only_target_pr_allows_safe_skip_path', report.productVerificationStatus.status === 'pass', failures, cases, report.productVerificationStatus.status, report.productVerificationStatus.reasonCodes);
 
   report = buildSkillRoutingReport({ taskMode: 'harness_change', selectedSkills: ['harness', 'evidence'] });
   assertCase('source_harness_only_v095_fixture_pass', statusOf(report, 'skillRoutingStatus') === 'pass', failures, cases, statusOf(report, 'skillRoutingStatus'), reasonsOf(report, 'skillRoutingStatus'));
