@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { classifyChange } from './codex-change-classification-gate.mjs';
@@ -11,6 +12,10 @@ import { buildProductVerificationEvidenceReport } from './codex-product-verifica
 import { buildProductVerificationReport } from './codex-product-verification-gate.mjs';
 import { buildRemoteProductBaselineReport } from './codex-remote-product-baseline-gate.mjs';
 import { buildRemoteNpmDiagnosticReport } from './codex-remote-npm-diagnostic-classify.mjs';
+import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
+import { buildCodeReviewMonitorReport } from './codex-code-review-monitor.mjs';
+import { buildComplexityGovernanceReport } from './codex-complexity-governance-gate.mjs';
+import { buildStalePrAuditReport } from './codex-stale-pr-audit-gate.mjs';
 import {
   buildAgentsDoctrineReport,
   buildSkillRoutingReport,
@@ -127,6 +132,64 @@ function workflowText() {
   return fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'quality-gate.yml'), 'utf8');
 }
 
+function pr112LikeBody(overrides = {}) {
+  const omit = new Set(overrides.omit || []);
+  const section = (name, text) => omit.has(name) ? '' : `\n## ${name}\n${text}\n`;
+  return `PR profile: product_r3
+Task mode: bugfix
+Risk level: R3
+${section('Goal', 'Update the v0.9.5 baseline source manifest fixture expectation only.')}
+${section('Files or scope', 'Changed files:\ndocs/process/CODEX_CLASSIFICATION_REGISTRY.json\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js')}
+${section('Product verification', 'Product verification commands: npm test.\nProduct verification result: PASS, 470 tests.\nRemote product verification evidence: present.\nRemote product baseline: PASS.\nRemote npm diagnostic: PASS.')}
+${section('Affected entrypoints', 'Repository test runner surface: scripts/run-tests.js.\nRuntime entrypoints changed: no.\nPublic API changed: no.\nAdmin API changed: no.\nAdapter API changed: no.')}
+${section('Failure paths considered', 'Target repo source manifest absence could be incorrectly treated as a baseline failure.\nscripts/run-tests.js could lose product-relevant classification.\nProduction readiness could be accidentally claimed from fixture/local/remote gate success.')}
+${section('API / Contract Compatibility Summary', 'API surface changed: no.\nRuntime API behavior changed: no.\nRequest/response compatibility changed: no.\nRuntime route behavior changed: no.\nPublic API changed: no.\nAdmin API changed: no.\nAdapter API changed: no.\nExternal integration API changed: no.')}
+${section('Solvability', overrides.vagueSolvability ? 'no problem' : 'Solvability: pass.\nExecution interface: local Node validation and GitHub Actions quality-gate.\nAlgorithmic artifact: deterministic fixture update and classification follow-through.\nExternal services required: no.\nProduction runtime required: no.\nRemaining required verification: same-head remote quality gate.')}
+${section('Task Contract', 'Task Mode: bugfix\nGoal: update the source manifest baseline fixture while preserving product-relevant classification for scripts/run-tests.js.\nDone criteria: npm test PASS 470 tests; current self-test PASS; target gate PASS score 95.\nVerification surface: source manifest fixture, classification registry follow-through, v085 fixture context.\nRisk surface: product-relevant test runner classification, harness fixture behavior.\nAllowed scope: docs/process/CODEX_CLASSIFICATION_REGISTRY.json, scripts/codex-v085-self-test.mjs, scripts/run-tests.js.\nForbidden scope: docs/iris files, workflows, src runtime code, AGENTS.md, Postgres files.\nStop condition: stop if same-head remote quality gate fails.')}
+${section('Load-bearing evidence', 'Component: v0.9.5 baseline source manifest fixture.\nIssue mode covered: target repository incorrectly treated as requiring CODEX_SOURCE_HARNESS_MANIFEST.json.\nPositive fixture: scripts/run-tests.js remains product-relevant and requires product verification.\nNegative fixture: source harness manifest expectations remain guarded.')}
+${section('Test Coverage Evidence', 'Changed area: source manifest fixture baseline and v085 fixture context.\nTest command: npm test.\nWhat the test covers: target source manifest fixture path and classification registry follow-through.')}
+${section('Best of N Evidence', 'Candidate count: 2\nSelected candidate: narrow source manifest fixture update with scripts/run-tests.js product-relevant classification intact.\nReason selected: preserves product verification requirements.\nRejected candidate: force CODEX_HARNESS_MANIFEST.json back into the PR after rebase.\nReason rejected: latest main no longer requires that file in this PR shape.')}
+${section('Complexity Governance', 'Complexity regime: high.\nOracle required: yes.\nOracle provided: npm test PASS 470 tests, current self-test PASS, classification coverage PASS.')}
+${section('Fast Path / Full Verification', 'Fast path used: no.\nFull verification required: yes.\nFull local verification was run for current head.\nNo CODEX_SKIP_NPM sweetening was used.')}
+${section('Import Smoke Config', 'Import smoke config: present.\nImport smoke status: pass.\nImport smoke scope: changed scripts only.\nChanged scripts:\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js\nImport/syntax verification:\nnode --check scripts/codex-v085-self-test.mjs PASS\nnode --check scripts/run-tests.js PASS\nRuntime import surface changed: no.')}
+${section('Runtime Risk Register', 'Runtime risk register: present.\nRuntime behavior changed: no.\nRuntime readiness claimed: no.\nProduction readiness claimed: no.\nProduction go: no.\npriority1 remains BLOCKED.\nRuntime risks closed by this PR: none.\nRuntime risks introduced by this PR: none.')}
+${section('Code Review Monitor', 'Writer evidence: present.\nReviewer checklist: present.\nIndependent checklist: present.\nReview scope: source manifest fixture baseline update, scripts/run-tests.js product-relevant test surface.')}
+${section('Evidence Integrity', 'Base SHA: abcdef1234567890abcdef1234567890abcdef12\nHead SHA: 1234567890abcdef1234567890abcdef12345678\nCurrent head local evidence: pass.\nRemote product verification evidence: present.\nRemote product baseline: pass.\nRaw logs read: no.\nRaw diff pasted: no.')}
+${section('Remote/Local Evidence', 'Local checks PASS on current head 1234567890abcdef1234567890abcdef12345678.\nRemote product verification evidence present: yes.\nRemote product baseline: pass.\nRemote npm diagnostic: pass.')}
+${section('R3 confirmation', 'profile: product_r3\nriskLevel: R3\nbaseMainSha: abcdef1234567890abcdef1234567890abcdef12\nheadSha: 1234567890abcdef1234567890abcdef12345678\nconfirmedBy: project-owner\nreviewedItems:\nremote product verification evidence present\nremote product baseline PASS\nremote npm diagnostic PASS\nno runtime product behavior change\nno API surface behavior change\nno production go\npriority1 remains BLOCKED')}
+${section('Residual risks', 'Runtime readiness is not claimed.\nProduction readiness is not claimed.\npriority1 remains BLOCKED.')}
+
+Human confirmation needed:
+yes.
+
+BEGIN_CODEX_MANUAL_CONFIRMATION_JSON
+{"codexManualConfirmation":{"target":"pull_request","repository":"example/repo","prNumber":"112","headSha":"1234567890abcdef1234567890abcdef12345678","riskLevel":"R3","confirmedByRole":"project-owner","reviewedItems":["remote product verification evidence present","remote product baseline PASS","remote npm diagnostic PASS","no production go","priority1 remains BLOCKED"],"qualityGateNotWeakened":true,"riskLevelNotLowered":true}}
+END_CODEX_MANUAL_CONFIRMATION_JSON`;
+}
+
+function runV085StatusForBody(body) {
+  const result = spawnSync(process.execPath, ['scripts/codex-v085-stability-gate.mjs'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      CODEX_EVENT_NAME: 'pull_request',
+      CODEX_PR_BODY: body,
+      CODEX_CHANGED_FILES: 'docs/process/CODEX_CLASSIFICATION_REGISTRY.json\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js',
+      CODEX_QUALITY_REPORT: 'json',
+      CODEX_V085_STABILITY_REPORT: 'json',
+      CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'pass', reasonCodes: [], safeSummaryOnly: true } }),
+      CODEX_FAST_PATH_JSON: JSON.stringify({ fastPathStatus: { status: 'pass', fastPathAllowed: false, reasonCodes: [], safeSummaryOnly: true } }),
+    },
+  });
+  try {
+    return JSON.parse(result.stdout).v085StabilityStatus;
+  } catch {
+    return { status: 'fail', reasonCodes: ['unexpected_error'], safeSummaryOnly: true };
+  }
+}
+
 export function buildV095SelfTestReport() {
   const failures = [];
   const cases = [];
@@ -225,6 +288,78 @@ export function buildV095SelfTestReport() {
   assertCase('skill_evidence_link_missing_fails', statusOf(report, 'skillEvidenceLinkStatus') === 'fail', failures, cases, statusOf(report, 'skillEvidenceLinkStatus'), reasonsOf(report, 'skillEvidenceLinkStatus'));
   report = buildSkillEvidenceLinkReport({ oldEvidence: true });
   assertCase('skill_evidence_obsolete_warning', statusOf(report, 'skillEvidenceLinkStatus') === 'warning', failures, cases, statusOf(report, 'skillEvidenceLinkStatus'), reasonsOf(report, 'skillEvidenceLinkStatus'));
+
+  const pr112Body = pr112LikeBody();
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'docs/process/CODEX_CLASSIFICATION_REGISTRY.json\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js',
+    CODEX_PR_BODY: pr112Body,
+  });
+  assertCase('pr112_like_current_sections_pass_profile_detection', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: pr112LikeBody({ omit: ['Failure paths considered'] }),
+  });
+  assertCase('pr112_like_missing_failure_paths_still_fails', report.prProfileStatus.status === 'fail' && report.prProfileStatus.reasonCodes.includes('missing_required_method_sections'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  let v085 = runV085StatusForBody(pr112Body);
+  assertCase('pr112_like_import_smoke_config_section_passes', v085.importSmokeMicroStatus?.status === 'pass', failures, cases, v085.importSmokeMicroStatus?.status, v085.importSmokeMicroStatus?.reasonCodes);
+  assertCase('pr112_like_runtime_risk_register_section_passes', v085.runtimeRiskRegisterStatus?.status === 'pass', failures, cases, v085.runtimeRiskRegisterStatus?.status, v085.runtimeRiskRegisterStatus?.reasonCodes);
+
+  v085 = runV085StatusForBody(pr112LikeBody({ omit: ['Import Smoke Config'] }));
+  assertCase('pr112_like_missing_import_smoke_section_still_fails', v085.importSmokeMicroStatus?.status !== 'pass' && v085.reasonCodes.includes('import_smoke_config_absent'), failures, cases, v085.importSmokeMicroStatus?.status, v085.reasonCodes);
+
+  v085 = runV085StatusForBody(pr112LikeBody({ omit: ['Runtime Risk Register'] }));
+  assertCase('pr112_like_missing_runtime_risk_register_still_fails', v085.runtimeRiskRegisterStatus?.status !== 'pass' && v085.reasonCodes.includes('runtime_risk_register_absent'), failures, cases, v085.runtimeRiskRegisterStatus?.status, v085.reasonCodes);
+
+  report = buildComplexityGovernanceReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'docs/process/CODEX_CLASSIFICATION_REGISTRY.json\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js',
+    CODEX_PR_BODY: pr112Body,
+    CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'pass', reasonCodes: [], safeSummaryOnly: true } }),
+  });
+  assertCase('pr112_like_current_sections_pass_solvability', report.complexityGovernanceStatus.solvabilityStatus.status === 'pass', failures, cases, report.complexityGovernanceStatus.status, report.complexityGovernanceStatus.reasonCodes);
+
+  report = buildComplexityGovernanceReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: pr112LikeBody({ vagueSolvability: true }),
+    CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'pass', reasonCodes: [], safeSummaryOnly: true } }),
+  });
+  assertCase('vague_solvability_text_does_not_pass', report.complexityGovernanceStatus.status !== 'pass', failures, cases, report.complexityGovernanceStatus.status, report.complexityGovernanceStatus.reasonCodes);
+
+  report = buildComplexityGovernanceReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: 'Task mode: harness_change\nGoal: target rollout with target repo changes\nForbidden scope: target repos\n## Task Contract\nDone criteria: done\nVerification surface: gate\nRisk surface: target rollout\nAllowed scope: source harness\nStop condition: stop\nOracle provided: test',
+    CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'pass', reasonCodes: [], safeSummaryOnly: true } }),
+  });
+  assertCase('unresolved_solvability_conflict_wording_still_fails', report.complexityGovernanceStatus.reasonCodes.includes('solvability_constraints_conflict'), failures, cases, report.complexityGovernanceStatus.status, report.complexityGovernanceStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: pr112Body.replace('PR profile: product_r3', 'PR profile: invalid_profile'),
+  });
+  assertCase('invalid_profile_still_fails', report.prProfileStatus.status === 'fail' && report.prProfileStatus.reasonCodes.includes('pr_profile_invalid'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildStalePrAuditReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_PR_HEAD_SHA: HEAD,
+    CODEX_PR_BODY: pr112Body.replace(HEAD, OTHER),
+  });
+  assertCase('stale_head_evidence_still_fails', report.stalePrAuditStatus.status === 'fail' && report.stalePrAuditStatus.reasonCodes.includes('stale_confirmation_detected'), failures, cases, report.stalePrAuditStatus.status, report.stalePrAuditStatus.reasonCodes);
+
+  report = buildCodeReviewMonitorReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: pr112Body,
+    CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'pass', reasonCodes: [], safeSummaryOnly: true } }),
+    CODEX_V085_STABILITY_JSON: JSON.stringify({ v085StabilityStatus: { status: 'fail', bugfixEvidenceStatus: { status: 'fail', reasonCodes: ['bugfix_reproduction_missing'] }, reasonCodes: ['bugfix_reproduction_missing'], safeSummaryOnly: true } }),
+  });
+  assertCase('code_review_monitor_accepts_pr112_like_bugfix_body_evidence', report.codeReviewMonitorStatus.status !== 'fail', failures, cases, report.codeReviewMonitorStatus.status, report.codeReviewMonitorStatus.reasonCodes);
 
   const workflow = workflowText();
   const uploadBlock = workflow.slice(workflow.indexOf('Upload safe quality artifacts'));

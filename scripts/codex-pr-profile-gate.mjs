@@ -20,7 +20,19 @@ function declaredProfile(body) {
   return match ? match[1] : null;
 }
 
+const sectionAliases = {
+  'Import Smoke Config': ['Import Smoke Configuration'],
+  'Import Smoke Configuration': ['Import Smoke Config'],
+  Solvability: ['Solvability Constraints'],
+  'Solvability Constraints': ['Solvability'],
+};
+
 function sectionPresent(body, section) {
+  const candidates = [section, ...(sectionAliases[section] || [])];
+  return candidates.some((candidate) => sectionHeadingPresent(body, candidate));
+}
+
+function sectionHeadingPresent(body, section) {
   const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*:`, 'im').test(body) ||
     new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*$`, 'im').test(body);
