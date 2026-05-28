@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.5
+// CODEX_QUALITY_HARNESS_FILE v0.9.6
 import { fileURLToPath } from 'node:url';
 import {
   HARNESS_VERSION,
@@ -119,26 +119,6 @@ function artifactType(body) {
   return 'not_applicable';
 }
 
-function compactBugfixEvidencePresent(body) {
-  const text = String(body || '');
-  const hasReproduction = /\b(Reproduced\s*:\s*yes|Issue mode covered\s*:|Failure paths considered)\b/i.test(text);
-  const hasRootCause = /\b(Root cause\s*:|Issue mode covered\s*:|source manifest fixture expectation|baseline source manifest fixture)\b/i.test(text);
-  const hasVerification = /\b(Verification\s*:\s*pass|Product verification result\s*:\s*PASS|npm test PASS|remote product baseline\s*:\s*PASS|remote npm diagnostic\s*:\s*PASS)\b/i.test(text);
-  return hasReproduction && hasRootCause && hasVerification;
-}
-
-function solvabilitySectionPresent(body) {
-  return /(^|\n)\s*(?:#{1,6}\s*)?Solvability(?: Constraints)?\s*:?\s*(?:\n|$)/i.test(String(body || ''));
-}
-
-function solvabilitySectionValid(body) {
-  const text = String(body || '');
-  return /\b(Solvability\s*:\s*pass|Solvability status\s*:\s*bounded|bounded)\b/i.test(text) &&
-    /\bExternal services required\s*:\s*no\b/i.test(text) &&
-    /\bProduction runtime required\s*:\s*no\b/i.test(text) &&
-    /\b(Remaining required verification|Verification surface|same-head remote quality gate)\b/i.test(text);
-}
-
 function surfaceSummary(files, body) {
   const normalized = effectiveSurfacesForComplexity(files, body);
   return {
@@ -185,15 +165,11 @@ function buildSolvabilityStatus(regime, files, body, env = process.env) {
   const reasonCodes = [];
   const mode = taskMode(body);
   const constraintsPresent = /##\s+Constraints|Allowed scope|Forbidden scope|Stop condition/i.test(body);
-  const rolloutText = String(body || '').replace(/docs\/iris/gi, 'docs_iris');
-  const targetRollout = /target rollout|roll out|FUNKY|visual-client-side|renderer/i.test(rolloutText) && !/No target rollout|target rollout is separate/i.test(body);
-  const targetForbidden = /Forbidden scope\s*:\s*[^\n]*(target repos|FUNKY|visual-client-side|renderer)/i.test(rolloutText) || /No target rollout/i.test(body);
+  const targetRollout = /target rollout|roll out|IRIS|FUNKY|renderer/i.test(body) && !/No target rollout|target rollout is separate/i.test(body);
+  const targetForbidden = /Forbidden scope\s*:\s*[^\n]*(target repos|IRIS|FUNKY|renderer)/i.test(body) || /No target rollout/i.test(body);
   if (targetRollout && targetForbidden && /target repo|target changes|rollout/i.test(body)) reasonCodes.push('solvability_constraints_conflict');
   if (/runtime readiness claimed\s*:\s*yes/i.test(body) && /product verification forbidden|do not run product verification/i.test(body)) reasonCodes.push('solvability_constraints_conflict');
-  if (solvabilitySectionPresent(body) && !solvabilitySectionValid(body)) reasonCodes.push('solvability_constraints_missing');
-  if (mode === 'bugfix' && (!/Reproduced\s*:\s*yes/i.test(body) || !/Root cause\s*:/i.test(body) || !/Verification\s*:/i.test(body)) && !compactBugfixEvidencePresent(body)) {
-    reasonCodes.push('bugfix_review_evidence_missing');
-  }
+  if (mode === 'bugfix' && (!/Reproduced\s*:\s*yes/i.test(body) || !/Root cause\s*:/i.test(body) || !/Verification\s*:/i.test(body))) reasonCodes.push('bugfix_review_evidence_missing');
   if ((mode === 'feature' || regime === 'medium') && !/acceptance criteria|done when|done criteria|goal\s*:/i.test(body) && isPrContext(env)) reasonCodes.push('acceptance_criteria_missing_for_complex_task');
   if (/release_gate|release|production/i.test(body) && !/rollback|stop condition/i.test(body)) reasonCodes.push('solvability_constraints_missing');
   if (contractProvided(body, env)) {

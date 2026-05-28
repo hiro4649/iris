@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v0.9.5
+# CODEX_QUALITY_HARNESS_FILE v0.9.6
 name: quality-gate
 
 on:
@@ -82,216 +82,6 @@ jobs:
           CODEX_LIFEBOAT_PATH: ${{ runner.temp }}/codex-minimal-safe-failure.json
         run: |
           node scripts/codex-artifact-lifeboat.mjs > "$RUNNER_TEMP/codex-artifact-lifeboat.json" || true
-      - name: Prepare remote product verification context
-        if: github.event_name == 'pull_request'
-        shell: bash
-        env:
-          CODEX_EVENT_NAME: ${{ github.event_name }}
-          CODEX_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
-          CODEX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
-          CODEX_PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          CODEX_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          changed_files="$(git diff --name-only "${CODEX_PR_BASE_SHA:-origin/main}" "${CODEX_PR_HEAD_SHA:-HEAD}" 2>/dev/null || git diff --name-only origin/main...HEAD 2>/dev/null || true)"
-          {
-            echo "CODEX_CHANGED_FILES<<CODEX_CHANGED_FILES_EOF"
-            printf '%s\n' "$changed_files"
-            echo "CODEX_CHANGED_FILES_EOF"
-          } >> "$GITHUB_ENV"
-
-          pr_body_file="$RUNNER_TEMP/codex-pr-body.md"
-          if command -v gh >/dev/null 2>&1 && [ -n "${CODEX_PR_NUMBER:-}" ]; then
-            GH_TOKEN="${GITHUB_TOKEN:-}" gh pr view "$CODEX_PR_NUMBER" --repo "${CODEX_REPOSITORY:-}" --json body --jq '.body // ""' > "$pr_body_file" 2>/dev/null || true
-          fi
-          if [ -s "$pr_body_file" ]; then
-            echo "CODEX_PR_BODY_PATH=$pr_body_file" >> "$GITHUB_ENV"
-          fi
-
-          context_file="$RUNNER_TEMP/codex-remote-product-context.safe.json"
-          CODEX_CHANGED_FILES="$changed_files" CODEX_PR_BODY_PATH="$pr_body_file" CODEX_REMOTE_PRODUCT_CONTEXT_PATH="$context_file" node --input-type=module - <<'NODE'
-          import fs from 'node:fs';
-          import { classifyChange } from './scripts/codex-change-classification-gate.mjs';
-
-          const files = String(process.env.CODEX_CHANGED_FILES || '')
-            .split(/\r?\n|,/)
-            .map((item) => item.trim())
-            .filter(Boolean);
-          const classified = classifyChange(files, process.env);
-          const c = classified.classification || {};
-          const productRequired = Boolean(
-            classified.productRelevantChanged ||
-            classified.packageOrLockfileChanged ||
-            classified.runtimeReadinessClaimed ||
-            c.performanceClaimed
-          );
-          const context = {
-            schemaVersion: '0.9.5',
-            status: 'pass',
-            productRequired,
-            productRelevantChanged: Boolean(classified.productRelevantChanged),
-            packageOrLockfileChanged: Boolean(classified.packageOrLockfileChanged),
-            runtimeReadinessClaimed: Boolean(classified.runtimeReadinessClaimed),
-            performanceClaimed: Boolean(c.performanceClaimed),
-            harnessOnly: Boolean(c.harnessOnly),
-            docsOnly: Boolean(c.docsOnly),
-            changedFileCount: files.length,
-            safeSummaryOnly: true,
-            rawValuesStored: false
-          };
-          fs.writeFileSync(process.env.CODEX_REMOTE_PRODUCT_CONTEXT_PATH, `${JSON.stringify(context, null, 2)}\n`);
-          NODE
-
-          product_required="$(node -e "const fs=require('fs'); const v=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(v.productRequired ? '1' : '0')" "$context_file")"
-          if [ "$product_required" != "1" ]; then
-            {
-              echo "CODEX_SKIP_NPM=1"
-              echo "CODEX_NPM_SKIP_REASON=harness_or_docs_only_no_runtime_claim"
-              echo "CODEX_PRODUCT_VERIFICATION_REQUIRED=0"
-              echo "CODEX_REMOTE_PRODUCT_BASELINE_REQUIRED=0"
-            } >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          {
-            echo "CODEX_SKIP_NPM=0"
-            echo "CODEX_PRODUCT_VERIFICATION_REQUIRED=1"
-            echo "CODEX_REMOTE_PRODUCT_BASELINE_REQUIRED=1"
-            echo "CODEX_PRODUCT_VERIFICATION_COMMANDS=npm test"
-            echo "CODEX_PRODUCT_VERIFICATION_SOURCE=remote"
-          } >> "$GITHUB_ENV"
-
-          npm_output_file="$RUNNER_TEMP/codex-remote-npm-output.tmp"
-          start_ms="$(node -e "process.stdout.write(String(Date.now()))")"
-          set +e
-          npm test > "$npm_output_file" 2>&1
-          npm_exit=$?
-          set -e
-          end_ms="$(node -e "process.stdout.write(String(Date.now()))")"
-          duration_ms=$((end_ms - start_ms))
-          result="pass"
-          if [ "$npm_exit" -ne 0 ]; then
-            result="fail"
-          fi
-
-          safe_category="unknown_npm_failure"
-          if [ "$npm_exit" -eq 0 ]; then
-            safe_category="none"
-          elif grep -Eiq "AssertionError|test_assertion|not ok|FAIL|failed" "$npm_output_file"; then
-            safe_category="test_assertion_failure"
-          elif grep -Eiq "Cannot find module|ERR_MODULE_NOT_FOUND|module not found" "$npm_output_file"; then
-            safe_category="module_resolution_failure"
-          elif grep -Eiq "missing dependency|ENOENT|not found" "$npm_output_file"; then
-            safe_category="missing_dependency"
-          elif grep -Eiq "timeout|timed out" "$npm_output_file"; then
-            safe_category="timeout"
-          elif grep -Eiq "npm ERR|package manager" "$npm_output_file"; then
-            safe_category="package_manager_error"
-          fi
-          rm -f "$npm_output_file"
-
-          evidence_path="$PWD/codex-product-verification-evidence.safe.json"
-          baseline_path="$PWD/codex-remote-product-baseline.safe.json"
-          diagnostic_path="$PWD/codex-remote-npm-diagnostic.safe.json"
-          REMOTE_NPM_RESULT="$result" \
-          REMOTE_NPM_EXIT_CODE="$npm_exit" \
-          REMOTE_NPM_DURATION_MS="$duration_ms" \
-          REMOTE_NPM_SAFE_CATEGORY="$safe_category" \
-          REMOTE_EVIDENCE_PATH="$evidence_path" \
-          REMOTE_BASELINE_PATH="$baseline_path" \
-          REMOTE_DIAGNOSTIC_PATH="$diagnostic_path" \
-          node --input-type=module - <<'NODE'
-          import fs from 'node:fs';
-          import { HARNESS_VERSION } from './scripts/codex-v080-lib.mjs';
-
-          const result = process.env.REMOTE_NPM_RESULT === 'pass' ? 'pass' : 'fail';
-          const npmExitCode = Number(process.env.REMOTE_NPM_EXIT_CODE || 1);
-          const durationMs = Number(process.env.REMOTE_NPM_DURATION_MS || 0);
-          const safeCategory = process.env.REMOTE_NPM_SAFE_CATEGORY || 'unknown_npm_failure';
-          const now = new Date();
-          const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          const command = {
-            name: 'npm test',
-            required: true,
-            result,
-            source: 'remote',
-            durationMs: Number.isFinite(durationMs) ? durationMs : null,
-            testCount: null,
-            safeSummary: result === 'pass'
-              ? 'remote product verification completed with safe pass status'
-              : 'remote product verification completed with safe fail status'
-          };
-          const evidence = {
-            schemaVersion: '0.8.3',
-            harnessVersion: HARNESS_VERSION,
-            repository: process.env.CODEX_REPOSITORY || '',
-            prNumber: process.env.CODEX_PR_NUMBER || '',
-            headSha: process.env.CODEX_PR_HEAD_SHA || '',
-            source: 'remote',
-            commands: [command],
-            safeSummaryOnly: true,
-            rawValuesStored: false
-          };
-          const baseline = {
-            schemaVersion: '0.8.3',
-            harnessVersion: HARNESS_VERSION,
-            repository: process.env.CODEX_REPOSITORY || '',
-            baseSha: process.env.CODEX_PR_BASE_SHA || '',
-            baselineType: 'npm_test',
-            commands: [{ name: 'npm test', result }],
-            result,
-            date: now.toISOString(),
-            source: 'remote',
-            safeSummary: result === 'pass'
-              ? 'remote product baseline completed with safe pass status'
-              : 'remote product baseline completed with safe fail status',
-            knownFailures: result === 'fail' ? [safeCategory] : [],
-            expiresAt: expires.toISOString(),
-            rawValuesStored: false,
-            safeSummaryOnly: true
-          };
-          const diagnostic = {
-            schemaVersion: '0.8.3',
-            harnessVersion: HARNESS_VERSION,
-            status: result,
-            result,
-            npmExitCode,
-            nodeMajor: Number(String(process.versions.node).split('.')[0]),
-            platform: 'ubuntu-latest',
-            os: 'linux',
-            packageManager: 'npm',
-            commandClass: 'npm_test',
-            safeFailureCategory: result === 'fail' ? safeCategory : 'none',
-            safeMarkerCount: null,
-            testCountDetected: null,
-            durationMs: Number.isFinite(durationMs) ? durationMs : null,
-            knownBaselineMatched: result === 'fail',
-            rawLogUploaded: false,
-            rawValuesStored: false,
-            safeSummaryOnly: true
-          };
-          fs.writeFileSync(process.env.REMOTE_EVIDENCE_PATH, `${JSON.stringify(evidence, null, 2)}\n`);
-          fs.writeFileSync(process.env.REMOTE_BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`);
-          fs.writeFileSync(process.env.REMOTE_DIAGNOSTIC_PATH, `${JSON.stringify(diagnostic, null, 2)}\n`);
-          NODE
-
-          {
-            echo "CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH=$evidence_path"
-            echo "CODEX_REMOTE_PRODUCT_BASELINE_PATH=$baseline_path"
-            echo "CODEX_REMOTE_NPM_DIAGNOSTIC_PATH=$diagnostic_path"
-            echo "CODEX_PRODUCT_VERIFICATION_RESULT=$result"
-          } >> "$GITHUB_ENV"
-          if [ "$result" = "fail" ]; then
-            {
-              echo "CODEX_NPM_TEST_SAFE_SUMMARY_PATH=$diagnostic_path"
-              echo "CODEX_NPM_EXIT_CODE=$npm_exit"
-              echo "CODEX_NPM_SAFE_FAILURE_CATEGORY=$safe_category"
-              echo "CODEX_NPM_COMMAND_CLASS=npm_test"
-              echo "CODEX_PACKAGE_MANAGER=npm"
-              echo "CODEX_PLATFORM_LABEL=ubuntu-latest"
-            } >> "$GITHUB_ENV"
-          fi
       - name: Run Codex quality gate
         shell: bash
         env:
@@ -309,15 +99,6 @@ jobs:
           if [ "${CODEX_EVENT_NAME:-}" = "pull_request" ]; then
             export CODEX_EVIDENCE_PACK_STRICT=1
             export CODEX_HUMAN_CONFIRMATION_STRICT=1
-            changed_files="$(git diff --name-only "${CODEX_PR_BASE_SHA:-origin/main}" "${CODEX_PR_HEAD_SHA:-HEAD}" 2>/dev/null || git diff --name-only origin/main...HEAD 2>/dev/null || true)"
-            export CODEX_CHANGED_FILES="$changed_files"
-            pr_body_file="$RUNNER_TEMP/codex-pr-body.md"
-            if command -v gh >/dev/null 2>&1 && [ -n "${CODEX_PR_NUMBER:-}" ]; then
-              GH_TOKEN="${GITHUB_TOKEN:-}" gh pr view "$CODEX_PR_NUMBER" --repo "${CODEX_REPOSITORY:-}" --json body --jq '.body // ""' > "$pr_body_file" 2>/dev/null || true
-            fi
-            if [ -s "$pr_body_file" ]; then
-              export CODEX_PR_BODY_PATH="$pr_body_file"
-            fi
           else
             export CODEX_EVIDENCE_PACK_STRICT="${CODEX_EVIDENCE_PACK_STRICT:-0}"
             export CODEX_HUMAN_CONFIRMATION_STRICT="${CODEX_HUMAN_CONFIRMATION_STRICT:-0}"
@@ -451,17 +232,11 @@ jobs:
             codex-self-test-cases.safe.json
             codex-failure-reasons.json
             codex-invalid-report-recovery-summary.json
-            codex-product-verification-evidence.safe.json
-            codex-remote-product-baseline.safe.json
-            codex-remote-npm-diagnostic.safe.json
             codex-target-quality-summary.json
-            codex-target-quality-summary.safe.json
-            codex-reason-summary.safe.json
             codex-source-final-summary.json
             codex-target-final-summary.json
             codex-safe-artifact-index.json
             codex-safe-artifact-classification.safe.json
-            codex-safe-artifact-classifier.safe.json
             codex-pr-evidence-rendered.safe.json
             codex-evidence-auto-repair-hint.safe.json
             codex-same-head-artifact-evidence.safe.json

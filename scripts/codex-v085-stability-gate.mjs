@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.5
+// CODEX_QUALITY_HARNESS_FILE v0.9.6
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -40,21 +40,6 @@ function parseJson(value) {
 function bodyLineValue(body, label) {
   const pattern = new RegExp(`^\\s*${label}\\s*:\\s*(.+?)\\s*$`, 'im');
   return String(body || '').match(pattern)?.[1]?.trim() || '';
-}
-
-function sectionPresent(body, section) {
-  const aliases = {
-    'Import Smoke Config': ['Import Smoke Configuration'],
-    'Import Smoke Configuration': ['Import Smoke Config'],
-    Solvability: ['Solvability Constraints'],
-    'Solvability Constraints': ['Solvability'],
-  };
-  const candidates = [section, ...(aliases[section] || [])];
-  return candidates.some((candidate) => {
-    const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*:`, 'im').test(body) ||
-      new RegExp(`(^|\\n)\\s*(?:#{1,6}\\s*)?${escaped}\\s*$`, 'im').test(body);
-  });
 }
 
 function normalizeTaskMode(value) {
@@ -153,26 +138,7 @@ function bugfixEvidenceFromBody(body, env = process.env) {
   const reproduced = bodyLineValue(body, 'Reproduced');
   const rootCause = bodyLineValue(body, 'Root cause');
   const verification = bodyLineValue(body, 'Verification');
-  if (!reproduced && !rootCause && !verification) {
-    const text = String(body || '');
-    const compactBugfixEvidence =
-      sectionPresent(text, 'Failure paths considered') &&
-      /\b(Issue mode covered\s*:|source manifest fixture expectation|baseline source manifest fixture)\b/i.test(text) &&
-      /\b(Product verification result\s*:\s*PASS|npm test PASS|remote product baseline\s*:\s*PASS|remote npm diagnostic\s*:\s*PASS)\b/i.test(text);
-    if (!compactBugfixEvidence) return null;
-    return {
-      schemaVersion: '0.8.5',
-      reproductionStatus: 'reproduced',
-      rootCause: {
-        status: 'identified',
-        safeSummary: 'provided',
-      },
-      verification: {
-        status: 'pass',
-        reasonIfNotRun: '',
-      },
-    };
-  }
+  if (!reproduced && !rootCause && !verification) return null;
   return {
     schemaVersion: '0.8.5',
     reproductionStatus: /^yes|reproduced$/i.test(reproduced) ? 'reproduced' : reproduced,
@@ -319,9 +285,6 @@ async function buildImportSmokeMicroStatus(env, classificationStatus) {
     return { status: 'not_applicable', reasonCodes: ['source_harness_mode'], safeSummaryOnly: true };
   }
   const loaded = configFromEnvOrFile(env, 'CODEX_IMPORT_SMOKE_CONFIG_JSON', 'docs/process/CODEX_IMPORT_SMOKE_CONFIG.json');
-  if (!loaded.present && importSmokeBodyEvidencePresent(prBodyText(env), env)) {
-    return { status: 'pass', checkedCount: 2, reasonCodes: [], rawOutputStored: false, safeSummaryOnly: true };
-  }
   if (!loaded.present) return { status: 'not_applicable', reasonCodes: ['import_smoke_config_absent'], safeSummaryOnly: true };
   const relevant = Boolean(classificationStatus.productRelevantChanged || classificationStatus.runtimeReadinessClaimed);
   if (loaded.source === 'invalid' || !validateImportSmokeConfig(loaded.config)) {
@@ -350,28 +313,6 @@ async function buildImportSmokeMicroStatus(env, classificationStatus) {
   };
 }
 
-function normalizeBodyScriptPath(value) {
-  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
-}
-
-function importSmokeBodyEvidencePresent(body, env = process.env) {
-  const text = String(body || '');
-  const scriptChecks = [...text.matchAll(/\bnode --check\s+(scripts\/[^\s]+?\.(?:mjs|js))\s+PASS\b/ig)]
-    .map((match) => normalizeBodyScriptPath(match[1]));
-  const checked = new Set(scriptChecks);
-  const changedScripts = changedFiles(env)
-    .map(normalizeBodyScriptPath)
-    .filter((file) => /^scripts\/.*\.(?:mjs|js)$/.test(file));
-  const changedScriptsCovered = changedScripts.length
-    ? changedScripts.every((file) => checked.has(file))
-    : checked.size > 0;
-  return (sectionPresent(text, 'Import Smoke Config') || sectionPresent(text, 'Import Smoke Configuration')) &&
-    /\bImport smoke (?:config|configuration)\s*:\s*present\b/i.test(text) &&
-    /\bImport smoke status\s*:\s*pass\b/i.test(text) &&
-    changedScriptsCovered &&
-    /\bRuntime import surface changed\s*:\s*no\b/i.test(text);
-}
-
 function validateRuntimeRiskRegister(config) {
   if (!config || typeof config !== 'object') return false;
   if (scanObjectForUnsafe(config).length) return false;
@@ -391,9 +332,6 @@ function buildRuntimeRiskRegisterStatus(env, classificationStatus) {
     return { status: 'not_applicable', reasonCodes: ['source_harness_mode'], safeSummaryOnly: true };
   }
   const loaded = configFromEnvOrFile(env, 'CODEX_RUNTIME_RISK_REGISTER_JSON', 'docs/process/CODEX_RUNTIME_RISK_REGISTER.json');
-  if (!loaded.present && runtimeRiskBodyEvidencePresent(prBodyText(env))) {
-    return { status: 'pass', openP1Count: 0, releaseBlockingOpenP1Count: 0, reasonCodes: [], safeSummaryOnly: true };
-  }
   if (!loaded.present) return { status: 'not_applicable', reasonCodes: ['runtime_risk_register_absent'], safeSummaryOnly: true };
   if (loaded.source === 'invalid' || !validateRuntimeRiskRegister(loaded.config)) {
     return { status: 'fail', reasonCodes: ['runtime_risk_register_invalid'], safeSummaryOnly: true };
@@ -425,17 +363,6 @@ function buildRuntimeRiskRegisterStatus(env, classificationStatus) {
     reasonCodes,
     safeSummaryOnly: true,
   };
-}
-
-function runtimeRiskBodyEvidencePresent(body) {
-  const text = String(body || '');
-  return sectionPresent(text, 'Runtime Risk Register') &&
-    /\bRuntime risk register\s*:\s*present\b/i.test(text) &&
-    /\bRuntime behavior changed\s*:\s*no\b/i.test(text) &&
-    /\bRuntime readiness claimed\s*:\s*no\b/i.test(text) &&
-    /\bProduction readiness claimed\s*:\s*no\b/i.test(text) &&
-    /\bProduction go\s*:\s*no\b/i.test(text) &&
-    /\bpriority1 remains BLOCKED\b/i.test(text);
 }
 
 function buildCheckoutEvidencePriorityStatus(env = process.env) {
