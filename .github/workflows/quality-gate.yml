@@ -114,6 +114,10 @@ jobs:
             export CODEX_PROFILE_COMPAT_MODE=off
             export CODEX_SKIP_NPM="${CODEX_SKIP_NPM:-1}"
           fi
+          if [ "${CODEX_EVENT_NAME:-}" = "pull_request" ] && [ -n "${CODEX_PR_BASE_SHA:-}" ] && [ -n "${CODEX_PR_HEAD_SHA:-}" ]; then
+            export CODEX_CHANGED_FILES="$(git diff --name-only "${CODEX_PR_BASE_SHA}" "${CODEX_PR_HEAD_SHA}" || true)"
+            export CODEX_DIFF_NUMSTAT="$(git diff --numstat "${CODEX_PR_BASE_SHA}" "${CODEX_PR_HEAD_SHA}" || true)"
+          fi
           node scripts/codex-workflow-preflight.mjs > "$RUNNER_TEMP/codex-workflow-preflight.json"
           gate_exit=0
           node scripts/codex-local-quality-gate.mjs > "$RUNNER_TEMP/codex-quality-gate.json" || gate_exit=$?
