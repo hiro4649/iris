@@ -18,6 +18,7 @@ import { buildChainScopeReport } from './codex-chain-scope-gate.mjs';
 import { buildFalsePositiveBudgetReport } from './codex-false-positive-budget-gate.mjs';
 import { buildTargetScriptClassificationFixtureReport, classifyTargetScript } from './codex-target-script-classification-fixture.mjs';
 import { buildGithubReplayContextFromData } from './codex-ci-replay.mjs';
+import { buildPrProfileReport } from './codex-pr-profile-gate.mjs';
 
 const HEAD = '1234567890abcdef1234567890abcdef12345678';
 const OTHER = 'abcdef1234567890abcdef1234567890abcdef12';
@@ -25,6 +26,31 @@ const OTHER = 'abcdef1234567890abcdef1234567890abcdef12';
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   cases.push({ id, status: condition ? 'pass' : 'fail', actualStatus, reasonCodes, safeSummaryOnly: true });
   if (!condition) failures.push(id);
+}
+
+function productR3Body(risk = 'R3', extra = '') {
+  return `PR profile: product_r3
+Task mode: bugfix
+Risk level: ${risk}
+
+## Goal
+Fix product-relevant verification fixture.
+
+## Product verification
+npm test PASS.
+
+## Affected entrypoints
+scripts/run-tests.js.
+
+## Failure paths considered
+profile conflict remains enforced.
+
+## Residual risks
+Runtime readiness is not claimed.
+
+Human confirmation needed:
+yes.
+${extra}`;
 }
 
 export function buildV094SelfTestReport() {
@@ -77,6 +103,77 @@ export function buildV094SelfTestReport() {
   assertCase('target_rollout_does_not_disable_product_context', report.remoteProductContextRestoreStatus.status === 'pass', failures, cases, report.remoteProductContextRestoreStatus.status, report.remoteProductContextRestoreStatus.reasonCodes);
   report = buildTargetScriptClassificationFixtureReport({ manifest: { runTestsClassification: 'product_relevant', devServerClassification: 'dev_server_entrypoint' } });
   assertCase('scripts_run_tests_product_relevant_context_pass', report.targetScriptClassificationFixtureStatus.status === 'pass' && classifyTargetScript('scripts/run-tests.js', { runTestsClassification: 'product_relevant' }) === 'product_relevant', failures, cases, report.targetScriptClassificationFixtureStatus.status, report.targetScriptClassificationFixtureStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: productR3Body('R3'),
+  });
+  assertCase('pr112_like_body_risk_r3_product_r3_pass', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+  assertCase('product_relevant_body_risk_r3_infers_product_r3', report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: productR3Body('R2'),
+  });
+  assertCase('product_relevant_body_risk_r2_product_r3_conflicts', report.prProfileStatus.status === 'warning' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict') && report.prProfileStatus.inferredProfile === 'product_minor_r2', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_RISK_LEVEL: 'R3',
+    CODEX_PR_BODY: productR3Body('R2'),
+  });
+  assertCase('env_risk_overrides_conflicting_body_risk', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'product_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: productR3Body('R3-later'),
+  });
+  assertCase('invalid_body_risk_does_not_infer_r3', report.prProfileStatus.inferredProfile !== 'product_r3' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: productR3Body('r3'),
+  });
+  assertCase('lowercase_body_risk_does_not_infer_r3', report.prProfileStatus.inferredProfile !== 'product_r3' && report.prProfileStatus.reasonCodes.includes('pr_profile_conflict'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: '.github/workflows/quality-gate.yml',
+    CODEX_PR_BODY: `PR profile: harness_workflow_r3
+Risk level:
+R3
+
+## Goal
+Restore harness workflow context.
+
+## Files or scope
+.github/workflows/quality-gate.yml
+
+## Evidence Integrity
+Current-head evidence only.
+
+## Validation commands
+v094 self-test PASS.
+
+## Residual risks
+Runtime readiness is not claimed.
+
+Human confirmation needed:
+yes.`,
+  });
+  assertCase('harness_workflow_r3_inference_remains_correct', report.prProfileStatus.status === 'pass' && report.prProfileStatus.inferredProfile === 'harness_workflow_r3', failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
+
+  report = buildPrProfileReport({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_CHANGED_FILES: 'scripts/run-tests.js',
+    CODEX_PR_BODY: productR3Body('R3').replace(/## Failure paths considered[\s\S]*?## Residual risks/, '## Residual risks'),
+  });
+  assertCase('required_product_r3_sections_still_enforced', report.prProfileStatus.status === 'fail' && report.prProfileStatus.reasonCodes.includes('missing_required_method_sections'), failures, cases, report.prProfileStatus.status, report.prProfileStatus.reasonCodes);
 
   report = buildProductContextSafeArtifactReport({ productContextFailure: true, classification: 'body_only_repair_allowed' });
   assertCase('safe_artifact_classifier_product_context_missing', report.productContextSafeArtifactStatus.status === 'fail', failures, cases, report.productContextSafeArtifactStatus.status, report.productContextSafeArtifactStatus.reasonCodes);
