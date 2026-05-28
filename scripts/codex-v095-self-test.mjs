@@ -167,7 +167,7 @@ BEGIN_CODEX_MANUAL_CONFIRMATION_JSON
 END_CODEX_MANUAL_CONFIRMATION_JSON`;
 }
 
-function runV085StatusForBody(body) {
+function runV085StatusForBody(body, changedFiles = 'docs/process/CODEX_CLASSIFICATION_REGISTRY.json\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js') {
   const result = spawnSync(process.execPath, ['scripts/codex-v085-stability-gate.mjs'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -176,7 +176,7 @@ function runV085StatusForBody(body) {
       ...process.env,
       CODEX_EVENT_NAME: 'pull_request',
       CODEX_PR_BODY: body,
-      CODEX_CHANGED_FILES: 'docs/process/CODEX_CLASSIFICATION_REGISTRY.json\nscripts/codex-v085-self-test.mjs\nscripts/run-tests.js',
+      CODEX_CHANGED_FILES: changedFiles,
       CODEX_QUALITY_REPORT: 'json',
       CODEX_V085_STABILITY_REPORT: 'json',
       CODEX_PRODUCT_VERIFICATION_JSON: JSON.stringify({ productVerificationStatus: { status: 'pass', reasonCodes: [], safeSummaryOnly: true } }),
@@ -313,6 +313,24 @@ export function buildV095SelfTestReport() {
 
   v085 = runV085StatusForBody(pr112LikeBody({ omit: ['Runtime Risk Register'] }));
   assertCase('pr112_like_missing_runtime_risk_register_still_fails', v085.runtimeRiskRegisterStatus?.status !== 'pass' && v085.reasonCodes.includes('runtime_risk_register_absent'), failures, cases, v085.runtimeRiskRegisterStatus?.status, v085.reasonCodes);
+
+  const parserRepairChangedFiles = 'scripts/codex-pr-profile-gate.mjs\nscripts/codex-code-review-monitor.mjs\nscripts/codex-v085-stability-gate.mjs';
+  const parserRepairBody = `Task mode: bugfix
+## Import Smoke Configuration
+Import smoke configuration: present.
+Import smoke status: pass.
+Import smoke scope: changed scripts only.
+Changed scripts:
+scripts/codex-pr-profile-gate.mjs
+scripts/codex-code-review-monitor.mjs
+scripts/codex-v085-stability-gate.mjs
+Import/syntax verification:
+node --check scripts/codex-pr-profile-gate.mjs PASS
+node --check scripts/codex-code-review-monitor.mjs PASS
+node --check scripts/codex-v085-stability-gate.mjs PASS
+Runtime import surface changed: no.`;
+  v085 = runV085StatusForBody(parserRepairBody, parserRepairChangedFiles);
+  assertCase('import_smoke_body_evidence_accepts_changed_script_checks', v085.importSmokeMicroStatus?.status === 'pass', failures, cases, v085.importSmokeMicroStatus?.status, v085.importSmokeMicroStatus?.reasonCodes);
 
   report = buildComplexityGovernanceReport({
     CODEX_EVENT_NAME: 'pull_request',

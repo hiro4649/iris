@@ -319,7 +319,7 @@ async function buildImportSmokeMicroStatus(env, classificationStatus) {
     return { status: 'not_applicable', reasonCodes: ['source_harness_mode'], safeSummaryOnly: true };
   }
   const loaded = configFromEnvOrFile(env, 'CODEX_IMPORT_SMOKE_CONFIG_JSON', 'docs/process/CODEX_IMPORT_SMOKE_CONFIG.json');
-  if (!loaded.present && importSmokeBodyEvidencePresent(prBodyText(env))) {
+  if (!loaded.present && importSmokeBodyEvidencePresent(prBodyText(env), env)) {
     return { status: 'pass', checkedCount: 2, reasonCodes: [], rawOutputStored: false, safeSummaryOnly: true };
   }
   if (!loaded.present) return { status: 'not_applicable', reasonCodes: ['import_smoke_config_absent'], safeSummaryOnly: true };
@@ -350,13 +350,25 @@ async function buildImportSmokeMicroStatus(env, classificationStatus) {
   };
 }
 
-function importSmokeBodyEvidencePresent(body) {
+function normalizeBodyScriptPath(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function importSmokeBodyEvidencePresent(body, env = process.env) {
   const text = String(body || '');
+  const scriptChecks = [...text.matchAll(/\bnode --check\s+(scripts\/[^\s]+?\.(?:mjs|js))\s+PASS\b/ig)]
+    .map((match) => normalizeBodyScriptPath(match[1]));
+  const checked = new Set(scriptChecks);
+  const changedScripts = changedFiles(env)
+    .map(normalizeBodyScriptPath)
+    .filter((file) => /^scripts\/.*\.(?:mjs|js)$/.test(file));
+  const changedScriptsCovered = changedScripts.length
+    ? changedScripts.every((file) => checked.has(file))
+    : checked.size > 0;
   return (sectionPresent(text, 'Import Smoke Config') || sectionPresent(text, 'Import Smoke Configuration')) &&
     /\bImport smoke (?:config|configuration)\s*:\s*present\b/i.test(text) &&
     /\bImport smoke status\s*:\s*pass\b/i.test(text) &&
-    /\bnode --check scripts\/codex-v085-self-test\.mjs PASS\b/i.test(text) &&
-    /\bnode --check scripts\/run-tests\.js PASS\b/i.test(text) &&
+    changedScriptsCovered &&
     /\bRuntime import surface changed\s*:\s*no\b/i.test(text);
 }
 
