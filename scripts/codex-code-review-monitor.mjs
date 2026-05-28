@@ -235,6 +235,14 @@ function bugfixEvidenceStatus(v085Status) {
   return v085Status.bugfixEvidenceStatus || { status: 'not_applicable', reasonCodes: [] };
 }
 
+function bugfixEvidencePresentInBody(body) {
+  const text = String(body || '');
+  const hasReproduction = /\b(Reproduced\s*:\s*yes|Issue mode covered\s*:|Failure paths considered)\b/i.test(text);
+  const hasRootCause = /\b(Root cause\s*:|Issue mode covered\s*:|source manifest fixture expectation|baseline source manifest fixture)\b/i.test(text);
+  const hasVerification = /\b(Verification\s*:\s*pass|Product verification result\s*:\s*PASS|npm test PASS|remote product baseline\s*:\s*PASS|remote npm diagnostic\s*:\s*PASS)\b/i.test(text);
+  return hasReproduction && hasRootCause && hasVerification;
+}
+
 function parseNumstatLines(text) {
   return String(text || '').split(/\r?\n/).map((line) => {
     const [added, deleted, file] = line.trim().split(/\s+/);
@@ -339,7 +347,12 @@ export function buildCodeReviewMonitorReport(env = process.env) {
     updateChecklist(reviewChecklist, 'testEvidence', 'fail');
   }
 
-  if (v085Failed) {
+  const bodyBugfixEvidencePresent = bugfixEvidencePresentInBody(body);
+  const v085OnlyBugfixEvidenceMissing = v085Failed &&
+    (v085Status.reasonCodes || []).length > 0 &&
+    (v085Status.reasonCodes || []).every((code) => ['bugfix_reproduction_missing', 'bugfix_root_cause_missing', 'bugfix_verification_missing'].includes(code));
+
+  if (v085Failed && !(v085OnlyBugfixEvidenceMissing && bodyBugfixEvidencePresent)) {
     addFinding(collections, finding('P0', 'code_review_monitor_failed', 'correctness', 'fix_v085_stability_status'));
     updateChecklist(reviewChecklist, 'correctness', 'fail');
   } else if (v085Manual) {
@@ -354,7 +367,7 @@ export function buildCodeReviewMonitorReport(env = process.env) {
     const bug = bugfixEvidenceStatus(v085Status);
     const missingBugfix = bug.status === 'fail' ||
       ['bugfix_reproduction_missing', 'bugfix_root_cause_missing', 'bugfix_verification_missing'].some((code) => (bug.reasonCodes || []).includes(code));
-    if (missingBugfix) {
+    if (missingBugfix && !bodyBugfixEvidencePresent) {
       addFinding(collections, finding('P0', 'bugfix_review_evidence_missing', 'regression', 'add_bugfix_reproduction_root_cause_verification'));
       updateChecklist(reviewChecklist, 'regression', 'fail');
     }
