@@ -115,6 +115,12 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${CODEX_EVENT_NAME:-}" = "pull_request" ]; then
+            changed_files="$(git diff --name-only "${CODEX_PR_BASE_SHA:-}" "${CODEX_PR_HEAD_SHA:-}" || true)"
+            if [ -n "$changed_files" ]; then
+              export CODEX_CHANGED_FILES="$changed_files"
+            else
+              export CODEX_PULL_REQUEST_CONTEXT_FIDELITY_JSON='{"changedFilesUnavailableFallbackPresent":true}'
+            fi
             export CODEX_EVIDENCE_PACK_STRICT=1
             export CODEX_HUMAN_CONFIRMATION_STRICT=1
           else
