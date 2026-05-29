@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v0.9.9
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
+import { classifyChange } from './codex-change-classification-gate.mjs';
+import { buildRemoteProductEvidenceExecutionReport } from './codex-v098-gate-lib.mjs';
+import { writeArtifacts as writeRemoteProductArtifacts } from './codex-remote-product-evidence-runner.mjs';
 import {
   buildFormalEvidencePrecedenceReport,
   buildLifeboatSemanticsReport,
@@ -23,6 +29,7 @@ import {
 
 function statusOf(report, key) { return report[key]?.status || report.status || 'missing'; }
 function reasonsOf(report, key) { return report[key]?.reasonCodes || []; }
+function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function assertCase(id, condition, failures, cases, actualStatus = 'pass', reasonCodes = []) {
   cases.push({ id, status: condition ? 'pass' : 'fail', actualStatus, reasonCodes, safeSummaryOnly: true });
   if (!condition) failures.push(id);
@@ -61,6 +68,56 @@ export function buildV099SelfTestReport() {
   assertCase('remote_npm_diagnostic_normalized_when_formal_evidence_pass', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
   report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, npmExecuted: false });
   assertCase('remote_npm_not_executed_emitted_when_npm_not_run', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'fail', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  const pr112Files = ['docs/process/CODEX_CLASSIFICATION_REGISTRY.json', 'scripts/codex-v085-self-test.mjs', 'scripts/run-tests.js'];
+  const pr112Classification = classifyChange(pr112Files, { CODEX_CHANGED_FILES: pr112Files.join('\n') });
+  assertCase('pr112_like_changed_files_require_remote_npm_execution', pr112Classification.productRelevantChanged === true, failures, cases, pr112Classification.productRelevantChanged ? 'pass' : 'fail');
+  assertCase('scripts_run_tests_changed_file_is_product_relevant_surface', classifyChange(['scripts/run-tests.js'], { CODEX_CHANGED_FILES: 'scripts/run-tests.js' }).productRelevantChanged === true, failures, cases);
+  report = buildRemoteProductEvidenceExecutionReport({ forceCheck: true, productRelevant: true, targetRepoMode: true, isPullRequest: true, skipNpm: false, npmExecuted: true, evidencePresent: true, baselinePresent: true, diagnosticPresent: true, sameHeadEvidencePresent: true });
+  assertCase('product_relevant_target_pr_with_npm_executed_passes_execution_gate', statusOf(report, 'remoteProductEvidenceExecutionStatus') === 'pass', failures, cases, statusOf(report, 'remoteProductEvidenceExecutionStatus'), reasonsOf(report, 'remoteProductEvidenceExecutionStatus'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v099-remote-product-'));
+  const passArtifacts = writeRemoteProductArtifacts({
+    productRelevant: true,
+    isPullRequest: true,
+    eventName: 'pull_request',
+    headSha: '1234567890abcdef1234567890abcdef12345678',
+    baseSha: 'abcdef1234567890abcdef1234567890abcdef12',
+    repository: 'owner/repo',
+    npmExecuted: true,
+    npmExitCode: 0,
+  }, { CODEX_REMOTE_PRODUCT_EVIDENCE_OUT_DIR: tmpDir, CODEX_REMOTE_NPM_EXECUTED: '1', CODEX_NPM_EXIT_CODE: '0' });
+  const writtenEvidence = readJson(path.join(tmpDir, 'codex-product-verification-evidence.remote.json'));
+  const writtenBaseline = readJson(path.join(tmpDir, 'codex-remote-product-baseline.json'));
+  const writtenDiagnostic = readJson(path.join(tmpDir, 'codex-remote-npm-diagnostic.safe.json'));
+  assertCase('product_relevant_runner_writes_npm_executed_true', passArtifacts.evidence.npmExecuted === true && writtenEvidence.npmExecuted === true, failures, cases);
+  assertCase('product_relevant_runner_writes_pass_product_evidence', writtenEvidence.status === 'pass' && writtenEvidence.evidenceType === 'remote_npm_test', failures, cases, writtenEvidence.status);
+  assertCase('product_relevant_runner_writes_pass_npm_test_baseline', writtenBaseline.result === 'pass' && writtenBaseline.baselineType === 'npm_test', failures, cases, writtenBaseline.result);
+  assertCase('product_relevant_runner_writes_pass_remote_npm_diagnostic', writtenDiagnostic.status === 'pass' && writtenDiagnostic.npmExecuted === true && writtenDiagnostic.npmExitCode === 0, failures, cases, writtenDiagnostic.status);
+  report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, remoteNpmDiagnostic: { diagnostic: writtenDiagnostic } });
+  assertCase('diagnostic_normalization_accepts_npm_executed_true_artifact', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass' && !reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus').includes('remote_npm_not_executed_for_product_pr'), failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true }, { CODEX_REMOTE_NPM_EXECUTED: '1', CODEX_NPM_EXIT_CODE: '0' });
+  assertCase('diagnostic_normalization_accepts_workflow_npm_executed_env', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  const failDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v099-remote-product-fail-'));
+  writeRemoteProductArtifacts({
+    productRelevant: true,
+    isPullRequest: true,
+    eventName: 'pull_request',
+    headSha: '1234567890abcdef1234567890abcdef12345678',
+    baseSha: 'abcdef1234567890abcdef1234567890abcdef12',
+    repository: 'owner/repo',
+    npmExecuted: true,
+    npmExitCode: 1,
+    failureClass: 'test_assertion_failure',
+  }, { CODEX_REMOTE_PRODUCT_EVIDENCE_OUT_DIR: failDir, CODEX_REMOTE_NPM_EXECUTED: '1', CODEX_NPM_EXIT_CODE: '1' });
+  const failedEvidence = readJson(path.join(failDir, 'codex-product-verification-evidence.remote.json'));
+  const failedBaseline = readJson(path.join(failDir, 'codex-remote-product-baseline.json'));
+  const failedDiagnostic = readJson(path.join(failDir, 'codex-remote-npm-diagnostic.safe.json'));
+  assertCase('npm_fail_writes_fail_evidence_baseline_and_diagnostic', failedEvidence.status === 'fail' && failedBaseline.result === 'fail' && failedDiagnostic.status === 'fail', failures, cases);
+  report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, remoteNpmDiagnostic: { diagnostic: failedDiagnostic } });
+  assertCase('npm_fail_keeps_diagnostic_normalization_failure', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'fail', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  const workflowText = fs.readFileSync('.github/workflows/quality-gate.yml', 'utf8');
+  assertCase('source_harness_manifest_branch_does_not_unconditionally_suppress_product_npm', !/productRelevant:false/.test(workflowText) && !/exit 0\s*(?:\r?\n\s*)fi/.test(workflowText), failures, cases);
+  assertCase('workflow_sets_skip_npm_zero_for_product_relevant_pr', /if \[ "\$product_relevant" = "1" \][\s\S]{0,180}CODEX_SKIP_NPM=0[\s\S]{0,260}npm test/.test(workflowText), failures, cases);
+  assertCase('remote_product_artifacts_do_not_store_raw_logs', writtenEvidence.rawLogsIncluded === false && writtenDiagnostic.rawLogUploaded === false && scanObjectForUnsafe({ writtenEvidence, writtenDiagnostic }).length === 0, failures, cases);
   report = buildLegacySelfTestAdvisoryReport({ harnessVersion: '0.9.9', selfTestFilePresent: true, localGateHasStatus: true, legacyFailureAdvisory: true });
   assertCase('legacy_self_test_advisory_for_non_active_version', statusOf(report, 'legacySelfTestAdvisoryStatus') === 'pass', failures, cases, statusOf(report, 'legacySelfTestAdvisoryStatus'), reasonsOf(report, 'legacySelfTestAdvisoryStatus'));
   report = buildLegacySelfTestAdvisoryReport({ harnessVersion: '0.9.9', selfTestFilePresent: true, localGateHasStatus: true, activeV099Failure: true });
