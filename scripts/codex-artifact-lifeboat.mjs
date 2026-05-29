@@ -71,21 +71,34 @@ function safeWorkflowJobResult(env = process.env) {
   return value || 'unknown';
 }
 
+function normalSafeSummaryExists(env = process.env) {
+  if (env.CODEX_LIFEBOAT_STANDBY_WHEN_NORMAL_SUMMARY !== '1') return false;
+  const summaryPath = env.CODEX_NORMAL_SAFE_SUMMARY_PATH || 'codex-quality-gate-safe-summary.json';
+  try {
+    return fs.existsSync(summaryPath) && fs.statSync(summaryPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function buildMinimalSafeFailureArtifact(env = process.env) {
   const reasonCodes = sanitizeReasonCodes(env.CODEX_LAST_KNOWN_REASON_CODES);
   const safeReasonCodes = reasonCodes.length ? reasonCodes : ['quality_gate_failed_before_summary'];
-  const statusPayload = { status: 'fail', reasonCodes: safeReasonCodes };
+  const standby = normalSafeSummaryExists(env);
+  const statusPayload = standby
+    ? { status: 'standby', reasonCodes: [], diagnosticReasonCodes: safeReasonCodes }
+    : { status: 'fail', reasonCodes: safeReasonCodes };
   return {
     schemaVersion: HARNESS_VERSION,
     harnessVersion: HARNESS_VERSION,
-    runStatus: 'fail',
+    runStatus: standby ? 'standby' : 'fail',
     workflowJobResult: safeWorkflowJobResult(env),
     headSha: safeHeadSha(env),
     prNumber: safePrNumber(env),
     repository: safeRepository(env),
-    safeReasonCodes,
+    safeReasonCodes: standby ? [] : safeReasonCodes,
     artifactLifeboatStatus: statusPayload,
-    qualityGateStatus: statusPayload,
+    qualityGateStatus: standby ? { status: 'reported', reasonCodes: [] } : statusPayload,
     safeSummaryOnly: true,
     rawLogsIncluded: false,
     rawDiffIncluded: false,

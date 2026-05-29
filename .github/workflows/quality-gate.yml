@@ -348,6 +348,8 @@ jobs:
           CODEX_LIFEBOAT_MIRROR_PATH: ${{ runner.temp }}/codex-quality-gate-safe-artifacts/codex-minimal-safe-failure.json
           CODEX_LAST_KNOWN_GATE: safe_artifact_bundle
           CODEX_LAST_KNOWN_REASON_CODES: safe_artifact_bundle_lifeboat
+          CODEX_LIFEBOAT_STANDBY_WHEN_NORMAL_SUMMARY: "1"
+          CODEX_NORMAL_SAFE_SUMMARY_PATH: codex-quality-gate-safe-summary.json
           CODEX_ARTIFACT_LIFEBOAT_REPORT: json
         run: |
           set -euo pipefail
