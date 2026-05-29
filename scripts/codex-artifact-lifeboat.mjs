@@ -62,6 +62,15 @@ function safePrNumber(env = process.env) {
   return String(env.CODEX_PR_NUMBER || '').replace(/[^0-9]/g, '').slice(0, 20);
 }
 
+function safeRepository(env = process.env) {
+  return String(env.CODEX_REPOSITORY || env.GITHUB_REPOSITORY || '').replace(/[^A-Za-z0-9_.-\/]/g, '').slice(0, 120);
+}
+
+function safeWorkflowJobResult(env = process.env) {
+  const value = String(env.CODEX_WORKFLOW_JOB_RESULT || env.CODEX_QUALITY_GATE_JOB_RESULT || 'unknown').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 40);
+  return value || 'unknown';
+}
+
 export function buildMinimalSafeFailureArtifact(env = process.env) {
   const reasonCodes = sanitizeReasonCodes(env.CODEX_LAST_KNOWN_REASON_CODES);
   const safeReasonCodes = reasonCodes.length ? reasonCodes : ['quality_gate_failed_before_summary'];
@@ -70,8 +79,10 @@ export function buildMinimalSafeFailureArtifact(env = process.env) {
     schemaVersion: HARNESS_VERSION,
     harnessVersion: HARNESS_VERSION,
     runStatus: 'fail',
+    workflowJobResult: safeWorkflowJobResult(env),
     headSha: safeHeadSha(env),
     prNumber: safePrNumber(env),
+    repository: safeRepository(env),
     safeReasonCodes,
     artifactLifeboatStatus: statusPayload,
     qualityGateStatus: statusPayload,

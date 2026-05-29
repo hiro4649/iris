@@ -44,12 +44,16 @@ export function buildV098SelfTestReport() {
   let report;
   const workflowText = fs.readFileSync('.github/workflows/quality-gate.yml', 'utf8');
   const uploadStepText = workflowText.slice(workflowText.indexOf('- name: Upload safe quality artifacts'));
-  const allowedLifeboatKeys = ['schemaVersion', 'harnessVersion', 'runStatus', 'headSha', 'prNumber', 'safeReasonCodes', 'artifactLifeboatStatus', 'qualityGateStatus', 'safeSummaryOnly', 'rawLogsIncluded', 'rawDiffIncluded'];
+  const lifeboatJobStart = workflowText.indexOf('safe-artifact-lifeboat:');
+  const lifeboatJobText = lifeboatJobStart >= 0 ? workflowText.slice(lifeboatJobStart) : '';
+  const allowedLifeboatKeys = ['schemaVersion', 'harnessVersion', 'runStatus', 'workflowJobResult', 'headSha', 'prNumber', 'repository', 'safeReasonCodes', 'artifactLifeboatStatus', 'qualityGateStatus', 'safeSummaryOnly', 'rawLogsIncluded', 'rawDiffIncluded'];
   const forbiddenLifeboatKeys = new Set(['endpoint', 'token', 'privatePath', 'payload', 'command', 'candidate', 'world_command']);
   const minimal = buildMinimalSafeFailureArtifact({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_PR_NUMBER: '112',
     CODEX_PR_HEAD_SHA: '61969ec61b97361ebce0abfde8308798e2e63ec3',
+    CODEX_REPOSITORY: 'hiro4649/iris',
+    CODEX_WORKFLOW_JOB_RESULT: 'failure',
     CODEX_LAST_KNOWN_REASON_CODES: 'target_quality_summary_missing product_verification_evidence_missing remote_product_baseline_missing reason_summary_missing unexpected_runner_error',
   });
   assertCase('lifeboat_minimal_safe_failure_shape_exact_keys', JSON.stringify(Object.keys(minimal).sort()) === JSON.stringify([...allowedLifeboatKeys].sort()), failures, cases, Object.keys(minimal).join(','), []);
@@ -63,6 +67,13 @@ export function buildV098SelfTestReport() {
   assertCase('success_path_still_uploads_normal_safe_summaries', workflowText.includes('copy_if_exists "codex-quality-gate-safe-summary.json"') && workflowText.includes('copy_if_exists "codex-target-quality-summary.json"'), failures, cases, 'pass', []);
   assertCase('lifeboat_failure_is_not_sweetened_into_success', minimal.runStatus === 'fail' && minimal.artifactLifeboatStatus.status === 'fail' && minimal.qualityGateStatus.status === 'fail', failures, cases, minimal.runStatus, minimal.safeReasonCodes);
   assertCase('artifact_upload_allowlist_excludes_raw_logs', !/raw\.log|raw npm log|raw report|raw job|environment dump/i.test(uploadStepText), failures, cases, 'pass', []);
+  assertCase('failed_quality_gate_has_independent_lifeboat_job', lifeboatJobStart >= 0 && !lifeboatJobText.includes('actions/checkout'), failures, cases, lifeboatJobStart >= 0 ? 'present' : 'missing', []);
+  assertCase('lifeboat_job_depends_on_quality_gate', /safe-artifact-lifeboat:[\s\S]*needs:\s*quality-gate/.test(lifeboatJobText), failures, cases, 'pass', []);
+  assertCase('lifeboat_job_uses_if_always', /if:\s*\$\{\{\s*always\(\)/.test(lifeboatJobText), failures, cases, 'pass', []);
+  assertCase('lifeboat_job_runs_on_quality_gate_failure', /needs\.quality-gate\.result\s*!=\s*'success'/.test(lifeboatJobText), failures, cases, 'pass', []);
+  assertCase('lifeboat_job_writes_minimal_safe_failure_json', lifeboatJobText.includes('codex-minimal-safe-failure.json') && lifeboatJobText.includes('codex-safe-artifact-bundle-index.safe.json') && lifeboatJobText.includes('"workflowJobResult"'), failures, cases, 'pass', []);
+  assertCase('lifeboat_job_artifact_excludes_raw_and_forbidden_fields', !/raw\.log|raw npm log|raw report|raw job|environment dump|endpoint|token|privatePath|payload|command|candidate|world_command/i.test(lifeboatJobText), failures, cases, 'pass', []);
+  assertCase('failed_path_has_acceptable_safe_artifact_bundle', lifeboatJobText.includes('name: codex-quality-gate-safe-artifacts') && lifeboatJobText.includes('if-no-files-found: error'), failures, cases, 'pass', []);
 
   report = buildRemoteProductEvidenceExecutionReport({ forceCheck: true, productRelevant: true, targetRepoMode: true, isPullRequest: true, skipNpm: false, npmExecuted: true, evidencePresent: true, baselinePresent: true, diagnosticPresent: true, sameHeadEvidencePresent: true });
   assertCase('remote_product_evidence_execution_product_pr_pass', statusOf(report, 'remoteProductEvidenceExecutionStatus') === 'pass', failures, cases, statusOf(report, 'remoteProductEvidenceExecutionStatus'), reasonsOf(report, 'remoteProductEvidenceExecutionStatus'));
