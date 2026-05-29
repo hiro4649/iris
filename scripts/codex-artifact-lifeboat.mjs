@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
+  HARNESS_VERSION,
   isPrContext,
   scanObjectForUnsafe,
   simpleStatus,
@@ -53,17 +54,36 @@ function nextAction(reasonCodes) {
   return 'Review safe reason codes and rerun after the smallest correction.';
 }
 
+function safeHeadSha(env = process.env) {
+  return String(env.CODEX_PR_HEAD_SHA || env.GITHUB_SHA || '').replace(/[^A-Fa-f0-9]/g, '').slice(0, 64);
+}
+
+function safePrNumber(env = process.env) {
+  return String(env.CODEX_PR_NUMBER || '').replace(/[^0-9]/g, '').slice(0, 20);
+}
+
+export function buildMinimalSafeFailureArtifact(env = process.env) {
+  const reasonCodes = sanitizeReasonCodes(env.CODEX_LAST_KNOWN_REASON_CODES);
+  const safeReasonCodes = reasonCodes.length ? reasonCodes : ['quality_gate_failed_before_summary'];
+  const statusPayload = { status: 'fail', reasonCodes: safeReasonCodes };
+  return {
+    schemaVersion: HARNESS_VERSION,
+    harnessVersion: HARNESS_VERSION,
+    runStatus: 'fail',
+    headSha: safeHeadSha(env),
+    prNumber: safePrNumber(env),
+    safeReasonCodes,
+    artifactLifeboatStatus: statusPayload,
+    qualityGateStatus: statusPayload,
+    safeSummaryOnly: true,
+    rawLogsIncluded: false,
+    rawDiffIncluded: false,
+  };
+}
+
 export function buildArtifactLifeboat(env = process.env) {
   const reasonCodes = sanitizeReasonCodes(env.CODEX_LAST_KNOWN_REASON_CODES);
-  const payload = {
-    schemaVersion: '0.9.0',
-    phase: phase(env),
-    status: 'fail',
-    lastKnownGate: String(env.CODEX_LAST_KNOWN_GATE || 'not_started').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 80),
-    lastKnownReasonCodes: reasonCodes,
-    safeNextAction: String(env.CODEX_SAFE_NEXT_ACTION || nextAction(reasonCodes)).slice(0, 180),
-    safeSummaryOnly: true,
-  };
+  const payload = buildMinimalSafeFailureArtifact(env);
   const unsafe = scanObjectForUnsafe(payload);
   const shouldWrite = env.CODEX_LIFEBOAT_WRITE !== '0';
   let artifactCreated = false;
@@ -89,14 +109,14 @@ export function buildArtifactLifeboat(env = process.env) {
   }
   const status = unsafe.length ? 'fail' : (artifactCreated || !isPrContext(env) ? 'pass' : 'fail');
   return simpleStatus('artifactLifeboatStatus', status, {
-    phase: payload.phase,
+    phase: phase(env),
     artifactCreated,
     mirrorCreated,
     artifactPath: safeArtifactLabel(primaryPath),
     mirrorPath: secondaryPath ? safeArtifactLabel(secondaryPath) : 'not_configured',
-    lastKnownGate: payload.lastKnownGate,
+    lastKnownGate: String(env.CODEX_LAST_KNOWN_GATE || 'not_started').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 80),
     lastKnownReasonCodes: reasonCodes,
-    safeNextAction: payload.safeNextAction,
+    safeNextAction: String(env.CODEX_SAFE_NEXT_ACTION || nextAction(reasonCodes)).slice(0, 180),
     reasonCodes: [
       ...(unsafe.length ? ['artifact_lifeboat_unsafe'] : []),
       ...(!artifactCreated && isPrContext(env) ? ['artifact_lifeboat_missing'] : []),

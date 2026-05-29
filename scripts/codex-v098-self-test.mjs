@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
+import { buildMinimalSafeFailureArtifact } from './codex-artifact-lifeboat.mjs';
 import { buildProductVerificationEvidenceReport } from './codex-product-verification-evidence-normalize.mjs';
 import { buildRemoteNpmDiagnosticReport } from './codex-remote-npm-diagnostic-classify.mjs';
 import {
@@ -31,11 +32,37 @@ function assertCase(id, condition, failures, cases, actualStatus = 'pass', reaso
   cases.push({ id, status: condition ? 'pass' : 'fail', actualStatus, reasonCodes, safeSummaryOnly: true });
   if (!condition) failures.push(id);
 }
+function hasKeyDeep(value, targetKeys) {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some((item) => hasKeyDeep(item, targetKeys));
+  return Object.entries(value).some(([key, nested]) => targetKeys.has(key) || hasKeyDeep(nested, targetKeys));
+}
 
 export function buildV098SelfTestReport() {
   const failures = [];
   const cases = [];
   let report;
+  const workflowText = fs.readFileSync('.github/workflows/quality-gate.yml', 'utf8');
+  const uploadStepText = workflowText.slice(workflowText.indexOf('- name: Upload safe quality artifacts'));
+  const allowedLifeboatKeys = ['schemaVersion', 'harnessVersion', 'runStatus', 'headSha', 'prNumber', 'safeReasonCodes', 'artifactLifeboatStatus', 'qualityGateStatus', 'safeSummaryOnly', 'rawLogsIncluded', 'rawDiffIncluded'];
+  const forbiddenLifeboatKeys = new Set(['endpoint', 'token', 'privatePath', 'payload', 'command', 'candidate', 'world_command']);
+  const minimal = buildMinimalSafeFailureArtifact({
+    CODEX_EVENT_NAME: 'pull_request',
+    CODEX_PR_NUMBER: '112',
+    CODEX_PR_HEAD_SHA: '61969ec61b97361ebce0abfde8308798e2e63ec3',
+    CODEX_LAST_KNOWN_REASON_CODES: 'target_quality_summary_missing product_verification_evidence_missing remote_product_baseline_missing reason_summary_missing unexpected_runner_error',
+  });
+  assertCase('lifeboat_minimal_safe_failure_shape_exact_keys', JSON.stringify(Object.keys(minimal).sort()) === JSON.stringify([...allowedLifeboatKeys].sort()), failures, cases, Object.keys(minimal).join(','), []);
+  assertCase('failing_quality_gate_still_uploads_safe_artifact_bundle', workflowText.includes('- name: Prepare safe artifact bundle') && workflowText.includes('path: ${{ runner.temp }}/codex-quality-gate-safe-artifacts') && workflowText.includes('if-no-files-found: error'), failures, cases, 'pass', []);
+  assertCase('missing_target_quality_summary_uploads_minimal_failure', minimal.safeReasonCodes.includes('target_quality_summary_missing') && minimal.qualityGateStatus.status === 'fail', failures, cases, minimal.qualityGateStatus.status, minimal.safeReasonCodes);
+  assertCase('missing_product_verification_evidence_uploads_minimal_failure', minimal.safeReasonCodes.includes('product_verification_evidence_missing') && minimal.qualityGateStatus.status === 'fail', failures, cases, minimal.qualityGateStatus.status, minimal.safeReasonCodes);
+  assertCase('missing_remote_baseline_uploads_minimal_failure', minimal.safeReasonCodes.includes('remote_product_baseline_missing') && minimal.qualityGateStatus.status === 'fail', failures, cases, minimal.qualityGateStatus.status, minimal.safeReasonCodes);
+  assertCase('unexpected_runner_error_uploads_minimal_failure', minimal.safeReasonCodes.includes('unexpected_runner_error') && minimal.qualityGateStatus.status === 'fail', failures, cases, minimal.qualityGateStatus.status, minimal.safeReasonCodes);
+  assertCase('upload_path_includes_lifeboat_artifact', workflowText.includes('codex-quality-gate-safe-artifacts/codex-minimal-safe-failure.json') && workflowText.includes('codex-safe-artifact-bundle-index.safe.json'), failures, cases, 'pass', []);
+  assertCase('lifeboat_safe_artifact_excludes_raw_and_forbidden_fields', !scanObjectForUnsafe(minimal).length && minimal.rawLogsIncluded === false && minimal.rawDiffIncluded === false && !hasKeyDeep(minimal, forbiddenLifeboatKeys), failures, cases, 'pass', []);
+  assertCase('success_path_still_uploads_normal_safe_summaries', workflowText.includes('copy_if_exists "codex-quality-gate-safe-summary.json"') && workflowText.includes('copy_if_exists "codex-target-quality-summary.json"'), failures, cases, 'pass', []);
+  assertCase('lifeboat_failure_is_not_sweetened_into_success', minimal.runStatus === 'fail' && minimal.artifactLifeboatStatus.status === 'fail' && minimal.qualityGateStatus.status === 'fail', failures, cases, minimal.runStatus, minimal.safeReasonCodes);
+  assertCase('artifact_upload_allowlist_excludes_raw_logs', !/raw\.log|raw npm log|raw report|raw job|environment dump/i.test(uploadStepText), failures, cases, 'pass', []);
 
   report = buildRemoteProductEvidenceExecutionReport({ forceCheck: true, productRelevant: true, targetRepoMode: true, isPullRequest: true, skipNpm: false, npmExecuted: true, evidencePresent: true, baselinePresent: true, diagnosticPresent: true, sameHeadEvidencePresent: true });
   assertCase('remote_product_evidence_execution_product_pr_pass', statusOf(report, 'remoteProductEvidenceExecutionStatus') === 'pass', failures, cases, statusOf(report, 'remoteProductEvidenceExecutionStatus'), reasonsOf(report, 'remoteProductEvidenceExecutionStatus'));
