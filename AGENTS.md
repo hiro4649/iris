@@ -14,11 +14,11 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v0.9.8
+CODEX_QUALITY_HARNESS_FILE v0.9.9
 
 ## Codex Target Harness Boundary
 
-This target repository consumes Codex Development Harness v0.9.8 through
+This target repository consumes Codex Development Harness v0.9.9 through
 `docs/process/CODEX_HARNESS_MANIFEST.json`; do not copy or create
 `CODEX_SOURCE_HARNESS_MANIFEST.json` here. Keep product authority outside this
 block intact.
@@ -29,7 +29,7 @@ Keep AGENTS.md compact: doctrine, routing map, and links only. Put detailed
 policy in `docs/process`. Load only task-needed skills, normally four or fewer
 and never more than five. Use `docs/process/CODEX_AGENTS_DOCTRINE_POLICY.md`,
 `docs/process/CODEX_SKILL_ROUTING_POLICY.md`,
-`docs/process/CODEX_SUBAGENT_GOVERNANCE_POLICY.md`, and related v0.9.5-v0.9.8 files for detailed rules.
+`docs/process/CODEX_SUBAGENT_GOVERNANCE_POLICY.md`, and related v0.9.5-v0.9.9 files for detailed rules.
 Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` for Codex Method
 requirements.
 
