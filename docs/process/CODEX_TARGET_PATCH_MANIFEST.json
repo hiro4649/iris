@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0.0",
+  "harnessVersion": "0.9.8",
+  "targetRepository": "hiro4649/iris",
+  "safeSummaryOnly": true,
+  "patches": [
+    {
+      "id": "iris-target-version-lineage-readme-scope-v098",
+      "path": "scripts/codex-version-lineage-gate.mjs",
+      "classification": "target_specific_adaptation",
+      "owner": "target-rollout",
+      "reason": "Target repositories keep product README, weekly workflow, and local temporary evidence outside v0.9.8 rollout scope; target lineage uses target manifest and AGENTS markers.",
+      "introducedBy": "v0.9.8 target rollout",
+      "preservationMode": "preserve",
+      "expectedDuringRollout": true,
+      "presentAfterRollout": true,
+      "safeSummary": "Target mode limits active lineage markers to harness-managed rollout files."
+    },
+    {
+      "id": "iris-target-active-self-test-manifest-scope-v098",
+      "path": "scripts/codex-v097-gate-lib.mjs",
+      "classification": "target_specific_adaptation",
+      "owner": "target-rollout",
+      "reason": "Target repositories use docs/process/CODEX_HARNESS_MANIFEST.json instead of the source manifest.",
+      "introducedBy": "v0.9.8 target rollout",
+      "preservationMode": "preserve",
+      "expectedDuringRollout": true,
+      "presentAfterRollout": true,
+      "safeSummary": "Active self-test registry reads the target manifest when the source manifest is absent."
+    },
+    {
+      "id": "iris-target-knowledge-map-manifest-scope-v098",
+      "path": "docs/process/CODEX_KNOWLEDGE_MAP.json",
+      "classification": "target_specific_adaptation",
+      "owner": "target-rollout",
+      "reason": "Target knowledge map source-of-record points to the target harness manifest.",
+      "introducedBy": "v0.9.8 target rollout",
+      "preservationMode": "preserve",
+      "expectedDuringRollout": true,
+      "presentAfterRollout": true,
+      "safeSummary": "Knowledge governance uses the target manifest as source of record."
+    },
+    {
+      "id": "iris-target-workflow-pr-context-export-v098",
+      "path": ".github/workflows/quality-gate.yml",
+      "classification": "target_specific_adaptation",
+      "owner": "target-rollout",
+      "reason": "Target pull_request quality gate requires changed file context after checkout.",
+      "introducedBy": "v0.9.8 target rollout",
+      "preservationMode": "preserve",
+      "expectedDuringRollout": true,
+      "presentAfterRollout": true,
+      "safeSummary": "Workflow exports safe changed-file context to the harness gate without publishing raw diffs."
+    }
+  ]
+}
