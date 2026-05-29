@@ -114,19 +114,9 @@ jobs:
           echo "CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH=$RUNNER_TEMP/codex-product-verification-evidence.remote.json" >> "$GITHUB_ENV"
           echo "CODEX_REMOTE_PRODUCT_BASELINE_PATH=$RUNNER_TEMP/codex-remote-product-baseline.json" >> "$GITHUB_ENV"
           echo "CODEX_NPM_TEST_SAFE_SUMMARY_PATH=$RUNNER_TEMP/codex-remote-npm-diagnostic.safe.json" >> "$GITHUB_ENV"
-          if [ -f CODEX_SOURCE_HARNESS_MANIFEST.json ]; then
-            is_pr=false
-            if [ "${CODEX_EVENT_NAME:-}" = "pull_request" ]; then is_pr=true; fi
-            runner_json="$(IS_PR="$is_pr" node -e "const input={productRelevant:false,isPullRequest:process.env.IS_PR==='true',eventName:process.env.CODEX_EVENT_NAME||'',headSha:process.env.CODEX_PR_HEAD_SHA||'',baseSha:process.env.CODEX_PR_BASE_SHA||'',repository:process.env.CODEX_REPOSITORY||'',npmExecuted:false,npmExitCode:0}; process.stdout.write(JSON.stringify(input));")"
-            CODEX_REMOTE_PRODUCT_EVIDENCE_OUT_DIR="$RUNNER_TEMP" \
-            CODEX_REMOTE_PRODUCT_EVIDENCE_RUNNER_JSON="$runner_json" \
-              node scripts/codex-remote-product-evidence-runner.mjs --write-artifacts || true
-            echo "CODEX_REMOTE_NPM_EXECUTED=0" >> "$GITHUB_ENV"
-            exit 0
-          fi
           export CODEX_HARNESS_MODE=target
           export CODEX_PROFILE_COMPAT_MODE=off
-          changed_files="$(git diff --name-only origin/main...HEAD || true)"
+          changed_files="$(git diff --name-only "${CODEX_PR_BASE_SHA:-origin/main}...${CODEX_PR_HEAD_SHA:-HEAD}" 2>/dev/null || git diff --name-only origin/main...HEAD || true)"
           export CODEX_CHANGED_FILES="$changed_files"
           {
             echo 'CODEX_CHANGED_FILES<<CODEX_CHANGED_FILES_EOF'
@@ -134,7 +124,7 @@ jobs:
             echo 'CODEX_CHANGED_FILES_EOF'
           } >> "$GITHUB_ENV"
           classification_json="$(CODEX_QUALITY_REPORT=json node scripts/codex-change-classification-gate.mjs || true)"
-          product_relevant="$(CLASSIFICATION_JSON="$classification_json" node -e "const r=JSON.parse(process.env.CLASSIFICATION_JSON||'{}'); const s=r.changeClassificationStatus||{}; process.stdout.write(s.productRelevantChanged||s.runtimeReadinessClaimed||s.packageOrLockfileChanged?'1':'0')")"
+          product_relevant="$(CLASSIFICATION_JSON="$classification_json" node -e "const r=JSON.parse(process.env.CLASSIFICATION_JSON||'{}'); const s=r.changeClassificationStatus||{}; process.stdout.write(s.productRelevantChanged||s.runtimeReadinessClaimed||s.packageOrLockfileChanged||s.requiresProductVerification?'1':'0')")"
           npm_exit=0
           npm_executed=0
           if [ "$product_relevant" = "1" ]; then
@@ -142,6 +132,10 @@ jobs:
             echo "CODEX_SKIP_NPM=0" >> "$GITHUB_ENV"
             npm test > "$RUNNER_TEMP/codex-npm-test.raw.log" 2>&1 || npm_exit=$?
           else
+            if [ -f CODEX_SOURCE_HARNESS_MANIFEST.json ] && [ "${CODEX_EVENT_NAME:-}" = "pull_request" ]; then
+              echo "CODEX_SKIP_NPM=1" >> "$GITHUB_ENV"
+              echo "CODEX_SKIP_NPM_REASON=source_harness_only_no_product_relevance" >> "$GITHUB_ENV"
+            fi
             echo "CODEX_SKIP_NPM=1" >> "$GITHUB_ENV"
           fi
           echo "CODEX_REMOTE_NPM_EXECUTED=$npm_executed" >> "$GITHUB_ENV"

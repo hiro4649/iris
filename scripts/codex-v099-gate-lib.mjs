@@ -23,6 +23,12 @@ function readMaybeJson(file) {
 function statusOf(value) { return value?.status || value?.productVerificationEvidenceStatus?.status || value?.remoteProductBaselineStatus?.status || value?.remoteNpmDiagnosticStatus?.status || ''; }
 function isPassLike(value) { return ['pass', 'superseded_by_formal_evidence'].includes(statusOf(value)); }
 function isFailLike(value) { return statusOf(value) === 'fail'; }
+function nestedDiagnostic(value) {
+  return value?.remoteNpmDiagnosticStatus?.diagnostic || value?.diagnostic || value;
+}
+function nestedEvidence(value) {
+  return value?.productVerificationEvidenceStatus?.normalizedEvidence || value?.productVerificationEvidenceStatus || value;
+}
 function isPlaceholder(value) {
   if (!value || typeof value !== 'object') return false;
   const type = String(value.evidenceType || value.baselineType || value.diagnosticType || '').toLowerCase();
@@ -98,12 +104,26 @@ export function buildPlaceholderOnlyEvidenceReport(input = parseJson(process.env
   return safe('placeholderOnlyEvidenceStatus', reasonCodes.length ? 'fail' : 'pass', { reasonCodes, productRelevant, formalEvidencePresent });
 }
 
-export function buildRemoteNpmDiagnosticNormalizationReport(input = parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_NORMALIZATION_JSON) || {}) {
-  const productRelevant = productRelevantFromInput(input);
+export function buildRemoteNpmDiagnosticNormalizationReport(input = parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_NORMALIZATION_JSON) || {}, env = process.env) {
+  const productRelevant = productRelevantFromInput(input, env);
   if (!parseBool(input.forceCheck) && !productRelevant) return notApplicable('remoteNpmDiagnosticNormalizationStatus', 'remote_npm_diagnostic_normalization_not_applicable');
   const reasonCodes = [];
-  const npmExecuted = parseBool(input.npmExecuted);
-  const npmExitCode = Number(input.npmExitCode ?? 0);
+  const diagnostic = nestedDiagnostic(
+    input.remoteNpmDiagnostic ||
+    input.diagnostic ||
+    parseJson(env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON),
+  );
+  const diagnosticFile = nestedDiagnostic(readMaybeJson(input.diagnosticPath || env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH));
+  const evidence = nestedEvidence(
+    input.formalEvidence ||
+    input.productEvidence ||
+    parseJson(env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON),
+  );
+  const evidenceFile = nestedEvidence(readMaybeJson(input.evidencePath || env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH));
+  const npmExecuted = input.npmExecuted !== undefined
+    ? parseBool(input.npmExecuted)
+    : parseBool(env.CODEX_REMOTE_NPM_EXECUTED) || parseBool(diagnostic?.npmExecuted) || parseBool(diagnosticFile?.npmExecuted) || parseBool(evidence?.npmExecuted) || parseBool(evidenceFile?.npmExecuted);
+  const npmExitCode = Number(input.npmExitCode ?? diagnostic?.npmExitCode ?? diagnosticFile?.npmExitCode ?? evidence?.npmExitCode ?? evidenceFile?.npmExitCode ?? env.CODEX_NPM_EXIT_CODE ?? 0);
   if (productRelevant && !npmExecuted) reasonCodes.push('remote_npm_not_executed_for_product_pr');
   if (npmExitCode !== 0 || parseBool(input.npmFailMarkedPass)) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
   if (parseBool(input.diagnosticPendingFinalPass) || parseBool(input.diagnosticMissingNoFormalEvidence) || parseBool(input.remoteNpmNotExecutedEmittedDespiteExecuted)) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
