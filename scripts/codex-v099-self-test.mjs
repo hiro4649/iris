@@ -114,6 +114,8 @@ export function buildV099SelfTestReport() {
   assertCase('npm_fail_writes_fail_evidence_baseline_and_diagnostic', failedEvidence.status === 'fail' && failedBaseline.result === 'fail' && failedDiagnostic.status === 'fail', failures, cases);
   report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, remoteNpmDiagnostic: { diagnostic: failedDiagnostic } });
   assertCase('npm_fail_keeps_diagnostic_normalization_failure', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'fail', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, remoteNpmDiagnostic: { diagnostic: failedDiagnostic } }, { CODEX_REMOTE_NPM_EXECUTED: '1', CODEX_NPM_EXIT_CODE: '0' });
+  assertCase('diagnostic_normalization_prefers_failed_artifact_over_env_success', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'fail', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
   const workflowText = fs.readFileSync('.github/workflows/quality-gate.yml', 'utf8');
   assertCase('source_harness_manifest_branch_does_not_unconditionally_suppress_product_npm', !/productRelevant:false/.test(workflowText) && !/exit 0\s*(?:\r?\n\s*)fi/.test(workflowText), failures, cases);
   assertCase('workflow_sets_skip_npm_zero_for_product_relevant_pr', /if \[ "\$product_relevant" = "1" \][\s\S]{0,180}CODEX_SKIP_NPM=0[\s\S]{0,260}npm test/.test(workflowText), failures, cases);
