@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v0.9.8
+// CODEX_QUALITY_HARNESS_FILE v0.9.9
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ function firstMarkerVersion(file) {
 function listRepoFiles(dir = '.') {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (['.git', 'node_modules', 'dist', 'build', '.tmp'].includes(entry.name)) continue;
+    if (['.git', '.tmp', 'node_modules', 'dist', 'build'].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     const normalized = normalizePath(full);
     if (normalized.startsWith('profiles/')) continue;
@@ -33,20 +33,15 @@ function listRepoFiles(dir = '.') {
 }
 
 function manifestPath(env = process.env) {
-  if (isTargetRepo(env)) {
+  if (env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json')) {
     return 'docs/process/CODEX_HARNESS_MANIFEST.json';
   }
   if (fs.existsSync('CODEX_SOURCE_HARNESS_MANIFEST.json')) return 'CODEX_SOURCE_HARNESS_MANIFEST.json';
   return 'docs/process/CODEX_HARNESS_MANIFEST.json';
 }
 
-function isTargetRepo(env = process.env) {
-  return fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json') &&
-    (env.CODEX_HARNESS_MODE === 'target' || !fs.existsSync('CODEX_SOURCE_HARNESS_MANIFEST.json'));
-}
-
 function requiredPaths(env = process.env) {
-  const target = isTargetRepo(env);
+  const target = env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
   return [
     ...(target ? ['docs/process/CODEX_HARNESS_MANIFEST.json', 'AGENTS.md'] : ['README.md', 'CODEX_SOURCE_HARNESS_MANIFEST.json']),
     'docs/process/CODEX_KNOWLEDGE_MAP.json',
@@ -62,10 +57,10 @@ function requiredPaths(env = process.env) {
 export function buildVersionLineageReport(env = process.env) {
   const failures = [];
   const warnings = [];
+  const targetMode = env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
   const paths = requiredPaths(env);
   const manifestFile = manifestPath(env);
   const manifestJson = readJson(manifestFile);
-  const targetMode = isTargetRepo(env);
 
   if (!manifestJson.ok) failures.push('version_lineage_manifest_missing');
   else {
