@@ -62200,6 +62200,73 @@ const tests = [
     },
   ],
   [
+    "HTTP adapter blocks redirects without leaking auth headers",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      let redirectTargetHits = 0;
+      const redirectTargetServer = createServer(async (_request, response) => {
+        redirectTargetHits += 1;
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true }));
+      });
+      const targetAddress = await listen(redirectTargetServer, { port: 0, host: "127.0.0.1" });
+      const redirectTargetUrl = `http://${targetAddress.address}:${targetAddress.port}/redirect-target?token=redirect-secret`;
+      const redirectServer = createServer(async (request, response) => {
+        request.resume();
+        response.writeHead(302, { location: redirectTargetUrl });
+        response.end();
+      });
+      const address = await listen(redirectServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const endpoint = `http://${address.address}:${address.port}/v1/adapter/tts`;
+        const adapter = createHttpPostAdapter({
+          adapterKind: "tts",
+          endpoint,
+          apiKey: "redirect-sensitive-key",
+        });
+        const result = await adapter(fixtures.adapter_packets.tts);
+        const serialized = JSON.stringify(result);
+
+        assert.equal(result.sent, false);
+        assert.equal(result.response_summary.error_kind, "network_failure");
+        assert.equal(redirectTargetHits, 0);
+        assert.equal(serialized.includes(redirectTargetUrl), false);
+        assert.equal(serialized.includes("redirect-sensitive-key"), false);
+        assert.equal(serialized.includes("redirect-secret"), false);
+        assert.equal(serialized.includes(String(targetAddress.port)), false);
+      } finally {
+        await closeServer(redirectServer);
+        await closeServer(redirectTargetServer);
+      }
+    },
+  ],
+  [
+    "HTTP adapter passes redirect error mode to fetch",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      let observedRedirectMode = "";
+      const adapter = createHttpPostAdapter({
+        adapterKind: "tts",
+        endpoint: "http://127.0.0.1:9124/v1/adapter/tts",
+        fetchImpl: async (_url, options) => {
+          observedRedirectMode = options.redirect;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              bridge_status: "accepted",
+              artifact_kind: "mock_audio",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        },
+      });
+      const result = await adapter(fixtures.adapter_packets.tts);
+
+      assert.equal(observedRedirectMode, "error");
+      assert.equal(result.sent, true);
+    },
+  ],
+  [
     "HTTP adapter maps timeout to fixed safe error",
     async () => {
       const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });

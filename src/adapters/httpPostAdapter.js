@@ -118,6 +118,7 @@ export function createHttpPostAdapter({
         headers,
         body: JSON.stringify(packet),
         signal: controller.signal,
+        redirect: "error",
       });
 
       if (!response.ok) {
