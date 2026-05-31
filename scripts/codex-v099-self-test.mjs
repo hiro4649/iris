@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.1
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
@@ -61,6 +64,19 @@ export function buildV099SelfTestReport() {
   assertCase('remote_npm_diagnostic_normalized_when_formal_evidence_pass', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
   report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, remoteNpmDiagnostic: { status: 'pass', npmExitCode: 0, commandClass: 'npm_test' } });
   assertCase('remote_npm_diagnostic_infers_execution_from_safe_artifact', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  const previousNpmSummaryPath = process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v099-'));
+  try {
+    const diagnosticPath = path.join(tempDir, 'diagnostic.safe.json');
+    fs.writeFileSync(diagnosticPath, JSON.stringify({ status: 'pass', npmExitCode: 0, commandClass: 'npm_test' }));
+    process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH = diagnosticPath;
+    report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, remoteNpmDiagnostic: { status: 'pass', safeSummaryOnly: true } });
+    assertCase('remote_npm_diagnostic_uses_safe_file_when_status_object_has_no_execution_marker', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
+  } finally {
+    if (previousNpmSummaryPath === undefined) delete process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH;
+    else process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH = previousNpmSummaryPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
   report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, npmExecuted: false });
   assertCase('remote_npm_not_executed_emitted_when_npm_not_run', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'fail', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
   report = buildLegacySelfTestAdvisoryReport({ harnessVersion: '0.9.9', selfTestFilePresent: true, localGateHasStatus: true, legacyFailureAdvisory: true });

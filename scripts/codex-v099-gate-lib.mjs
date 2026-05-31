@@ -101,7 +101,15 @@ export function buildPlaceholderOnlyEvidenceReport(input = parseJson(process.env
 export function buildRemoteNpmDiagnosticNormalizationReport(input = parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_NORMALIZATION_JSON) || {}) {
   const productRelevant = productRelevantFromInput(input);
   if (!parseBool(input.forceCheck) && !productRelevant) return notApplicable('remoteNpmDiagnosticNormalizationStatus', 'remote_npm_diagnostic_normalization_not_applicable');
-  const diagnostic = input.remoteNpmDiagnostic || parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON) || readMaybeJson(process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH);
+  const usableDiagnostic = (value) => {
+    if (!value || typeof value !== 'object') return null;
+    if (value.npmExecuted !== undefined || value.npmExitCode !== undefined) return value;
+    if (value.commandClass || value.diagnosticType || value.safeFailureCategory || value.testCountDetected !== undefined) return value;
+    return null;
+  };
+  const diagnostic = usableDiagnostic(input.remoteNpmDiagnostic) ||
+    usableDiagnostic(parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON)) ||
+    usableDiagnostic(readMaybeJson(process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH));
   const evidence = input.productEvidence || parseJson(process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON) || readMaybeJson(process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH);
   const inferredNpmExecuted = parseBool(diagnostic?.npmExecuted) ||
     parseBool(evidence?.npmExecuted) ||
