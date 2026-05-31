@@ -7,6 +7,10 @@ It does not perform production go.
 It does not change production readiness.
 priority1 remains BLOCKED.
 
+This policy defines future eligibility and safety boundaries only. It is not
+current runtime evidence, not current voice source readiness, not owner
+confirmation, and not production go.
+
 ## Core Policy
 
 IRIS is not VOICEVOX-fixed.
@@ -24,8 +28,8 @@ Core specification must not assume a specific TTS vendor.
 
 ## Official Voice Source
 
-IRIS may use contracted voice actor voice or approved official licensed voice
-only when:
+IRIS may treat a contracted voice actor voice or approved official licensed
+voice as eligible for future production consideration only when:
 
 `IRIS_LICENSED_VOICE_SOURCE_STATUS=licensed`
 
@@ -140,9 +144,10 @@ Allowed public and ordinary Admin labels are limited to safe status labels:
 
 When `IRIS_LICENSED_VOICE_SOURCE_STATUS=licensed`:
 
-The official licensed IRIS voice may be selected for production, subject to
-fresh readiness evidence, owner confirmation, audit readiness, and all
-production readiness gates.
+The official licensed IRIS voice becomes eligible for future production
+consideration only after fresh readiness evidence, owner confirmation, audit
+readiness, safe fallback verification, and all production readiness gates are
+satisfied. This document does not itself authorize production use.
 
 When `IRIS_LICENSED_VOICE_SOURCE_STATUS` is missing, unverified, expired,
 blocked, or operator_attention_required:
@@ -150,7 +155,7 @@ blocked, or operator_attention_required:
 The official licensed voice must not be used for production.
 Output must fall back to approved placeholder, safe fallback, or voice-disabled
 state.
-Readiness must not be sweetened to production ready.
+Readiness must not be sweetened into production readiness.
 
 ## VOICEVOX Boundary
 
@@ -182,8 +187,11 @@ fields only.
 ## Production Readiness Boundary
 
 Licensed voice configuration alone is not production readiness.
+Licensed status is necessary but not sufficient. It must never be interpreted as
+current production readiness by itself. Remote quality gate success does not
+prove voice readiness or production readiness.
 
-Production use of official IRIS voice requires:
+Future production eligibility for the official IRIS voice requires:
 
 - `IRIS_LICENSED_VOICE_SOURCE_STATUS=licensed`
 - fresh TTS engine evidence

@@ -86,7 +86,11 @@ TTS packet rejects:
 
 ### Stage G: Production Readiness Integration
 
-Official licensed voice requires:
+This stage is future production readiness integration. It does not claim current
+voice readiness, does not authorize current production use, and does not perform
+production go.
+
+Future production eligibility for the official licensed voice requires:
 
 - license status licensed
 - fresh TTS engine evidence
@@ -94,6 +98,9 @@ Official licensed voice requires:
 - owner confirmation
 - audit readiness
 - safe fallback path
+
+IRIS_LICENSED_VOICE_SOURCE_STATUS=licensed is necessary but not sufficient for
+future production eligibility.
 
 Fixture success, placeholder success, mock success, and local synthetic voice
 success do not claim production readiness by themselves.
