@@ -5388,13 +5388,25 @@ function computeTargetQualityScoreStatus(report) {
 
   ]);
 
+  const legacyTargetSelfTestStatusKeys = new Set([
+    'v080SelfTestStatus',
+    'v081SelfTestStatus',
+    'v082SelfTestStatus',
+    'v083SelfTestStatus',
+    'v084SelfTestStatus',
+    'v085SelfTestStatus',
+    'v086SelfTestStatus',
+    'v087SelfTestStatus',
+    'v088SelfTestStatus',
+  ]);
+
 
 
   const statuses = scored.map((key) => {
 
 
 
-    const status = report[key]?.status || 'missing';
+    const status = report[key]?.status || (legacyTargetSelfTestStatusKeys.has(key) ? 'not_applicable' : 'missing');
 
 
 
@@ -5402,7 +5414,7 @@ function computeTargetQualityScoreStatus(report) {
 
 
 
-    if (allowedNotApplicable.has(key) && status === 'not_applicable') effectiveStatus = 'pass_optional';
+    if ((allowedNotApplicable.has(key) || legacyTargetSelfTestStatusKeys.has(key)) && status === 'not_applicable') effectiveStatus = 'pass_optional';
 
 
 

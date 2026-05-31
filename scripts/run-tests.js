@@ -22393,6 +22393,7 @@ const tests = [
         "README.md",
         "scripts/codex-openai-method-gate.mjs",
       ]);
+      methodGateSupportFiles.delete("CODEX_SOURCE_HARNESS_MANIFEST.json");
       const writeMethodGateSupportFile = (relativePath) => {
         for (const expandedPath of expandRepoPattern(relativePath)) {
           writeFromRepo(expandedPath);

@@ -101,9 +101,15 @@ export function buildPlaceholderOnlyEvidenceReport(input = parseJson(process.env
 export function buildRemoteNpmDiagnosticNormalizationReport(input = parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_NORMALIZATION_JSON) || {}) {
   const productRelevant = productRelevantFromInput(input);
   if (!parseBool(input.forceCheck) && !productRelevant) return notApplicable('remoteNpmDiagnosticNormalizationStatus', 'remote_npm_diagnostic_normalization_not_applicable');
+  const diagnostic = input.remoteNpmDiagnostic || parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON) || readMaybeJson(process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH);
+  const evidence = input.productEvidence || parseJson(process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON) || readMaybeJson(process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH);
+  const inferredNpmExecuted = parseBool(diagnostic?.npmExecuted) ||
+    parseBool(evidence?.npmExecuted) ||
+    diagnostic?.commandClass === 'npm_test' ||
+    evidence?.evidenceType === 'remote_npm_test';
   const reasonCodes = [];
-  const npmExecuted = parseBool(input.npmExecuted);
-  const npmExitCode = Number(input.npmExitCode ?? 0);
+  const npmExecuted = input.npmExecuted === undefined ? inferredNpmExecuted : parseBool(input.npmExecuted);
+  const npmExitCode = Number(input.npmExitCode ?? diagnostic?.npmExitCode ?? evidence?.npmExitCode ?? 0);
   if (productRelevant && !npmExecuted) reasonCodes.push('remote_npm_not_executed_for_product_pr');
   if (npmExitCode !== 0 || parseBool(input.npmFailMarkedPass)) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
   if (parseBool(input.diagnosticPendingFinalPass) || parseBool(input.diagnosticMissingNoFormalEvidence) || parseBool(input.remoteNpmNotExecutedEmittedDespiteExecuted)) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
