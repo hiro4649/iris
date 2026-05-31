@@ -4,6 +4,140 @@ This document records implementation schedules that are specification-only until
 a later PR explicitly adds tests or runtime code. It does not perform production
 go. priority1 remains BLOCKED.
 
+## Licensed Character Voice Implementation Schedule
+
+This schedule implements the IRIS licensed character voice boundary in staged
+work. It preserves TTS adapter boundary, official voice license gate,
+placeholder/fallback separation, and fixture/real evidence separation.
+
+### Stage A: Docs/Spec-Only
+
+- Add Character Voice Source Policy.
+- Add this implementation schedule.
+- Do not change runtime code.
+- Do not change workflows.
+- Do not change package or lockfiles.
+- Do not perform production go.
+- Keep priority1 BLOCKED.
+
+### Stage B: Configuration and Profile Contract Fixtures
+
+Official voice config accepts:
+
+- `IRIS_LOCAL_TTS_ENGINE_VOICE_ID`
+- `IRIS_LOCAL_TTS_ENGINE_MODEL`
+- `IRIS_LOCAL_TTS_ENGINE_LOCALE`
+- `IRIS_CHARACTER_VOICE_PROFILE_ID`
+- `IRIS_CHARACTER_VOICE_STYLE_PROFILE_ID`
+- `IRIS_LICENSED_VOICE_SOURCE_STATUS`
+
+- VOICEVOX-fixed Core assumptions fail.
+- VOICEVOX-specific speaker ID remains adapter-internal only.
+- Phase00 canonical enum is not expanded.
+- Unknown or unsafe voice keys fail or are ignored safely.
+
+### Stage C: License Gate Fixtures
+
+- `licensed` allows official voice selection.
+- `missing`, `unverified`, `expired`, `blocked`, and
+  `operator_attention_required` do not allow production official voice.
+- Unsafe license status falls back to placeholder or voice-disabled state.
+- Placeholder success does not become production voice readiness.
+- Owner confirmation and fresh evidence remain required for production
+  readiness.
+
+### Stage D: TTS Packet Sanitizer Fixtures
+
+TTS packet allows only safe voice/model/locale/profile/style hints.
+
+TTS packet rejects:
+
+- `world_command`
+- `input_action_candidate`
+- `approved_game_input_action`
+- memory commit
+- relationship commit
+- endpoint
+- API key
+- token
+- raw audio
+- dataset path
+- internal model path
+- raw phoneme debug log
+- raw vendor diagnostics
+
+### Stage E: Public/Admin Redaction Fixtures
+
+- Public logs expose safe status labels only.
+- Admin ordinary view exposes safe status labels only.
+- Readiness reports expose configured/missing/licensed/placeholder/
+  operator_attention_required only.
+- raw voice sample, generated audio body, training dataset, model path,
+  endpoint, token, API key, contract detail, and voice actor personal
+  information never appear.
+
+### Stage F: Adapter Integration
+
+- VOICEVOX support, if present, remains inside a VOICEVOX adapter.
+- Core remains vendor-neutral.
+- Licensed official voice source remains selectable by config.
+- Unsupported engine/model/locale/profile combinations safely degrade.
+- Real voice readiness remains separate from fixture pass.
+
+### Stage G: Production Readiness Integration
+
+This stage is future production readiness integration. It does not claim current
+voice readiness, does not authorize current production use, and does not perform
+production go.
+
+Future production eligibility for the official licensed voice requires:
+
+- license status licensed
+- fresh TTS engine evidence
+- voice source readiness
+- owner confirmation
+- audit readiness
+- safe fallback path
+
+IRIS_LICENSED_VOICE_SOURCE_STATUS=licensed is necessary but not sufficient for
+future production eligibility.
+
+Fixture success, placeholder success, mock success, and local synthetic voice
+success do not claim production readiness by themselves.
+priority1 remains BLOCKED until real evidence and owner confirmation are
+present.
+
+## Licensed Character Voice K Requirement Alignment
+
+- K001 TTS adapter guidance sanitization boundary
+- K002 voice readiness safe summary
+- K011 TTS voice source safe status boundary
+- K012 TTS packet unsafe field sanitizer
+- K021 TTS voice env public summary
+- K022 TTS voice profile allowlist
+- K023 TTS raw audio leak guard
+- K029 voice readiness operator attention status
+- K030 voice fallback placeholder policy
+- K236 voice product license readiness
+- K265 voice quality match status
+- K268 voice license category readiness
+- K294 TTS fixture packet preview sanitizer
+- K327 TTS adapter voice hint allowlist
+- K328 TTS adapter unsupported voice reject
+- K329 TTS adapter raw audio rejection
+- K330 TTS adapter source status fallback
+- K441 Voice pipeline contract manifest
+- K443 Voice pipeline unsupported locale degrade
+- K450 Voice pipeline operator attention summary
+- K558 voice rights status E2E
+- K596 Voice license anime E2E
+- K621 TTS real engine connector preflight
+- K623 TTS real engine placeholder separation
+- K624 TTS real engine rights gate
+- K731 TTS live readiness checklist
+- K733 TTS live readiness license gate
+- K734 TTS live readiness placeholder separation
+
 ## Game/Tool Adapter Contract Implementation Schedule
 
 This schedule implements the IRIS Game/Tool Adapter Contract in staged work. It
