@@ -10,6 +10,7 @@
     "docs/process/",
     "docs/codex/",
     "scripts/codex-*",
+    "scripts/run-tests.js",
     ".agents/skills/",
     ".codex/"
   ],
@@ -29,8 +30,7 @@
   "testFiles": [
     "test/",
     "tests/",
-    "__tests__/",
-    "scripts/run-tests.js"
+    "__tests__/"
   ],
   "specFiles": [
     "specs/",
