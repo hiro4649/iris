@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.0
+// CODEX_QUALITY_HARNESS_FILE v1.0.1
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { HARNESS_VERSION, scanObjectForUnsafe, simpleStatus, writeJsonReport, exitFor, readText } from './codex-v080-lib.mjs';
@@ -43,7 +43,9 @@ export function buildActiveSelfTestRegistryReport(input = parseJson(process.env.
   const expectedSelfTestFile = activeSelfTestFileFor(version);
   const activeStatusKey = input.activeStatusKey || defaultActiveStatusKey(version);
   const selfTestFilePresent = input.selfTestFilePresent ?? fs.existsSync(expectedSelfTestFile);
-  const manifestText = readText('CODEX_SOURCE_HARNESS_MANIFEST.json') || readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '';
+  const manifestText = process.env.CODEX_HARNESS_MODE === 'target'
+    ? (readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '')
+    : (readText('CODEX_SOURCE_HARNESS_MANIFEST.json') || '');
   const manifestHasSelfTest = input.manifestHasSelfTest ?? manifestText.includes(expectedSelfTestFile.replace('scripts/', ''));
   const localGateHasStatus = input.localGateHasStatus ?? hasText('scripts/codex-local-quality-gate.mjs', expectedStatusKey);
   if (input.invalidInput) reasonCodes.push('active_self_test_registry_missing');

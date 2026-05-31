@@ -14,7 +14,12 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.0.0
+CODEX_QUALITY_HARNESS_FILE v1.0.1
+
+## Prime Directive
+
+Ship the smallest correct change that increases product value without weakening
+truth, trust, security, or maintainability.
 
 ## Source Harness Boundary
 
@@ -22,7 +27,7 @@ Target rollout work uses the source harness as the parent authority, but this re
 
 ## Codex Target Harness Boundary
 
-This target repository consumes Codex Development Harness v1.0.0 through
+This target repository consumes Codex Development Harness v1.0.1 through
 `docs/process/CODEX_HARNESS_MANIFEST.json`; do not copy or create
 `CODEX_SOURCE_HARNESS_MANIFEST.json` here. Keep product authority outside this
 block intact.
@@ -34,8 +39,13 @@ policy in `docs/process`. Load only task-needed skills, normally four or fewer
 and never more than five. Use `docs/process/CODEX_AGENTS_DOCTRINE_POLICY.md`,
 `docs/process/CODEX_SKILL_ROUTING_POLICY.md`,
 `docs/process/CODEX_SUBAGENT_GOVERNANCE_POLICY.md`, and related v0.9.5-v1.0.0
-files for detailed rules. Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md`
-for Codex Method requirements.
+files for detailed rules. Use `docs/process/CODEX_OUTCOME_CONTRACT_POLICY.md`,
+`docs/process/CODEX_PLAN_REVIEWER_WORKER_POLICY.md`,
+`docs/process/CODEX_ANTI_ACCRETION_POLICY.md`,
+`docs/process/CODEX_VISIBLE_ACCEPTANCE_EVIDENCE_POLICY.md`, and
+`docs/process/CODEX_LOCAL_GATE_REPORT_CONTRACT_POLICY.md` for v1.0.1 routing.
+Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` for Codex Method
+requirements.
 
 ## Target Safety Rules
 
