@@ -14,7 +14,7 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.0.2
+CODEX_QUALITY_HARNESS_FILE v1.0.3
 
 ## Prime Directive
 
@@ -70,6 +70,9 @@ files.
 Manual confirmation cannot override non-overridable failures: secret scan,
 blocked paths, high-confidence sensitive findings, stale evidence, unsafe
 output, implementation/harness mixing, or weakened quality gates.
+
+For v1.0.3 judgment consistency, product surface routing, active self-test artifact, review taxonomy, stale input, 5.5 low mode, and Dynamic Workflow Lite routing, use docs/process/CODEX_V103_JUDGMENT_CONSISTENCY_POLICY.md and related CODEX_V103 policy files.
+In 5.5 low mode, keep one PR/repo focus, avoid broad changes, and return exactly one safe next action.
 
 ## Profile/Core Separation
 
