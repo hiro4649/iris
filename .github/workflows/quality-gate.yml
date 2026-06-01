@@ -128,6 +128,11 @@ jobs:
           export CODEX_PROFILE_COMPAT_MODE=off
           changed_files="$(git diff --name-only origin/main...HEAD || true)"
           export CODEX_CHANGED_FILES="$changed_files"
+          {
+            echo "CODEX_CHANGED_FILES<<CODEX_CHANGED_FILES_EOF"
+            printf '%s\n' "$changed_files"
+            echo "CODEX_CHANGED_FILES_EOF"
+          } >> "$GITHUB_ENV"
           classification_json="$(CODEX_QUALITY_REPORT=json node scripts/codex-change-classification-gate.mjs || true)"
           product_relevant="$(CLASSIFICATION_JSON="$classification_json" node -e "const r=JSON.parse(process.env.CLASSIFICATION_JSON||'{}'); const s=r.changeClassificationStatus||{}; process.stdout.write(s.productRelevantChanged||s.runtimeReadinessClaimed||s.packageOrLockfileChanged?'1':'0')")"
           npm_exit=0
