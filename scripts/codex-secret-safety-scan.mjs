@@ -46,6 +46,7 @@ const highConfidenceChecks = [
   ['gitlab_token_like', /\bglpat-[A-Za-z0-9_-]{20,}\b/],
 ];
 const assignmentPattern = /(?:^|[^\w])([A-Z0-9_]*(?:PRIVATE_KEY|JWT_SECRET|DATABASE_URL|DB_URL|API_KEY|ACCESS_TOKEN|SECRET_KEY|SLACK_TOKEN|NPM_TOKEN|GITLAB_TOKEN|TOKEN|PASSWORD|CREDENTIAL|CLIENT_SECRET)[A-Z0-9_]*)\s*=\s*([^\r\n]*)/ig;
+const envExampleAssignmentPattern = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*([^\r\n]*)/gm;
 
 function parseAssignmentValue(raw) {
   let value = raw.trim();
@@ -55,6 +56,7 @@ function parseAssignmentValue(raw) {
     const end = value.indexOf(quote, 1);
     value = end >= 0 ? value.slice(1, end) : value.slice(1);
   } else {
+    if (/^\$\{[^}\r\n]+\}$/.test(value.trim())) return value.trim();
     value = value.split(/[\s,;)\]}]+/, 1)[0];
   }
   return value.trim().replace(/^[({[]+/, '').replace(/[)}\].]+$/, '');
@@ -122,6 +124,17 @@ function scanContent(file) {
   const state = fileState(file);
   scanHighConfidence(file, text);
   scanAssignments(file, text, state);
+  scanEnvExampleAssignments(file, text, state);
+}
+function scanEnvExampleAssignments(file, text, state) {
+  if (!allowedExample(file) || state === 'tracked') return;
+  envExampleAssignmentPattern.lastIndex = 0;
+  let match;
+  while ((match = envExampleAssignmentPattern.exec(text))) {
+    const value = parseAssignmentValue(match[2]);
+    if (!value || isPlaceholderValue(value)) continue;
+    fail('env_example_value_not_placeholder', file);
+  }
 }
 function contentFailureKinds(file, text, state = 'changed') {
   const kinds = new Set();
@@ -137,6 +150,15 @@ function contentFailureKinds(file, text, state = 'changed') {
       if (!value || isPlaceholderValue(value)) continue;
       if (isFixtureContext(file, line) && !looksCredentialLike(value, state)) continue;
       if (looksCredentialLike(value, state)) kinds.add('secret_assignment_like');
+    }
+  }
+  if (allowedExample(file) && state !== 'tracked') {
+    envExampleAssignmentPattern.lastIndex = 0;
+    let envMatch;
+    while ((envMatch = envExampleAssignmentPattern.exec(text))) {
+      const value = parseAssignmentValue(envMatch[2]);
+      if (!value || isPlaceholderValue(value)) continue;
+      kinds.add('env_example_value_not_placeholder');
     }
   }
   return kinds;
@@ -163,6 +185,12 @@ function runSelfTest() {
       name: 'env-example-credential-assignment-fails',
       file: '.env.sample',
       text: [['CLIENT_SECRET', 'Ab1_Zy9-Xk8Lm7Qp2Rs5Tu6Vw3Yz4NnB0'].join('=')].join('\n'),
+      shouldFail: true,
+    },
+    {
+      name: 'env-example-non-placeholder-value-fails',
+      file: '.env.example',
+      text: [['SAFE_EMPTY_KEY', 'value'].join('=')].join('\n'),
       shouldFail: true,
     },
   ];

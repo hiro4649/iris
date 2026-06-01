@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.2
+import { readFileSync } from 'node:fs';
 import { scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import * as gates from './codex-v102-gate-lib.mjs';
 
@@ -113,6 +114,104 @@ const results = CASES.map(([name, builder, input, key, expected]) => {
     actual,
     safeSummaryOnly: true,
   };
+});
+
+const runTestsSource = readFileSync('scripts/run-tests.js', 'utf8');
+const methodGateSource = readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8');
+const secretScanSource = readFileSync('scripts/codex-secret-safety-scan.mjs', 'utf8');
+const v085SelfTestSource = readFileSync('scripts/codex-v085-self-test.mjs', 'utf8');
+const requiredNestedSelfTestSkips = [
+  'CODEX_SKIP_V089_SELF_TEST',
+  'CODEX_SKIP_V090_SELF_TEST',
+  'CODEX_SKIP_V092_SELF_TEST',
+  'CODEX_SKIP_V093_SELF_TEST',
+  'CODEX_SKIP_V094_SELF_TEST',
+  'CODEX_SKIP_V095_SELF_TEST',
+  'CODEX_SKIP_V096_SELF_TEST',
+  'CODEX_SKIP_V097_SELF_TEST',
+  'CODEX_SKIP_V098_SELF_TEST',
+  'CODEX_SKIP_V099_SELF_TEST',
+  'CODEX_SKIP_V100_SELF_TEST',
+  'CODEX_SKIP_V101_SELF_TEST',
+  'CODEX_SKIP_V102_SELF_TEST',
+];
+results.push({
+  name: 'sample_config_fixture_skips_current_legacy_self_tests',
+  status: requiredNestedSelfTestSkips.every((name) => runTestsSource.includes(name)) ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: requiredNestedSelfTestSkips.every((name) => runTestsSource.includes(name)) ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+const workerExitResolvedAfterMessage =
+  runTestsSource.includes('let successMessage = null') &&
+  runTestsSource.includes('code !== 0 || failed || successMessage === null') &&
+  runTestsSource.includes('resolve(successMessage)');
+results.push({
+  name: 'json_concurrency_fixture_waits_for_worker_exit',
+  status: workerExitResolvedAfterMessage ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: workerExitResolvedAfterMessage ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+results.push({
+  name: 'method_gate_marker_matches_v102',
+  status: methodGateSource.includes("const HARNESS_VERSION = '1.0.2'") ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: methodGateSource.includes("const HARNESS_VERSION = '1.0.2'") ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+const jsonWorkerAllSettledPresent =
+  runTestsSource.includes('const memoryWorkerResults = await Promise.allSettled') &&
+  runTestsSource.includes('const relationshipWorkerResults = await Promise.allSettled') &&
+  runTestsSource.includes('worker_failed_safely');
+results.push({
+  name: 'json_concurrency_fixture_waits_for_all_workers',
+  status: jsonWorkerAllSettledPresent ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: jsonWorkerAllSettledPresent ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+const jsonCleanupRetryPresent =
+  runTestsSource.includes('async function removeFixtureTempDirWithRetry') &&
+  runTestsSource.includes('fixture_cleanup_failed_safely') &&
+  runTestsSource.includes('await removeFixtureTempDirWithRetry(tempDir)');
+results.push({
+  name: 'json_fixture_cleanup_retry_is_bounded',
+  status: jsonCleanupRetryPresent ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: jsonCleanupRetryPresent ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+const jsonQuiescenceWaitPresent =
+  runTestsSource.includes('async function waitForFixtureFilesystemQuiescence') &&
+  runTestsSource.includes('fixture_transient_files_remain_safely') &&
+  runTestsSource.includes('await waitForFixtureFilesystemQuiescence(tempDir)');
+results.push({
+  name: 'json_fixture_waits_for_filesystem_quiescence',
+  status: jsonQuiescenceWaitPresent ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: jsonQuiescenceWaitPresent ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+const envExampleGuardPresent =
+  secretScanSource.includes('env_example_value_not_placeholder') &&
+  secretScanSource.includes('envExampleAssignmentPattern');
+results.push({
+  name: 'env_example_placeholder_guard_present',
+  status: envExampleGuardPresent ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: envExampleGuardPresent ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+const v085HarnessOnlyFixtureIsolated =
+  v085SelfTestSource.includes("CODEX_CHANGED_FILES: 'scripts/codex-local-quality-gate.mjs'") &&
+  v085SelfTestSource.includes("classification: { harnessOnly: true }");
+results.push({
+  name: 'v085_harness_only_fixture_isolates_changed_files',
+  status: v085HarnessOnlyFixtureIsolated ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: v085HarnessOnlyFixtureIsolated ? 'pass' : 'fail',
+  safeSummaryOnly: true,
 });
 
 const failures = results.filter((item) => item.status !== 'pass');

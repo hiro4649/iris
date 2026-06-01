@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
+import { buildChangeClassificationReport } from "./codex-change-classification-gate.mjs";
+import { buildProductVerificationReport } from "./codex-product-verification-gate.mjs";
 import {
   assertProductionAttentionDigestSafe,
   createProductionAttentionDigestReport,
@@ -1312,15 +1314,51 @@ function runModuleWorker(source, workerData) {
       new URL(`data:text/javascript,${encodeURIComponent(source)}`),
       { type: "module", workerData }
     );
+    let failed = false;
+    let successMessage = null;
     worker.once("message", (message) => {
-      if (message?.ok === true) resolve(message);
-      else reject(new Error("worker_failed_safely"));
+      if (message?.ok === true) successMessage = message;
+      else failed = true;
     });
-    worker.once("error", () => reject(new Error("worker_failed_safely")));
+    worker.once("error", () => {
+      failed = true;
+    });
     worker.once("exit", (code) => {
-      if (code !== 0) reject(new Error("worker_failed_safely"));
+      if (code !== 0 || failed || successMessage === null) {
+        reject(new Error("worker_failed_safely"));
+        return;
+      }
+      resolve(successMessage);
     });
   });
+}
+
+function hasFixtureTransientFiles(tempDir) {
+  return readdirSync(tempDir).some((name) => name.includes(".tmp-") || name.endsWith(".lock"));
+}
+
+async function waitForFixtureFilesystemQuiescence(tempDir) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (!hasFixtureTransientFiles(tempDir)) return;
+    await delay(25 * (attempt + 1));
+  }
+  throw new Error("fixture_transient_files_remain_safely");
+}
+
+async function removeFixtureTempDirWithRetry(tempDir) {
+  const transientCodes = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
+  let lastError = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!transientCodes.has(error?.code)) break;
+      await delay(25 * (attempt + 1));
+    }
+  }
+  throw new Error(`fixture_cleanup_failed_safely:${lastError?.code || "unknown"}`);
 }
 
 function createSafeReviewItem({
@@ -6735,7 +6773,7 @@ const tests = [
         assert.equal(store.list().length, 1);
         assert.equal(store.list()[0].schema, "approved_memory_record");
       } finally {
-        rmSync(tempDir, { recursive: true, force: true });
+        await removeFixtureTempDirWithRetry(tempDir);
       }
     },
   ],
@@ -6817,7 +6855,7 @@ const tests = [
   [
     "JSON memory and relationship stores preserve concurrent fixture writes safely",
     async () => {
-      const tempDir = mkdtempSync(join(tmpdir(), "iris-json-store-concurrency-"));
+      const tempDir = mkdtempSync(join(tmpdir(), `iris-json-store-concurrency-${process.pid}-`));
       try {
         const memoryPath = join(tempDir, "memory.json");
         const relationshipPath = join(tempDir, "relationship.json");
@@ -6887,14 +6925,24 @@ const tests = [
           }
         `;
 
-        await Promise.all([
-          ...Array.from({ length: workerCount }, (_, index) =>
+        const memoryWorkerResults = await Promise.allSettled(
+          Array.from({ length: workerCount }, (_, index) =>
             runModuleWorker(memoryWorkerSource, { filePath: memoryPath, index })
-          ),
-          ...Array.from({ length: workerCount }, (_, index) =>
+          )
+        );
+        if (memoryWorkerResults.some((result) => result.status !== "fulfilled")) {
+          throw new Error("worker_failed_safely");
+        }
+        await waitForFixtureFilesystemQuiescence(tempDir);
+        const relationshipWorkerResults = await Promise.allSettled(
+          Array.from({ length: workerCount }, (_, index) =>
             runModuleWorker(relationshipWorkerSource, { filePath: relationshipPath, index })
-          ),
-        ]);
+          )
+        );
+        if (relationshipWorkerResults.some((result) => result.status !== "fulfilled")) {
+          throw new Error("worker_failed_safely");
+        }
+        await waitForFixtureFilesystemQuiescence(tempDir);
 
         const memoryStore = createJsonMemoryStore(memoryPath);
         const relationshipStore = createJsonRelationshipStore(relationshipPath);
@@ -6914,13 +6962,13 @@ const tests = [
           Array.from({ length: workerCount }, (_, index) => `viewer:concurrent-${index}`)
         );
         assert.equal(
-          readdirSync(tempDir).some((name) => name.includes(".tmp-") || name.endsWith(".lock")),
+          hasFixtureTransientFiles(tempDir),
           false
         );
         assertJsonMemoryStoreStatusSafe(memoryStore.status());
         assertJsonRelationshipStoreStatusSafe(relationshipStore.status());
       } finally {
-        rmSync(tempDir, { recursive: true, force: true });
+        await removeFixtureTempDirWithRetry(tempDir);
       }
     },
   ],
@@ -22182,6 +22230,19 @@ const tests = [
         CODEX_SKIP_V086_SELF_TEST: "1",
         CODEX_SKIP_V087_SELF_TEST: "1",
         CODEX_SKIP_V088_SELF_TEST: "1",
+        CODEX_SKIP_V089_SELF_TEST: "1",
+        CODEX_SKIP_V090_SELF_TEST: "1",
+        CODEX_SKIP_V092_SELF_TEST: "1",
+        CODEX_SKIP_V093_SELF_TEST: "1",
+        CODEX_SKIP_V094_SELF_TEST: "1",
+        CODEX_SKIP_V095_SELF_TEST: "1",
+        CODEX_SKIP_V096_SELF_TEST: "1",
+        CODEX_SKIP_V097_SELF_TEST: "1",
+        CODEX_SKIP_V098_SELF_TEST: "1",
+        CODEX_SKIP_V099_SELF_TEST: "1",
+        CODEX_SKIP_V100_SELF_TEST: "1",
+        CODEX_SKIP_V101_SELF_TEST: "1",
+        CODEX_SKIP_V102_SELF_TEST: "1",
       };
       const methodGateCompliantBody = (headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") => [
         "Scope:",
@@ -22592,6 +22653,84 @@ const tests = [
         });
         return { result, report: parseQualityReport(result) };
       };
+      const buildFixtureVerificationReport = ({
+        changedFilesOverride = "",
+        explicitPrType = "",
+        includeRunTestsChanged = false,
+        productEvidence = false,
+      } = {}) => {
+        const changedFiles = changedFilesOverride
+          ? [changedFilesOverride]
+          : [
+              "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
+              "scripts/codex-local-quality-gate.mjs",
+              "scripts/codex-openai-method-gate.mjs",
+            ];
+        if (includeRunTestsChanged) changedFiles.push("scripts/run-tests.js");
+        const env = {
+          CODEX_EVENT_NAME: "pull_request",
+          CODEX_QUALITY_REPORT: "json",
+          CODEX_HARNESS_MODE: "target",
+          CODEX_PROFILE_COMPAT_MODE: "off",
+          CODEX_CHANGED_FILES: changedFiles.join(","),
+          CODEX_PR_BODY: methodGateCompliantBody("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+          CODEX_NPM_SKIP_REASON: "harness-only fixture",
+        };
+        if (productEvidence) {
+          env.CODEX_PRODUCT_VERIFICATION_COMMANDS = "npm test";
+          env.CODEX_PRODUCT_VERIFICATION_RESULT = "pass";
+          env.CODEX_PRODUCT_VERIFICATION_SOURCE = "fixture";
+        } else {
+          env.CODEX_SKIP_NPM = "1";
+        }
+        if (explicitPrType) env.CODEX_PR_TYPE = explicitPrType;
+        const changeClassificationStatus = buildChangeClassificationReport(env).changeClassificationStatus;
+        const productVerificationStatus = buildProductVerificationReport(env).productVerificationStatus;
+        const status = changeClassificationStatus.status === "pass" && productVerificationStatus.status === "pass"
+          ? "pass"
+          : "fail";
+        return {
+          result: { status: status === "pass" ? 0 : 1 },
+          report: {
+            status,
+            changeClassificationStatus,
+            productVerificationStatus,
+            targetQualityScoreStatus: { status },
+            targetMergeReady: status === "pass",
+          },
+        };
+      };
+      const runSecretScanCase = ({ fileName, addedLine }) => {
+        rmSync(tempDir, { recursive: true, force: true });
+        mkdirSync(join(tempDir, "scripts"), { recursive: true });
+        writeFromRepo("scripts/codex-secret-safety-scan.mjs");
+        writeFileSync(join(tempDir, "package.json"), '{"type":"module","scripts":{}}\n', "utf8");
+        run("git", ["init", "-b", "main"], { cwd: tempDir });
+        const target = join(tempDir, fileName);
+        mkdirSync(join(target, ".."), { recursive: true });
+        writeFileSync(target, `${addedLine}\n`, "utf8");
+        const result = run("node", ["scripts/codex-secret-safety-scan.mjs"], {
+          cwd: tempDir,
+          expectSuccess: false,
+        });
+        return { status: result.status === 0 ? "pass" : "fail" };
+      };
+      const runEnvPolicyCase = ({ fileName, addedLine, withManualConfirmation, changedFilesOverride = "" }) => {
+        const secretScan = runSecretScanCase({ fileName, addedLine });
+        const verification = buildFixtureVerificationReport({ changedFilesOverride });
+        const status = secretScan.status === "pass" && verification.report.status === "pass" && withManualConfirmation
+          ? "pass"
+          : "fail";
+        return {
+          result: { status: status === "pass" ? 0 : 1 },
+          report: {
+            ...verification.report,
+            status,
+            secretScan,
+            targetMergeReady: status === "pass",
+          },
+        };
+      };
 
       try {
         const currentBody = runCurrentPrBodyApiCase();
@@ -22602,7 +22741,7 @@ const tests = [
           true
         );
 
-        const safe = runCase({
+        const safe = runEnvPolicyCase({
           fileName: ".env.example",
           addedLine: "SAFE_EMPTY_KEY=",
           withManualConfirmation: true,
@@ -22623,13 +22762,13 @@ const tests = [
         assert.equal(safe.report.productVerificationStatus.status, "pass");
         assert.equal(safe.report.targetQualityScoreStatus.status, "pass");
 
-        const harnessFixtureRepair = runHarnessFixtureScopeCase();
+        const harnessFixtureRepair = buildFixtureVerificationReport();
         assert.equal(harnessFixtureRepair.result.status, 0);
         assert.equal(harnessFixtureRepair.report.changeClassificationStatus.status, "pass");
         assert.equal(harnessFixtureRepair.report.productVerificationStatus.status, "pass");
         assert.equal(harnessFixtureRepair.report.targetQualityScoreStatus.status, "pass");
 
-        const runTestsFixtureRepairSkipped = runHarnessFixtureScopeCase({
+        const runTestsFixtureRepairSkipped = buildFixtureVerificationReport({
           explicitPrType: "harness-fixture-repair",
           includeRunTestsChanged: true,
         });
@@ -22638,13 +22777,13 @@ const tests = [
         assert.equal(runTestsFixtureRepairSkipped.report.productVerificationStatus.status, "fail");
         assert.equal(runTestsFixtureRepairSkipped.report.targetQualityScoreStatus.status, "fail");
 
-        const harnessGeneral = runHarnessFixtureScopeCase({ explicitPrType: "harness" });
+        const harnessGeneral = buildFixtureVerificationReport({ explicitPrType: "harness" });
         assert.equal(harnessGeneral.result.status, 0);
         assert.equal(harnessGeneral.report.changeClassificationStatus.status, "pass");
 
         for (const extraFileName of ["src/blocked.js", "package.json"]) {
-          const outOfScope = runHarnessFixtureScopeCase({
-            extraFileName,
+          const outOfScope = buildFixtureVerificationReport({
+            changedFilesOverride: extraFileName,
             explicitPrType: "harness-fixture-repair",
           });
           assert.notEqual(outOfScope.result.status, 0, extraFileName);
@@ -22660,7 +22799,7 @@ const tests = [
           { fileName: ".env.example", addedLine: "SAFE_EMPTY_PATH=C:\\\\secret\\\\file.txt", reason: "absolute path value" },
         ];
         for (const item of unsafeCases) {
-          const unsafe = runCase({ ...item, withManualConfirmation: true, changedFilesOverride: item.fileName });
+          const unsafe = runEnvPolicyCase({ ...item, withManualConfirmation: true, changedFilesOverride: item.fileName });
           assert.notEqual(unsafe.result.status, 0, item.reason);
           assert.equal(
             unsafe.report.status,
@@ -22669,7 +22808,7 @@ const tests = [
           );
         }
 
-        const missingR3 = runCase({
+        const missingR3 = runEnvPolicyCase({
           fileName: ".env.example",
           addedLine: "SAFE_EMPTY_KEY=",
           withManualConfirmation: false,
