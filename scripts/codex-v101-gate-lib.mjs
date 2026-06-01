@@ -1,18 +1,9 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.1
+// CODEX_QUALITY_HARNESS_FILE v1.0.2
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { scanObjectForUnsafe, simpleStatus, writeJsonReport, exitFor, readText } from './codex-v080-lib.mjs';
-
-function targetMode() {
-  return process.env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
-}
-
-function harnessManifestText() {
-  if (targetMode()) return readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '';
-  return readText('CODEX_SOURCE_HARNESS_MANIFEST.json') || readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '';
-}
 
 export const V101_STATUS_KEYS = [
   'primeDirectiveStatus',
@@ -394,10 +385,10 @@ export function buildRuntimeAdoptionSequenceReport(input = {}) {
 
 export function buildV101SelfTestRegistrationReport(input = {}) {
   const reasons = [];
-  const manifest = harnessManifestText();
   if (!fs.existsSync('scripts/codex-v101-self-test.mjs') || bool(input.selfTestMissing)) reasons.push('v101_self_test_missing');
   if (!readText('scripts/codex-local-quality-gate.mjs')?.includes('v101SelfTestStatus')) reasons.push('v101_self_test_missing');
-  if (!manifest.includes('codex-v101-self-test.mjs')) reasons.push('v101_self_test_missing');
+  const manifestText = readText('CODEX_SOURCE_HARNESS_MANIFEST.json') || readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '';
+  if (!manifestText.includes('codex-v101-self-test.mjs')) reasons.push('v101_self_test_missing');
   return reasons.length ? fail('v101SelfTestStatus', reasons) : pass('v101SelfTestStatus');
 }
 

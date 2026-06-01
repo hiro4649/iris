@@ -14,7 +14,7 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.0.1
+CODEX_QUALITY_HARNESS_FILE v1.0.2
 
 ## Prime Directive
 
@@ -23,53 +23,58 @@ truth, trust, security, or maintainability.
 
 ## Source Harness Boundary
 
-Target rollout work uses the source harness as the parent authority, but this repository remains a target consumer. Keep product authority outside the harness block intact.
+This repository is the Codex Development Harness source. Work here must stay in
+the harness itself unless a task explicitly names a downstream project. Do not
+change downstream project repositories from source harness work.
+Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` and
+`docs/process/code_review.md` as the stable method references.
+For v1.0.1 and v1.0.2 outcome, recovery, fixture isolation, clean-main,
+external blocked, handover, branch/head, and local gate contract routing, use
+the matching `docs/process/CODEX_*_POLICY.md` files.
 
-## Codex Target Harness Boundary
+## Plan-First Rule
 
-This target repository consumes Codex Development Harness v1.0.1 through
-`docs/process/CODEX_HARNESS_MANIFEST.json`; do not copy or create
-`CODEX_SOURCE_HARNESS_MANIFEST.json` here. Keep product authority outside this
-block intact.
+Use plan-first for R3, ambiguous, security-sensitive, migration, release,
+dependency, multi-file, or architecture tradeoff work. Keep the plan short and
+tie it to affected areas, entrypoints, and failure propagation risk.
 
-## Target Doctrine And Skill Routing
+## Safe Output Rule
 
-Keep AGENTS.md compact: doctrine, routing map, and links only. Put detailed
-policy in `docs/process`. Load only task-needed skills, normally four or fewer
-and never more than five. Use `docs/process/CODEX_AGENTS_DOCTRINE_POLICY.md`,
-`docs/process/CODEX_SKILL_ROUTING_POLICY.md`,
-`docs/process/CODEX_SUBAGENT_GOVERNANCE_POLICY.md`, and related v0.9.5-v1.0.0
-files for detailed rules. Use `docs/process/CODEX_OUTCOME_CONTRACT_POLICY.md`,
-`docs/process/CODEX_PLAN_REVIEWER_WORKER_POLICY.md`,
-`docs/process/CODEX_ANTI_ACCRETION_POLICY.md`,
-`docs/process/CODEX_VISIBLE_ACCEPTANCE_EVIDENCE_POLICY.md`, and
-`docs/process/CODEX_LOCAL_GATE_REPORT_CONTRACT_POLICY.md` for v1.0.1 routing.
-Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` for Codex Method
-requirements.
+Use safe summary only. Do not print raw logs, raw diffs, raw payloads, secret
+values, endpoint values, private paths, production data, or personal data.
 
-## Target Safety Rules
+## Merge-Ready Claim Rule
 
-Harness-only work must stay in harness-managed files. Do not modify product
-source, product tests, runtime assets, package files, lockfiles, profiles,
-`scripts/run-tests.js`, or product config not owned by harness unless the
-project owner explicitly requests product work and required verification evidence
-is available.
+Do not claim merge-ready unless required gates, current-head evidence, CI replay
+where applicable, and human confirmation rules are satisfied.
 
-Maintain source/target sequencing, parent-harness preservation, profile/core separation, plan-first discipline, workflow scope, worker file ownership, stop conditions, merge-ready claim evidence, manual confirmation limits, and safe output rules. Manual confirmation cannot override non-overridable harness
-failures. Do not print raw logs, raw diffs, raw runtime data, raw model paths,
-secrets, endpoints, private paths, production data, or personal data.
+## Task Discipline
 
-Do not treat targetQualityScoreStatus or a passing harness gate as product
-runtime readiness. Fixture pass, browser smoke pass, dataset audit readiness,
-Game/Tool Adapter fixture pass, beloved avatar audit readiness, Application
-Intelligence maps, and handover documents are not runtime readiness.
+Before editing, classify work as bugfix, feature, refactor, investigation,
+review, release-gate, harness-change, or docs-only. For bugfix work, use the
+`codex-bugfix` skill and write reproduction status plus root-cause hypothesis
+before code edits unless the change is documentation-only. Keep task-specific
+workflow detail in skills or `docs/process`, not in AGENTS.md.
 
-Maintain Profile/Core Separation: target rollout uses target mode while source harness core remains separate.
+## Agent Doctrine And Skill Routing
 
-Run target quality gates with `CODEX_HARNESS_MODE=target`,
-`CODEX_PROFILE_COMPAT_MODE=off`, and `CODEX_QUALITY_REPORT=json`. Preserve target
-hotfixes and target-specific adaptations during rollout. Require same-head
-evidence for PR evidence, manual confirmation, remote runs, artifact summaries,
-and product-relevant PR context.
+Keep AGENTS.md as a compact doctrine and routing map. Load only the skills
+needed for the task, normally four or fewer and never more than five. Route
+details, review matrices, containment boundaries, state-machine evidence, and
+minimal evidence rules live in `docs/process/CODEX_AGENTS_DOCTRINE_POLICY.md`,
+`docs/process/CODEX_SKILL_ROUTING_POLICY.md`, and the related v0.9.5 policy
+files.
+
+## Manual Confirmation Limit
+
+Manual confirmation cannot override non-overridable failures: secret scan,
+blocked paths, high-confidence sensitive findings, stale evidence, unsafe
+output, implementation/harness mixing, or weakened quality gates.
+
+## Profile/Core Separation
+
+Root source harness version and profile template version are separate. In
+`CODEX_HARNESS_MODE=core`, profiles are optional compatibility artifacts and
+must not be required for core quality score.
 
 <!-- CODEX_QUALITY_HARNESS_END -->

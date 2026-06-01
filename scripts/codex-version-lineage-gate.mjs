@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.1
+// CODEX_QUALITY_HARNESS_FILE v1.0.2
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,7 +40,7 @@ function manifestPath(env = process.env) {
 }
 
 function requiredPaths(env = process.env) {
-  const target = env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
+  const target = (env.CODEX_HARNESS_MODE === 'target' || !fs.existsSync('CODEX_SOURCE_HARNESS_MANIFEST.json')) && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
   return [
     ...(target ? ['docs/process/CODEX_HARNESS_MANIFEST.json', 'AGENTS.md'] : ['README.md', 'CODEX_SOURCE_HARNESS_MANIFEST.json']),
     'docs/process/CODEX_KNOWLEDGE_MAP.json',
@@ -56,10 +56,10 @@ function requiredPaths(env = process.env) {
 export function buildVersionLineageReport(env = process.env) {
   const failures = [];
   const warnings = [];
+  const target = (env.CODEX_HARNESS_MODE === 'target' || !fs.existsSync('CODEX_SOURCE_HARNESS_MANIFEST.json')) && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
   const paths = requiredPaths(env);
   const manifestFile = manifestPath(env);
   const manifestJson = readJson(manifestFile);
-  const target = env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
 
   if (!manifestJson.ok) failures.push('version_lineage_manifest_missing');
   else {
@@ -95,6 +95,10 @@ export function buildVersionLineageReport(env = process.env) {
     const version = firstMarkerVersion(file);
     if (!version) continue;
     if (version !== HARNESS_VERSION) {
+      if (target && !paths.includes(file) && !normalizePath(file).startsWith('scripts/codex-')) {
+        warnings.push(`target_legacy_marker:${file}`);
+        continue;
+      }
       if (/archive|historical|past-pr/i.test(file)) warnings.push(`archived_marker:${file}`);
       else failures.push(`active_marker_version_mismatch:${file}`);
     }
