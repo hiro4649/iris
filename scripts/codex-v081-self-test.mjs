@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.2
+// CODEX_QUALITY_HARNESS_FILE v1.0.3
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -177,7 +177,6 @@ function buildReport() {
       CODEX_SKIP_V099_SELF_TEST: '1',
       CODEX_SKIP_V100_SELF_TEST: '1',
       CODEX_SKIP_V101_SELF_TEST: '1',
-      CODEX_SKIP_V102_SELF_TEST: '1',
       CODEX_NPM_SKIP_REASON: 'harness-only fixture',
     },
   });
