@@ -14,7 +14,7 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.0.3
+CODEX_QUALITY_HARNESS_FILE v1.0.4
 
 ## Prime Directive
 
@@ -28,9 +28,15 @@ the harness itself unless a task explicitly names a downstream project. Do not
 change downstream project repositories from source harness work.
 Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` and
 `docs/process/code_review.md` as the stable method references.
-For v1.0.1 and v1.0.2 outcome, recovery, fixture isolation, clean-main,
+For v1.0.1 through v1.0.3 outcome, recovery, fixture isolation, clean-main,
+judgment consistency, product surface routing, review taxonomy, stale input,
 external blocked, handover, branch/head, and local gate contract routing, use
 the matching `docs/process/CODEX_*_POLICY.md` files.
+For v1.0.4 claim-to-code, boundary linting, acceptance criteria, risk, evidence
+v2, GitHub hysteresis, tool gap, active self-test, hotfix preservation,
+PR-chain saturation, role/tool, evidence site, annotation, and Dynamic Workflow
+Lite governance, use `docs/process/CODEX_V104_SPEC.md` and the matching
+`docs/process/CODEX_*_POLICY.md` or schema files.
 
 ## Plan-First Rule
 
@@ -55,6 +61,8 @@ review, release-gate, harness-change, or docs-only. For bugfix work, use the
 `codex-bugfix` skill and write reproduction status plus root-cause hypothesis
 before code edits unless the change is documentation-only. Keep task-specific
 workflow detail in skills or `docs/process`, not in AGENTS.md.
+In 5.5 low mode, keep one PR/repo focus, avoid broad changes, and return
+exactly one safe next action.
 
 ## Agent Doctrine And Skill Routing
 
@@ -70,9 +78,6 @@ files.
 Manual confirmation cannot override non-overridable failures: secret scan,
 blocked paths, high-confidence sensitive findings, stale evidence, unsafe
 output, implementation/harness mixing, or weakened quality gates.
-
-For v1.0.3 judgment consistency, product surface routing, active self-test artifact, review taxonomy, stale input, 5.5 low mode, and Dynamic Workflow Lite routing, use docs/process/CODEX_V103_JUDGMENT_CONSISTENCY_POLICY.md and related CODEX_V103 policy files.
-In 5.5 low mode, keep one PR/repo focus, avoid broad changes, and return exactly one safe next action.
 
 ## Profile/Core Separation
 
