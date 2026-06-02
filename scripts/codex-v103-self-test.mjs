@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.3
-import { scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
+import { scanObjectForUnsafe, writeJsonReport, exitFor, readText } from './codex-v080-lib.mjs';
 import * as gates from './codex-v103-gate-lib.mjs';
 
 const CASES = [
@@ -88,6 +88,142 @@ const results = CASES.map(([name, builder, input, key, expected]) => {
   const report = builder(input);
   const actual = report[key]?.status || report.status;
   return { name, status: actual === expected ? 'pass' : 'fail', expected, actual, safeSummaryOnly: true };
+});
+
+const methodGateText = readText('scripts/codex-openai-method-gate.mjs') || '';
+const methodGateVersionAligned = methodGateText.includes('CODEX_QUALITY_HARNESS_FILE v1.0.3') &&
+  methodGateText.includes("const HARNESS_VERSION = '1.0.3';");
+results.push({
+  name: 'openai_method_gate_internal_version_matches_v103_marker',
+  status: methodGateVersionAligned ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: methodGateVersionAligned ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const runTestsText = readText('scripts/run-tests.js') || '';
+const localQualityGateText = readText('scripts/codex-local-quality-gate.mjs') || '';
+const targetSupportWithoutSourceRunner = process.env.CODEX_HARNESS_MODE === 'target' && !runTestsText;
+const envFixtureHasExplicitNarrowMode = targetSupportWithoutSourceRunner || (runTestsText.includes('CODEX_NARROW_TARGET_GATE_FIXTURE') &&
+  runTestsText.includes('env_example_method_gate')) ||
+  (runTestsText.includes('buildFixtureReport') &&
+    runTestsText.includes('methodGateProductionReadinessEvidenceIntegrityStatus'));
+results.push({
+  name: 'env_example_method_gate_fixture_has_explicit_target_context',
+  status: envFixtureHasExplicitNarrowMode ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: envFixtureHasExplicitNarrowMode ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const envFixtureScopesSecretScanToChangedFiles = targetSupportWithoutSourceRunner ||
+  (runTestsText.includes('envExampleSafeKeyOnlyPolicyStatus') &&
+    runTestsText.includes('envExampleLineUnsafe') &&
+    methodGateText.includes('CODEX_QUALITY_HARNESS_FILE v1.0.3'));
+results.push({
+  name: 'env_example_method_gate_fixture_scopes_nested_secret_scan_to_changed_files',
+  status: envFixtureScopesSecretScanToChangedFiles ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: envFixtureScopesSecretScanToChangedFiles ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const jsonConcurrencyFixtureWaitsForWorkerExitAndBoundedCleanup =
+  targetSupportWithoutSourceRunner ||
+  (runTestsText.includes('function runModuleWorker') &&
+    runTestsText.includes("worker.once(\"exit\"") &&
+    runTestsText.includes('completedMessage === null') &&
+    runTestsText.includes('removeFixtureTempDirWithRetry') &&
+    runTestsText.includes('fixture_cleanup_failed_safely') &&
+    runTestsText.includes('iris-json-store-concurrency-') &&
+    runTestsText.includes('await removeFixtureTempDirWithRetry(tempDir)'));
+results.push({
+  name: 'json_concurrency_fixture_waits_for_worker_exit_and_uses_bounded_cleanup',
+  status: jsonConcurrencyFixtureWaitsForWorkerExitAndBoundedCleanup ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: jsonConcurrencyFixtureWaitsForWorkerExitAndBoundedCleanup ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const localBridgeFixtureTracksServerSockets =
+  targetSupportWithoutSourceRunner ||
+  (runTestsText.includes('function trackServerSockets') &&
+    runTestsText.includes('server.on("connection"') &&
+    runTestsText.includes('destroyOpenSockets()') &&
+    runTestsText.includes('openSocketCount()') &&
+    runTestsText.includes('const bridgeSockets = trackServerSockets(bridgeServer)') &&
+    runTestsText.includes('const noManifestSockets = trackServerSockets(noManifestBridge)') &&
+    runTestsText.includes('bridgeSockets.destroyOpenSockets()') &&
+    runTestsText.includes('noManifestSockets.destroyOpenSockets()') &&
+    runTestsText.includes('assert.equal(bridgeSockets.openSocketCount(), 0)') &&
+    runTestsText.includes('assert.equal(noManifestSockets.openSocketCount(), 0)'));
+results.push({
+  name: 'local_bridge_fixture_tracks_and_drains_server_sockets',
+  status: localBridgeFixtureTracksServerSockets ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: localBridgeFixtureTracksServerSockets ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const narrowFixtureModeSafeJson = targetSupportWithoutSourceRunner ||
+  (runTestsText.includes('buildFixtureReport') &&
+    runTestsText.includes('JSON.stringify(report)') &&
+    runTestsText.includes('safeSummaryOnly: true') &&
+    runTestsText.includes('valuesPrinted: false') &&
+    runTestsText.includes('runtimeReadinessClaimed: false') &&
+    runTestsText.includes('productionReadinessClaimed: false') &&
+    runTestsText.includes('productionGoPerformed: false') &&
+    runTestsText.includes('priority1Status: "BLOCKED"') &&
+    runTestsText.includes('envExampleSafeKeyOnlyPolicyStatus') &&
+    runTestsText.includes('methodGateProductionReadinessEvidenceIntegrityStatus') &&
+    runTestsText.includes('targetMergeReady: status === "pass"') &&
+    runTestsText.includes('envExampleLineUnsafe') &&
+    runTestsText.includes('fileName === ".env"') &&
+    runTestsText.includes('fileName === ".env.local"') &&
+    runTestsText.includes('value.trim().length > 0'));
+results.push({
+  name: 'env_example_narrow_target_gate_fixture_emits_safe_json_and_keeps_missing_json_failed',
+  status: narrowFixtureModeSafeJson ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: narrowFixtureModeSafeJson ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const localTargetGateProductEvidencePhaseSplit =
+  localQualityGateText.includes('isLocalPrePushTargetContext') &&
+  localQualityGateText.includes("env.CODEX_HARNESS_MODE === 'target'") &&
+  localQualityGateText.includes('!isPullRequestContext(env)') &&
+  localQualityGateText.includes('buildLocalPrePushProductVerificationEvidence') &&
+  localQualityGateText.includes("spawn('npm', ['test']") &&
+  localQualityGateText.includes('npmEnv.CODEX_HARNESS_MODE') &&
+  localQualityGateText.includes('npmEnv.CODEX_QUALITY_REPORT') &&
+  localQualityGateText.includes("source: 'local'") &&
+  localQualityGateText.includes('applyLocalPrePushProductEvidencePhase') &&
+  localQualityGateText.includes('remote_evidence_pending_after_push') &&
+  localQualityGateText.includes('remoteEvidenceRequiredAfterPush: true') &&
+  localQualityGateText.includes('localNpmIsRemoteNpm: false') &&
+  localQualityGateText.includes('remoteEvidence.pendingAfterPush') &&
+  localQualityGateText.includes('CODEX_PRODUCT_VERIFICATION_SOURCE') &&
+  localQualityGateText.includes('applyLocalPrePushProductEvidencePhase(report, localPrePushProductEvidence, gateEnv)');
+results.push({
+  name: 'local_target_gate_product_evidence_phase_split_preserves_remote_requirement',
+  status: localTargetGateProductEvidencePhaseSplit ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: localTargetGateProductEvidencePhaseSplit ? 'pass' : 'fail',
+  safeSummaryOnly: true,
+});
+
+const remoteContextStillStrictForMissingNpmEvidence =
+  localQualityGateText.includes('!isPullRequestContext(env)') &&
+  !localQualityGateText.includes("localNpmIsRemoteNpm: true") &&
+  readText('scripts/codex-v099-gate-lib.mjs').includes('remote_npm_not_executed_for_product_pr') &&
+  readText('scripts/codex-v098-gate-lib.mjs').includes('remote_npm_not_executed_for_product_pr');
+results.push({
+  name: 'remote_context_missing_npm_evidence_remains_strict',
+  status: remoteContextStillStrictForMissingNpmEvidence ? 'pass' : 'fail',
+  expected: 'pass',
+  actual: remoteContextStillStrictForMissingNpmEvidence ? 'pass' : 'fail',
+  safeSummaryOnly: true,
 });
 
 const failures = results.filter((item) => item.status !== 'pass');

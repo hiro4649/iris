@@ -7116,6 +7116,126 @@ function isPullRequestContext(env = process.env) {
 
 }
 
+function isLocalPrePushTargetContext(env = process.env) {
+  return env.CODEX_HARNESS_MODE === 'target' && !isPullRequestContext(env);
+}
+
+function targetProductRelevant(report) {
+  const status = report.changeClassificationStatus || {};
+  return Boolean(
+    status.productRelevantChanged ||
+    status.packageOrLockfileChanged ||
+    status.runtimeReadinessClaimed ||
+    status.classification?.productRelevantChanged ||
+    status.classification?.packageOrLockfileChanged ||
+    status.classification?.runtimeReadinessClaimed,
+  );
+}
+
+function buildLocalPrePushProductVerificationEvidence(report, env = process.env) {
+  if (!isLocalPrePushTargetContext(env) || !targetProductRelevant(report)) return null;
+  if (env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH || env.CODEX_PRODUCT_VERIFICATION_COMMANDS) return null;
+  const npmEnv = { ...env };
+  npmEnv.CODEX_HARNESS_MODE = '';
+  npmEnv.CODEX_PROFILE_COMPAT_MODE = '';
+  npmEnv.CODEX_QUALITY_REPORT = '';
+  npmEnv.IRIS_TEST_NAME_FILTER = '';
+  const result = spawn('npm', ['test'], {
+    stdio: 'pipe',
+    env: npmEnv,
+    timeout: Number(env.CODEX_LOCAL_PRODUCT_VERIFICATION_TIMEOUT_MS || 600000),
+  });
+  const passed = result.status === 0;
+  return {
+    schemaVersion: '0.8.3',
+    harnessVersion: HARNESS_VERSION,
+    mode: 'target',
+    evidencePhase: 'local_pre_push',
+    commands: [{
+      name: 'npm test',
+      required: true,
+      result: passed ? 'pass' : 'fail',
+      source: 'local',
+      durationMs: null,
+      testCount: null,
+      safeSummary: passed ? 'local npm test completed' : 'local npm test failed with safe summary only',
+    }],
+    rawLogsRead: false,
+    rawDiffRead: false,
+    rawLogsIncluded: false,
+    rawDiffIncluded: false,
+    safeSummaryOnly: true,
+  };
+}
+
+function applyLocalPrePushProductEvidencePhase(report, localEvidence, env = process.env) {
+  if (!localEvidence || !isLocalPrePushTargetContext(env) || !targetProductRelevant(report)) return;
+  const command = localEvidence.commands?.[0] || {};
+  const localPass = command.result === 'pass';
+  const phaseReason = 'remote_evidence_pending_after_push';
+  report.productVerificationEvidenceStatus = {
+    status: localPass ? 'pass' : 'fail',
+    reasonCodes: localPass ? [] : ['product_verification_local_npm_failed'],
+    normalizedEvidence: localEvidence,
+    safeSummaryOnly: true,
+  };
+  report.productVerificationStatus = {
+    status: localPass ? 'pass' : 'fail',
+    skipAllowed: false,
+    skipReason: '',
+    requiredCommands: ['repository_test_or_build_or_project_defined_check'],
+    providedEvidence: ['npm test'],
+    missingEvidence: [],
+    failingEvidence: localPass ? [] : ['npm test'],
+    baselineStatus: 'pending_after_push',
+    baselineResult: null,
+    reasonCodes: localPass ? [phaseReason] : ['product_verification_local_npm_failed'],
+    normalizedEvidence: localEvidence,
+    safeSummaryOnly: true,
+  };
+  const pendingRemote = (statusKey, extra = {}) => ({
+    status: 'not_applicable',
+    reasonCodes: [phaseReason],
+    evidencePhase: 'local_pre_push',
+    remoteEvidenceRequiredAfterPush: true,
+    localNpmIsRemoteNpm: false,
+    safeSummaryOnly: true,
+    ...extra,
+  });
+  report.remoteProductBaselineStatus = pendingRemote('remoteProductBaselineStatus', { baselineRequired: true });
+  report.remoteNpmDiagnosticStatus = pendingRemote('remoteNpmDiagnosticStatus', { npmExecuted: false });
+  report.remoteProductEvidenceExecutionStatus = pendingRemote('remoteProductEvidenceExecutionStatus');
+  report.remoteProductEvidenceRunnerStatus = pendingRemote('remoteProductEvidenceRunnerStatus', { npmExecuted: false });
+  report.productEvidenceConsumptionStatus = {
+    status: localPass ? 'pass' : 'fail',
+    reasonCodes: localPass ? [] : ['product_evidence_not_consumed'],
+    productRelevant: true,
+    evidencePhase: 'local_pre_push',
+    safeSummaryOnly: true,
+  };
+  report.localRemotePhaseStatus = {
+    status: 'pass',
+    reasonCodes: [],
+    phase: 'local_pre_push_remote_pending_after_push',
+    safeSummaryOnly: true,
+  };
+  report.formalEvidencePrecedenceStatus = pendingRemote('formalEvidencePrecedenceStatus', {
+    productRelevant: true,
+    formalEvidencePresent: false,
+  });
+  report.remoteNpmDiagnosticNormalizationStatus = pendingRemote('remoteNpmDiagnosticNormalizationStatus', {
+    productRelevant: true,
+    npmExecuted: false,
+    npmExitCode: 0,
+  });
+  if (localPass && Array.isArray(report.warnings)) {
+    report.warnings.push({
+      id: 'remoteEvidence.pendingAfterPush',
+      message: 'remote evidence remains required after push',
+    });
+  }
+}
+
 
 
 async function resolveRemoteGateContext(env = process.env) {
@@ -7844,8 +7964,6 @@ async function runSourceHarnessGate() {
 
 
   report.changeClassificationStatus = runGateScript('scripts/codex-change-classification-gate.mjs', 'changeClassificationStatus', 'CODEX_CHANGE_CLASSIFICATION_REPORT', gateEnv);
-
-
 
   report.remoteLocalParityStatus = runGateScript('scripts/codex-remote-local-parity-gate.mjs', 'remoteLocalParityStatus', 'CODEX_REMOTE_LOCAL_PARITY_REPORT', {
 
@@ -9995,6 +10113,14 @@ async function runTargetHarnessGate() {
 
   report.changeClassificationStatus = runGateScript('scripts/codex-change-classification-gate.mjs', 'changeClassificationStatus', 'CODEX_CHANGE_CLASSIFICATION_REPORT', gateEnv);
 
+  const localPrePushProductEvidence = buildLocalPrePushProductVerificationEvidence(report, gateEnv);
+  if (localPrePushProductEvidence?.commands?.length) {
+    const localCommand = localPrePushProductEvidence.commands[0];
+    gateEnv.CODEX_PRODUCT_VERIFICATION_COMMANDS = localCommand.name;
+    gateEnv.CODEX_PRODUCT_VERIFICATION_RESULT = localCommand.result;
+    gateEnv.CODEX_PRODUCT_VERIFICATION_SOURCE = 'local';
+  }
+
 
 
   report.remoteLocalParityStatus = runGateScript('scripts/codex-remote-local-parity-gate.mjs', 'remoteLocalParityStatus', 'CODEX_REMOTE_LOCAL_PARITY_REPORT', {
@@ -10100,6 +10226,7 @@ async function runTargetHarnessGate() {
   runV097Gates(report, gateEnv);
   runV098Gates(report, gateEnv);
   runV099Gates(report, gateEnv);
+  applyLocalPrePushProductEvidencePhase(report, localPrePushProductEvidence, gateEnv);
   runV100Gates(report, gateEnv);
   runV101Gates(report, gateEnv);
   runV102Gates(report, gateEnv);
