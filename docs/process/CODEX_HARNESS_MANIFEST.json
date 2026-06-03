@@ -45,7 +45,7 @@
     "stalePrAudit": true
   },
   "coreProfileSeparation": {
-    "sourceHarnessVersion": "1.0.3",
+    "sourceHarnessVersion": "1.0.4",
     "targetMode": "target",
     "profilesRequired": false
   },
@@ -863,10 +863,10 @@
     "falsePositiveBudget": true
   },
   "optionalFiles": [],
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.0.3",
-  "harnessVersion": "1.0.3",
-  "sourceHarnessVersion": "1.0.3",
-  "schemaVersion": "1.0.3",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.0.4",
+  "harnessVersion": "1.0.4",
+  "sourceHarnessVersion": "1.0.4",
+  "schemaVersion": "1.0.4",
   "targetRepoMode": true,
   "scriptNames": [
     "codex-5-5-low-mode-gate.mjs",
@@ -1595,5 +1595,29 @@
     "docs/process/skills/security-reviewer.md",
     "docs/process/skills/spec-reviewer.md",
     "docs/process/skills/test-coverage-reviewer.md"
+  ],
+  "v104RequiredStatuses": [
+    "v104SelfTestStatus",
+    "claimToCodeVerifierStatus",
+    "architectureBoundaryLinterStatus",
+    "acceptanceCriteriaMatrixStatus",
+    "riskGateStatus",
+    "evidenceReportV2Status",
+    "githubStateHysteresisStatus",
+    "toolGapResolverStatus",
+    "productSurfaceRouterV2Status",
+    "activeSelfTestSingleSourceStatus",
+    "diagnosticSourceFieldStatus",
+    "targetHotfixPreservationAcrossRolloutStatus",
+    "prChainExpansionStatus",
+    "externalBlockedTerminalStatus",
+    "roleProfilePluginStatus",
+    "toolPermissionBoundaryStatus",
+    "evidenceSiteStatus",
+    "annotationToWorkPacketStatus",
+    "dynamicWorkflowDecisionStatus",
+    "runtimeReadinessBoundaryStatus",
+    "productionGoBoundaryStatus",
+    "priority1BlockedPreservationStatus"
   ]
 }
