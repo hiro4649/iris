@@ -14,7 +14,7 @@ product source, tests, specs, package files, lockfiles, runtime files, or
 `scripts/run-tests.js` unless the project owner explicitly requests product
 work and required verification evidence is available.
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.0.4
+CODEX_QUALITY_HARNESS_FILE v1.0.5
 
 ## Prime Directive
 
