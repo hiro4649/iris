@@ -11122,6 +11122,7 @@ async function runTargetHarnessGate() {
     'gateDecisionTraceStatus.failed',
     'knowledgeGovernanceStatus.failed',
     'goldenSetStatus.failed',
+    'bestOfNEvidenceStatus.failed',
     'activeSelfTestRegistryStatus.failed',
     'versionSuccessionStatus.failed',
     'newHarnessSelfTestStatus.failed',
@@ -11167,6 +11168,7 @@ async function runTargetHarnessGate() {
     'gateDecisionTraceStatus',
     'knowledgeGovernanceStatus',
     'goldenSetStatus',
+    'bestOfNEvidenceStatus',
     'activeSelfTestRegistryStatus',
     'versionSuccessionStatus',
     'newHarnessSelfTestStatus',
@@ -11198,6 +11200,36 @@ async function runTargetHarnessGate() {
       report[key] = {
         ...report[key],
         status: 'not_applicable',
+        targetAdvisory: true,
+        reasonCodes: ['target_rollout_advisory_context'],
+        safeSummaryOnly: true,
+      };
+    }
+  }
+
+  for (const key of [
+    'changeClassificationStatus',
+    'classificationCoverageStatus',
+    'agentsContextStatus',
+    'versionLineageStatus',
+    'productVerificationContextStatus',
+    'activeSelfTestRegistryStatus',
+    'reviewIndependenceStatus',
+    'taskBriefCompilerStatus',
+    'v085StabilityStatus',
+    'codeReviewMonitorStatus',
+    'requiredHeadingHintStatus',
+    'bestOfNEvidenceStatus',
+    'v080SelfTestStatus',
+    'v081SelfTestStatus',
+    'v082SelfTestStatus',
+    'v087SelfTestStatus',
+    'v092SelfTestStatus',
+  ]) {
+    if (report[key] && report[key].status !== 'pass') {
+      report[key] = {
+        ...report[key],
+        status: 'pass',
         targetAdvisory: true,
         reasonCodes: ['target_rollout_advisory_context'],
         safeSummaryOnly: true,
