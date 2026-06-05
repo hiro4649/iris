@@ -209,6 +209,15 @@
       "requiresProductVerification": false,
       "allowsFastPath": false,
       "notes": "Codex v1.0.2 source harness scripts."
+    },
+    {
+      "pathPattern": "scripts/lib/codex-*",
+      "classification": "harness_managed",
+      "surface": "harness",
+      "risk": "R3",
+      "requiresProductVerification": false,
+      "allowsFastPath": false,
+      "notes": "Codex harness library scripts."
     }
   ],
   "safeSummaryOnly": true
