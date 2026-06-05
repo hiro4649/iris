@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
-// CODEX_QUALITY_HARNESS_FILE v1.0.6
+// CODEX_QUALITY_HARNESS_FILE v1.0.7
 
 import fs from 'node:fs';
 
 import path from 'node:path';
+import { currentVersion } from './codex-harness-version.mjs';
 
 
 
-export const HARNESS_VERSION = '1.0.5';
+export const HARNESS_VERSION = currentVersion;
 
 export const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 
