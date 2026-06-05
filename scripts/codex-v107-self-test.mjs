@@ -4,6 +4,7 @@
 import { scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import * as gates from './codex-v107-gate-lib.mjs';
 import { buildHarnessVersionRegistry } from './codex-harness-version.mjs';
+import { readFileSync } from 'node:fs';
 
 function statusOf(report, key) {
   return report[key]?.status || report.status;
@@ -13,6 +14,19 @@ const validStatus = gates.typedStatus('sampleStatus', 'pass').sampleStatus;
 const notRunStatus = { ...validStatus, status: 'not_run' };
 const evidencePack = gates.buildEvidencePackV3Report({});
 const generatedBody = renderFromPack(evidencePack);
+const runTestsText = readFileSync(new URL('./run-tests.js', import.meta.url), 'utf8');
+const methodGateText = readFileSync(new URL('./codex-openai-method-gate.mjs', import.meta.url), 'utf8');
+const v080SelfTestText = readFileSync(new URL('./codex-v080-self-test.mjs', import.meta.url), 'utf8');
+const v081SelfTestText = readFileSync(new URL('./codex-v081-self-test.mjs', import.meta.url), 'utf8');
+const v085SelfTestText = readFileSync(new URL('./codex-v085-self-test.mjs', import.meta.url), 'utf8');
+const v087SelfTestText = readFileSync(new URL('./codex-v087-self-test.mjs', import.meta.url), 'utf8');
+const v090SelfTestText = readFileSync(new URL('./codex-v090-self-test.mjs', import.meta.url), 'utf8');
+const v092SelfTestText = readFileSync(new URL('./codex-v092-self-test.mjs', import.meta.url), 'utf8');
+const v100SelfTestText = readFileSync(new URL('./codex-v100-self-test.mjs', import.meta.url), 'utf8');
+const v100GateLibText = readFileSync(new URL('./codex-v100-gate-lib.mjs', import.meta.url), 'utf8');
+const v101GateLibText = readFileSync(new URL('./codex-v101-gate-lib.mjs', import.meta.url), 'utf8');
+const v102GateLibText = readFileSync(new URL('./codex-v102-gate-lib.mjs', import.meta.url), 'utf8');
+const v103GateLibText = readFileSync(new URL('./codex-v103-gate-lib.mjs', import.meta.url), 'utf8');
 const safeSummary = buildSafeSummary([
   { changed_files: ['docs/process/example.md'], endpoint: 'redacted', token: 'redacted', secret: 'redacted', raw_payload: 'redacted' },
 ]);
@@ -24,11 +38,28 @@ const CASES = [
   ['no_status_absent_not_red', () => ({ check: gates.classifyCommitStatusState({ commitStatusState: 'absent' }), status: gates.classifyCommitStatusState({ commitStatusState: 'absent' }).isRed ? 'fail' : 'pass' }), 'status', 'pass'],
   ['no_status_absent_cannot_merge', () => ({ check: gates.classifyCommitStatusState({ commitStatusState: 'absent' }), status: gates.classifyCommitStatusState({ commitStatusState: 'absent' }).canSupportMerge ? 'fail' : 'pass' }), 'status', 'pass'],
   ['central_version_registry_current_v107', () => gates.buildCentralHarnessVersionRegistryReport({ registry: buildHarnessVersionRegistry() }), 'centralHarnessVersionRegistryStatus', 'pass'],
+  ['method_gate_internal_version_current_v107', () => ({ status: methodGateText.includes("const HARNESS_VERSION = '1.0.7'") ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['method_gate_fixture_uses_deterministic_safe_summary_v107', () => ({ status: !runTestsText.includes('scripts/codex-local-quality-gate.mjs\"], {') && !runTestsText.includes('scripts/codex-openai-method-gate.mjs\"], {') && runTestsText.includes('targetQualityScoreStatus: { status: pass ? \"pass\" : \"fail\"') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['method_gate_manifest_script_names_do_not_double_prefix', () => ({ status: runTestsText.includes('name.startsWith("scripts/") ? name : `scripts/${name}`') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
   ['legacy_adapter_blocks_direct_full_gate_dependency', () => gates.buildDefaultV107Reports(), 'legacyCompatibilityAdapterV2Status', 'pass'],
   ['safe_report_schema_v3_required_fields', () => gates.buildDefaultV107Reports(), 'safeReportSchemaV3Status', 'pass'],
   ['safe_attribution_timeout_has_label', () => gates.buildDefaultV107Reports(), 'safeAttributionRunnerStandardStatus', 'pass'],
   ['safe_attribution_missing_json_has_label', () => gates.buildDefaultV107Reports(), 'safeAttributionRunnerStandardStatus', 'pass'],
   ['safe_attribution_invalid_json_has_label', () => gates.buildDefaultV107Reports(), 'safeAttributionRunnerStandardStatus', 'pass'],
+  ['safe_attribution_filtered_fixture_has_label', () => ({ status: runTestsText.includes('safeFailingLabel: "test_filter_no_match"') && runTestsText.includes('filtered_fixture_missing') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['safe_attribution_fixture_start_before_setup', () => ({ status: runTestsText.includes('lastActiveSafeFixtureLabel = name') && runTestsText.indexOf('lastActiveSafeFixtureLabel = name') < runTestsText.indexOf('await fn()') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['safe_attribution_runner_does_not_print_raw_error', () => ({ status: runTestsText.includes('JSON.stringify(lastSafeFailure)') && !runTestsText.includes('console.error(error)') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v080_production_go_heading_checks_not_claim_detected', () => ({ status: v080SelfTestText.includes("labels?.includes('production_or_release_claim_detected') !== true") && !v080SelfTestText.includes("goNoGoHeading.productionReadinessStatus.status === 'pass'") ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v081_structured_evidence_fixture_uses_local_cwd', () => ({ status: v081SelfTestText.includes('process.chdir(tmp)') && v081SelfTestText.includes('process.chdir(originalCwd)') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v085_harness_only_fixture_uses_local_changed_files', () => ({ status: v085SelfTestText.includes("CODEX_CHANGED_FILES: 'scripts/codex-v085-self-test.mjs'") ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v087_evidence_pack_fixture_uses_local_cwd', () => ({ status: v087SelfTestText.includes('function withFixtureCwd') && v087SelfTestText.includes('withFixtureCwd(() => buildEvidencePackReport') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v087_source_fixture_uses_prompt_eval_evidence', () => ({ status: v087SelfTestText.includes('CODEX_PROMPT_EVAL_JSON') && v087SelfTestText.includes('prompt_gate_source_change') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v090_workflow_dispatch_evidence_pack_allows_pass_or_not_applicable', () => ({ status: v090SelfTestText.includes("['pass', 'not_applicable'].includes(workflowDispatchEvidenceStatus)") && v090SelfTestText.includes('withFixtureCwd(() => buildEvidencePackReport') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v092_version_lineage_positive_is_bounded_current_marker', () => ({ status: v092SelfTestText.includes("HARNESS_VERSION === '1.0.7'") && !v092SelfTestText.includes("buildVersionLineageReport({ CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' })") ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v100_succession_accepts_current_v107', () => ({ status: v100GateLibText.includes("'1.0.7'") && v100GateLibText.includes('manifest.harnessVersion === HARNESS_VERSION') && v100SelfTestText.includes('out.push({ id, caseIndex') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v101_registration_does_not_require_obsolete_manifest_listing', () => ({ status: !v101GateLibText.includes('CODEX_SOURCE_HARNESS_MANIFEST.json') && !v101GateLibText.includes('docs/process/CODEX_HARNESS_MANIFEST.json') ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v102_registration_does_not_require_obsolete_manifest_listing', () => ({ status: !v102GateLibText.includes("readText('CODEX_SOURCE_HARNESS_MANIFEST.json')?.includes('codex-v102-self-test.mjs')") ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
+  ['v103_registration_does_not_require_obsolete_manifest_listing', () => ({ status: !v103GateLibText.includes("readText('CODEX_SOURCE_HARNESS_MANIFEST.json')?.includes('codex-v103-self-test.mjs')") ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],
   ['json_worker_helper_waits_for_exit_close', () => gates.buildDefaultV107Reports(), 'jsonConcurrencyWorkerHelperStatus', 'pass'],
   ['evidence_pack_v3_required_fields', () => gates.buildEvidencePackV3Report({}), 'evidencePackV3Status', 'pass'],
   ['pr_body_generated_from_evidence_pack', () => ({ status: generatedBody.generatedFromEvidencePack ? 'pass' : 'fail', safeSummaryOnly: true }), 'status', 'pass'],

@@ -26,6 +26,17 @@ function tempJson(value) {
   return file;
 }
 
+function withFixtureCwd(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v087-cwd-'));
+  const originalCwd = process.cwd();
+  process.chdir(dir);
+  try {
+    return fn();
+  } finally {
+    process.chdir(originalCwd);
+  }
+}
+
 function baseEnv(overrides = {}) {
   return {
     CODEX_QUALITY_REPORT: 'json',
@@ -192,6 +203,17 @@ export function buildV087SelfTestReport() {
 
   result = buildPromptGovernanceReport(prEnv({
     CODEX_CHANGED_FILES: '.agents/skills/codex-bugfix/SKILL.md',
+    CODEX_PROMPT_EVAL_JSON: JSON.stringify({
+      promptEvalSuiteStatus: {
+        status: 'pass',
+        cases: [
+          { id: 'bugfix_skill_requires_reproduction', status: 'pass' },
+          { id: 'bugfix_skill_requires_root_cause', status: 'pass' },
+          { id: 'bugfix_skill_requires_verification', status: 'pass' },
+        ],
+        safeSummaryOnly: true,
+      },
+    }),
   })).promptGovernanceStatus;
   assertCase('skill change with matching eval -> pass', result.status === 'pass', failures, cases, result.status);
 
@@ -325,39 +347,39 @@ Stop condition: stop`,
   })).humanConfirmationObjectStatus;
   assertCase('human_confirmation_evidence_pack_pending_first_valid_second_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
+  result = withFixtureCwd(() => buildEvidencePackReport(evidencePackEnv({
     CODEX_PR_COMMENTS: [
       evidencePackBlock({ headSha: 'abc123' }),
       evidencePackBlock(evidencePackFixture()),
     ].join('\n'),
-  })).evidencePackStatus;
+  })).evidencePackStatus);
   assertCase('evidence_pack_multiple_blocks_prefers_current_head_valid', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
+  result = withFixtureCwd(() => buildEvidencePackReport(evidencePackEnv({
     CODEX_PR_COMMENTS: [
       evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
       evidencePackBlock(evidencePackFixture()),
     ].join('\n'),
-  })).evidencePackStatus;
+  })).evidencePackStatus);
   assertCase('evidence_pack_stale_first_valid_second_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
+  result = withFixtureCwd(() => buildEvidencePackReport(evidencePackEnv({
     CODEX_PR_COMMENTS: evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
-  })).evidencePackStatus;
+  })).evidencePackStatus);
   assertCase('evidence_pack_only_stale_fails', result.status === 'fail' && result.reasonCodes.includes('head_sha_mismatch'), failures, cases, result.status);
 
-  result = buildEvidencePackReport(evidencePackEnv({
+  result = withFixtureCwd(() => buildEvidencePackReport(evidencePackEnv({
     CODEX_PR_COMMENTS: evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
     CODEX_PR_BODY: evidencePackBlock(evidencePackFixture()),
-  })).evidencePackStatus;
+  })).evidencePackStatus);
   assertCase('evidence_pack_comment_stale_body_valid_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
+  result = withFixtureCwd(() => buildEvidencePackReport(evidencePackEnv({
     CODEX_PR_COMMENTS: [
       invalidEvidencePackBlock(),
       evidencePackBlock(evidencePackFixture()),
     ].join('\n'),
-  })).evidencePackStatus;
+  })).evidencePackStatus);
   assertCase('evidence_pack_invalid_first_valid_second_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
   result = buildPromptVariantSuggestionReport().promptVariantSuggestionStatus;
@@ -372,6 +394,16 @@ Stop condition: stop`,
   result = buildPromptGovernanceReport(prEnv({
     CODEX_CHANGED_FILES: 'docs/process/CODEX_PROMPT_GOVERNANCE_POLICY.md,docs/process/CODEX_REVIEW_EVAL_CASES.json,scripts/codex-prompt-governance-gate.mjs',
     CODEX_PR_BODY: sourcePrBody(),
+    CODEX_PROMPT_EVAL_JSON: JSON.stringify({
+      promptEvalSuiteStatus: {
+        status: 'pass',
+        cases: [
+          { id: 'prompt_governance_policy_update', status: 'pass' },
+          { id: 'prompt_gate_source_change', status: 'pass' },
+        ],
+        safeSummaryOnly: true,
+      },
+    }),
   })).promptGovernanceStatus;
   const knowledge = buildKnowledgeGovernanceReport(prEnv({ CODEX_PR_BODY: sourcePrBody() })).knowledgeGovernanceStatus;
   const contract = buildContractGovernanceReport(prEnv({

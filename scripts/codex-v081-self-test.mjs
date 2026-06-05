@@ -282,12 +282,18 @@ END_CODEX_EVIDENCE_PACK_JSON`;
     CODEX_PR_HEAD_SHA: structuredHead,
     CODEX_PR_BODY: structuredEvidenceBody,
   };
-  const productionStructured = buildProductionReadinessReport(structuredEnv);
-  assertCase('Production readiness accepts PR body structured evidence pack source', productionStructured.productionReadinessStatus.status === 'pass', failures, cases, productionStructured.productionReadinessStatus.status);
-  const integrityStructured = buildEvidenceIntegrityReport(structuredEnv);
-  assertCase('Evidence integrity accepts PR body structured evidence pack source', integrityStructured.evidenceIntegrityStatus.status === 'pass', failures, cases, integrityStructured.evidenceIntegrityStatus.status);
-  const lintStructured = buildPrBodyLintReport(structuredEnv, ['node', 'codex-pr-body-lint.mjs']);
-  assertCase('PR body lint accepts PR body structured evidence pack source', lintStructured.prBodyLintStatus.status === 'pass', failures, cases, lintStructured.prBodyLintStatus.status);
+  const originalCwd = process.cwd();
+  process.chdir(tmp);
+  try {
+    const productionStructured = buildProductionReadinessReport(structuredEnv);
+    assertCase('Production readiness accepts PR body structured evidence pack source', productionStructured.productionReadinessStatus.status === 'pass', failures, cases, productionStructured.productionReadinessStatus.status);
+    const integrityStructured = buildEvidenceIntegrityReport(structuredEnv);
+    assertCase('Evidence integrity accepts PR body structured evidence pack source', integrityStructured.evidenceIntegrityStatus.status === 'pass', failures, cases, integrityStructured.evidenceIntegrityStatus.status);
+    const lintStructured = buildPrBodyLintReport(structuredEnv, ['node', 'codex-pr-body-lint.mjs']);
+    assertCase('PR body lint accepts PR body structured evidence pack source', lintStructured.prBodyLintStatus.status === 'pass', failures, cases, lintStructured.prBodyLintStatus.status);
+  } finally {
+    process.chdir(originalCwd);
+  }
 
   const docsOnly = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',

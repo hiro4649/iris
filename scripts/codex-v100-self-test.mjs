@@ -520,7 +520,7 @@ export function buildV100SelfTestReport() {
     const report = gates[builderName](input);
     const actualStatus = statusOf(report, key);
     const ok = actualStatus === expected;
-    out.push({ caseIndex: out.length + 1, status: ok ? 'pass' : 'fail', actualStatus, reasonCodes: reasonsOf(report, key), safeSummaryOnly: true });
+    out.push({ id, caseIndex: out.length + 1, status: ok ? 'pass' : 'fail', actualStatus, reasonCodes: reasonsOf(report, key), safeSummaryOnly: true });
     if (!ok) failures.push(id);
   }
   const unsafe = scanObjectForUnsafe(out);
