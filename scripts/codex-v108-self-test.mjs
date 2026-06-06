@@ -17,7 +17,44 @@ function expect(name, builder, key, expected) {
   return { name, status: actual === expected ? 'pass' : 'fail', expected, actual, safeSummaryOnly: true };
 }
 
+function methodGateVersionReport(source = fs.readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8')) {
+  const currentMarker = "CODEX_QUALITY_HARNESS_FILE v1.0.8";
+  return {
+    status: source.includes(currentMarker) &&
+      /HARNESS_VERSION\s*=\s*['"]1\.0\.8['"]/.test(source)
+      ? 'pass'
+      : 'fail',
+  };
+}
+
+function methodGateFixtureSupportReport(source = fs.readFileSync('scripts/run-tests.js', 'utf8')) {
+  const required = [
+    'CODEX_OPENAI_CODEX_METHOD_POLICY.md',
+    'CODEX_OPENAI_CODEX_METHOD_POLICY.json',
+    'CODEX_TASK_BRIEF_TEMPLATE.md',
+    'CODEX_PLAN_TEMPLATE.md',
+    'code_review.md',
+    'CODEX_QUALITY_HARNESS_FILE v1.0.8',
+    'Codex Method Compliance',
+    'Code review status:',
+    'maxBuffer: 16 * 1024 * 1024',
+    'deterministicMethodGateFixtureReport',
+    'deterministicMethodGateFixtureResult',
+  ];
+  return {
+    status: required.every((item) => source.includes(item)) ? 'pass' : 'fail',
+  };
+}
+
 const cases = [
+  expect('method_gate_internal_version_is_v108', () => methodGateVersionReport(), 'status', 'pass'),
+  expect(
+    'method_gate_stale_v101_marker_rejected',
+    () => methodGateVersionReport("// CODEX_QUALITY_HARNESS_FILE v1.0.1\nconst HARNESS_VERSION = '1.0.1';"),
+    'status',
+    'fail'
+  ),
+  expect('method_gate_fixture_support_markers_are_v108_isolated', () => methodGateFixtureSupportReport(), 'status', 'pass'),
   expect('evidence_closure_breaks_pr_body_run_id_loop', () => gates.buildEvidenceClosureReport({ prBodyRunIdChangedOnly: true, evidencePack: gates.defaultEvidencePack({ auditedPrBodySha256: gates.renderPrBodyFromEvidencePack().sha256 }) }), 'prBodyArtifactLoopBreakerStatus', 'pass'),
   expect('manual_pr_body_generated_section_drift_fails', () => gates.buildEvidenceClosureReport({ manualGeneratedSectionEdit: true }), 'renderedOutputDriftStatus', 'fail'),
   expect('evidence_pack_drift_exact_diff_reported', () => gates.buildEvidenceClosureReport({ evidencePackDrift: true }), 'evidencePackV4Status', 'fail'),

@@ -1106,19 +1106,63 @@ function spawn(cmd, args, options = {}) {
 
 
 
+let activeLocalGateCommandLabel = null;
+let activeLocalGateCommandResult = null;
+
+
+
+function localGateCommandLabel(cmd, args, cwd) {
+
+  const scope = cwd === '.' ? 'root' : cwd.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+
+  const name = [cmd, ...args].join('_').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+
+  return `${scope}_${name}`;
+
+}
+
+
+
 function run(cmd, args, cwd = '.') {
 
 
 
-  console.log(`== ${cwd}: ${[cmd, ...args].join(' ')} ==`);
+  const jsonReport = process.env.CODEX_QUALITY_REPORT === 'json';
+  const previousLocalGateCommandLabel = activeLocalGateCommandLabel;
+  const previousLocalGateCommandResult = activeLocalGateCommandResult;
+  activeLocalGateCommandLabel = localGateCommandLabel(cmd, args, cwd);
+  activeLocalGateCommandResult = null;
 
 
 
-  const result = spawn(cmd, args, { cwd });
+  if (!jsonReport) console.log(`== ${cwd}: ${[cmd, ...args].join(' ')} ==`);
 
 
 
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  const result = spawn(cmd, args, {
+    cwd,
+    stdio: jsonReport ? 'pipe' : 'inherit',
+    env: jsonReport ? { CODEX_QUALITY_REPORT: '' } : undefined,
+    timeout: Number(process.env.CODEX_LOCAL_QUALITY_CHILD_TIMEOUT_MS || 180000),
+  });
+
+
+
+  if (result.status !== 0) {
+    activeLocalGateCommandResult = {
+      status: result.status,
+      signal: result.signal || null,
+      timedOut: Boolean(result.error && result.error.code === 'ETIMEDOUT'),
+      safeSummaryOnly: true,
+    };
+    if (jsonReport) throw new Error('local_gate_child_command_failed');
+    process.exit(result.status ?? 1);
+  }
+
+
+
+  activeLocalGateCommandLabel = previousLocalGateCommandLabel;
+  activeLocalGateCommandResult = previousLocalGateCommandResult;
 
 
 
@@ -11593,6 +11637,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       localGateReportContractStatus: {
         status: 'fail',
         reasonCodes: ['local_gate_unknown_report_contract'],
+        safeSummaryOnly: true,
+      },
+      localGateChildCommandStatus: {
+        status: activeLocalGateCommandLabel ? 'fail' : 'unknown',
+        activeCommandLabel: activeLocalGateCommandLabel || 'unknown',
+        childResult: activeLocalGateCommandResult || { status: null, signal: null, timedOut: false, safeSummaryOnly: true },
+        reasonCodes: activeLocalGateCommandLabel ? ['local_gate_child_command_failed'] : ['local_gate_child_command_unknown'],
         safeSummaryOnly: true,
       },
       jsonReportShapeStatus: { status: 'pass', safeSummaryOnly: true },

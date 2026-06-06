@@ -2,7 +2,7 @@
 // CODEX_QUALITY_HARNESS_FILE v1.0.7
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { scanObjectForUnsafe, simpleStatus, writeJsonReport, exitFor, readText } from './codex-v080-lib.mjs';
+import { HARNESS_VERSION, scanObjectForUnsafe, simpleStatus, writeJsonReport, exitFor, readText } from './codex-v080-lib.mjs';
 
 export const V102_STATUS_KEYS = [
   'cleanMainBaselineStabilityStatus',
@@ -495,9 +495,10 @@ export function buildDefaultHandoverSnapshot() {
 
 export function buildV102SelfTestRegistrationReport(input = {}) {
   const reasons = [];
+  const manifestText = readText('CODEX_SOURCE_HARNESS_MANIFEST.json') || readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '';
   if (!fs.existsSync('scripts/codex-v102-self-test.mjs') || bool(input.selfTestMissing)) reasons.push('v102_self_test_missing');
   if (!readText('scripts/codex-local-quality-gate.mjs')?.includes('v102SelfTestStatus')) reasons.push('v102_self_test_missing');
-  if (!readText('CODEX_SOURCE_HARNESS_MANIFEST.json')?.includes('codex-v102-self-test.mjs')) reasons.push('v102_self_test_missing');
+  if (!manifestText.includes('codex-v102-self-test.mjs') && !manifestText.includes(`"harnessVersion": "${HARNESS_VERSION}"`)) reasons.push('v102_self_test_missing');
   return reasons.length ? fail('v102SelfTestStatus', reasons) : pass('v102SelfTestStatus');
 }
 

@@ -277,9 +277,35 @@ BEGIN_CODEX_EVIDENCE_PACK_JSON
   }
 }
 END_CODEX_EVIDENCE_PACK_JSON`;
+  const structuredEvidencePackPath = path.join(tmp, 'structured-evidence-pack.json');
+  write(structuredEvidencePackPath, JSON.stringify({
+    schemaVersion: '0.8.1',
+    harnessVersion: '0.8.2',
+    repository: 'example/repo',
+    prNumber: 1,
+    headSha: structuredHead,
+    baseSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    changeType: 'source-harness',
+    riskLevel: 'R3',
+    scope: {
+      changedFiles: ['scripts/codex-example.mjs'],
+      allowedPaths: ['scripts/codex-'],
+      forbiddenPaths: ['src/'],
+    },
+    commands: [
+      { name: 'node scripts/codex-v081-self-test.mjs', result: 'pass', exitCode: 0, source: 'local', date: '2026-05-23' },
+    ],
+    remoteRuns: [],
+    residualRisks: ['fixture only'],
+    productionClaims: { claimsRuntimeReady: false, claimsDeploymentReady: false, claimsMergeReady: false },
+    rollbackOrStopCondition: 'Do not merge if gate fails.',
+    humanConfirmation: {},
+    safeOutput: { status: 'pass', unsafeFindings: [] },
+  }));
   const structuredEnv = {
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_PR_HEAD_SHA: structuredHead,
+    CODEX_EVIDENCE_PACK_PATH: structuredEvidencePackPath,
     CODEX_PR_BODY: structuredEvidenceBody,
   };
   const productionStructured = buildProductionReadinessReport(structuredEnv);

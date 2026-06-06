@@ -70,9 +70,36 @@ function buildReport() {
   result = runScript('scripts/codex-golden-set-gate.mjs');
   assertCase('Golden Set positive and negative fixtures pass', result.parsed?.goldenSetStatus?.status === 'pass', failures, cases, result.parsed?.goldenSetStatus?.status);
 
+  const goNoGoHeadSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const goNoGoEvidencePack = path.join(tmp, 'go-no-go-evidence-pack.json');
+  write(goNoGoEvidencePack, JSON.stringify({
+    schemaVersion: '0.8.1',
+    harnessVersion: '0.8.2',
+    repository: 'example/repo',
+    prNumber: 1,
+    headSha: goNoGoHeadSha,
+    baseSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    changeType: 'source-harness',
+    riskLevel: 'R1',
+    scope: {
+      changedFiles: ['scripts/codex-v080-self-test.mjs'],
+      allowedPaths: ['scripts/codex-'],
+      forbiddenPaths: ['src/'],
+    },
+    commands: [
+      { name: 'node scripts/codex-v080-self-test.mjs', result: 'pass', exitCode: 0, source: 'local', date: '2026-06-06' },
+    ],
+    remoteRuns: [],
+    residualRisks: ['fixture only'],
+    productionClaims: { claimsRuntimeReady: false, claimsDeploymentReady: false, claimsMergeReady: false },
+    rollbackOrStopCondition: 'Do not merge if gate fails.',
+    humanConfirmation: {},
+    safeOutput: { status: 'pass', unsafeFindings: [] },
+  }));
   const goNoGoHeading = buildProductionReadinessReport({
     CODEX_EVENT_NAME: 'pull_request',
-    CODEX_PR_HEAD_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    CODEX_PR_HEAD_SHA: goNoGoHeadSha,
+    CODEX_EVIDENCE_PACK_PATH: goNoGoEvidencePack,
     CODEX_PR_BODY: [
       'Production Go/No-Go:',
       'No production readiness claim.',
