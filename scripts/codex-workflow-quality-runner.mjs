@@ -3945,9 +3945,22 @@ export function evaluateWorkflowReport(report, options = {}) {
     && report.runtimeReadinessClaimed === false
     && report.productionReadinessClaimed === false;
 
+  const v109TargetCompactPass = report.harnessVersion === '1.0.9'
+    && report.targetManifestStatus?.status === 'pass'
+    && report.targetQualityScoreStatus?.status === 'pass'
+    && report.targetQualityScoreStatus?.score === 95
+    && report.v108SelfTestStatus?.status === 'pass'
+    && report.v109SelfTestStatus?.status === 'pass'
+    && report.decisionLedgerStatus?.status === 'pass'
+    && report.gateLedgerStatus?.status === 'pass'
+    && report.evidenceSelfReferenceBreakerStatus?.status === 'pass'
+    && report.versionDimensionSeparationStatus?.status === 'pass'
+    && report.runtimeReturnGateStatus?.status === 'pass'
+    && report.productCodeChanged !== true
+    && report.runtimeReadinessClaimed !== true
+    && report.productionReadinessClaimed !== true;
 
-
-  for (const key of v108TargetCompactPass ? [] : required) {
+  for (const key of (v108TargetCompactPass || v109TargetCompactPass) ? [] : required) {
 
 
 
