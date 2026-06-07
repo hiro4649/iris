@@ -50,6 +50,8 @@ import * as v107Gates from './codex-v107-gate-lib.mjs';
 import * as v108Gates from './codex-v108-gate-lib.mjs';
 import { V109_STATUS_KEYS, buildDefaultV109Statuses } from './codex-status-taxonomy.mjs';
 import { V110_STATUS_KEYS, buildDefaultV110Statuses } from './codex-v110-token-economy.mjs';
+import { V111_STATUS_KEYS, buildDefaultV111Statuses, buildTargetModeLegacyCompatibilityReport, classifyTargetModeCompatibilityStatus } from './codex-v111-token-hard-cap.mjs';
+import { V112_STATUS_KEYS, buildV112Report } from './codex-v112-conversation-surface.mjs';
 
 
 
@@ -57,7 +59,7 @@ import { V110_STATUS_KEYS, buildDefaultV110Statuses } from './codex-v110-token-e
 
 
 
-const HARNESS_VERSION = '1.1.0';
+const HARNESS_VERSION = '1.1.2';
 
 
 
@@ -1569,6 +1571,12 @@ function expectedMarkerVersionForPath(file, profileVersions) {
 
 
   if (normalized.startsWith('profiles/')) return profileVersions;
+  if (HARNESS_VERSION === '1.1.2') {
+    return [HARNESS_VERSION, '1.1.1', '1.1.0', '1.0.9', '1.0.8', '1.0.7'];
+  }
+  if (HARNESS_VERSION === '1.1.1') {
+    return [HARNESS_VERSION, '1.1.0', '1.0.9', '1.0.8', '1.0.7'];
+  }
   if (HARNESS_VERSION === '1.1.0') {
     return [HARNESS_VERSION, '1.0.9', '1.0.8', '1.0.7'];
   }
@@ -2529,6 +2537,36 @@ function runV110Gates(report, gateEnv) {
 }
 
 function initializeV110Statuses(report) { for (const key of V110_STATUS_KEYS) if (!report[key]) report[key] = { status: 'not_run' }; }
+
+function runV111Gates(report, gateEnv) {
+  const selfTestStatus = process.env.CODEX_SKIP_V111_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v111-self-test.mjs', 'v111SelfTestStatus', 'CODEX_V111_SELF_TEST_REPORT', gateEnv);
+  const reports = buildDefaultV111Statuses();
+  Object.assign(report, reports);
+  report.v111SelfTestStatus = selfTestStatus.status === 'fail' ? selfTestStatus : {
+    ...reports.v111SelfTestStatus,
+    ...selfTestStatus,
+    status: selfTestStatus.status || reports.v111SelfTestStatus.status,
+  };
+}
+
+function initializeV111Statuses(report) { for (const key of V111_STATUS_KEYS) if (!report[key]) report[key] = { status: 'not_run' }; }
+
+function runV112Gates(report, gateEnv) {
+  const selfTestStatus = process.env.CODEX_SKIP_V112_SELF_TEST === '1'
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+    : runGateScript('scripts/codex-v112-self-test.mjs', 'v112SelfTestStatus', 'CODEX_V112_SELF_TEST_REPORT', gateEnv);
+  const reports = buildV112Report();
+  Object.assign(report, reports);
+  report.v112SelfTestStatus = selfTestStatus.status === 'fail' ? selfTestStatus : {
+    ...reports.v112SelfTestStatus,
+    ...selfTestStatus,
+    status: selfTestStatus.status || reports.v112SelfTestStatus.status,
+  };
+}
+
+function initializeV112Statuses(report) { for (const key of V112_STATUS_KEYS) if (!report[key]) report[key] = { status: 'not_run' }; }
 
 function legacySelfTestPreservedStatus(legacyVersion) {
   return {
@@ -4616,7 +4654,6 @@ function computeQualityScoreStatus(report) {
 
 
     let effectiveStatus = status;
-    if (isV110TargetLegacyAdvisoryStatus(key) && ['fail', 'missing', 'not_run', 'warning', 'manual_confirmation_required'].includes(status)) effectiveStatus = 'pass_optional';
 
 
 
@@ -5625,7 +5662,10 @@ function computeTargetQualityScoreStatus(report) {
 
 
     let effectiveStatus = status;
-    if (isV110TargetLegacyAdvisoryStatus(key) && ['fail', 'missing', 'not_run', 'warning', 'manual_confirmation_required'].includes(status)) effectiveStatus = 'pass_optional';
+
+
+
+    let compatibility = null;
 
 
 
@@ -5633,7 +5673,31 @@ function computeTargetQualityScoreStatus(report) {
 
 
 
-    return { key, status, effectiveStatus };
+    if (HARNESS_VERSION === '1.1.1' || HARNESS_VERSION === '1.1.2') {
+
+
+
+      compatibility = classifyTargetModeCompatibilityStatus(key, report[key], report);
+
+
+
+      if (['absorbed_by_v111', 'advisory_legacy', 'not_applicable_for_lane', 'not_required_for_target_mode', 'missing_nonblocking'].includes(compatibility.classification)) {
+
+
+
+        effectiveStatus = compatibility.effectiveStatus;
+
+
+
+      }
+
+
+
+    }
+
+
+
+    return { key, status, effectiveStatus, compatibilityClass: compatibility?.classification || 'blocking_current' };
 
 
 
@@ -7109,44 +7173,25 @@ function computeOldHarnessMarkerStatus(sourceMode = true) {
 
 
 
-
-const V110_TARGET_LEGACY_ADVISORY_STATUS_KEYS = new Set([
-  'knowledgeGovernanceStatus',
-  'goldenSetStatus',
-  'activeSelfTestRegistryStatus',
-  'newHarnessSelfTestStatus',
-  'versionSuccessionStatus',
-  'versionLineageStatus',
-  'promptGovernanceStatus',
-  'oldHarnessMarkerStatus',
-  'pullRequestContextFidelityStatus',
-  'productVerificationContextStatus',
-  'reviewIndependenceStatus',
-  'taskBriefCompilerStatus',
-  'prProfileStatus',
-  'contractGovernanceStatus',
-  'complexityGovernanceStatus',
-]);
-
-function isV110TargetLegacyAdvisoryStatus(key) {
-  return HARNESS_VERSION === '1.1.0' && (
-    V110_TARGET_LEGACY_ADVISORY_STATUS_KEYS.has(key) ||
-    /^v0(80|81|82|83|84|85|86|87|88|89|90|92)SelfTestStatus$/.test(key) ||
-    /^v10[0-3]SelfTestStatus$/.test(key)
-  );
-}
-
 function applyStatusOutcome(key, value, failures, warnings) {
 
 
 
-  if (value?.status === 'fail' && isV110TargetLegacyAdvisoryStatus(key)) return;
-  if (value?.status === 'fail') failures.push({ id: `${key}.failed`, message: `${key} failed` });
+  if (value?.status === 'fail') {
+    if (process.env.CODEX_HARNESS_MODE === 'target') {
+      const compatibility = classifyTargetModeCompatibilityStatus(key, value);
+      if (String(compatibility.effectiveStatus || '').startsWith('pass_')) return;
+    }
+    failures.push({ id: `${key}.failed`, message: `${key} failed` });
+  }
 
 
 
-  else if ((value?.status === 'manual_confirmation_required' || value?.status === 'warning') && isV110TargetLegacyAdvisoryStatus(key)) return;
   else if (value?.status === 'manual_confirmation_required' || value?.status === 'warning') {
+    if (process.env.CODEX_HARNESS_MODE === 'target') {
+      const compatibility = classifyTargetModeCompatibilityStatus(key, value);
+      if (String(compatibility.effectiveStatus || '').startsWith('pass_')) return;
+    }
 
 
 
@@ -11168,6 +11213,10 @@ async function runTargetHarnessGate() {
 
 
 
+  report.targetModeLegacyCompatibilityStatus = buildTargetModeLegacyCompatibilityReport(report);
+
+
+
   report.targetQualityScoreStatus = computeTargetQualityScoreStatus(report);
 
 
@@ -11656,6 +11705,8 @@ async function runSourceHarnessCoreContractGate() {
   initializeV108Statuses(report);
   initializeV109Statuses(report);
   initializeV110Statuses(report);
+  initializeV111Statuses(report);
+  initializeV112Statuses(report);
 
   if (report.sourceHarnessValidationStatus.status === 'fail') failures.push(...report.sourceHarnessValidationStatus.failures);
   if (report.secretScan.status === 'fail') failures.push({ id: 'secretScan.failed', message: 'secret safety scan failed' });
@@ -11686,6 +11737,8 @@ async function runSourceHarnessCoreContractGate() {
   runV108Gates(report, gateEnv);
   runV109Gates(report, gateEnv);
   runV110Gates(report, gateEnv);
+  runV111Gates(report, gateEnv);
+  runV112Gates(report, gateEnv);
 
   for (const [key, value] of Object.entries({
     changeClassificationStatus: report.changeClassificationStatus,
@@ -11704,6 +11757,8 @@ async function runSourceHarnessCoreContractGate() {
     ...Object.fromEntries(V108_STATUS_KEYS.map((name) => [name, report[name]])),
     ...Object.fromEntries(V109_STATUS_KEYS.map((name) => [name, report[name]])),
     ...Object.fromEntries(V110_STATUS_KEYS.map((name) => [name, report[name]])),
+    ...Object.fromEntries(V111_STATUS_KEYS.map((name) => [name, report[name]])),
+    ...Object.fromEntries(V112_STATUS_KEYS.map((name) => [name, report[name]])),
   })) {
     applyStatusOutcome(key, value, failures, warnings);
   }
@@ -11767,7 +11822,7 @@ async function runSourceHarnessCoreContractGate() {
   else {
     console.log(`status: ${report.status}`);
     console.log(`qualityScore: ${report.qualityScoreStatus.score}`);
-    for (const key of [...V101_STATUS_KEYS, ...V102_STATUS_KEYS, ...V103_STATUS_KEYS, ...V104_STATUS_KEYS, ...V105_STATUS_KEYS, ...V106_STATUS_KEYS, ...V107_STATUS_KEYS, ...V108_STATUS_KEYS, ...V109_STATUS_KEYS, ...V110_STATUS_KEYS]) console.log(`${key}: ${report[key].status}`);
+    for (const key of [...V101_STATUS_KEYS, ...V102_STATUS_KEYS, ...V103_STATUS_KEYS, ...V104_STATUS_KEYS, ...V105_STATUS_KEYS, ...V106_STATUS_KEYS, ...V107_STATUS_KEYS, ...V108_STATUS_KEYS, ...V109_STATUS_KEYS, ...V110_STATUS_KEYS, ...V111_STATUS_KEYS, ...V112_STATUS_KEYS]) console.log(`${key}: ${report[key].status}`);
   }
   process.exit(failures.length ? 1 : 0);
 }

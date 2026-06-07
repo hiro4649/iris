@@ -70,6 +70,7 @@ import { buildDiagnosticConsolidatedSummary } from './codex-diagnostic-consolida
 
 import { buildInvalidReportRecoverySummary } from './codex-invalid-report-recovery.mjs';
 import { V101_STATUS_KEYS } from './codex-v101-gate-lib.mjs';
+import { classifyTargetModeCompatibilityStatus } from './codex-v111-token-hard-cap.mjs';
 
 
 
@@ -3153,33 +3154,6 @@ function readReport(file) {
 
 
 
-
-const V110_TARGET_WORKFLOW_ADVISORY_STATUS_KEYS = new Set([
-  'versionLineageStatus',
-  'pullRequestContextFidelityStatus',
-  'productVerificationContextStatus',
-  'activeSelfTestRegistryStatus',
-  'reviewIndependenceStatus',
-  'taskBriefCompilerStatus',
-  'prProfileStatus',
-  'v085StabilityStatus',
-  'codeReviewMonitorStatus',
-  'promptGovernanceStatus',
-  'knowledgeGovernanceStatus',
-  'contractGovernanceStatus',
-  'complexityGovernanceStatus',
-  'requiredHeadingHintStatus',
-  'oldHarnessMarkerStatus',
-]);
-
-function isV110TargetWorkflowAdvisoryStatus(key, report, mode) {
-  return mode === 'target' && report?.harnessVersion === '1.1.0' && (
-    V110_TARGET_WORKFLOW_ADVISORY_STATUS_KEYS.has(key) ||
-    /^v0(80|81|82|83|84|85|86|87|88|89|90|92)SelfTestStatus$/.test(key) ||
-    /^v10[0-3]SelfTestStatus$/.test(key)
-  );
-}
-
 function statusAllowed(key, status, eventName) {
 
 
@@ -3920,8 +3894,7 @@ export function evaluateWorkflowReport(report, options = {}) {
 
 
     .filter((key) => hasV098Shape || !v098Fields.has(key))
-    .filter((key) => hasV099Shape || !v099Fields.has(key))
-    .filter((key) => !isV110TargetWorkflowAdvisoryStatus(key, report, mode));
+    .filter((key) => hasV099Shape || !v099Fields.has(key));
 
 
 
@@ -3943,6 +3916,12 @@ export function evaluateWorkflowReport(report, options = {}) {
 
 
     const status = report[key]?.status || 'missing';
+
+    if (mode === 'target') {
+      const compatibility = classifyTargetModeCompatibilityStatus(key, report[key], report);
+      if (String(compatibility.effectiveStatus || '').startsWith('pass_')) continue;
+    }
+
 
 
 
