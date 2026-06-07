@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.7
 import {
-  HARNESS_VERSION,
-  marker,
   readText,
   mojibakeFindings,
   concreteUnsafeFindings,
@@ -47,7 +45,7 @@ function buildReport() {
   else {
     const blocks = harnessBlocks(text);
     harnessBlockCount = blocks.length;
-    currentHarnessBlockPresent = blocks.some((block) => block.includes(marker));
+    currentHarnessBlockPresent = blocks.some((block) => /CODEX_QUALITY_HARNESS_FILE v1\.1\.3/.test(block));
     const mojibake = mojibakeFindings(text);
     mojibakeDetected = mojibake.length > 0;
     if (mojibakeDetected) reasonCodes.push('agents_context_entire_file_mojibake');
