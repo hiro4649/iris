@@ -42,4 +42,3 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   writeJsonReport(report, 'CODEX_GOAL_CONDITION_REPORT');
   exitFor(report);
 }
-
