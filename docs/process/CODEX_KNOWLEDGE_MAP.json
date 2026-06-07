@@ -1,10 +1,11 @@
 {
   "marker": "CODEX_QUALITY_HARNESS_FILE v1.0.7",
-  "harnessVersion": "1.0.7",
+  "harnessVersion": "1.0.3",
   "schemaVersion": "1.0.3",
   "entrypoints": [
     "AGENTS.md",
     "README.md",
+    "CODEX_SOURCE_HARNESS_MANIFEST.json",
     "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md",
     "docs/process/code_review.md",
     "docs/process/CODEX_CODE_REVIEW_MONITOR_POLICY.md",
@@ -653,8 +654,9 @@
   ],
   "sourceOfRecord": [
     "AGENTS.md",
-    "docs/process/CODEX_HARNESS_MANIFEST.json",
-    "docs/process/CODEX_KNOWLEDGE_MAP.json"
+    "README.md",
+    "CODEX_SOURCE_HARNESS_MANIFEST.json",
+    "docs/process/"
   ],
   "safeSummaryOnly": true,
   "v100": {

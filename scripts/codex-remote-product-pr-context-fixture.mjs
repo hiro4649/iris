@@ -38,4 +38,3 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   writeJsonReport(report, 'CODEX_REMOTE_PRODUCT_PR_CONTEXT_FIXTURE_REPORT');
   exitFor(report);
 }
-

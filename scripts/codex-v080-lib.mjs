@@ -5,11 +5,10 @@
 import fs from 'node:fs';
 
 import path from 'node:path';
-import { currentVersion } from './codex-harness-version.mjs';
 
 
 
-export const HARNESS_VERSION = currentVersion;
+export const HARNESS_VERSION = '1.0.5';
 
 export const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 
