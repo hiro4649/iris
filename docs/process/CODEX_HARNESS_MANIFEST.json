@@ -1,16 +1,16 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.1.3",
-  "schemaVersion": "1.1.3",
-  "sourceHarnessVersion": "1.1.3",
-  "harnessVersion": "1.1.3",
-  "activeHarnessVersion": "1.1.3",
-  "targetHarnessVersion": "1.1.3",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.1.4",
+  "schemaVersion": "1.1.4",
+  "sourceHarnessVersion": "1.1.4",
+  "harnessVersion": "1.1.4",
+  "activeHarnessVersion": "1.1.4",
+  "targetHarnessVersion": "1.1.4",
   "evidenceSchemaVersion": 6,
-  "profileTemplateVersion": "1.1.3",
+  "profileTemplateVersion": "1.1.4",
   "futureHarnessArtifact": false,
-  "upgradePath": "direct_v112_to_v113",
-  "activeSelfTestSuite": "v113",
-  "activeSelfTestStatusKey": "v113SelfTestStatus",
+  "upgradePath": "direct_v113_to_v114",
+  "activeSelfTestSuite": "v114",
+  "activeSelfTestStatusKey": "v114SelfTestStatus",
   "legacySelfTests": {
     "v108": "blocking_compatibility",
     "v107": "blocking_compatibility",
@@ -22,13 +22,13 @@
     "v111": "blocking_compatibility",
     "v112": "blocking_compatibility"
   },
-  "sourceOnlyRelease": true,
-  "targetRollout": "v1.1.3_minimal_surface",
+  "sourceOnlyRelease": false,
+  "targetRollout": "in_progress",
   "representativeRealPrValidation": "not_started",
   "representativeRealPrReplay": "required",
   "representativeLivePrValidation": "required",
   "syntheticRepresentativeValidation": "required",
-  "theme": "Minimal Surface, Fast Gates, Typed Decisions, and Compatibility Proof",
+  "theme": "Loop Kernel, Decision Core, Minimal Evidence Surface, and Deterministic Guardrails",
   "requiredStatuses": [
     "v109SelfTestStatus",
     "decisionLedgerStatus",
@@ -345,6 +345,18 @@
     "evidenceFidelityPreservationStatus",
     "conversationSurfaceReductionStatus",
     "v113SelfTestStatus",
+    "v114SelfTestStatus",
+    "loopKernelStatus",
+    "loopStateMachineStatus",
+    "loopExitCriteriaStatus",
+    "loopBudgetStatus",
+    "loopGuardrailStatus",
+    "loopFailureClassifierStatus",
+    "noSpeculativeRepairStatus",
+    "loopHandoffStatus",
+    "loopTerminalCloseoutStatus",
+    "hookGuardrailRegistryStatus",
+    "evaluationAbsorptionStatus",
     "evidenceSingleSourceStatus",
     "minimalBlockersArtifactStatus",
     "artifactReadOrderIndexStatus",
@@ -412,7 +424,10 @@
     "repairPrBudgetStatus",
     "remoteEvidenceStateSplitStatus",
     "remoteProductEvidenceRoutingTableStatus",
-    "nonRuntimeSharedUtilityProfileStatus"
+    "nonRuntimeSharedUtilityProfileStatus",
+    "requiredStatusClosureV3Status",
+    "targetSafeSummaryRequiredClosureStatus",
+    "workflowRequiredStatusClosureRepairStatus"
   ],
   "repoSpecificRegistrations": [
     "voxweaveReviewEvidenceClassifierStatus",
@@ -469,6 +484,28 @@
     "vgcBscScanVerificationBoundaryStatus",
     "vgcMainnetReadinessBoundaryStatus"
   ],
+  "statusSurfaceTiersV114": {
+    "critical_now": [
+      "v114SelfTestStatus",
+      "loopKernelStatus",
+      "loopExitCriteriaStatus",
+      "noSpeculativeRepairStatus",
+      "evaluationAbsorptionStatus"
+    ],
+    "evidence_critical": [
+      "loopBudgetStatus",
+      "loopGuardrailStatus",
+      "loopFailureClassifierStatus",
+      "loopHandoffStatus",
+      "loopTerminalCloseoutStatus",
+      "hookGuardrailRegistryStatus"
+    ],
+    "compatibility_shadow": [
+      "v113SelfTestStatus",
+      "legacySelfTestLaneSeparationStatus",
+      "targetModeCompatibilityBridgeV3Status"
+    ]
+  },
   "sourceProfileStubsV109": {
     "VOXWEAVE": {
       "criticalInvariants": [
@@ -780,8 +817,5 @@
       "precisionBenchmarkParityStatus"
     ]
   },
-  "targetRepoMode": true,
-  "targetProfileId": "IRIS_PRIORITY1_BLOCKED_PROFILE",
-  "productionGoClaimed": false,
-  "priority1BlockedPreserved": true
+  "targetRepoMode": true
 }
