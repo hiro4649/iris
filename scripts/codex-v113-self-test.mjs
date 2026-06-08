@@ -2,6 +2,7 @@
 // CODEX_QUALITY_HARNESS_FILE v1.1.3
 
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
+import fs from 'node:fs';
 import {
   BOUNDARY_PROFILES,
   V113_STATUS_KEYS,
@@ -39,6 +40,7 @@ function test(name, fn) {
 
 const statuses = buildDefaultV113Statuses();
 const report = buildV113Report();
+const methodGateSource = fs.readFileSync(new URL('./codex-openai-method-gate.mjs', import.meta.url), 'utf8');
 const blockers = buildMinimalBlockersArtifact({
   mergeBlocking: true,
   primaryBlockers: ['same_head_required_check_failed', 'safe_artifact_missing', 'owner_merge_instruction_absent', 'extra'],
@@ -63,6 +65,8 @@ const costLedger = buildConversationCostLedger();
 
 const cases = [
   test('all_v113_status_keys_default_pass', () => V113_STATUS_KEYS.every((key) => statuses[key]?.status === 'pass')),
+  test('method_gate_marker_aligned_to_v113', () => methodGateSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3')),
+  test('method_gate_internal_version_aligned_to_v113', () => methodGateSource.includes("const HARNESS_VERSION = '1.1.3';")),
   test('v113_report_passes', () => report.status === 'pass'),
   test('v113_self_status_present', () => report.v113SelfTestStatus.status === 'pass'),
   test('minimal_blockers_artifact_compact', () => blockers.primaryBlockers.length === 3 && blockers.derivedFailures.length === 5 && blockers.rawLogsAllowed === false),

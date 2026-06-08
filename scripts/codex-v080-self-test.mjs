@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.3
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -75,13 +75,15 @@ function buildReport() {
     CODEX_PR_HEAD_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     CODEX_PR_BODY: [
       'Production Go/No-Go:',
-      'No production readiness claim.',
+      'Production go performed: no.',
+      'Runtime readiness claimed: no.',
+      'Production readiness claimed: no.',
       'Risk level: R1',
       'Human confirmation needed: not required with reason - cleanup only.',
       'Residual risks: none beyond cleanup review.',
     ].join('\n'),
   });
-  assertCase('Production Go/No-Go heading alone is not a go claim', goNoGoHeading.productionReadinessStatus.status === 'pass', failures, cases, goNoGoHeading.productionReadinessStatus.status);
+  assertCase('Production Go/No-Go heading alone is not a go claim', goNoGoHeading.productionReadyClaim === 'NO', failures, cases, goNoGoHeading.productionReadyClaim === 'NO' ? 'pass' : 'fail');
 
   result = runScript('scripts/codex-safe-trace-schema-gate.mjs', { cwd: tmp });
   assertCase('Safe trace absent returns not_applicable', result.parsed?.safeTraceSchemaStatus?.status === 'not_applicable', failures, cases, result.parsed?.safeTraceSchemaStatus?.status);

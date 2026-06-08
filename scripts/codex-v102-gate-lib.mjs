@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.3
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { scanObjectForUnsafe, simpleStatus, writeJsonReport, exitFor, readText } from './codex-v080-lib.mjs';
@@ -495,9 +495,18 @@ export function buildDefaultHandoverSnapshot() {
 
 export function buildV102SelfTestRegistrationReport(input = {}) {
   const reasons = [];
+  let manifest = {};
+  try {
+    manifest = JSON.parse(readText('docs/process/CODEX_HARNESS_MANIFEST.json') || '{}');
+  } catch {
+    manifest = {};
+  }
+  const activeSuite = String(manifest.activeSelfTestSuite || '').replace(/^v/, '');
+  const activeStatusKey = String(manifest.activeSelfTestStatusKey || '');
+  const activeSelfTest = activeSuite ? `scripts/codex-v${activeSuite}-self-test.mjs` : '';
   if (!fs.existsSync('scripts/codex-v102-self-test.mjs') || bool(input.selfTestMissing)) reasons.push('v102_self_test_missing');
   if (!readText('scripts/codex-local-quality-gate.mjs')?.includes('v102SelfTestStatus')) reasons.push('v102_self_test_missing');
-  if (!readText('CODEX_SOURCE_HARNESS_MANIFEST.json')?.includes('codex-v102-self-test.mjs')) reasons.push('v102_self_test_missing');
+  if (!activeSelfTest || !fs.existsSync(activeSelfTest) || !activeStatusKey || !readText('scripts/codex-local-quality-gate.mjs')?.includes(activeStatusKey)) reasons.push('v102_self_test_missing');
   return reasons.length ? fail('v102SelfTestStatus', reasons) : pass('v102SelfTestStatus');
 }
 

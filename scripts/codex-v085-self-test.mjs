@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.3
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { HARNESS_VERSION, marker, simpleStatus, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
@@ -59,7 +59,8 @@ export async function buildV085SelfTestReport() {
 
   result = await runV085({
     CODEX_EVENT_NAME: 'pull_request',
-    CODEX_PR_BODY: 'PR profile: harness_workflow_r3\n\nTask mode: harness_change\n\nGoal:\nHarness.\n\nRisk level:\nR3\n\nFiles or scope:\nHarness files.\n\nEvidence Integrity:\nCurrent head evidence.\n\nValidation commands:\nSelf-test pass.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
+    CODEX_CHANGED_FILES: 'scripts/codex-v085-self-test.mjs',
+    CODEX_PR_BODY: 'PR profile: harness_workflow_r3\n\nTask mode: bugfix\n\nGoal:\nHarness.\n\nRisk level:\nR3\n\nFiles or scope:\nscripts/codex-v085-self-test.mjs\n\nBugfix reproduction:\nlegacy fixture drift reproduced.\n\nBugfix root cause:\nharness fixture shape drift.\n\nBugfix verification:\nself-test pass.\n\nProduct verification:\nProduct runtime changed: no.\n\nAffected entrypoints:\nharness self-test only.\n\nFailure paths considered:\nfailures remain failures.\n\nImport smoke config:\nno product runtime import changed.\n\nRuntime risk register:\nruntime readiness claimed: no.\n\nCode review monitor evidence:\nhuman review required before merge.\n\nLarge product diff review scope:\nharness-only.\n\nEvidence Integrity:\nCurrent head evidence.\n\nValidation commands:\nSelf-test pass.\n\nTests or checks run:\nself-test pass.\n\nResidual risks:\nNone.\n\nHuman confirmation needed:\nyes.',
     CODEX_CHANGE_CLASSIFICATION_JSON: classification({ status: 'pass', classification: { harnessOnly: true }, productRelevantChanged: false }),
     CODEX_FAST_PATH_JSON: fastPath({ status: 'pass', fastPathAllowed: true, pathMode: 'target_harness_fast_path' }),
   });

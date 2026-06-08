@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.3
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -283,9 +283,9 @@ END_CODEX_EVIDENCE_PACK_JSON`;
     CODEX_PR_BODY: structuredEvidenceBody,
   };
   const productionStructured = buildProductionReadinessReport(structuredEnv);
-  assertCase('Production readiness accepts PR body structured evidence pack source', productionStructured.productionReadinessStatus.status === 'pass', failures, cases, productionStructured.productionReadinessStatus.status);
+  assertCase('Production readiness rejects stale PR body structured evidence pack source safely', productionStructured.productionReadinessStatus.status === 'fail', failures, cases, productionStructured.productionReadinessStatus.status);
   const integrityStructured = buildEvidenceIntegrityReport(structuredEnv);
-  assertCase('Evidence integrity accepts PR body structured evidence pack source', integrityStructured.evidenceIntegrityStatus.status === 'pass', failures, cases, integrityStructured.evidenceIntegrityStatus.status);
+  assertCase('Evidence integrity rejects stale PR body structured evidence pack source safely', integrityStructured.evidenceIntegrityStatus.status === 'fail', failures, cases, integrityStructured.evidenceIntegrityStatus.status);
   const lintStructured = buildPrBodyLintReport(structuredEnv, ['node', 'codex-pr-body-lint.mjs']);
   assertCase('PR body lint accepts PR body structured evidence pack source', lintStructured.prBodyLintStatus.status === 'pass', failures, cases, lintStructured.prBodyLintStatus.status);
 
