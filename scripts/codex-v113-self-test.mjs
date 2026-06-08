@@ -41,6 +41,12 @@ function test(name, fn) {
 const statuses = buildDefaultV113Statuses();
 const report = buildV113Report();
 const methodGateSource = fs.readFileSync(new URL('./codex-openai-method-gate.mjs', import.meta.url), 'utf8');
+const versionLineageSource = fs.readFileSync(new URL('./codex-version-lineage-gate.mjs', import.meta.url), 'utf8');
+const knowledgeGovernanceSource = fs.readFileSync(new URL('./codex-knowledge-governance-gate.mjs', import.meta.url), 'utf8');
+const promptGovernanceSource = fs.readFileSync(new URL('./codex-prompt-governance-gate.mjs', import.meta.url), 'utf8');
+const contractGovernanceSource = fs.readFileSync(new URL('./codex-contract-governance-gate.mjs', import.meta.url), 'utf8');
+const knowledgeMapSource = fs.readFileSync(new URL('../docs/process/CODEX_KNOWLEDGE_MAP.json', import.meta.url), 'utf8');
+const promptEvalSuiteSource = fs.readFileSync(new URL('../docs/process/CODEX_PROMPT_EVAL_SUITE.json', import.meta.url), 'utf8');
 const blockers = buildMinimalBlockersArtifact({
   mergeBlocking: true,
   primaryBlockers: ['same_head_required_check_failed', 'safe_artifact_missing', 'owner_merge_instruction_absent', 'extra'],
@@ -67,6 +73,14 @@ const cases = [
   test('all_v113_status_keys_default_pass', () => V113_STATUS_KEYS.every((key) => statuses[key]?.status === 'pass')),
   test('method_gate_marker_aligned_to_v113', () => methodGateSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3')),
   test('method_gate_internal_version_aligned_to_v113', () => methodGateSource.includes("const HARNESS_VERSION = '1.1.3';")),
+  test('version_lineage_marker_aligned_to_v113', () => versionLineageSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3')),
+  test('version_lineage_uses_manifest_or_file_presence_for_legacy_self_tests', () => versionLineageSource.includes("selfTestPresent('v092'") && versionLineageSource.includes("selfTestPresent('v095'")),
+  test('version_lineage_keeps_readme_version_optional_by_default', () => versionLineageSource.includes('CODEX_VERSION_LINEAGE_REQUIRE_README_VERSION')),
+  test('governance_gate_markers_aligned_to_v113', () => [knowledgeGovernanceSource, promptGovernanceSource, contractGovernanceSource].every((source) => source.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3'))),
+  test('knowledge_map_marker_aligned_to_v113', () => knowledgeMapSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3') && knowledgeMapSource.includes('"harnessVersion": "1.1.3"')),
+  test('knowledge_map_uses_docs_manifest_source', () => knowledgeMapSource.includes('docs/process/CODEX_HARNESS_MANIFEST.json') && !knowledgeMapSource.includes('CODEX_SOURCE_HARNESS_MANIFEST.json')),
+  test('prompt_eval_suite_marker_aligned_to_v113', () => promptEvalSuiteSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3') && promptEvalSuiteSource.includes('"harnessVersion": "1.1.3"')),
+  test('prompt_eval_suite_matches_current_pr_template_sections', () => promptEvalSuiteSource.includes('"Task mode:"') && promptEvalSuiteSource.includes('"Evidence Source"')),
   test('v113_report_passes', () => report.status === 'pass'),
   test('v113_self_status_present', () => report.v113SelfTestStatus.status === 'pass'),
   test('minimal_blockers_artifact_compact', () => blockers.primaryBlockers.length === 3 && blockers.derivedFailures.length === 5 && blockers.rawLogsAllowed === false),

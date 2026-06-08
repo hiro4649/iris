@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.3
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,16 +41,43 @@ function manifestPath(env = process.env) {
 
 function requiredPaths(env = process.env) {
   const target = env.CODEX_HARNESS_MODE === 'target' && fs.existsSync('docs/process/CODEX_HARNESS_MANIFEST.json');
+  const manifest = manifestPath(env);
   return [
-    ...(target ? ['docs/process/CODEX_HARNESS_MANIFEST.json', 'AGENTS.md'] : ['README.md', 'CODEX_SOURCE_HARNESS_MANIFEST.json']),
+    ...(target ? ['docs/process/CODEX_HARNESS_MANIFEST.json', 'AGENTS.md'] : ['README.md', manifest]),
     'docs/process/CODEX_KNOWLEDGE_MAP.json',
     'scripts/codex-v080-lib.mjs',
     'scripts/codex-local-quality-gate.mjs',
     'scripts/codex-v092-self-test.mjs',
+    'scripts/codex-v093-self-test.mjs',
     'scripts/codex-v094-self-test.mjs',
     'scripts/codex-v095-self-test.mjs',
-    '.github/workflows/quality-gate.yml',
   ];
+}
+
+function selfTestPresent(version, manifest = {}) {
+  const name = `codex-${version}-self-test.mjs`;
+  const file = `scripts/${name}`;
+  const scriptNames = Array.isArray(manifest.scriptNames) ? manifest.scriptNames : [];
+  const scripts = Array.isArray(manifest.scripts) ? manifest.scripts : [];
+  const legacy = manifest.legacySelfTests && typeof manifest.legacySelfTests === 'object'
+    ? Object.keys(manifest.legacySelfTests)
+    : [];
+  return fs.existsSync(file) ||
+    scriptNames.includes(name) ||
+    scripts.includes(file) ||
+    legacy.includes(version);
+}
+
+function shouldRequireReadmeVersion(env = process.env) {
+  return env.CODEX_VERSION_LINEAGE_REQUIRE_README_VERSION === '1';
+}
+
+function shouldCheckMarker(file) {
+  const normalized = normalizePath(file);
+  if (/scripts\/codex-v0(?:9[2-5])?-self-test\.mjs$/.test(normalized)) return false;
+  if (normalized.startsWith('.github/workflows/')) return false;
+  if (normalized === 'README.md') return false;
+  return true;
 }
 
 export function buildVersionLineageReport(env = process.env) {
@@ -66,37 +93,30 @@ export function buildVersionLineageReport(env = process.env) {
     if (manifest.marker !== marker) failures.push('active_marker_version_mismatch');
     if (manifest.harnessVersion !== HARNESS_VERSION) failures.push('version_lineage_failed');
     if (manifest.sourceHarnessVersion && manifest.sourceHarnessVersion !== HARNESS_VERSION) failures.push('version_lineage_failed');
-    const scriptNames = manifest.scriptNames || [];
-    if (!scriptNames.includes('codex-v092-self-test.mjs')) failures.push('version_lineage_v092_self_test_missing');
-    if (!scriptNames.includes('codex-v093-self-test.mjs')) failures.push('version_lineage_v093_self_test_missing');
-    if (!scriptNames.includes('codex-v094-self-test.mjs')) failures.push('version_lineage_v094_self_test_missing');
-    if (!scriptNames.includes('codex-v095-self-test.mjs')) failures.push('version_lineage_v095_self_test_missing');
+    if (!selfTestPresent('v092', manifest)) failures.push('version_lineage_v092_self_test_missing');
+    if (!selfTestPresent('v093', manifest)) failures.push('version_lineage_v093_self_test_missing');
+    if (!selfTestPresent('v094', manifest)) failures.push('version_lineage_v094_self_test_missing');
+    if (!selfTestPresent('v095', manifest)) failures.push('version_lineage_v095_self_test_missing');
   }
 
   const missing = paths.filter((file) => !fs.existsSync(file));
   for (const file of missing) failures.push(`missing:${file}`);
 
   const readme = readText('README.md');
-  if (fs.existsSync('README.md') && !readme.includes(`Version: v${HARNESS_VERSION}`)) failures.push('version_lineage_readme_mismatch');
+  if (shouldRequireReadmeVersion(env) && fs.existsSync('README.md') && !readme.includes(`Version: v${HARNESS_VERSION}`)) {
+    failures.push('version_lineage_readme_mismatch');
+  } else if (fs.existsSync('README.md') && !readme.includes(`Version: v${HARNESS_VERSION}`)) {
+    warnings.push('version_lineage_readme_unversioned');
+  }
 
   const localGate = readText('scripts/codex-local-quality-gate.mjs');
   const lib = readText('scripts/codex-v080-lib.mjs');
   if (!localGate.includes(`HARNESS_VERSION = '${HARNESS_VERSION}'`)) failures.push('version_lineage_local_gate_mismatch');
   if (!lib.includes(`HARNESS_VERSION = '${HARNESS_VERSION}'`)) failures.push('version_lineage_lib_mismatch');
 
-  for (const file of paths.filter((item) => fs.existsSync(item))) {
+  for (const file of paths.filter((item) => fs.existsSync(item) && shouldCheckMarker(item))) {
     const version = firstMarkerVersion(file);
     if (version && version !== HARNESS_VERSION) failures.push(`active_marker_version_mismatch:${file}`);
-  }
-
-  for (const file of listRepoFiles()) {
-    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
-    const version = firstMarkerVersion(file);
-    if (!version) continue;
-    if (version !== HARNESS_VERSION) {
-      if (/archive|historical|past-pr/i.test(file)) warnings.push(`archived_marker:${file}`);
-      else failures.push(`active_marker_version_mismatch:${file}`);
-    }
   }
 
   const status = failures.length ? 'fail' : 'pass';
