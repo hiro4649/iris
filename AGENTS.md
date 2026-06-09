@@ -1,7 +1,7 @@
 # AGENTS.md
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.1.4
+CODEX_QUALITY_HARNESS_FILE v1.1.5
 
 ## Prime Directive
 
@@ -10,10 +10,7 @@ truth, trust, security, or maintainability.
 
 ## Source Harness Boundary
 
-This repository is a downstream project consuming Codex Harness v1.1.4. Work
-here must stay within the explicitly authorized repo and task scope. Do not edit
-Source HARNESS from target repo work. Product/runtime/package/workflow changes
-require separate owner scope.
+This repository is a downstream project consuming Codex Harness v1.1.5. Work here must stay within the explicitly authorized repo and task scope. Do not edit Source HARNESS from target repo work. Product/runtime/package/workflow changes require separate owner scope.
 Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` and
 `docs/process/code_review.md` as the stable method references.
 For v1.0.1 through v1.0.3 outcome, recovery, fixture isolation, clean-main,
@@ -62,6 +59,14 @@ rollout prohibition until a separate owner instruction authorizes rollout.
 v1.1.4 finalizes Loop Kernel with Decision Core, Minimal Blockers, status
 tiering, remote evidence state machine, forbidden scope IDs, and token cost
 ledger.
+For v1.1.5 Trace Kernel, Policy Hooks, Skill Profiles, and Token-Thin
+Finalizer, use `docs/process/CODEX_V115_SPEC.md` and
+`docs/process/CODEX_V115_PROFILE_REGISTRY.json`. Decision Core v2 is
+authoritative. Minimal Blockers come first. Prefer trace pointers over repeated
+history, and Skill Profile IDs over long forbidden text. Policy Hooks fail
+closed. PR bodies are rendered human output, not machine decision sources.
+Same-head required checks remain required. Raw logs, 8-session operation, and
+product/harness repair mixing remain forbidden.
 
 ## Plan-First Rule
 
