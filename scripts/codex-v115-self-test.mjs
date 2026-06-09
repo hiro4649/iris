@@ -2,6 +2,7 @@
 // CODEX_QUALITY_HARNESS_FILE v1.1.5
 
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
+import { readFileSync } from 'node:fs';
 import { buildPreExitDecisionArtifacts } from './codex-local-quality-gate.mjs';
 import { renderPrEvidenceBlocks } from './codex-pr-evidence-block-renderer.mjs';
 import { summarizeSafeReport } from './codex-safe-summary-pick.mjs';
@@ -100,6 +101,32 @@ const cases = [
   test('skill_profile_registry_loads_required_profiles', () => validateSkillProfileRegistry().status === 'pass'),
   test('permission_profile_matrix_loads_required_profiles', () => validatePermissionProfileMatrix().status === 'pass'),
   test('target_install_finalizer_sets_completed_metadata', () => buildTargetInstallFinalizer({ version: '1.1.5' }).status === 'pass'),
+  test('method_gate_marker_internal_version_v115', () => {
+    const source = readFileSync(new URL('./codex-openai-method-gate.mjs', import.meta.url), 'utf8');
+    return source.includes('CODEX_QUALITY_HARNESS_FILE v1.1.5')
+      && source.includes("const HARNESS_VERSION = '1.1.5'")
+      && source.includes('harnessMarkerPattern')
+      && source.includes('policyJson=marker_mismatch')
+      && source.includes('Owner Summary')
+      && source.includes('Review independence');
+  }),
+  test('method_gate_fixture_uses_deterministic_safe_summary', () => {
+    const source = readFileSync(new URL('./run-tests.js', import.meta.url), 'utf8');
+    return source.includes('CODEX_SKIP_V115_SELF_TEST')
+      && source.includes('buildMethodGateFixtureReport')
+      && source.includes('fixture_invariant_failed');
+  }),
+  test('json_worker_success_waits_for_exit', () => {
+    const source = readFileSync(new URL('./run-tests.js', import.meta.url), 'utf8');
+    return source.includes('successMessage')
+      && source.includes('code !== 0 || !successMessage')
+      && source.includes('resolve(successMessage)');
+  }),
+  test('legacy_registration_source_manifest_optional_in_target', () => {
+    const sources = ['codex-v101-gate-lib.mjs', 'codex-v102-gate-lib.mjs', 'codex-v103-gate-lib.mjs']
+      .map((name) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'));
+    return sources.every((source) => source.includes('sourceManifestText !== null'));
+  }),
   test('target_install_finalizer_removes_source_only_wording', () => buildTargetInstallFinalizer({ agentsText: 'This repository is the Codex Development Harness source.' }).status === 'fail'),
   test('legacy_compatibility_matrix_shadows_v085_in_target_mode', () => classifyLegacyCompatibility({ version: 'v085', mode: 'target' }).countOnly === true),
   test('legacy_compatibility_matrix_shadows_v101_v103_in_target_mode', () => ['v101', 'v102', 'v103'].every((version) => classifyLegacyCompatibility({ version, mode: 'target' }).status === 'pass')),
