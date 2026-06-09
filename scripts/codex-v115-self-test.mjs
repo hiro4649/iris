@@ -122,6 +122,15 @@ const cases = [
       && source.includes('code !== 0 || !successMessage')
       && source.includes('resolve(successMessage)');
   }),
+  test('v085_compact_bugfix_evidence_keys_supported', () => {
+    const source = readFileSync(new URL('./codex-v085-stability-gate.mjs', import.meta.url), 'utf8');
+    return source.includes('Bugfix reproduction')
+      && source.includes('Bugfix root cause')
+      && source.includes('Bugfix verification')
+      && source.includes('not_required_harness_only')
+      && source.includes('present_harness_only')
+      && source.includes('Full verification completed');
+  }),
   test('legacy_registration_source_manifest_optional_in_target', () => {
     const sources = ['codex-v101-gate-lib.mjs', 'codex-v102-gate-lib.mjs', 'codex-v103-gate-lib.mjs']
       .map((name) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'));

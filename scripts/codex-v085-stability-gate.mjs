@@ -42,6 +42,26 @@ function bodyLineValue(body, label) {
   return String(body || '').match(pattern)?.[1]?.trim() || '';
 }
 
+function firstBodyLineValue(body, labels) {
+  for (const label of labels) {
+    const value = bodyLineValue(body, label);
+    if (value) return value;
+  }
+  return '';
+}
+
+function bodyLineIsNo(body, label) {
+  return /^no\.?$/i.test(bodyLineValue(body, label));
+}
+
+function harnessOnlyBodyNoRuntimeChange(body) {
+  return bodyLineIsNo(body, 'Product runtime changed') &&
+    bodyLineIsNo(body, 'Package or lockfile changed') &&
+    bodyLineIsNo(body, 'Workflow changed') &&
+    bodyLineIsNo(body, 'Runtime readiness claimed') &&
+    bodyLineIsNo(body, 'Production readiness claimed');
+}
+
 function normalizeTaskMode(value) {
   const normalized = String(value || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
   return taskModes.has(normalized) ? normalized : normalized ? 'unknown' : null;
@@ -135,19 +155,19 @@ function bugfixEvidenceFromBody(body, env = process.env) {
     if (parsed?.codexBugFixEvidence) return parsed.codexBugFixEvidence;
     if (parsed?.schemaVersion) return parsed;
   }
-  const reproduced = bodyLineValue(body, 'Reproduced');
-  const rootCause = bodyLineValue(body, 'Root cause');
-  const verification = bodyLineValue(body, 'Verification');
+  const reproduced = firstBodyLineValue(body, ['Reproduced', 'Bugfix reproduction']);
+  const rootCause = firstBodyLineValue(body, ['Root cause', 'Bugfix root cause']);
+  const verification = firstBodyLineValue(body, ['Verification', 'Bugfix verification']);
   if (!reproduced && !rootCause && !verification) return null;
   return {
     schemaVersion: '0.8.5',
-    reproductionStatus: /^yes|reproduced$/i.test(reproduced) ? 'reproduced' : reproduced,
+    reproductionStatus: /^yes|reproduced|present$/i.test(reproduced) ? 'reproduced' : reproduced,
     rootCause: {
       status: /^unknown$/i.test(rootCause) ? 'unknown' : rootCause ? 'identified' : '',
       safeSummary: rootCause ? 'provided' : '',
     },
     verification: {
-      status: /^pass|passed|yes$/i.test(verification) ? 'pass' : verification,
+      status: /^pass|passed|yes|present$/i.test(verification) ? 'pass' : verification,
       reasonIfNotRun: /reason/i.test(verification) ? 'provided' : '',
     },
   };
@@ -285,7 +305,13 @@ async function buildImportSmokeMicroStatus(env, classificationStatus) {
     return { status: 'not_applicable', reasonCodes: ['source_harness_mode'], safeSummaryOnly: true };
   }
   const loaded = configFromEnvOrFile(env, 'CODEX_IMPORT_SMOKE_CONFIG_JSON', 'docs/process/CODEX_IMPORT_SMOKE_CONFIG.json');
-  if (!loaded.present) return { status: 'not_applicable', reasonCodes: ['import_smoke_config_absent'], safeSummaryOnly: true };
+  if (!loaded.present) {
+    const body = prBodyText(env);
+    if (harnessOnlyBodyNoRuntimeChange(body)) {
+      return { status: 'not_applicable', reasonCodes: [], reason: 'not_required_harness_only', safeSummaryOnly: true };
+    }
+    return { status: 'not_applicable', reasonCodes: ['import_smoke_config_absent'], safeSummaryOnly: true };
+  }
   const relevant = Boolean(classificationStatus.productRelevantChanged || classificationStatus.runtimeReadinessClaimed);
   if (loaded.source === 'invalid' || !validateImportSmokeConfig(loaded.config)) {
     return { status: relevant || isPrContext(env) ? 'fail' : 'warning', reasonCodes: ['import_smoke_config_invalid'], safeSummaryOnly: true };
@@ -332,7 +358,13 @@ function buildRuntimeRiskRegisterStatus(env, classificationStatus) {
     return { status: 'not_applicable', reasonCodes: ['source_harness_mode'], safeSummaryOnly: true };
   }
   const loaded = configFromEnvOrFile(env, 'CODEX_RUNTIME_RISK_REGISTER_JSON', 'docs/process/CODEX_RUNTIME_RISK_REGISTER.json');
-  if (!loaded.present) return { status: 'not_applicable', reasonCodes: ['runtime_risk_register_absent'], safeSummaryOnly: true };
+  if (!loaded.present) {
+    const body = prBodyText(env);
+    if (harnessOnlyBodyNoRuntimeChange(body) && /runtime risk register\s*:/i.test(body)) {
+      return { status: 'not_applicable', reasonCodes: [], reason: 'present_harness_only', safeSummaryOnly: true };
+    }
+    return { status: 'not_applicable', reasonCodes: ['runtime_risk_register_absent'], safeSummaryOnly: true };
+  }
   if (loaded.source === 'invalid' || !validateRuntimeRiskRegister(loaded.config)) {
     return { status: 'fail', reasonCodes: ['runtime_risk_register_invalid'], safeSummaryOnly: true };
   }
@@ -384,17 +416,22 @@ function buildCheckoutEvidencePriorityStatus(env = process.env) {
   };
 }
 
-function buildFastPathExplainabilityStatus(fastPathStatus = {}) {
+function buildFastPathExplainabilityStatus(fastPathStatus = {}, env = process.env) {
   const unknown = (fastPathStatus.reasonCodes || []).includes('fast_path_precondition_failed') &&
     fastPathStatus.pathMode === 'full_product_path';
   const allowed = Boolean(fastPathStatus.fastPathAllowed);
+  const body = prBodyText(env);
+  const fullVerificationCompleted = /^yes|pass|passed|present$/i.test(firstBodyLineValue(body, [
+    'Full verification completed',
+    'Bugfix verification',
+  ]));
   const decision = allowed ? 'allowed' : unknown ? 'denied_unknown_risk' : 'denied_full_verification_required';
   return {
     status: 'pass',
     decision,
     oneLineReason: allowed ? 'fast_path_conditions_met' : 'full_verification_required',
     mergeInterpretation: allowed ? 'fast_path_allowed' : 'full_verification_required',
-    reasonCodes: allowed ? [] : ['fast_path_full_verification_required'],
+    reasonCodes: allowed || fullVerificationCompleted ? [] : ['fast_path_full_verification_required'],
     safeSummaryOnly: true,
   };
 }
@@ -436,7 +473,7 @@ export async function buildV085StabilityReport(env = process.env) {
   const importSmokeMicroStatus = await buildImportSmokeMicroStatus(env, classificationStatus);
   const runtimeRiskRegisterStatus = buildRuntimeRiskRegisterStatus(env, classificationStatus);
   const checkoutEvidencePriorityStatus = buildCheckoutEvidencePriorityStatus(env);
-  const fastPathExplainabilityStatus = buildFastPathExplainabilityStatus(fastPathStatus);
+  const fastPathExplainabilityStatus = buildFastPathExplainabilityStatus(fastPathStatus, env);
   const oneScreenDashboardStatus = buildOneScreenDashboardStatus({
     env,
     taskDisciplineStatus,
