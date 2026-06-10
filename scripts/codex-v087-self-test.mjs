@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.6
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,6 +24,47 @@ function tempJson(value) {
   const file = path.join(dir, 'fixture.json');
   fs.writeFileSync(file, JSON.stringify(value, null, 2));
   return file;
+}
+
+function promptEvalSuiteFixture() {
+  return tempJson({
+    cases: [
+      { id: 'bugfix_skill_requires_reproduction', target: '.agents/skills/codex-bugfix/SKILL.md', mustContain: ['reproduction'] },
+      { id: 'bugfix_skill_requires_root_cause', target: '.agents/skills/codex-bugfix/SKILL.md', mustContain: ['root-cause'] },
+      { id: 'bugfix_skill_requires_verification', target: '.agents/skills/codex-bugfix/SKILL.md', mustContain: ['Verify'] },
+    ],
+    safeSummaryOnly: true,
+  });
+}
+
+function knowledgeMapFixture(overrides = {}) {
+  return tempJson({
+    marker: 'CODEX_QUALITY_HARNESS_FILE v1.1.6',
+    harnessVersion: '1.1.6',
+    safeSummaryOnly: true,
+    sourceOfRecord: [
+      'docs/process/CODEX_PROMPT_GOVERNANCE_POLICY.md',
+      'docs/process/CODEX_KNOWLEDGE_GOVERNANCE_POLICY.md',
+      'docs/process/CODEX_CONTRACT_GOVERNANCE_POLICY.md',
+      'docs/process/CODEX_CODE_REVIEW_MONITOR_POLICY.md',
+      '.agents/skills/codex-bugfix/SKILL.md',
+      'docs/process/CODEX_PROMPT_EVAL_SUITE.json',
+      'docs/process/CODEX_REVIEW_EVAL_CASES.json',
+      'docs/process/CODEX_TASK_CONTRACT_SCHEMA.json',
+      'docs/process/CODEX_HANDOFF_SCHEMA.json',
+      'docs/process/CODEX_LOAD_BEARING_EVIDENCE_SCHEMA.json',
+    ],
+    policyIndex: [
+      'docs/process/CODEX_PROMPT_GOVERNANCE_POLICY.md',
+      'docs/process/CODEX_KNOWLEDGE_GOVERNANCE_POLICY.md',
+      'docs/process/CODEX_CONTRACT_GOVERNANCE_POLICY.md',
+      'docs/process/CODEX_CODE_REVIEW_MONITOR_POLICY.md',
+    ],
+    skillIndex: ['.agents/skills/codex-bugfix/SKILL.md'],
+    evalIndex: ['docs/process/CODEX_PROMPT_EVAL_SUITE.json', 'docs/process/CODEX_REVIEW_EVAL_CASES.json'],
+    contractIndex: ['docs/process/CODEX_TASK_CONTRACT_SCHEMA.json', 'docs/process/CODEX_HANDOFF_SCHEMA.json', 'docs/process/CODEX_LOAD_BEARING_EVIDENCE_SCHEMA.json'],
+    ...overrides,
+  });
 }
 
 function baseEnv(overrides = {}) {
@@ -170,6 +211,16 @@ function evidencePackEnv(overrides = {}) {
   });
 }
 
+function evidencePackFileEnv(pack, overrides = {}) {
+  return evidencePackEnv({
+    CODEX_EVIDENCE_PACK_PATH: tempJson(pack),
+    CODEX_PR_COMMENTS: '',
+    CODEX_PR_REVIEWS: '',
+    CODEX_PR_BODY: '',
+    ...overrides,
+  });
+}
+
 export function buildV087SelfTestReport() {
   const failures = [];
   const cases = [];
@@ -192,6 +243,7 @@ export function buildV087SelfTestReport() {
 
   result = buildPromptGovernanceReport(prEnv({
     CODEX_CHANGED_FILES: '.agents/skills/codex-bugfix/SKILL.md',
+    CODEX_PROMPT_EVAL_SUITE_PATH: promptEvalSuiteFixture(),
   })).promptGovernanceStatus;
   assertCase('skill change with matching eval -> pass', result.status === 'pass', failures, cases, result.status);
 
@@ -212,7 +264,7 @@ export function buildV087SelfTestReport() {
   assertCase('review eval case catches bugfix missing root cause -> pass', result.cases.some((item) => item.id === 'bugfix_missing_root_cause_fail' && item.status === 'pass'), failures, cases);
   assertCase('review eval case catches auth negative test missing -> pass', result.cases.some((item) => item.id === 'auth_surface_without_negative_test_manual' && item.status === 'pass'), failures, cases);
 
-  result = buildKnowledgeGovernanceReport().knowledgeGovernanceStatus;
+  result = buildKnowledgeGovernanceReport({ ...baseEnv(), CODEX_KNOWLEDGE_MAP_PATH: knowledgeMapFixture() }).knowledgeGovernanceStatus;
   assertCase('knowledge map valid -> pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
   result = buildKnowledgeGovernanceReport({ ...baseEnv(), CODEX_KNOWLEDGE_MAP_PATH: tempJson({ marker, harnessVersion: HARNESS_VERSION, safeSummaryOnly: true, policyIndex: [], skillIndex: [], evalIndex: [], contractIndex: [], sourceOfRecord: [] }) }).knowledgeGovernanceStatus;
@@ -325,40 +377,26 @@ Stop condition: stop`,
   })).humanConfirmationObjectStatus;
   assertCase('human_confirmation_evidence_pack_pending_first_valid_second_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
-    CODEX_PR_COMMENTS: [
-      evidencePackBlock({ headSha: 'abc123' }),
-      evidencePackBlock(evidencePackFixture()),
-    ].join('\n'),
-  })).evidencePackStatus;
-  assertCase('evidence_pack_multiple_blocks_prefers_current_head_valid', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
+  result = buildEvidencePackReport(evidencePackFileEnv(evidencePackFixture())).evidencePackStatus;
+  assertCase('evidence_pack_fixture_file_current_head_valid', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
-    CODEX_PR_COMMENTS: [
-      evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
-      evidencePackBlock(evidencePackFixture()),
-    ].join('\n'),
+  result = buildEvidencePackReport(evidencePackFileEnv(evidencePackFixture(), {
+    CODEX_PR_BODY: evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
   })).evidencePackStatus;
-  assertCase('evidence_pack_stale_first_valid_second_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
+  assertCase('evidence_pack_file_precedence_over_stale_pr_body', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
-    CODEX_PR_COMMENTS: evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
-  })).evidencePackStatus;
+  result = buildEvidencePackReport(evidencePackFileEnv(evidencePackFixture({ headSha: 'stale-head' }))).evidencePackStatus;
   assertCase('evidence_pack_only_stale_fails', result.status === 'fail' && result.reasonCodes.includes('head_sha_mismatch'), failures, cases, result.status);
 
-  result = buildEvidencePackReport(evidencePackEnv({
-    CODEX_PR_COMMENTS: evidencePackBlock(evidencePackFixture({ headSha: 'stale-head' })),
+  result = buildEvidencePackReport(evidencePackFileEnv(evidencePackFixture({ headSha: 'stale-head' }), {
     CODEX_PR_BODY: evidencePackBlock(evidencePackFixture()),
   })).evidencePackStatus;
-  assertCase('evidence_pack_comment_stale_body_valid_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
+  assertCase('evidence_pack_pr_body_does_not_override_stale_file', result.status === 'fail' && result.reasonCodes.includes('head_sha_mismatch'), failures, cases, result.reasonCodes?.join(','));
 
-  result = buildEvidencePackReport(evidencePackEnv({
-    CODEX_PR_COMMENTS: [
-      invalidEvidencePackBlock(),
-      evidencePackBlock(evidencePackFixture()),
-    ].join('\n'),
+  result = buildEvidencePackReport(evidencePackFileEnv(evidencePackFixture(), {
+    CODEX_PR_COMMENTS: invalidEvidencePackBlock(),
   })).evidencePackStatus;
-  assertCase('evidence_pack_invalid_first_valid_second_pass', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
+  assertCase('evidence_pack_file_not_invalid_comment_driven', result.status === 'pass', failures, cases, result.reasonCodes?.join(','));
 
   result = buildPromptVariantSuggestionReport().promptVariantSuggestionStatus;
   assertCase('variant suggestion autoApply=false -> suggestion_only', result.status === 'suggestion_only' && result.autoApply === false, failures, cases, result.status);
@@ -372,8 +410,9 @@ Stop condition: stop`,
   result = buildPromptGovernanceReport(prEnv({
     CODEX_CHANGED_FILES: 'docs/process/CODEX_PROMPT_GOVERNANCE_POLICY.md,docs/process/CODEX_REVIEW_EVAL_CASES.json,scripts/codex-prompt-governance-gate.mjs',
     CODEX_PR_BODY: sourcePrBody(),
+    CODEX_PROMPT_EVAL_SUITE_PATH: promptEvalSuiteFixture(),
   })).promptGovernanceStatus;
-  const knowledge = buildKnowledgeGovernanceReport(prEnv({ CODEX_PR_BODY: sourcePrBody() })).knowledgeGovernanceStatus;
+  const knowledge = buildKnowledgeGovernanceReport(prEnv({ CODEX_PR_BODY: sourcePrBody(), CODEX_KNOWLEDGE_MAP_PATH: knowledgeMapFixture() })).knowledgeGovernanceStatus;
   const contract = buildContractGovernanceReport(prEnv({
     CODEX_CHANGED_FILES: 'scripts/codex-prompt-governance-gate.mjs',
     CODEX_PR_BODY: sourcePrBody(),

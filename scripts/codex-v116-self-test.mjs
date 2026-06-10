@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.1.6
 
+import { readFileSync } from 'node:fs';
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   OPERATOR_STATUS_KEYS,
@@ -103,6 +104,49 @@ const cases = [
   test('token_budget_status_preserves_metrics', () => buildV116Report({ tokenBudget: { operatorVisibleStatuses: 7, safeArtifactReads: 1 } }).tokenBudgetStatus.metrics.safeArtifactReads === 1),
   test('canonical_registry_support_is_machine_only', () => buildV116Report().canonicalStatusRegistrySupport.status === 'pass' && buildV116Report().tokenBudgetStatus.metrics.operatorVisibleStatuses === 7),
   test('read_decision_capsule_output_under_20_lines', () => renderDecisionCapsuleLines({ decisionCapsule: passCapsule, tokenBudgetStatus: { status: 'pass' } }).length <= 20),
+  test('method_gate_active_marker_is_v116', () => readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8').includes("const HARNESS_VERSION = '1.1.6';")),
+  test('method_gate_accepts_current_pr_template_shape', () => {
+    const gate = readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8');
+    const template = readFileSync('.github/pull_request_template.md', 'utf8');
+    return /Owner Summary/i.test(template) && /Evidence Source/i.test(template) && /Owner Summary/.test(gate) && /Evidence Source/.test(gate);
+  }),
+  test('method_gate_fixture_uses_deterministic_pr_body_input', () => readFileSync('scripts/run-tests.js', 'utf8').includes('CODEX_PR_BODY: methodGateCompliantBody()')),
+  test('method_gate_safe_key_fixture_bounded_to_safe_report', () => {
+    const tests = readFileSync('scripts/run-tests.js', 'utf8');
+    return tests.includes('method_gate_fixture_safe_key_policy_failed')
+      && tests.includes('targetQualityScoreStatus: { status: pass ? "pass" : "fail"');
+  }),
+  test('method_gate_harness_scope_fixture_bounded_to_safe_report', () => readFileSync('scripts/run-tests.js', 'utf8').includes('harness_fixture_scope_policy_failed')),
+  test('json_worker_success_waits_for_exit_before_cleanup', () => {
+    const tests = readFileSync('scripts/run-tests.js', 'utf8');
+    return tests.includes('let sawSuccessMessage = false')
+      && tests.includes('worker.once("exit"')
+      && tests.includes('cleanupTempDirWithRetry(tempDir)');
+  }),
+  test('v080_clean_agents_fixture_uses_v116_marker', () => readFileSync('scripts/codex-v080-fixtures.mjs', 'utf8').includes('CODEX_QUALITY_HARNESS_FILE v1.1.6')),
+  test('agents_context_gate_accepts_v116_marker', () => readFileSync('scripts/codex-agents-context-gate.mjs', 'utf8').includes('CODEX_QUALITY_HARNESS_FILE v1\\.1\\.6')),
+  test('v080_heading_only_production_go_fails', () => readFileSync('scripts/codex-v080-self-test.mjs', 'utf8').includes('heading alone does not satisfy readiness evidence')),
+  test('v081_clean_agents_fixture_uses_v116_marker', () => readFileSync('scripts/codex-v081-self-test.mjs', 'utf8').includes("function cleanAgents(version = '1.1.6')")),
+  test('v081_target_score_fixture_is_bounded', () => readFileSync('scripts/codex-v081-self-test.mjs', 'utf8').includes("targetQualityScoreStatus: { status: 'pass', score: 95")),
+  test('v081_pr_body_structured_evidence_is_not_machine_source', () => readFileSync('scripts/codex-v081-self-test.mjs', 'utf8').includes('rejects PR body structured evidence pack as machine source')),
+  test('harness_managed_run_tests_is_not_product_relevant', () => {
+    const gate = readFileSync('scripts/codex-change-classification-gate.mjs', 'utf8');
+    return gate.includes("const harnessManagedTestFiles = [")
+      && gate.includes("'scripts/run-tests.js'")
+      && gate.includes('const productRelevantChanged = !flags.harnessOnly');
+  }),
+  test('v082_positive_remote_baseline_uses_fresh_fixture_date', () => readFileSync('scripts/codex-v082-self-test.mjs', 'utf8').includes('date: new Date().toISOString()')),
+  test('v083_positive_remote_baseline_uses_fresh_fixture_date', () => readFileSync('scripts/codex-v083-self-test.mjs', 'utf8').includes('date: new Date().toISOString()')),
+  test('v085_harness_only_fixture_has_local_changed_files', () => readFileSync('scripts/codex-v085-self-test.mjs', 'utf8').includes("CODEX_CHANGED_FILES: 'scripts/codex-v085-self-test.mjs'")),
+  test('v087_uses_fixture_local_prompt_eval', () => readFileSync('scripts/codex-v087-self-test.mjs', 'utf8').includes('promptEvalSuiteFixture()')),
+  test('v087_uses_v116_knowledge_fixture', () => readFileSync('scripts/codex-v087-self-test.mjs', 'utf8').includes("CODEX_QUALITY_HARNESS_FILE v1.1.6")),
+  test('v087_evidence_pack_uses_fixture_file_precedence', () => readFileSync('scripts/codex-v087-self-test.mjs', 'utf8').includes('evidencePackFileEnv')),
+  test('v090_workflow_dispatch_evidence_pack_uses_fixture_cwd', () => readFileSync('scripts/codex-v090-self-test.mjs', 'utf8').includes('withTempCwd')),
+  test('v092_version_lineage_positive_case_is_bounded_to_v116_marker', () => readFileSync('scripts/codex-v092-self-test.mjs', 'utf8').includes('version_lineage_current_marker_fixture_matches_v116')),
+  test('v100_positive_registration_and_succession_cases_are_bounded', () => readFileSync('scripts/codex-v100-self-test.mjs', 'utf8').includes('buildNewHarnessSelfTestCurrentFixtureReport') && readFileSync('scripts/codex-v100-self-test.mjs', 'utf8').includes('buildVersionSuccessionCurrentFixtureReport')),
+  test('v101_positive_registration_case_is_bounded', () => readFileSync('scripts/codex-v101-self-test.mjs', 'utf8').includes('buildV101SelfTestCurrentFixtureReport')),
+  test('v102_positive_registration_case_is_bounded', () => readFileSync('scripts/codex-v102-self-test.mjs', 'utf8').includes('buildV102SelfTestCurrentFixtureReport')),
+  test('v103_positive_registration_case_is_bounded', () => readFileSync('scripts/codex-v103-self-test.mjs', 'utf8').includes('buildV103SelfTestCurrentFixtureReport')),
   test('v113_compat_pass', () => true),
   test('v114_compat_pass', () => true),
   test('v115_compat_pass', () => true),

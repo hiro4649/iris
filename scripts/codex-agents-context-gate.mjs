@@ -45,7 +45,7 @@ function buildReport() {
   else {
     const blocks = harnessBlocks(text);
     harnessBlockCount = blocks.length;
-    currentHarnessBlockPresent = blocks.some((block) => /CODEX_QUALITY_HARNESS_FILE v1\.1\.3/.test(block));
+    currentHarnessBlockPresent = blocks.some((block) => /CODEX_QUALITY_HARNESS_FILE v1\.1\.6/.test(block));
     const mojibake = mojibakeFindings(text);
     mojibakeDetected = mojibake.length > 0;
     if (mojibakeDetected) reasonCodes.push('agents_context_entire_file_mojibake');

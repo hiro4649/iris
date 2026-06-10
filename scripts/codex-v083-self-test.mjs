@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CODEX_QUALITY_HARNESS_FILE v1.0.7
+// CODEX_QUALITY_HARNESS_FILE v1.1.6
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -140,7 +140,7 @@ function baseline(result = 'pass') {
     baselineType: 'npm_test',
     commands: [{ name: 'npm test', result }],
     result,
-    date: '2026-05-24T00:00:00Z',
+    date: new Date().toISOString(),
     source: 'fixture',
     safeSummary: 'safe baseline summary',
     knownFailures: result === 'fail' ? ['safe_known_failure'] : [],

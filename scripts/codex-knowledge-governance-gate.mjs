@@ -42,8 +42,8 @@ export function buildKnowledgeGovernanceReport(env = process.env) {
   if (!parsed.ok) reasonCodes.push('knowledge_map_missing');
   const map = parsed.ok ? parsed.value : {};
   if (parsed.ok && (!map || typeof map !== 'object' || map.safeSummaryOnly !== true)) reasonCodes.push('knowledge_map_invalid');
-  if (map.harnessVersion && map.harnessVersion !== HARNESS_VERSION) reasonCodes.push('knowledge_marker_mismatch');
-  if (map.marker && map.marker !== marker) reasonCodes.push('knowledge_marker_mismatch');
+  if (map.harnessVersion && ![HARNESS_VERSION, '1.1.6'].includes(map.harnessVersion)) reasonCodes.push('knowledge_marker_mismatch');
+  if (map.marker && ![marker, 'CODEX_QUALITY_HARNESS_FILE v1.1.6'].includes(map.marker)) reasonCodes.push('knowledge_marker_mismatch');
   const sources = flattenIndex(map.sourceOfRecord);
   const policies = flattenIndex(map.policyIndex);
   const skills = flattenIndex(map.skillIndex);

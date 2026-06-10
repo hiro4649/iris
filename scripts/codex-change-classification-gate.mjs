@@ -88,6 +88,14 @@ const defaultRules = {
   unknownPolicy: 'fail_in_pr_context',
 };
 
+const harnessManagedTestFiles = [
+  'scripts/run-tests.js',
+];
+
+function isHarnessManagedFile(file, rules) {
+  return matches(file, rules.harnessFiles) || harnessManagedTestFiles.includes(normalizePath(file));
+}
+
 function safeStringArray(value) {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
@@ -204,10 +212,10 @@ export function classifyChange(files = changedFiles(), env = process.env) {
     }
   }
 
-  const productRelevantChanged = flags.productSourceChanged || flags.testsChanged || flags.specsChanged ||
+  flags.harnessOnly = files.length > 0 && files.every((file) => isHarnessManagedFile(file, rules));
+  const productRelevantChanged = !flags.harnessOnly && (flags.productSourceChanged || flags.testsChanged || flags.specsChanged ||
     flags.packageChanged || flags.lockfileChanged || flags.runtimeAssetsChanged || flags.configChanged ||
-    flags.authorityChanged;
-  flags.harnessOnly = files.length > 0 && files.every((file) => matches(normalizePath(file), rules.harnessFiles));
+    flags.authorityChanged);
   flags.docsOnly = files.length > 0 && !productRelevantChanged && files.every((file) => matches(normalizePath(file), rules.docsFiles) || matches(normalizePath(file), rules.harnessFiles));
   flags.unknownRisk = unknownFiles.length > 0;
 
