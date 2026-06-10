@@ -363,7 +363,7 @@ jobs:
         with:
           name: codex-quality-gate-safe-artifacts
           path: |
-            codex-quality-gate-safe-summary.json
+            codex-quality-gate-safe-summary.json`n            codex-decision-capsule.safe.json`n            codex-artifact-consistency.safe.json`n            codex-minimal-blockers.safe.json
             codex-minimal-safe-failure.json
             ${{ runner.temp }}/codex-minimal-safe-failure.json
             ${{ runner.temp }}/codex-decision-capsule.safe.json
