@@ -215,11 +215,21 @@ function buildReport() {
     CODEX_CHANGED_FILES: 'package-lock.json',
   });
   assertCase('package/lockfile change without evidence fails', result.productVerificationStatus.status === 'fail', failures, cases, result.productVerificationStatus.status);
+  const safeProductEvidence = path.join(os.tmpdir(), `codex-safe-product-evidence-${Date.now()}.json`);
+  write(safeProductEvidence, JSON.stringify({
+    commands: [{
+      name: 'npm test',
+      result: 'pass',
+      source: 'local',
+      durationMs: 123,
+      testCount: 4,
+      safeSummary: 'safe npm test evidence',
+    }],
+  }));
   result = buildProductVerificationReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_CHANGED_FILES: 'src/app.js',
-    CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test',
-    CODEX_PRODUCT_VERIFICATION_RESULT: 'pass',
+    CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH: safeProductEvidence,
     CODEX_REMOTE_PRODUCT_BASELINE_JSON: JSON.stringify({
       schemaVersion: '0.8.3',
       harnessVersion: HARNESS_VERSION,
@@ -228,7 +238,7 @@ function buildReport() {
       baselineType: 'npm_test',
       commands: [{ name: 'npm test', result: 'pass' }],
       result: 'pass',
-      date: '2026-05-24T00:00:00Z',
+      date: new Date().toISOString(),
       source: 'fixture',
       safeSummary: 'safe baseline summary',
       knownFailures: [],

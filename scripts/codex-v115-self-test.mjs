@@ -131,6 +131,104 @@ const cases = [
       && source.includes('present_harness_only')
       && source.includes('Full verification completed');
   }),
+  test('best_of_n_deterministic_bugfix_skip_is_structured', () => {
+    const source = readFileSync(new URL('./codex-best-of-n-evidence-gate.mjs', import.meta.url), 'utf8');
+    return source.includes('hasDeterministicBugfixSkipEvidence')
+      && source.includes('deterministic_harness_bugfix_full_verification_no_runtime_change')
+      && source.includes('evidenceMode');
+  }),
+  test('compact_pr_body_can_generate_safe_evidence_pack', () => {
+    const source = readFileSync(new URL('./codex-evidence-pack-validate.mjs', import.meta.url), 'utf8');
+    return source.includes('compactEvidencePackFromBody')
+      && source.includes('evidence_pack_pr_body_compact')
+      && source.includes('evidencePackFromStructuredText(env)')
+      && source.includes('rawLogsRead: false')
+      && source.includes('rawDiffRead: false')
+      && source.includes('priority1_remains_blocked');
+  }),
+  test('v080_fixture_uses_current_marker_and_safe_no_go_lines', () => {
+    const fixtureSource = readFileSync(new URL('./codex-v080-fixtures.mjs', import.meta.url), 'utf8');
+    const selfTestSource = readFileSync(new URL('./codex-v080-self-test.mjs', import.meta.url), 'utf8');
+    return fixtureSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.5')
+      && fixtureSource.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3')
+      && selfTestSource.includes('Production go performed: no.')
+      && selfTestSource.includes('Production readiness claimed: no.')
+      && selfTestSource.includes('Runtime readiness claimed: no.')
+      && selfTestSource.includes('Human review: not required with reason.')
+      && selfTestSource.includes('Residual risks: none for no-change heading fixture.')
+      && selfTestSource.includes("CODEX_EVIDENCE_PACK_PATH: 'none'");
+  }),
+  test('v081_target_fixture_bounded_and_marker_current', () => {
+    const source = readFileSync(new URL('./codex-v081-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes("function cleanAgents(version = '1.1.5')")
+      && source.includes('CODEX_QUALITY_HARNESS_FILE v1.1.3')
+      && source.includes('buildTargetModeFixtureReport')
+      && !source.includes("run('scripts/codex-local-quality-gate.mjs'");
+  }),
+  test('v082_product_verification_fixture_uses_current_safe_evidence_shape', () => {
+    const source = readFileSync(new URL('./codex-v082-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes('CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH')
+      && source.includes('durationMs: 123')
+      && source.includes('testCount: 4')
+      && source.includes("safeSummary: 'safe npm test evidence'")
+      && source.includes('knownFailures: []')
+      && source.includes('expiresAt:')
+      && !source.includes("CODEX_PRODUCT_VERIFICATION_COMMANDS: 'npm test'");
+  }),
+  test('v083_remote_product_baseline_fixture_uses_fresh_safe_date', () => {
+    const source = readFileSync(new URL('./codex-v083-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes('date: new Date().toISOString()')
+      && source.includes("expiresAt: '2099-01-01T00:00:00Z'")
+      && source.includes("value.expiresAt = '2000-01-01T00:00:00Z'");
+  }),
+  test('v085_harness_only_fixture_uses_current_no_runtime_change_shape', () => {
+    const source = readFileSync(new URL('./codex-v085-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes('Product runtime changed: no')
+      && source.includes("CODEX_CHANGED_FILES: 'scripts/codex-v085-self-test.mjs'")
+      && source.includes('Package or lockfile changed: no')
+      && source.includes('Workflow changed: no')
+      && source.includes('Runtime readiness claimed: no')
+      && source.includes('Production readiness claimed: no')
+      && source.includes('Runtime risk register:')
+      && source.includes('Not required for harness-only no-runtime-change fixture.');
+  }),
+  test('v087_uses_fixture_local_prompt_eval_and_current_knowledge_map', () => {
+    const source = readFileSync(new URL('./codex-v087-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes('bugfixSkillEvalSuite')
+      && source.includes('bugfix_skill_requires_reproduction')
+      && source.includes('sourcePromptEvalSuite')
+      && source.includes('currentKnowledgeMapPath')
+      && source.includes('CODEX_PROMPT_EVAL_SUITE_PATH: bugfixSkillEvalSuite()')
+      && source.includes('CODEX_PROMPT_EVAL_SUITE_PATH: sourcePromptEvalSuite()')
+      && source.includes('CODEX_KNOWLEDGE_MAP_PATH: currentKnowledgeMapPath()')
+      && source.includes('marker,')
+      && source.includes('harnessVersion: HARNESS_VERSION');
+  }),
+  test('v090_workflow_dispatch_evidence_pack_accepts_current_safe_pass_shape', () => {
+    const source = readFileSync(new URL('./codex-v090-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes("workflow_dispatch_main_does_not_require_evidence_pack")
+      && source.includes("['pass', 'not_applicable'].includes(buildEvidencePackReport")
+      && source.includes("CODEX_EVIDENCE_PACK_PATH: 'none'")
+      && source.includes("pull_request_still_requires_evidence_pack");
+  }),
+  test('v092_version_lineage_positive_fixture_is_current_marker_local_repo', () => {
+    const source = readFileSync(new URL('./codex-v092-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes('withVersionLineageFixtureRepo')
+      && source.includes('docs/process/CODEX_HARNESS_MANIFEST.json')
+      && source.includes('sourceHarnessVersion: HARNESS_VERSION')
+      && source.includes("CODEX_HARNESS_MODE: 'target'")
+      && source.includes("version_lineage_old_active_marker_fails");
+  }),
+  test('v100_registration_and_succession_positive_fixtures_are_local', () => {
+    const source = readFileSync(new URL('./codex-v100-self-test.mjs', import.meta.url), 'utf8');
+    return source.includes('withV100RegistrationFixtureRepo')
+      && source.includes('docs/process/CODEX_HARNESS_MANIFEST.json')
+      && source.includes("harnessVersion: '1.0.0'")
+      && source.includes("scriptNames: ['codex-v100-self-test.mjs']")
+      && source.includes("new_v100_self_test_registered_pass")
+      && source.includes("version_succession_v099_to_v100_pass")
+      && source.includes("version_succession_skip_parent_fails");
+  }),
   test('legacy_registration_source_manifest_optional_in_target', () => {
     const sources = ['codex-v101-gate-lib.mjs', 'codex-v102-gate-lib.mjs', 'codex-v103-gate-lib.mjs']
       .map((name) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8'));

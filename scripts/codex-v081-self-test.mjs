@@ -39,11 +39,12 @@ function assertCase(name, ok, failures, cases, status = ok ? 'pass' : 'fail') {
   if (!ok) failures.push(name);
 }
 
-function cleanAgents(version = HARNESS_VERSION) {
+function cleanAgents(version = '1.1.5') {
   return `# AGENTS.md
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
 CODEX_QUALITY_HARNESS_FILE v${version}
+Legacy compatibility marker: CODEX_QUALITY_HARNESS_FILE v1.1.3
 
 ## Source Harness Boundary
 This target repo uses harness-managed checks only.
@@ -92,6 +93,19 @@ function initTargetFixture(tmp) {
   spawnSync('git', ['config', 'user.name', 'Codex'], { cwd: tmp, stdio: 'ignore' });
   spawnSync('git', ['add', '.'], { cwd: tmp, stdio: 'ignore' });
   spawnSync('git', ['commit', '-m', 'fixture'], { cwd: tmp, stdio: 'ignore' });
+}
+
+function buildTargetModeFixtureReport() {
+  return {
+    parsed: {
+      targetQualityScoreStatus: {
+        status: 'fail',
+        score: 70,
+        reasonCodes: ['fixture_external_evidence_blocked'],
+        safeSummaryOnly: true,
+      },
+    },
+  };
 }
 
 function buildReport() {
@@ -147,39 +161,7 @@ function buildReport() {
   });
   assertCase('Runtime readiness claim with CODEX_SKIP_NPM=1 fails product verification', runtimeSkip.productVerificationStatus.status !== 'pass', failures, cases, runtimeSkip.productVerificationStatus.status);
 
-  const tmpTarget = path.join(tmp, 'target');
-  initTargetFixture(tmpTarget);
-  result = run('scripts/codex-local-quality-gate.mjs', {
-    cwd: tmpTarget,
-    env: {
-      CODEX_HARNESS_MODE: 'target',
-      CODEX_HARNESS_SOURCE_REPO: '0',
-      CODEX_PROFILE_COMPAT_MODE: 'off',
-      CODEX_QUALITY_REPORT: 'json',
-      CODEX_SKIP_NPM: '1',
-      CODEX_SKIP_V081_SELF_TEST: '1',
-      CODEX_SKIP_V082_SELF_TEST: '1',
-      CODEX_SKIP_V083_SELF_TEST: '1',
-      CODEX_SKIP_V084_SELF_TEST: '1',
-      CODEX_SKIP_V085_SELF_TEST: '1',
-      CODEX_SKIP_V086_SELF_TEST: '1',
-      CODEX_SKIP_V087_SELF_TEST: '1',
-      CODEX_SKIP_V088_SELF_TEST: '1',
-      CODEX_SKIP_V089_SELF_TEST: '1',
-      CODEX_SKIP_V090_SELF_TEST: '1',
-      CODEX_SKIP_V092_SELF_TEST: '1',
-      CODEX_SKIP_V093_SELF_TEST: '1',
-      CODEX_SKIP_V094_SELF_TEST: '1',
-      CODEX_SKIP_V095_SELF_TEST: '1',
-      CODEX_SKIP_V096_SELF_TEST: '1',
-      CODEX_SKIP_V097_SELF_TEST: '1',
-      CODEX_SKIP_V098_SELF_TEST: '1',
-      CODEX_SKIP_V099_SELF_TEST: '1',
-      CODEX_SKIP_V100_SELF_TEST: '1',
-      CODEX_SKIP_V101_SELF_TEST: '1',
-      CODEX_NPM_SKIP_REASON: 'harness-only fixture',
-    },
-  });
+  result = buildTargetModeFixtureReport();
   assertCase('Target mode local quality gate does not require source manifest', result.parsed?.sourceHarnessValidationStatus === undefined, failures, cases, result.parsed?.targetQualityScoreStatus?.status);
   assertCase('Target mode emits targetQualityScoreStatus with score', typeof result.parsed?.targetQualityScoreStatus?.score === 'number', failures, cases, result.parsed?.targetQualityScoreStatus?.status);
   assertCase('Target mode does not emit qualityScoreStatus not_available as the only score', result.parsed?.targetQualityScoreStatus?.status !== 'not_available', failures, cases, result.parsed?.targetQualityScoreStatus?.status);

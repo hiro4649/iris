@@ -89,7 +89,8 @@ export function buildStructuredEvidencePrBody(options = {}) {
 export function cleanAgentsContext() {
   return [
     '<!-- CODEX_QUALITY_HARNESS_BEGIN -->',
-    'CODEX_QUALITY_HARNESS_FILE v1.0.7',
+    'CODEX_QUALITY_HARNESS_FILE v1.1.5',
+    'Legacy compatibility marker: CODEX_QUALITY_HARNESS_FILE v1.1.3',
     '',
     '## Source Harness Boundary',
     'This repository uses harness-managed checks only.',

@@ -73,12 +73,15 @@ function buildReport() {
   const goNoGoHeading = buildProductionReadinessReport({
     CODEX_EVENT_NAME: 'pull_request',
     CODEX_PR_HEAD_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    CODEX_EVIDENCE_PACK_PATH: 'none',
     CODEX_PR_BODY: [
       'Production Go/No-Go:',
-      'No production readiness claim.',
-      'Risk level: R1',
-      'Human confirmation needed: not required with reason - cleanup only.',
-      'Residual risks: none beyond cleanup review.',
+      'Production go performed: no.',
+      'Production readiness claimed: no.',
+      'Runtime readiness claimed: no.',
+      'Human review: not required with reason.',
+      'Residual risks: none for no-change heading fixture.',
+      'priority1 remains BLOCKED.',
     ].join('\n'),
   });
   assertCase('Production Go/No-Go heading alone is not a go claim', goNoGoHeading.productionReadinessStatus.status === 'pass', failures, cases, goNoGoHeading.productionReadinessStatus.status);

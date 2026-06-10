@@ -140,7 +140,7 @@ function baseline(result = 'pass') {
     baselineType: 'npm_test',
     commands: [{ name: 'npm test', result }],
     result,
-    date: '2026-05-24T00:00:00Z',
+    date: new Date().toISOString(),
     source: 'fixture',
     safeSummary: 'safe baseline summary',
     knownFailures: result === 'fail' ? ['safe_known_failure'] : [],
