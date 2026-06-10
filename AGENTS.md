@@ -1,16 +1,16 @@
 # AGENTS.md
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.1.5
+CODEX_QUALITY_HARNESS_FILE v1.1.6
 
 ## Prime Directive
 
 Ship the smallest correct change that increases product value without weakening
 truth, trust, security, or maintainability.
 
-## Source Harness Boundary
+## Target Harness Boundary
 
-This repository is a downstream project consuming Codex Harness v1.1.5. Work here must stay within the explicitly authorized repo and task scope. Do not edit Source HARNESS from target repo work. Product/runtime/package/workflow changes require separate owner scope.
+This repository is a downstream project consuming Codex Harness v1.1.6. Work here must stay within the explicitly authorized repo and task scope. Do not edit Source HARNESS from target repo work. Product/runtime/package/workflow changes require separate owner scope.
 Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` and
 `docs/process/code_review.md` as the stable method references.
 For v1.0.1 through v1.0.3 outcome, recovery, fixture isolation, clean-main,
@@ -67,6 +67,13 @@ history, and Skill Profile IDs over long forbidden text. Policy Hooks fail
 closed. PR bodies are rendered human output, not machine decision sources.
 Same-head required checks remain required. Raw logs, 8-session operation, and
 product/harness repair mixing remain forbidden.
+For v1.1.6 Decision Capsule, Evidence Precedence Kernel, and Token Hard Budget,
+use `docs/process/CODEX_V116_SPEC.md`. Decision Capsule is the first decision
+source. Evidence Precedence Kernel decides artifact priority. PR body is not
+machine evidence. Token Hard Budget is enforced. Policy/profile IDs replace
+long forbidden text. Same-head required checks remain mandatory. Raw logs and
+8-session are forbidden. Product/harness repair separation is required. Target
+rollout is not part of Source body tasks.
 
 ## Plan-First Rule
 
