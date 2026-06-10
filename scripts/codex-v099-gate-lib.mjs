@@ -112,11 +112,13 @@ export function buildRemoteNpmDiagnosticNormalizationReport(input = parseJson(pr
     input.productEvidence,
     input.formalEvidence,
     parseJson(process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON),
+    readMaybeJson(input.evidencePath || process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_PATH),
   );
   const diagnostic = firstSafeObject(
     input.remoteNpmDiagnostic,
     input.diagnostic,
     parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON),
+    readMaybeJson(input.diagnosticPath || process.env.CODEX_NPM_TEST_SAFE_SUMMARY_PATH),
   );
   const reasonCodes = [];
   const diagnosticStatus = statusOf(diagnostic) || 'missing';

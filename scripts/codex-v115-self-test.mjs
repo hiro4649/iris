@@ -2,7 +2,9 @@
 // CODEX_QUALITY_HARNESS_FILE v1.1.5
 
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { buildPreExitDecisionArtifacts } from './codex-local-quality-gate.mjs';
 import { renderPrEvidenceBlocks } from './codex-pr-evidence-block-renderer.mjs';
 import { summarizeSafeReport } from './codex-safe-summary-pick.mjs';
@@ -203,6 +205,19 @@ const cases = [
       && !serialized.includes('productionReady')
       && !serialized.includes('runtimeReady')
       && !serialized.includes('priority1Resolved');
+  }),
+  test('remote_npm_normalization_reads_safe_artifact_paths', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codex-v115-npm-normalize-'));
+    try {
+      const evidencePath = join(dir, 'product-evidence.json');
+      const diagnosticPath = join(dir, 'npm-diagnostic.json');
+      writeFileSync(evidencePath, JSON.stringify({ status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true }));
+      writeFileSync(diagnosticPath, JSON.stringify({ diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, safeSummaryOnly: true }));
+      const normalized = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, evidencePath, diagnosticPath });
+      return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'pass';
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }),
   test('best_of_n_deterministic_bugfix_skip_is_structured', () => {
     const source = readFileSync(new URL('./codex-best-of-n-evidence-gate.mjs', import.meta.url), 'utf8');
