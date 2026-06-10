@@ -57,7 +57,12 @@ export function buildV099SelfTestReport() {
   assertCase('missing_reason_summary_fails', statusOf(report, 'safeArtifactBundleCompletenessStatus') === 'fail', failures, cases, statusOf(report, 'safeArtifactBundleCompletenessStatus'), reasonsOf(report, 'safeArtifactBundleCompletenessStatus'));
   report = buildFormalEvidencePrecedenceReport({ forceCheck: true, productRelevant: true, formalEvidence: passEvidence, remoteBaseline: passEvidence, remoteNpmDiagnostic: passEvidence, sameHeadMatch: true, npmFailure: true });
   assertCase('npm_failure_remains_fail', statusOf(report, 'formalEvidencePrecedenceStatus') === 'fail', failures, cases, statusOf(report, 'formalEvidencePrecedenceStatus'), reasonsOf(report, 'formalEvidencePrecedenceStatus'));
-  report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, npmExecuted: true, npmExitCode: 0, formalEvidence: passEvidence, remoteBaseline: passEvidence, diagnosticStatus: 'superseded_by_formal_evidence' });
+  report = buildRemoteNpmDiagnosticNormalizationReport({
+    forceCheck: true,
+    productRelevant: true,
+    productEvidence: { status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true },
+    remoteNpmDiagnostic: { status: 'pass', diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, safeSummaryOnly: true },
+  });
   assertCase('remote_npm_diagnostic_normalized_when_formal_evidence_pass', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'pass', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));
   report = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, npmExecuted: false });
   assertCase('remote_npm_not_executed_emitted_when_npm_not_run', statusOf(report, 'remoteNpmDiagnosticNormalizationStatus') === 'fail', failures, cases, statusOf(report, 'remoteNpmDiagnosticNormalizationStatus'), reasonsOf(report, 'remoteNpmDiagnosticNormalizationStatus'));

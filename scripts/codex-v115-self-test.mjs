@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { buildPreExitDecisionArtifacts } from './codex-local-quality-gate.mjs';
 import { renderPrEvidenceBlocks } from './codex-pr-evidence-block-renderer.mjs';
 import { summarizeSafeReport } from './codex-safe-summary-pick.mjs';
+import { buildRemoteNpmDiagnosticNormalizationReport } from './codex-v099-gate-lib.mjs';
 import {
   buildDecisionCoreV2,
   buildNoDeltaCloseout,
@@ -130,6 +131,78 @@ const cases = [
       && source.includes('not_required_harness_only')
       && source.includes('present_harness_only')
       && source.includes('Full verification completed');
+  }),
+  test('remote_npm_product_evidence_and_safe_diagnostic_normalize_pass', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true },
+      remoteNpmDiagnostic: { diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, safeSummaryOnly: true },
+    });
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'pass'
+      && normalized.remoteNpmDiagnosticNormalizationStatus.npmExecuted === true
+      && normalized.remoteNpmDiagnosticNormalizationStatus.remoteNpmDiagnosticPresent === true;
+  }),
+  test('remote_npm_product_evidence_with_missing_diagnostic_fails', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true },
+    });
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'fail'
+      && normalized.remoteNpmDiagnosticNormalizationStatus.reasonCodes.includes('remote_npm_diagnostic_normalization_failed');
+  }),
+  test('remote_npm_product_evidence_false_fails_without_remote_npm', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'fail', evidenceType: 'remote_npm_test', npmExecuted: false, safeSummaryOnly: true },
+      remoteNpmDiagnostic: { diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, safeSummaryOnly: true },
+    });
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'fail'
+      && normalized.remoteNpmDiagnosticNormalizationStatus.reasonCodes.includes('remote_npm_not_executed_for_product_pr');
+  }),
+  test('local_npm_pass_does_not_satisfy_remote_npm_normalization', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'pass', evidenceType: 'local_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true },
+      remoteNpmDiagnostic: { diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, safeSummaryOnly: true },
+    });
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'fail'
+      && normalized.remoteNpmDiagnosticNormalizationStatus.reasonCodes.includes('remote_npm_not_executed_for_product_pr');
+  }),
+  test('pending_after_push_is_not_remote_npm_pass', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'pending_after_push', evidenceType: 'remote_npm_test', npmExecuted: false, safeSummaryOnly: true },
+    });
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'fail'
+      && normalized.remoteNpmDiagnosticNormalizationStatus.reasonCodes.includes('remote_npm_not_executed_for_product_pr');
+  }),
+  test('failed_remote_npm_diagnostic_fails_normalization', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true },
+      remoteNpmDiagnostic: { status: 'fail', diagnosticType: 'remote_npm_diagnostic', npmExitCode: 1, safeSummaryOnly: true },
+    });
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'fail'
+      && normalized.remoteNpmDiagnosticNormalizationStatus.reasonCodes.includes('remote_npm_diagnostic_normalization_failed');
+  }),
+  test('remote_npm_normalization_preserves_blocked_readiness_claims', () => {
+    const normalized = buildRemoteNpmDiagnosticNormalizationReport({
+      forceCheck: true,
+      productRelevant: true,
+      productEvidence: { status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true },
+      remoteNpmDiagnostic: { diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, durationMs: 1200, testCountDetected: 470, commandClass: 'npm_test', safeSummaryOnly: true },
+    });
+    const serialized = JSON.stringify(normalized);
+    return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'pass'
+      && !serialized.includes('productionReady')
+      && !serialized.includes('runtimeReady')
+      && !serialized.includes('priority1Resolved');
   }),
   test('best_of_n_deterministic_bugfix_skip_is_structured', () => {
     const source = readFileSync(new URL('./codex-best-of-n-evidence-gate.mjs', import.meta.url), 'utf8');

@@ -23,6 +23,13 @@ function readMaybeJson(file) {
 function statusOf(value) { return value?.status || value?.productVerificationEvidenceStatus?.status || value?.remoteProductBaselineStatus?.status || value?.remoteNpmDiagnosticStatus?.status || ''; }
 function isPassLike(value) { return ['pass', 'superseded_by_formal_evidence'].includes(statusOf(value)); }
 function isFailLike(value) { return statusOf(value) === 'fail'; }
+function hasSafeObject(value) { return Boolean(value && typeof value === 'object' && !value.invalidInput); }
+function firstSafeObject(...values) { return values.find(hasSafeObject) || null; }
+function safeNumber(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 function isPlaceholder(value) {
   if (!value || typeof value !== 'object') return false;
   const type = String(value.evidenceType || value.baselineType || value.diagnosticType || '').toLowerCase();
@@ -101,13 +108,35 @@ export function buildPlaceholderOnlyEvidenceReport(input = parseJson(process.env
 export function buildRemoteNpmDiagnosticNormalizationReport(input = parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_NORMALIZATION_JSON) || {}) {
   const productRelevant = productRelevantFromInput(input);
   if (!parseBool(input.forceCheck) && !productRelevant) return notApplicable('remoteNpmDiagnosticNormalizationStatus', 'remote_npm_diagnostic_normalization_not_applicable');
+  const productEvidence = firstSafeObject(
+    input.productEvidence,
+    input.formalEvidence,
+    parseJson(process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON),
+  );
+  const diagnostic = firstSafeObject(
+    input.remoteNpmDiagnostic,
+    input.diagnostic,
+    parseJson(process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON),
+  );
   const reasonCodes = [];
-  const npmExecuted = parseBool(input.npmExecuted);
-  const npmExitCode = Number(input.npmExitCode ?? 0);
+  const diagnosticStatus = statusOf(diagnostic) || 'missing';
+  const diagnosticExitCode = safeNumber(diagnostic?.npmExitCode);
+  const productExitCode = safeNumber(productEvidence?.npmExitCode);
+  const inputExitCode = safeNumber(input.npmExitCode);
+  const evidenceType = String(productEvidence?.evidenceType || '').toLowerCase();
+  const remoteProductNpmEvidence = evidenceType === 'remote_npm_test';
+  const npmExecuted = input.npmExecuted === undefined
+    ? (remoteProductNpmEvidence && (parseBool(productEvidence?.npmExecuted) || isPassLike(productEvidence)))
+    : parseBool(input.npmExecuted);
+  const npmExitCode = inputExitCode ?? productExitCode ?? diagnosticExitCode ?? 0;
+  const diagnosticPresent = hasSafeObject(diagnostic);
+  const diagnosticPass = isPassLike(diagnostic) || (diagnostic?.diagnosticType === 'remote_npm_diagnostic' && diagnosticExitCode === 0);
   if (productRelevant && !npmExecuted) reasonCodes.push('remote_npm_not_executed_for_product_pr');
+  if (productRelevant && npmExecuted && !diagnosticPresent) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
+  if (productRelevant && npmExecuted && diagnosticPresent && !diagnosticPass) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
   if (npmExitCode !== 0 || parseBool(input.npmFailMarkedPass)) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
   if (parseBool(input.diagnosticPendingFinalPass) || parseBool(input.diagnosticMissingNoFormalEvidence) || parseBool(input.remoteNpmNotExecutedEmittedDespiteExecuted)) reasonCodes.push('remote_npm_diagnostic_normalization_failed');
-  return safe('remoteNpmDiagnosticNormalizationStatus', reasonCodes.length ? 'fail' : 'pass', { reasonCodes, productRelevant, npmExecuted, npmExitCode });
+  return safe('remoteNpmDiagnosticNormalizationStatus', reasonCodes.length ? 'fail' : 'pass', { reasonCodes, productRelevant, npmExecuted, npmExitCode, remoteNpmDiagnosticPresent: diagnosticPresent, remoteNpmDiagnosticStatus: diagnosticStatus });
 }
 
 export function buildLegacySelfTestAdvisoryReport(input = parseJson(process.env.CODEX_LEGACY_SELF_TEST_ADVISORY_JSON) || {}) {
