@@ -219,6 +219,27 @@ const cases = [
       rmSync(dir, { recursive: true, force: true });
     }
   }),
+  test('remote_npm_normalization_prefers_artifact_paths_over_status_summaries', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codex-v115-npm-normalize-'));
+    const previousEvidence = process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON;
+    const previousDiagnostic = process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON;
+    try {
+      const evidencePath = join(dir, 'product-evidence.json');
+      const diagnosticPath = join(dir, 'npm-diagnostic.json');
+      writeFileSync(evidencePath, JSON.stringify({ status: 'pass', evidenceType: 'remote_npm_test', npmExecuted: true, npmExitCode: 0, safeSummaryOnly: true }));
+      writeFileSync(diagnosticPath, JSON.stringify({ diagnosticType: 'remote_npm_diagnostic', npmExitCode: 0, safeSummaryOnly: true }));
+      process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON = JSON.stringify({ status: 'fail', safeSummaryOnly: true });
+      process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON = JSON.stringify({ status: 'fail', safeSummaryOnly: true });
+      const normalized = buildRemoteNpmDiagnosticNormalizationReport({ forceCheck: true, productRelevant: true, evidencePath, diagnosticPath });
+      return normalized.remoteNpmDiagnosticNormalizationStatus.status === 'pass';
+    } finally {
+      if (previousEvidence === undefined) delete process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON;
+      else process.env.CODEX_PRODUCT_VERIFICATION_EVIDENCE_JSON = previousEvidence;
+      if (previousDiagnostic === undefined) delete process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON;
+      else process.env.CODEX_REMOTE_NPM_DIAGNOSTIC_JSON = previousDiagnostic;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }),
   test('best_of_n_deterministic_bugfix_skip_is_structured', () => {
     const source = readFileSync(new URL('./codex-best-of-n-evidence-gate.mjs', import.meta.url), 'utf8');
     return source.includes('hasDeterministicBugfixSkipEvidence')
