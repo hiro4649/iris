@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.7
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import { buildVersionLineageReport } from './codex-version-lineage-gate.mjs';
@@ -18,6 +21,44 @@ function assertCase(id, condition, failures, cases, actualStatus = 'pass', reaso
   if (!condition) failures.push(id);
 }
 
+function writeFixtureFile(root, relativePath, text) {
+  const file = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+}
+
+function withVersionLineageFixture(fn) {
+  const previousCwd = process.cwd();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v092-lineage-'));
+  const manifest = {
+    marker,
+    harnessVersion: HARNESS_VERSION,
+    sourceHarnessVersion: HARNESS_VERSION,
+    scriptNames: [
+      'codex-v092-self-test.mjs',
+      'codex-v093-self-test.mjs',
+      'codex-v094-self-test.mjs',
+      'codex-v095-self-test.mjs',
+    ],
+  };
+  try {
+    writeFixtureFile(root, 'README.md', `${marker}\nVersion: v${HARNESS_VERSION}\n`);
+    writeFixtureFile(root, 'CODEX_SOURCE_HARNESS_MANIFEST.json', JSON.stringify(manifest, null, 2));
+    writeFixtureFile(root, 'docs/process/CODEX_KNOWLEDGE_MAP.json', `${marker}\n`);
+    writeFixtureFile(root, 'scripts/codex-v080-lib.mjs', `${marker}\nconst HARNESS_VERSION = '${HARNESS_VERSION}';\n`);
+    writeFixtureFile(root, 'scripts/codex-local-quality-gate.mjs', `${marker}\nconst HARNESS_VERSION = '${HARNESS_VERSION}';\n`);
+    writeFixtureFile(root, 'scripts/codex-v092-self-test.mjs', `${marker}\n`);
+    writeFixtureFile(root, 'scripts/codex-v094-self-test.mjs', `${marker}\n`);
+    writeFixtureFile(root, 'scripts/codex-v095-self-test.mjs', `${marker}\n`);
+    writeFixtureFile(root, '.github/workflows/quality-gate.yml', `${marker}\n`);
+    process.chdir(root);
+    return fn();
+  } finally {
+    process.chdir(previousCwd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function prEnv(extra = {}) {
   return {
     CODEX_EVENT_NAME: 'pull_request',
@@ -33,7 +74,7 @@ function buildV092SelfTestReport() {
   const failures = [];
   const cases = [];
 
-  let report = buildVersionLineageReport({ CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' });
+  let report = withVersionLineageFixture(() => buildVersionLineageReport({ CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HARNESS_MODE: 'core' }));
   assertCase('version_lineage_all_active_markers_match_092', report.versionLineageStatus.status === 'pass', failures, cases, report.versionLineageStatus.status, report.versionLineageStatus.reasonCodes);
   const oldMarkerFixtureFails = !/^0\.9\.2$/.test('0.9.0');
   assertCase('version_lineage_old_active_marker_fails', oldMarkerFixtureFails, failures, cases, 'fail', ['active_marker_version_mismatch']);

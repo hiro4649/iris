@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.7
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import * as gates from './codex-v103-gate-lib.mjs';
 
@@ -84,7 +87,39 @@ const CASES = [
   ['approval_gate_required_for_tx_or_deploy', gates.buildApprovalGateReport, { txWithoutApproval: true }, 'approvalGateStatus', 'fail'],
 ];
 
+function writeFixtureFile(root, filePath, content) {
+  const target = path.join(root, filePath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, content);
+}
+
+function withV103RegistrationFixture(callback) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v103-registration-'));
+  const previousCwd = process.cwd();
+  try {
+    writeFixtureFile(root, 'scripts/codex-v103-self-test.mjs', 'v103SelfTestStatus\n');
+    writeFixtureFile(root, 'scripts/codex-local-quality-gate.mjs', 'v103SelfTestStatus\n');
+    writeFixtureFile(
+      root,
+      'CODEX_SOURCE_HARNESS_MANIFEST.json',
+      `${JSON.stringify({ scriptNames: ['codex-v103-self-test.mjs'] }, null, 2)}\n`,
+    );
+    process.chdir(root);
+    return callback();
+  } finally {
+    process.chdir(previousCwd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 const results = CASES.map(([name, builder, input, key, expected]) => {
+  if (name === 'v103_self_test_registered_pass') {
+    return withV103RegistrationFixture(() => {
+      const report = builder(input);
+      const actual = report[key]?.status || report.status;
+      return { name, status: actual === expected ? 'pass' : 'fail', expected, actual, safeSummaryOnly: true };
+    });
+  }
   const report = builder(input);
   const actual = report[key]?.status || report.status;
   return { name, status: actual === expected ? 'pass' : 'fail', expected, actual, safeSummaryOnly: true };

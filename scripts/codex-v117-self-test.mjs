@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.1.7
 
+import { readFileSync } from 'node:fs';
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   OPERATOR_STATUS_KEYS,
@@ -104,6 +105,87 @@ const cases = [
   test('validation_fast_path_source_fixture', () => buildV117Report({ fastPathEligible: true }).validationFastPathStatus?.status === 'pass'),
   test('verified_memory_rules_spec_fixture', () => buildV117Report({ memoryConsulted: false }).verifiedMemoryRulesStatus?.status === 'pass'),
   test('repair_experiment_ledger_spec_fixture', () => buildV117Report({ repairExperimentCount: 0 }).repairExperimentLedgerStatus?.status === 'pass'),
+  test('method_gate_accepts_current_compact_pr_template_shape', () => {
+    const methodGate = readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8');
+    const prTemplate = readFileSync('.github/pull_request_template.md', 'utf8');
+    const agents = readFileSync('AGENTS.md', 'utf8');
+    const runTests = readFileSync('scripts/run-tests.js', 'utf8');
+    const v080Lib = readFileSync('scripts/codex-v080-lib.mjs', 'utf8');
+    const agentsContextGate = readFileSync('scripts/codex-agents-context-gate.mjs', 'utf8');
+    const v080SelfTest = readFileSync('scripts/codex-v080-self-test.mjs', 'utf8');
+    const v081SelfTest = readFileSync('scripts/codex-v081-self-test.mjs', 'utf8');
+    const v082SelfTest = readFileSync('scripts/codex-v082-self-test.mjs', 'utf8');
+    const v083SelfTest = readFileSync('scripts/codex-v083-self-test.mjs', 'utf8');
+    const v085SelfTest = readFileSync('scripts/codex-v085-self-test.mjs', 'utf8');
+    const v087SelfTest = readFileSync('scripts/codex-v087-self-test.mjs', 'utf8');
+    const v090SelfTest = readFileSync('scripts/codex-v090-self-test.mjs', 'utf8');
+    const v092SelfTest = readFileSync('scripts/codex-v092-self-test.mjs', 'utf8');
+    const v100SelfTest = readFileSync('scripts/codex-v100-self-test.mjs', 'utf8');
+    const v101SelfTest = readFileSync('scripts/codex-v101-self-test.mjs', 'utf8');
+    const v102SelfTest = readFileSync('scripts/codex-v102-self-test.mjs', 'utf8');
+    const v103SelfTest = readFileSync('scripts/codex-v103-self-test.mjs', 'utf8');
+    return (
+      /HARNESS_VERSION = '1\.1\.7'/.test(v080Lib) &&
+      /CODEX_QUALITY_HARNESS_FILE v\$\{HARNESS_VERSION\}/.test(agentsContextGate) &&
+      /process\.chdir\(tmp\)/.test(v080SelfTest) &&
+      /process\.chdir\(previousCwd\)/.test(v080SelfTest) &&
+      /process\.chdir\(tmp\)/.test(v081SelfTest) &&
+      /buildEvidenceIntegrityReport\(structuredEnv\)/.test(v081SelfTest) &&
+      /2099-01-01T00:00:00Z/.test(v082SelfTest) &&
+      /2099-01-01T00:00:00Z/.test(v083SelfTest) &&
+      /CODEX_V083_RUN_LEGACY_RECHECKS/.test(v083SelfTest) &&
+      /CODEX_CHANGED_FILES: 'scripts\/codex-local-quality-gate\.mjs'/.test(v085SelfTest) &&
+      /function withTempCwd/.test(v087SelfTest) &&
+      /function promptEvalFixture/.test(v087SelfTest) &&
+      /function knowledgeMapFixture/.test(v087SelfTest) &&
+      /schemaVersion: HARNESS_VERSION/.test(v087SelfTest) &&
+      /CODEX_PROMPT_EVAL_SUITE_PATH: tempJson\(promptEvalFixture\(\)\)/.test(v087SelfTest) &&
+      /CODEX_KNOWLEDGE_MAP_PATH: tempJson\(knowledgeMapFixture\(\)\)/.test(v087SelfTest) &&
+      /withTempCwd\(\(\) => buildEvidencePackReport/.test(v087SelfTest) &&
+      /function withTempCwd/.test(v090SelfTest) &&
+      /\['not_applicable', 'pass'\]\.includes\(workflowDispatchEvidenceStatus\)/.test(v090SelfTest) &&
+      /const strictPrEvidenceStatus = withTempCwd/.test(v090SelfTest) &&
+      /function withVersionLineageFixture/.test(v092SelfTest) &&
+      /Version: v\$\{HARNESS_VERSION\}/.test(v092SelfTest) &&
+      /codex-v095-self-test\.mjs/.test(v092SelfTest) &&
+      /withVersionLineageFixture\(\(\) => buildVersionLineageReport/.test(v092SelfTest) &&
+      /function withV100RegistrationFixture/.test(v100SelfTest) &&
+      /CODEX_V100_EVAL_CASES\.json/.test(v100SelfTest) &&
+      /new_v100_self_test_registered_pass/.test(v100SelfTest) &&
+      /version_succession_v099_to_v100_pass/.test(v100SelfTest) &&
+      /function withV101RegistrationFixture/.test(v101SelfTest) &&
+      /codex-v101-self-test\.mjs/.test(v101SelfTest) &&
+      /v101SelfTestStatus/.test(v101SelfTest) &&
+      /name === 'v101_self_test_registered_pass'/.test(v101SelfTest) &&
+      /function withV102RegistrationFixture/.test(v102SelfTest) &&
+      /codex-v102-self-test\.mjs/.test(v102SelfTest) &&
+      /v102SelfTestStatus/.test(v102SelfTest) &&
+      /name === 'v102_self_test_registered_pass'/.test(v102SelfTest) &&
+      /function withV103RegistrationFixture/.test(v103SelfTest) &&
+      /codex-v103-self-test\.mjs/.test(v103SelfTest) &&
+      /v103SelfTestStatus/.test(v103SelfTest) &&
+      /name === 'v103_self_test_registered_pass'/.test(v103SelfTest) &&
+      /HARNESS_VERSION = '1\.0\.7'/.test(methodGate) &&
+      /profileTemplateMarker = 'CODEX_QUALITY_HARNESS_FILE v1\.0\.8'/.test(methodGate) &&
+      /agentsDoctrineMarker = 'CODEX_QUALITY_HARNESS_FILE v1\.1\.7'/.test(methodGate) &&
+      /Owner Summary/i.test(prTemplate) &&
+      /Evidence Source/i.test(prTemplate) &&
+      /Risk And Readiness/i.test(prTemplate) &&
+      /CODEX_QUALITY_HARNESS_FILE v1\.0\.8/.test(prTemplate) &&
+      /CODEX_QUALITY_HARNESS_FILE v1\.1\.7/.test(agents) &&
+      /Array\.from\(\{ length: 38 \}/.test(runTests) &&
+      /CODEX_SKIP_V\$\{version\}_SELF_TEST/.test(runTests) &&
+      /collectScriptImports/.test(runTests) &&
+      /collectScriptImports\("scripts\/codex-local-quality-gate\.mjs"\)/.test(runTests) &&
+      /collectScriptImports\("scripts\/codex-v117-self-test\.mjs"\)/.test(runTests) &&
+      /buildMethodGateFixtureReport/.test(runTests) &&
+      /fixture_product_verification_required/.test(runTests) &&
+      /Owner Summary/i.test(methodGate) &&
+      /Evidence Source/i.test(methodGate) &&
+      /Risk And Readiness/i.test(methodGate) &&
+      !/prTemplate:\s*\[\/Codex Method Compliance/i.test(methodGate)
+    );
+  }),
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');

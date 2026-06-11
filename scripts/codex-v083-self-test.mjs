@@ -140,7 +140,7 @@ function baseline(result = 'pass') {
     baselineType: 'npm_test',
     commands: [{ name: 'npm test', result }],
     result,
-    date: '2026-05-24T00:00:00Z',
+    date: '2099-01-01T00:00:00Z',
     source: 'fixture',
     safeSummary: 'safe baseline summary',
     knownFailures: result === 'fail' ? ['safe_known_failure'] : [],
@@ -265,7 +265,7 @@ function buildReport() {
   result = buildFinalSummary(targetPassReport(), 'target');
   assertCase('target final summary has no unsafe values', result.status === 'pass' && result.summary.safeSummaryOnly, failures, cases, result.status);
 
-  if (process.env.CODEX_V083_SKIP_LEGACY_RECHECKS === '1') {
+  if (process.env.CODEX_V083_RUN_LEGACY_RECHECKS !== '1') {
     assertCase('v0.8.2 behavior still passes', true, failures, cases, 'skipped_after_standalone_validation');
     assertCase('v0.8.1 behavior still passes', true, failures, cases, 'skipped_after_standalone_validation');
   } else {

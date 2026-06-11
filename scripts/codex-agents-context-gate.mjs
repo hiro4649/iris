@@ -7,6 +7,8 @@ import {
   simpleStatus,
   writeJsonReport,
   exitFor,
+  HARNESS_VERSION,
+  marker,
 } from './codex-v080-lib.mjs';
 
 const requiredPhrases = [
@@ -45,7 +47,7 @@ function buildReport() {
   else {
     const blocks = harnessBlocks(text);
     harnessBlockCount = blocks.length;
-    currentHarnessBlockPresent = blocks.some((block) => /CODEX_QUALITY_HARNESS_FILE v1\.1\.3/.test(block));
+    currentHarnessBlockPresent = blocks.some((block) => block.includes(`CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`));
     const mojibake = mojibakeFindings(text);
     mojibakeDetected = mojibake.length > 0;
     if (mojibakeDetected) reasonCodes.push('agents_context_entire_file_mojibake');

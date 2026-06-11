@@ -70,17 +70,24 @@ function buildReport() {
   result = runScript('scripts/codex-golden-set-gate.mjs');
   assertCase('Golden Set positive and negative fixtures pass', result.parsed?.goldenSetStatus?.status === 'pass', failures, cases, result.parsed?.goldenSetStatus?.status);
 
-  const goNoGoHeading = buildProductionReadinessReport({
-    CODEX_EVENT_NAME: 'pull_request',
-    CODEX_PR_HEAD_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    CODEX_PR_BODY: [
-      'Production Go/No-Go:',
-      'No production readiness claim.',
-      'Risk level: R1',
-      'Human confirmation needed: not required with reason - cleanup only.',
-      'Residual risks: none beyond cleanup review.',
-    ].join('\n'),
-  });
+  const previousCwd = process.cwd();
+  let goNoGoHeading;
+  try {
+    process.chdir(tmp);
+    goNoGoHeading = buildProductionReadinessReport({
+      CODEX_EVENT_NAME: 'pull_request',
+      CODEX_PR_HEAD_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      CODEX_PR_BODY: [
+        'Production Go/No-Go:',
+        'No production readiness claim.',
+        'Risk level: R1',
+        'Human confirmation needed: not required with reason - cleanup only.',
+        'Residual risks: none beyond cleanup review.',
+      ].join('\n'),
+    });
+  } finally {
+    process.chdir(previousCwd);
+  }
   assertCase('Production Go/No-Go heading alone is not a go claim', goNoGoHeading.productionReadinessStatus.status === 'pass', failures, cases, goNoGoHeading.productionReadinessStatus.status);
 
   result = runScript('scripts/codex-safe-trace-schema-gate.mjs', { cwd: tmp });

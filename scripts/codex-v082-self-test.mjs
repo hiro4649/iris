@@ -228,7 +228,7 @@ function buildReport() {
       baselineType: 'npm_test',
       commands: [{ name: 'npm test', result: 'pass' }],
       result: 'pass',
-      date: '2026-05-24T00:00:00Z',
+      date: '2099-01-01T00:00:00Z',
       source: 'fixture',
       safeSummary: 'safe baseline summary',
       knownFailures: [],

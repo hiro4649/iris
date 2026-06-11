@@ -282,11 +282,20 @@ END_CODEX_EVIDENCE_PACK_JSON`;
     CODEX_PR_HEAD_SHA: structuredHead,
     CODEX_PR_BODY: structuredEvidenceBody,
   };
-  const productionStructured = buildProductionReadinessReport(structuredEnv);
+  const previousCwd = process.cwd();
+  let productionStructured;
+  let integrityStructured;
+  let lintStructured;
+  try {
+    process.chdir(tmp);
+    productionStructured = buildProductionReadinessReport(structuredEnv);
+    integrityStructured = buildEvidenceIntegrityReport(structuredEnv);
+    lintStructured = buildPrBodyLintReport(structuredEnv, ['node', 'codex-pr-body-lint.mjs']);
+  } finally {
+    process.chdir(previousCwd);
+  }
   assertCase('Production readiness accepts PR body structured evidence pack source', productionStructured.productionReadinessStatus.status === 'pass', failures, cases, productionStructured.productionReadinessStatus.status);
-  const integrityStructured = buildEvidenceIntegrityReport(structuredEnv);
   assertCase('Evidence integrity accepts PR body structured evidence pack source', integrityStructured.evidenceIntegrityStatus.status === 'pass', failures, cases, integrityStructured.evidenceIntegrityStatus.status);
-  const lintStructured = buildPrBodyLintReport(structuredEnv, ['node', 'codex-pr-body-lint.mjs']);
   assertCase('PR body lint accepts PR body structured evidence pack source', lintStructured.prBodyLintStatus.status === 'pass', failures, cases, lintStructured.prBodyLintStatus.status);
 
   const docsOnly = buildProductVerificationReport({

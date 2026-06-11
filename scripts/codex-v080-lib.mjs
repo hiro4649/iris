@@ -8,7 +8,7 @@ import path from 'node:path';
 
 
 
-export const HARNESS_VERSION = '1.0.5';
+export const HARNESS_VERSION = '1.1.7';
 
 export const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
 

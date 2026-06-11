@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 // CODEX_QUALITY_HARNESS_FILE v1.0.7
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marker, HARNESS_VERSION, scanObjectForUnsafe, writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import * as gates from './codex-v100-gate-lib.mjs';
@@ -511,13 +514,40 @@ const CASES = [
     "pass"
   ]
 ];
+function writeFixtureFile(root, relativePath, text) {
+  const file = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+}
+function withV100RegistrationFixture(fn) {
+  const previousCwd = process.cwd();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v100-registration-'));
+  try {
+    writeFixtureFile(root, 'README.md', 'Version: v1.0.0\n');
+    writeFixtureFile(root, 'CODEX_SOURCE_HARNESS_MANIFEST.json', JSON.stringify({
+      harnessVersion: '1.0.0',
+      scriptNames: ['codex-v100-self-test.mjs'],
+    }, null, 2));
+    writeFixtureFile(root, 'scripts/codex-v099-self-test.mjs', 'v099SelfTestStatus\n');
+    writeFixtureFile(root, 'scripts/codex-v100-self-test.mjs', 'v100SelfTestStatus\n');
+    writeFixtureFile(root, 'scripts/codex-local-quality-gate.mjs', 'v099SelfTestStatus\nv100SelfTestStatus\n');
+    writeFixtureFile(root, 'docs/process/CODEX_V100_EVAL_CASES.json', '{"cases":[]}\n');
+    process.chdir(root);
+    return fn();
+  } finally {
+    process.chdir(previousCwd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 function statusOf(report, key) { return report[key]?.status || report.status || 'missing'; }
 function reasonsOf(report, key) { return report[key]?.reasonCodes || []; }
 export function buildV100SelfTestReport() {
   const failures = [];
   const out = [];
   for (const [id, builderName, input, key, expected] of CASES) {
-    const report = gates[builderName](input);
+    const report = ['new_v100_self_test_registered_pass', 'version_succession_v099_to_v100_pass'].includes(id)
+      ? withV100RegistrationFixture(() => gates[builderName](input))
+      : gates[builderName](input);
     const actualStatus = statusOf(report, key);
     const ok = actualStatus === expected;
     out.push({ caseIndex: out.length + 1, status: ok ? 'pass' : 'fail', actualStatus, reasonCodes: reasonsOf(report, key), safeSummaryOnly: true });
