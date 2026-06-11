@@ -1,4 +1,4 @@
-# CODEX_QUALITY_HARNESS_FILE v1.0.7
+# CODEX_QUALITY_HARNESS_FILE v1.1.8
 name: quality-gate
 
 on:
@@ -147,6 +147,9 @@ jobs:
         shell: bash
         env:
           CODEX_QUALITY_REPORT: "json"
+          CODEX_SAFE_ARTIFACT_DIR: ${{ github.workspace }}
+          CODEX_EXECUTION_MODE: target_pr
+          CODEX_TERMINAL_ACTION: create_pr_only
           CODEX_OPENAI_METHOD_REPORT: "json"
           CODEX_EVENT_NAME: ${{ github.event_name }}
           CODEX_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
@@ -363,7 +366,12 @@ jobs:
         with:
           name: codex-quality-gate-safe-artifacts
           path: |
-            codex-quality-gate-safe-summary.json`n            codex-decision-capsule.safe.json`n            codex-artifact-consistency.safe.json`n            codex-minimal-blockers.safe.json
+            codex-quality-gate-safe-summary.json
+            codex-final-decision.safe.json
+            codex-evidence-capsule.safe.json
+            codex-decision-capsule.safe.json
+            codex-artifact-consistency.safe.json
+            codex-minimal-blockers.safe.json
             codex-minimal-safe-failure.json
             ${{ runner.temp }}/codex-minimal-safe-failure.json
             ${{ runner.temp }}/codex-decision-capsule.safe.json

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.1.7
+CODEX_QUALITY_HARNESS_FILE v1.1.8
 
 ## Prime Directive
 
@@ -10,7 +10,7 @@ truth, trust, security, or maintainability.
 
 ## Source Harness Boundary
 
-This repository is a downstream project consuming Codex Harness v1.1.7. Work here must stay within the explicitly authorized repo and task scope. Do not edit Source HARNESS from target repo work. Product/runtime/package/workflow changes require separate owner scope.
+This repository is a downstream project consuming Codex Harness v1.1.8. Work here must stay within the explicitly authorized repo and task scope. Do not edit Source HARNESS from target repo work. Product/runtime/package/workflow changes require separate owner scope.
 Use `docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md` and
 `docs/process/code_review.md` as the stable method references.
 For v1.0.1 through v1.0.3 outcome, recovery, fixture isolation, clean-main,
@@ -80,6 +80,7 @@ authority, require concrete Outcome and read-only Verifier Capsules, prove
 load-bearing artifact consistency, emit delta-only final summaries, and read
 failures through safe artifacts only. Keep operator-visible statuses within the
 budget and keep target rollout out of Source body tasks.
+For v1.1.8 Final Decision Kernel, Evidence Capsule, Mode-Aware Artifact Contract, and Convergence Gate, use `docs/process/CODEX_V118_SPEC.md`. Preserve Final Decision authority, Evidence Capsule freshness boundaries, artifact consistency, safe failure reading, token budget enforcement, scope boundaries, same-head required checks, raw-log prohibition, 8-session default fail, and target rollout separation.
 
 ## Plan-First Rule
 
