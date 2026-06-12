@@ -1,5 +1,25 @@
 # AGENTS.md
 
+## IRIS Working Guide
+
+IRIS is an AI companion/runtime coordination repository. Use Node.js >=20.
+Normal work must stay inside the owner-approved scope and should prefer the
+smallest relevant verification command.
+
+Default commands:
+- Test: `npm test`
+- General preflight: `npm run preflight`
+- Smoke check: `npm run smoke`
+- Scenario check: `npm run scenario` when behavior flow changes.
+- YouTube ingest changes: use the relevant `dev:youtube:*` scripts.
+- Persistence changes: use the relevant `dev:persistence:*` scripts.
+- Bridge or runtime handoff changes: use the relevant `dev:bridge:*` scripts.
+
+Do not claim runtime, production, production-go, live-readiness, or operator
+readiness unless explicitly owner-scoped with current evidence. Done means the
+smallest relevant verification was run or honestly reported unavailable without
+raw logs or secret-like output.
+
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
 CODEX_QUALITY_HARNESS_FILE v1.1.8
 
