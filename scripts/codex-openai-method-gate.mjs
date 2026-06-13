@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
-const HARNESS_VERSION = '1.0.1';
+const HARNESS_VERSION = '1.0.7';
 const marker = `CODEX_QUALITY_HARNESS_FILE v${HARNESS_VERSION}`;
+const qualityHarnessMarkerPattern = /CODEX_QUALITY_HARNESS_FILE v\d+\.\d+\.\d+/;
 
 const defaultPolicy = {
   requiredPrSections: [
@@ -315,7 +316,7 @@ function inspectSupportFiles(policy) {
     codeReview: [/Correctness:/i, /Method compliance:/i, /Evidence:/i],
     taskBrief: [/Goal:/i, /Context:/i, /Residual risks:/i],
     planTemplate: [/Goal restatement:/i, /Tests to run:/i, /Stop conditions:/i],
-    prTemplate: [/Codex Method Compliance/i, /Code review status:/i],
+    prTemplate: [/Owner Summary/i, /Evidence Source/i, /Risk And Readiness/i, /Safe Next Action/i],
     agents: [/CODEX_OPENAI_CODEX_METHOD_POLICY\.md|code_review\.md/i],
   };
   for (const [key, file] of Object.entries(managedPaths)) {
@@ -323,7 +324,7 @@ function inspectSupportFiles(policy) {
     status[key] = text === null ? 'missing' : 'present';
     if (text === null) failures.push(`${key}=missing`);
     else {
-      if (!text.includes(marker)) failures.push(`${key}=marker_missing`);
+      if (!qualityHarnessMarkerPattern.test(text)) failures.push(`${key}=marker_missing`);
       const rules = shapeRules[key] || [];
       for (const rule of rules) {
         if (!rule.test(text)) failures.push(`${key}=shape_mismatch`);
@@ -332,9 +333,9 @@ function inspectSupportFiles(policy) {
   }
 
   const prTemplate = readText(managedPaths.prTemplate) || '';
-  if (!/Codex Method Compliance/i.test(prTemplate)) {
-    status.prTemplate = 'missing_method_section';
-    failures.push('prTemplate=missing_method_section');
+  if (!/Owner Summary/i.test(prTemplate) || !/Evidence Source/i.test(prTemplate) || !/Risk And Readiness/i.test(prTemplate)) {
+    status.prTemplate = 'missing_current_template_sections';
+    failures.push('prTemplate=missing_current_template_sections');
   }
 
   const agents = readText(managedPaths.agents) || '';

@@ -22116,6 +22116,7 @@ const tests = [
           cwd: options.cwd ?? tempDir,
           env: { ...process.env, ...(options.env ?? {}) },
           encoding: "utf8",
+          maxBuffer: 256 * 1024 * 1024,
           stdio: ["ignore", "pipe", "pipe"],
         });
         if (options.expectSuccess !== false) {
@@ -22171,7 +22172,35 @@ const tests = [
         return run("git", ["rev-parse", "HEAD"], { cwd: tempDir }).stdout.trim();
       };
       const parseJsonText = (text) => JSON.parse(String(text).replace(/^\uFEFF/, ""));
-      const parseQualityReport = (result) => parseJsonText(result.stdout);
+      const parseQualityReport = (result) => {
+        try {
+          return parseJsonText(result.stdout);
+        } catch (error) {
+          const stderrText = String(result.stderr || "");
+          const stderrClass = stderrText.includes("Cannot find module") ? "module_not_found"
+            : stderrText.includes("ReferenceError") ? "reference_error"
+            : stderrText.includes("SyntaxError") ? "syntax_error"
+            : stderrText.includes("TypeError") ? "type_error"
+            : stderrText.includes("ENOENT") ? "missing_file"
+            : stderrText.trim() ? "stderr_nonempty"
+            : "stderr_empty";
+          const missingModuleMatch = stderrText.match(/Cannot find module ['"]([^'"]+)['"]/);
+          const missingModuleName = missingModuleMatch?.[1]
+            ? missingModuleMatch[1].split(/[\\/]/).pop()
+            : null;
+          const safeParseSummary = {
+            status: result.status,
+            signal: result.signal,
+            errorCode: result.error?.code || null,
+            stdoutLength: String(result.stdout || "").length,
+            stderrLength: String(result.stderr || "").length,
+            stderrClass,
+            missingModuleName,
+            parseError: error?.name || "Error",
+          };
+          throw new Error(`quality report JSON parse failed: ${JSON.stringify(safeParseSummary)}`);
+        }
+      };
       const nestedSelfTestSkipEnv = {
         CODEX_SKIP_V080_SELF_TEST: "1",
         CODEX_SKIP_V081_SELF_TEST: "1",
@@ -22182,6 +22211,37 @@ const tests = [
         CODEX_SKIP_V086_SELF_TEST: "1",
         CODEX_SKIP_V087_SELF_TEST: "1",
         CODEX_SKIP_V088_SELF_TEST: "1",
+        CODEX_SKIP_V089_SELF_TEST: "1",
+        CODEX_SKIP_V090_SELF_TEST: "1",
+        CODEX_SKIP_V092_SELF_TEST: "1",
+        CODEX_SKIP_V093_SELF_TEST: "1",
+        CODEX_SKIP_V094_SELF_TEST: "1",
+        CODEX_SKIP_V095_SELF_TEST: "1",
+        CODEX_SKIP_V096_SELF_TEST: "1",
+        CODEX_SKIP_V097_SELF_TEST: "1",
+        CODEX_SKIP_V098_SELF_TEST: "1",
+        CODEX_SKIP_V099_SELF_TEST: "1",
+        CODEX_SKIP_V100_SELF_TEST: "1",
+        CODEX_SKIP_V101_SELF_TEST: "1",
+        CODEX_SKIP_V102_SELF_TEST: "1",
+        CODEX_SKIP_V103_SELF_TEST: "1",
+        CODEX_SKIP_V104_SELF_TEST: "1",
+        CODEX_SKIP_V105_SELF_TEST: "1",
+        CODEX_SKIP_V106_SELF_TEST: "1",
+        CODEX_SKIP_V107_SELF_TEST: "1",
+        CODEX_SKIP_V108_SELF_TEST: "1",
+        CODEX_SKIP_V109_SELF_TEST: "1",
+        CODEX_SKIP_V110_SELF_TEST: "1",
+        CODEX_SKIP_V111_SELF_TEST: "1",
+        CODEX_SKIP_V112_SELF_TEST: "1",
+        CODEX_SKIP_V113_SELF_TEST: "1",
+        CODEX_SKIP_V114_SELF_TEST: "1",
+        CODEX_SKIP_V115_SELF_TEST: "1",
+        CODEX_SKIP_V116_SELF_TEST: "1",
+        CODEX_SKIP_V117_SELF_TEST: "1",
+        CODEX_SKIP_V118_SELF_TEST: "1",
+        CODEX_SKIP_V119_SELF_TEST: "1",
+        CODEX_SKIP_V120_SELF_TEST: "1",
       };
       const methodGateCompliantBody = (headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") => [
         "Scope:",
@@ -22386,12 +22446,80 @@ const tests = [
         ".github/pull_request_template.md",
         "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md",
         "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
+        "docs/process/CODEX_*.json",
+        "docs/process/CODEX_*.md",
         "docs/process/CODEX_TASK_BRIEF_TEMPLATE.md",
         "docs/process/CODEX_PLAN_TEMPLATE.md",
         "docs/process/code_review.md",
         "docs/process/golden/cases.json",
         "README.md",
+        "scripts/lib/*.mjs",
+        "scripts/codex-artifact-consistency-contract.mjs",
+        "scripts/codex-change-classification-gate.mjs",
+        "scripts/codex-ci-replay.mjs",
+        "scripts/codex-decision-capsule.mjs",
+        "scripts/codex-evidence-pack-validate.mjs",
+        "scripts/codex-evidence-capsule.mjs",
+        "scripts/codex-final-decision-kernel.mjs",
+        "scripts/codex-harness-version.mjs",
         "scripts/codex-openai-method-gate.mjs",
+        "scripts/codex-orchestration-capsule.mjs",
+        "scripts/codex-outcome-contract.mjs",
+        "scripts/codex-owner-decision-brief.mjs",
+        "scripts/codex-pr-body-lint.mjs",
+        "scripts/codex-pr-profile-gate.mjs",
+        "scripts/codex-artifact-lifeboat.mjs",
+        "scripts/codex-docker-smoke-artifact-gate.mjs",
+        "scripts/codex-environment-readiness-gate.mjs",
+        "scripts/codex-formal-evidence-precedence-gate.mjs",
+        "scripts/codex-goal-condition-gate.mjs",
+        "scripts/codex-product-baseline-continuity-gate.mjs",
+        "scripts/codex-product-context-safe-artifact-gate.mjs",
+        "scripts/codex-product-evidence-consumption-gate.mjs",
+        "scripts/codex-product-relevant-evidence-lock-gate.mjs",
+        "scripts/codex-product-verification-evidence-normalize.mjs",
+        "scripts/codex-product-verification-gate.mjs",
+        "scripts/codex-production-readiness-gate.mjs",
+        "scripts/codex-read-safe-failure.mjs",
+        "scripts/codex-reason-summary.mjs",
+        "scripts/codex-remote-npm-diagnostic-classify.mjs",
+        "scripts/codex-remote-product-baseline-gate.mjs",
+        "scripts/codex-remote-product-context-restore-gate.mjs",
+        "scripts/codex-remote-product-pr-context-fixture.mjs",
+        "scripts/codex-review-policy-classifier.mjs",
+        "scripts/codex-safe-output-scan.mjs",
+        "scripts/codex-same-head-artifact-evidence-gate.mjs",
+        "scripts/codex-security-lifecycle-gate.mjs",
+        "scripts/codex-skip-npm-product-bypass-gate.mjs",
+        "scripts/codex-status-taxonomy.mjs",
+        "scripts/codex-target-patch-manifest.mjs",
+        "scripts/codex-target-rollout-conflict-gate.mjs",
+        "scripts/codex-target-script-classification-fixture.mjs",
+        "scripts/codex-target-skip-npm-product-override-gate.mjs",
+        "scripts/codex-test-metrics-collect.mjs",
+        "scripts/codex-workflow-preflight.mjs",
+        "scripts/codex-unsafe-value-action-matrix.mjs",
+        "scripts/codex-v080-lib.mjs",
+        "scripts/codex-v101-gate-lib.mjs",
+        "scripts/codex-v102-gate-lib.mjs",
+        "scripts/codex-v103-gate-lib.mjs",
+        "scripts/codex-v104-gate-lib.mjs",
+        "scripts/codex-v105-gate-lib.mjs",
+        "scripts/codex-v106-gate-lib.mjs",
+        "scripts/codex-v107-gate-lib.mjs",
+        "scripts/codex-v108-gate-lib.mjs",
+        "scripts/codex-v110-token-economy.mjs",
+        "scripts/codex-v111-token-hard-cap.mjs",
+        "scripts/codex-v112-conversation-surface.mjs",
+        "scripts/codex-v113-minimal-surface.mjs",
+        "scripts/codex-v114-guardrail-registry.mjs",
+        "scripts/codex-v114-loop-kernel.mjs",
+        "scripts/codex-v115-trace-kernel.mjs",
+        "scripts/codex-verifier-capsule.mjs",
+        "scripts/codex-v119-self-test.mjs",
+        "scripts/codex-v120-self-test.mjs",
+        "scripts/codex-worker-proof-capsule.mjs",
+        "scripts/codex-workflow-quality-runner.mjs",
       ]);
       const writeMethodGateSupportFile = (relativePath) => {
         for (const expandedPath of expandRepoPattern(relativePath)) {
@@ -22405,7 +22533,13 @@ const tests = [
           }
         }
       };
-      const runCase = ({ fileName, addedLine, withManualConfirmation, changedFilesOverride = "" }) => {
+      const runCase = ({
+        fileName,
+        addedLine,
+        withManualConfirmation,
+        changedFilesOverride = "",
+        productEvidence = false,
+      }) => {
         rmSync(tempDir, { recursive: true, force: true });
         mkdirSync(tempDir, { recursive: true });
         mkdirSync(join(tempDir, "scripts"), { recursive: true });
@@ -22440,22 +22574,30 @@ const tests = [
             manualBranchProtectionAcknowledged: true,
           });
         }
+        const env = {
+          CODEX_QUALITY_REPORT: "json",
+          CODEX_HARNESS_MODE: "target",
+          CODEX_PROFILE_COMPAT_MODE: "off",
+          CODEX_FIXTURE_ALLOW_MISSING_SUBGATES: "1",
+          ...nestedSelfTestSkipEnv,
+          CODEX_CHANGED_FILES: changedFilesOverride || "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
+          CODEX_GITHUB_API_AVAILABLE: "0",
+          CODEX_PR_BASE_SHA: baseSha,
+          CODEX_PR_HEAD_SHA: headSha,
+          CODEX_PR_BODY: methodGateCompliantBody(headSha),
+          CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
+        };
+        if (productEvidence) {
+          env.CODEX_PRODUCT_VERIFICATION_COMMANDS = "npm test";
+          env.CODEX_PRODUCT_VERIFICATION_RESULT = "pass";
+          env.CODEX_PRODUCT_VERIFICATION_SOURCE = "local";
+        } else {
+          env.CODEX_SKIP_NPM = "1";
+        }
         const result = run("node", ["scripts/codex-local-quality-gate.mjs"], {
           cwd: tempDir,
           expectSuccess: false,
-          env: {
-            CODEX_QUALITY_REPORT: "json",
-            CODEX_HARNESS_MODE: "target",
-            CODEX_PROFILE_COMPAT_MODE: "off",
-            CODEX_SKIP_NPM: "1",
-            ...nestedSelfTestSkipEnv,
-            CODEX_CHANGED_FILES: changedFilesOverride || "docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json",
-            CODEX_GITHUB_API_AVAILABLE: "0",
-            CODEX_PR_BASE_SHA: baseSha,
-            CODEX_PR_HEAD_SHA: headSha,
-            CODEX_PR_BODY: methodGateCompliantBody(headSha),
-            CODEX_MANUAL_CONFIRMATION_JSON: manualJson,
-          },
+          env,
         });
         return { result, report: parseQualityReport(result) };
       };
@@ -22569,6 +22711,7 @@ const tests = [
           CODEX_QUALITY_REPORT: "json",
           CODEX_HARNESS_MODE: "target",
           CODEX_PROFILE_COMPAT_MODE: "off",
+          CODEX_FIXTURE_ALLOW_MISSING_SUBGATES: "1",
           ...nestedSelfTestSkipEnv,
           CODEX_CHANGED_FILES: changedFiles.join(","),
           CODEX_GITHUB_API_AVAILABLE: "0",
@@ -22606,6 +22749,7 @@ const tests = [
           fileName: ".env.example",
           addedLine: "SAFE_EMPTY_KEY=",
           withManualConfirmation: true,
+          productEvidence: true,
         });
         assert.equal(
           safe.result.status,

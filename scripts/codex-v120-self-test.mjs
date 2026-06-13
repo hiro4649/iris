@@ -109,12 +109,96 @@ const domainBoundaryCases = [
   ['p1_p2_no_exit_code_behavior', () => true],
 ];
 
+const methodGateCases = [
+  ['method_gate_policy_marker_matches_internal_version', () => {
+    const gate = fs.readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8');
+    const policy = JSON.parse(fs.readFileSync('docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.json', 'utf8'));
+    const versionMatch = gate.match(/const HARNESS_VERSION = '([^']+)'/);
+    return Boolean(versionMatch) && policy.marker === `CODEX_QUALITY_HARNESS_FILE v${versionMatch[1]}`;
+  }],
+  ['method_gate_accepts_current_pr_template_shape', () => {
+    const gate = fs.readFileSync('scripts/codex-openai-method-gate.mjs', 'utf8');
+    const template = fs.readFileSync('.github/pull_request_template.md', 'utf8');
+    return gate.includes('Owner Summary') &&
+      gate.includes('Evidence Source') &&
+      gate.includes('Risk And Readiness') &&
+      template.includes('Owner Summary') &&
+      template.includes('Evidence Source') &&
+      template.includes('Risk And Readiness');
+  }],
+  ['run_tests_quality_report_spawn_buffer_not_default_limited', () => {
+    const tests = fs.readFileSync('scripts/run-tests.js', 'utf8');
+    return tests.includes('maxBuffer: 256 * 1024 * 1024') &&
+      tests.includes('const parseQualityReport = (result) => {') &&
+      tests.includes('quality report JSON parse failed');
+  }],
+  ['run_tests_method_gate_fixture_materializes_v120_direct_imports', () => {
+    const tests = fs.readFileSync('scripts/run-tests.js', 'utf8');
+    return tests.includes('scripts/lib/*.mjs') &&
+      tests.includes('docs/process/CODEX_*.json') &&
+      tests.includes('docs/process/CODEX_*.md') &&
+      tests.includes('scripts/codex-production-readiness-gate.mjs') &&
+      tests.includes('scripts/codex-product-verification-gate.mjs') &&
+      tests.includes('scripts/codex-remote-product-baseline-gate.mjs') &&
+      tests.includes('scripts/codex-final-decision-kernel.mjs') &&
+      tests.includes('scripts/codex-pr-body-lint.mjs') &&
+      tests.includes('scripts/codex-v114-guardrail-registry.mjs') &&
+      tests.includes('scripts/codex-v119-self-test.mjs') &&
+      tests.includes('scripts/codex-v120-self-test.mjs') &&
+      tests.includes('scripts/codex-orchestration-capsule.mjs') &&
+      tests.includes('scripts/codex-worker-proof-capsule.mjs') &&
+      tests.includes('scripts/codex-owner-decision-brief.mjs');
+  }],
+  ['run_tests_safe_env_fixture_uses_product_evidence_not_skip', () => {
+    const tests = fs.readFileSync('scripts/run-tests.js', 'utf8');
+    return tests.includes('productEvidence = false') &&
+      tests.includes('CODEX_PRODUCT_VERIFICATION_SOURCE = "local"') &&
+      tests.includes('productEvidence: true');
+  }],
+  ['run_tests_nested_quality_gate_skips_current_self_tests', () => {
+    const tests = fs.readFileSync('scripts/run-tests.js', 'utf8');
+    return tests.includes('CODEX_SKIP_V089_SELF_TEST: "1"') &&
+      tests.includes('CODEX_SKIP_V118_SELF_TEST: "1"') &&
+      tests.includes('CODEX_SKIP_V119_SELF_TEST: "1"') &&
+      tests.includes('CODEX_SKIP_V120_SELF_TEST: "1"');
+  }],
+  ['local_create_pr_only_github_auth_not_merge_auth_bypass', () => {
+    const gate = fs.readFileSync('scripts/codex-local-quality-gate.mjs', 'utf8');
+    return gate.includes("key === 'githubAuthStatus'") &&
+      gate.includes("'create_pr_only'") &&
+      gate.includes("'preserve_only'") &&
+      gate.includes("'investigate_only'") &&
+      gate.includes("'stop'") &&
+      !gate.includes("'merge_current_pr', 'create_pr_only'");
+  }],
+  ['fixture_missing_subgates_requires_explicit_fixture_env', () => {
+    const gate = fs.readFileSync('scripts/codex-local-quality-gate.mjs', 'utf8');
+    const tests = fs.readFileSync('scripts/run-tests.js', 'utf8');
+    return gate.includes('CODEX_FIXTURE_ALLOW_MISSING_SUBGATES') &&
+      gate.includes('local_gate_report_path_missing') &&
+      gate.includes("effectiveStatus = 'pass_optional'") &&
+      tests.includes('CODEX_FIXTURE_ALLOW_MISSING_SUBGATES: "1"');
+  }],
+  ['create_pr_only_remote_evidence_optional_merge_current_pr_strict', () => {
+    const gate = fs.readFileSync('scripts/codex-local-quality-gate.mjs', 'utf8');
+    return gate.includes("terminalAction === 'merge_current_pr'") &&
+      gate.includes('CODEX_PRODUCT_EVIDENCE_CONSUMPTION_JSON') &&
+      gate.includes('CODEX_FORMAL_EVIDENCE_PRECEDENCE_JSON') &&
+      gate.includes('remoteProductEvidenceRunnerStatus') &&
+      gate.includes('remoteNpmDiagnosticNormalizationStatus') &&
+      gate.includes('productEvidenceConsumptionStatus') &&
+      gate.includes('formalEvidencePrecedenceStatus') &&
+      gate.includes('productRelevant: false');
+  }],
+];
+
 const cases = [
   ...adaptiveCases,
   ...reviewPoolCases,
   ...planAndBoundaryCases,
   ...tokenAndOwnerCases,
   ...domainBoundaryCases,
+  ...methodGateCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
