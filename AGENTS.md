@@ -21,8 +21,17 @@ smallest relevant verification was run or honestly reported unavailable without
 raw logs or secret-like output.
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.2.2
+CODEX_QUALITY_HARNESS_FILE v1.2.3
 
+
+For v1.2.3 Observed Skill Evidence and Decision Closure, use
+`docs/process/CODEX_V123_SPEC.md` and
+`docs/process/CODEX_ACTIVE_POLICY_INDEX.json`. Profile ID:
+`HARNESS_V123_TARGET_INSTALL`. Preserve v1.1.8 Final Decision, v1.1.9
+P0 artifacts/statuses, and v1.2.0-v1.2.2 compatibility. No product, package,
+lockfile, runtime, workflow, raw-log, full-history, wallet/RPC/deploy,
+self-approval, GitHub approval review, readiness, legal, or YouTube compliance
+claim.
 ## Prime Directive
 
 Ship the smallest correct change that increases product value without weakening
