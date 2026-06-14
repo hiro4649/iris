@@ -21,7 +21,7 @@ smallest relevant verification was run or honestly reported unavailable without
 raw logs or secret-like output.
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.2.1
+CODEX_QUALITY_HARNESS_FILE v1.2.2
 
 ## Prime Directive
 
@@ -104,6 +104,20 @@ For v1.1.8 Final Decision Kernel, Evidence Capsule, Mode-Aware Artifact Contract
 For v1.1.9 Maintainer Orchestration Lite and Worker Proof Contract, use `docs/process/CODEX_V119_SPEC.md`. v1.1.9 adds preparatory orchestration evidence only: Orchestration Capsule, Worker Proof, and Owner Decision Brief. v1.1.8 Final Decision remains final pass/block/mergeAllowed/exit-code authority. Preserve the three-artifact P0 cap, token/surface limits, safe-output rules, raw-log prohibition, 8-session default fail, product/harness separation, workflow-as-artifact-exposure-only, and target rollout separation. Do not use branch `codex/iris-harness-validation-compat-preservation-20260612` for normal development; it remains frozen unresolved dirty-cascade work outside normal rollout.
 For v1.2.0 Adaptive Intelligence Escalation and Review Pool, use `docs/process/CODEX_V120_SPEC.md`. v1.2.0 adds only token-aware model-tier routing, typed blockers, review-pool policy, escalation hysteresis, and high-tier repair planning inside the existing v1.1.9 P0 artifacts. Preserve v1.1.8 Final Decision authority and v1.1.9 orchestration/status compatibility. v1.2.0 must not create owner approval, GitHub approval review, release, deploy, wallet/RPC, BscScan, readiness, legal compliance, YouTube policy compliance, new P0 artifacts, scheduler behavior, external verifier runtime, memory routing, target rollout, or merge authority.
 
+
+
+For v1.2.2 Context-Aware Skill Routing and Read Budget Discipline, use
+`docs/process/CODEX_V122_SPEC.md`. v1.2.2 adds only internal
+`skillContextRouting` fields inside the existing orchestration capsule when the
+repo carries the full harness scripts. Read less, preserve authority: read
+AGENTS.md, the active manifest, and the active v1.2.2 spec first; defer README,
+legacy specs, and PR history unless task profile or safe artifact pointer
+requires them. Preserve v1.1.8 Final Decision authority, v1.1.9 artifact/status
+surface, v1.2.0 routing/review pool, and v1.2.1 calibration compatibility.
+v1.2.2 does not add target rollout beyond this metadata/script install, product
+code, package/lockfile, runtime/workflow changes, raw-log access, 8-session use,
+wallet/RPC/deploy access, self approval, GitHub approval review, or readiness,
+legal, or YouTube policy compliance claims.
 
 ## Plan-First Rule
 
