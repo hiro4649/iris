@@ -21,7 +21,7 @@ smallest relevant verification was run or honestly reported unavailable without
 raw logs or secret-like output.
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.2.0
+CODEX_QUALITY_HARNESS_FILE v1.2.1
 
 ## Prime Directive
 
@@ -153,3 +153,15 @@ Root source harness version and profile template version are separate. In
 must not be required for core quality score.
 
 <!-- CODEX_QUALITY_HARNESS_END -->
+
+For v1.2.1 Adaptive Routing Metrics and Evidence Calibration Guard, use
+`docs/process/CODEX_V121_SPEC.md`. v1.2.1 target installs add only internal
+calibration fields inside the existing v1.1.9 P0 artifacts: adaptive metrics,
+routing calibration, evidence freshness, target score baseline, root-cause loop
+guard, boundary diff classification, claim lint, owner burden metrics, and
+merge decision integrity. Preserve the v1.1.8 Final Decision authority, the
+v1.1.9 artifact set and operator status surface, and the v1.2.0 adaptive
+routing/review pool contracts. v1.2.1 must not add new P0 artifacts,
+top-level statuses, product/package/runtime/workflow changes, raw-log access,
+8-session use, wallet/RPC/deploy access, self approval, GitHub approval review,
+readiness claims, legal compliance claims, or YouTube policy compliance claims.
