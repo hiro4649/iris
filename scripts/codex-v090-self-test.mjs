@@ -40,6 +40,18 @@ function withTempFile(name, fn) {
   }
 }
 
+function withTempCwd(fn) {
+  const old = process.cwd();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-v090-cwd-'));
+  try {
+    process.chdir(dir);
+    return fn(dir);
+  } finally {
+    process.chdir(old);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function buildV090SelfTestReport() {
   const failures = [];
   const cases = [];
@@ -140,7 +152,12 @@ function buildV090SelfTestReport() {
   assertCase('workflow_no_repo_root_lifeboat_before_quality_gate', !beforeQualityGateText.includes('CODEX_LIFEBOAT_MIRROR_PATH'), failures, cases, 'pass', []);
   assertCase('workflow_uploads_runner_temp_lifeboat', workflowText.includes('${{ runner.temp }}/codex-minimal-safe-failure.json'), failures, cases, 'pass', []);
   assertCase('workflow_dispatch_main_does_not_require_human_confirmation', buildHumanConfirmationObjectReport({ CODEX_EVENT_NAME: 'workflow_dispatch', CODEX_HARNESS_SOURCE_REPO: '1', CODEX_HUMAN_CONFIRMATION_STRICT: '0' }).humanConfirmationObjectStatus.status === 'not_required', failures, cases, 'pass', []);
-  assertCase('workflow_dispatch_main_does_not_require_evidence_pack', buildEvidencePackReport({ CODEX_EVENT_NAME: 'workflow_dispatch', CODEX_HARNESS_SOURCE_REPO: '1', CODEX_EVIDENCE_PACK_STRICT: '0' }).evidencePackStatus.status === 'not_applicable', failures, cases, 'pass', []);
+  const workflowDispatchEvidenceStatus = withTempCwd(() => buildEvidencePackReport({
+    CODEX_EVENT_NAME: 'workflow_dispatch',
+    CODEX_HARNESS_SOURCE_REPO: '1',
+    CODEX_EVIDENCE_PACK_STRICT: '0',
+  }).evidencePackStatus.status);
+  assertCase('workflow_dispatch_main_does_not_require_evidence_pack', workflowDispatchEvidenceStatus === 'not_applicable', failures, cases, workflowDispatchEvidenceStatus, []);
   const strictPrHumanStatus = buildHumanConfirmationObjectReport({ CODEX_EVENT_NAME: 'pull_request', CODEX_HARNESS_SOURCE_REPO: '1', CODEX_PR_NUMBER: '90' }).humanConfirmationObjectStatus.status;
   const strictPrEvidenceStatus = buildEvidencePackReport({ CODEX_EVENT_NAME: 'pull_request', CODEX_HARNESS_SOURCE_REPO: '1', CODEX_PR_NUMBER: '90' }).evidencePackStatus.status;
   assertCase('pull_request_still_requires_human_confirmation', ['fail', 'manual_confirmation_required'].includes(strictPrHumanStatus), failures, cases, strictPrHumanStatus, []);

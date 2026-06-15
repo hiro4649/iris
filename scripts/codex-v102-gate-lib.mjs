@@ -495,9 +495,15 @@ export function buildDefaultHandoverSnapshot() {
 
 export function buildV102SelfTestRegistrationReport(input = {}) {
   const reasons = [];
+  const registeredSelfTests = Array.isArray(input.registeredSelfTests) ? input.registeredSelfTests : null;
+  const registeredStatusKeys = Array.isArray(input.registeredStatusKeys) ? input.registeredStatusKeys : null;
   if (!fs.existsSync('scripts/codex-v102-self-test.mjs') || bool(input.selfTestMissing)) reasons.push('v102_self_test_missing');
-  if (!readText('scripts/codex-local-quality-gate.mjs')?.includes('v102SelfTestStatus')) reasons.push('v102_self_test_missing');
-  if (!readText('CODEX_SOURCE_HARNESS_MANIFEST.json')?.includes('codex-v102-self-test.mjs')) reasons.push('v102_self_test_missing');
+  if (registeredStatusKeys) {
+    if (!registeredStatusKeys.includes('v102SelfTestStatus')) reasons.push('v102_self_test_missing');
+  } else if (!readText('scripts/codex-local-quality-gate.mjs')?.includes('v102SelfTestStatus')) reasons.push('v102_self_test_missing');
+  if (registeredSelfTests) {
+    if (!registeredSelfTests.includes('codex-v102-self-test.mjs')) reasons.push('v102_self_test_missing');
+  } else if (!readText('CODEX_SOURCE_HARNESS_MANIFEST.json')?.includes('codex-v102-self-test.mjs')) reasons.push('v102_self_test_missing');
   return reasons.length ? fail('v102SelfTestStatus', reasons) : pass('v102SelfTestStatus');
 }
 

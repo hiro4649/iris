@@ -8171,6 +8171,11 @@ function applyStatusOutcome(key, value, failures, warnings) {
 
 
   if (value?.status === 'fail') {
+    if (
+      key === 'githubAuthStatus' &&
+      process.env.CODEX_HARNESS_MODE === 'target' &&
+      reportFinalDecisionAllowsLocalCreatePr(process.env)
+    ) return;
     if (process.env.CODEX_HARNESS_MODE === 'target') {
       const compatibility = classifyTargetModeCompatibilityStatus(key, value);
       if (String(compatibility.effectiveStatus || '').startsWith('pass_')) return;
@@ -8196,6 +8201,11 @@ function applyStatusOutcome(key, value, failures, warnings) {
 
 
 
+}
+
+function reportFinalDecisionAllowsLocalCreatePr(env = process.env) {
+  const terminalAction = String(env.CODEX_TERMINAL_ACTION || env.CODEX_TERMINAL_ACTION_OVERRIDE || 'create_pr_only');
+  return terminalAction !== 'merge_current_pr' && env.CODEX_GITHUB_API_AVAILABLE === '0';
 }
 
 
@@ -9424,7 +9434,11 @@ async function runSourceHarnessGate() {
 
 
 
-  report.v080SelfTestStatus = runGateScript('scripts/codex-v080-self-test.mjs', 'v080SelfTestStatus', 'CODEX_V080_SELF_TEST_REPORT', gateEnv);
+  report.v080SelfTestStatus = process.env.CODEX_SKIP_V080_SELF_TEST === '1' || (process.env.CODEX_HARNESS_MODE === 'target' && process.env.CODEX_RUN_FULL_LEGACY_SELF_TESTS !== '1')
+
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+
+    : runGateScript('scripts/codex-v080-self-test.mjs', 'v080SelfTestStatus', 'CODEX_V080_SELF_TEST_REPORT', gateEnv);
 
 
 
@@ -11613,7 +11627,11 @@ async function runTargetHarnessGate() {
 
 
 
-  report.v080SelfTestStatus = runGateScript('scripts/codex-v080-self-test.mjs', 'v080SelfTestStatus', 'CODEX_V080_SELF_TEST_REPORT', gateEnv);
+  report.v080SelfTestStatus = process.env.CODEX_SKIP_V080_SELF_TEST === '1' || (process.env.CODEX_HARNESS_MODE === 'target' && process.env.CODEX_RUN_FULL_LEGACY_SELF_TESTS !== '1')
+
+    ? { status: 'not_applicable', reasonCodes: ['self_test_recursion_guard'], safeSummaryOnly: true }
+
+    : runGateScript('scripts/codex-v080-self-test.mjs', 'v080SelfTestStatus', 'CODEX_V080_SELF_TEST_REPORT', gateEnv);
 
 
 

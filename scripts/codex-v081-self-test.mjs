@@ -39,7 +39,7 @@ function assertCase(name, ok, failures, cases, status = ok ? 'pass' : 'fail') {
   if (!ok) failures.push(name);
 }
 
-function cleanAgents(version = HARNESS_VERSION) {
+function cleanAgents(version = '1.1.3') {
   return `# AGENTS.md
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
@@ -283,9 +283,23 @@ END_CODEX_EVIDENCE_PACK_JSON`;
     CODEX_PR_BODY: structuredEvidenceBody,
   };
   const productionStructured = buildProductionReadinessReport(structuredEnv);
-  assertCase('Production readiness accepts PR body structured evidence pack source', productionStructured.productionReadinessStatus.status === 'pass', failures, cases, productionStructured.productionReadinessStatus.status);
+  assertCase(
+    'Production readiness rejects PR body-only structured evidence pack source',
+    productionStructured.productionReadinessStatus.status === 'fail' &&
+      (productionStructured.productionReadinessStatus.failures || []).includes('evidence_pack_invalid'),
+    failures,
+    cases,
+    productionStructured.productionReadinessStatus.status === 'fail' ? 'pass' : productionStructured.productionReadinessStatus.status,
+  );
   const integrityStructured = buildEvidenceIntegrityReport(structuredEnv);
-  assertCase('Evidence integrity accepts PR body structured evidence pack source', integrityStructured.evidenceIntegrityStatus.status === 'pass', failures, cases, integrityStructured.evidenceIntegrityStatus.status);
+  assertCase(
+    'Evidence integrity rejects PR body-only structured evidence pack source',
+    integrityStructured.evidenceIntegrityStatus.status === 'fail' &&
+      (integrityStructured.evidenceIntegrityStatus.failures || []).includes('evidence_pack_invalid'),
+    failures,
+    cases,
+    integrityStructured.evidenceIntegrityStatus.status === 'fail' ? 'pass' : integrityStructured.evidenceIntegrityStatus.status,
+  );
   const lintStructured = buildPrBodyLintReport(structuredEnv, ['node', 'codex-pr-body-lint.mjs']);
   assertCase('PR body lint accepts PR body structured evidence pack source', lintStructured.prBodyLintStatus.status === 'pass', failures, cases, lintStructured.prBodyLintStatus.status);
 

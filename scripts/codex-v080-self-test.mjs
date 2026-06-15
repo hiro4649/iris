@@ -81,7 +81,14 @@ function buildReport() {
       'Residual risks: none beyond cleanup review.',
     ].join('\n'),
   });
-  assertCase('Production Go/No-Go heading alone is not a go claim', goNoGoHeading.productionReadinessStatus.status === 'pass', failures, cases, goNoGoHeading.productionReadinessStatus.status);
+  assertCase(
+    'Production Go/No-Go heading alone is not a go claim',
+    goNoGoHeading.productionReadyClaim === 'NO' &&
+      !(goNoGoHeading.productionReadinessStatus.labels || []).includes('production_or_release_claim_detected'),
+    failures,
+    cases,
+    goNoGoHeading.productionReadyClaim === 'NO' ? 'pass' : goNoGoHeading.productionReadinessStatus.status,
+  );
 
   result = runScript('scripts/codex-safe-trace-schema-gate.mjs', { cwd: tmp });
   assertCase('Safe trace absent returns not_applicable', result.parsed?.safeTraceSchemaStatus?.status === 'not_applicable', failures, cases, result.parsed?.safeTraceSchemaStatus?.status);
