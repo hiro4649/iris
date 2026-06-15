@@ -37,6 +37,8 @@ Active target harness: v1.2.4 / v124.
 Read first: AGENTS.md, docs/process/CODEX_HARNESS_MANIFEST.json,
 docs/process/CODEX_V124_SPEC.md, and docs/process/CODEX_ACTIVE_POLICY_INDEX.json.
 README, legacy specs, and PR history are conditional reads only.
+Stable method references: docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md and
+docs/process/code_review.md.
 
 ## Authority
 

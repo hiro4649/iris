@@ -40,6 +40,25 @@ const compatibilityCases = [
   ['v124_preserves_v119_orchestration_artifacts', () => V124_P0_ARTIFACTS.includes('codex-orchestration-capsule.safe.json')],
   ['v124_no_new_skill_daemon_or_visual_daemon', () => !fs.existsSync('scripts/codex-skill-daemon.mjs') && !fs.existsSync('scripts/codex-visual-proof-daemon.mjs')],
   ['v124_active_authority_tuple_is_current', () => buildOrchestrationCapsule().skillContextRouting.activeAuthorityTuple.activeSelfTestSuite === 'v124'],
+  ['v124_compact_agents_preserves_method_reference', () => {
+    const agents = fs.readFileSync('AGENTS.md', 'utf8');
+    return /CODEX_OPENAI_CODEX_METHOD_POLICY\.md/.test(agents) && /code_review\.md/.test(agents);
+  }],
+  ['v124_compact_agents_stays_within_target_footprint', () => fs.readFileSync('AGENTS.md', 'utf8').split(/\r?\n/).filter((line) => line.trim()).length <= 80],
+  ['v124_local_safety_patches_do_not_pollute_change_classification', () => {
+    const gate = fs.readFileSync('scripts/codex-change-classification-gate.mjs', 'utf8');
+    const localGate = fs.readFileSync('scripts/codex-local-quality-gate.mjs', 'utf8');
+    return gate.includes("normalized.startsWith('safety/')")
+      && gate.includes("\\.(patch|stat\\.txt)")
+      && /isLocalSafetyArtifact/.test(gate)
+      && /isLocalSafetyPatchArtifact/.test(localGate);
+  }],
+  ['v124_v107_registry_compatibility_not_capped_at_v113', () => {
+    const gate = fs.readFileSync('scripts/codex-v107-gate-lib.mjs', 'utf8');
+    return gate.includes("versionAtLeast(registry.currentVersion, '1.0.7')")
+      && gate.includes('suiteNumber >= 107')
+      && !gate.includes("registry.currentVersion === '1.1.3'");
+  }],
 ];
 
 const goalAndDelegationCases = [

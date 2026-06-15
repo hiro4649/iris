@@ -1895,10 +1895,17 @@ export function filterSourceValidationChangedFiles(files) {
 
 
 
-  return uniqueSorted(files).filter((file) => !sourceValidationIgnoredSafeArtifacts.has(normalizePath(file)));
+  return uniqueSorted(files).filter((file) => {
+    const normalized = normalizePath(file);
+    return !sourceValidationIgnoredSafeArtifacts.has(normalized) && !isLocalSafetyPatchArtifact(normalized);
+  });
 
 
 
+}
+
+function isLocalSafetyPatchArtifact(file) {
+  return normalizePath(file).startsWith('safety/') && /\.(patch|stat\.txt)$/i.test(normalizePath(file));
 }
 
 
