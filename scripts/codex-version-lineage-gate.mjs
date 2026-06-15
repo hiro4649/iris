@@ -59,6 +59,37 @@ export function buildVersionLineageReport(env = process.env) {
   const paths = requiredPaths(env);
   const manifestFile = manifestPath(env);
   const manifestJson = readJson(manifestFile);
+  const targetMode = env.CODEX_HARNESS_MODE === 'target' && manifestFile === 'docs/process/CODEX_HARNESS_MANIFEST.json';
+
+  if (targetMode) {
+    if (!manifestJson.ok) failures.push('version_lineage_manifest_missing');
+    else {
+      const manifest = manifestJson.value;
+      const activeVersion = manifest.activeHarnessVersion || manifest.targetHarnessVersion || manifest.harnessVersion;
+      const activeMarker = `CODEX_QUALITY_HARNESS_FILE v${activeVersion}`;
+      if (!activeVersion || manifest.marker !== activeMarker) failures.push('active_marker_version_mismatch');
+      if (manifest.activeSelfTestSuite && !String(manifest.activeSelfTestSuite).startsWith('v')) failures.push('version_lineage_failed');
+      if (manifest.activeSelfTestStatusKey && !String(manifest.activeSelfTestStatusKey).endsWith('SelfTestStatus')) failures.push('version_lineage_failed');
+    }
+    for (const file of ['docs/process/CODEX_HARNESS_MANIFEST.json', 'AGENTS.md']) {
+      if (!fs.existsSync(file)) failures.push(`missing:${file}`);
+    }
+    const agentsMarker = firstMarkerVersion('AGENTS.md');
+    if (agentsMarker && manifestJson.ok) {
+      const manifest = manifestJson.value;
+      const activeVersion = manifest.activeHarnessVersion || manifest.targetHarnessVersion || manifest.harnessVersion;
+      if (agentsMarker !== activeVersion) failures.push('active_marker_version_mismatch');
+    }
+    const status = failures.length ? 'fail' : 'pass';
+    const report = simpleStatus('versionLineageStatus', status, {
+      reasonCodes: [...new Set(failures.map((item) => item.split(':')[0]))],
+      warnings,
+      checkedFiles: 2,
+      targetInstall: true,
+    });
+    if (scanObjectForUnsafe(report).length) return simpleStatus('versionLineageStatus', 'fail', { reasonCodes: ['version_lineage_failed'] });
+    return report;
+  }
 
   if (!manifestJson.ok) failures.push('version_lineage_manifest_missing');
   else {

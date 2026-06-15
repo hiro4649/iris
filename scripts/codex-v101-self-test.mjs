@@ -6,7 +6,7 @@ import * as gates from './codex-v101-gate-lib.mjs';
 const CASES = [
   ['parent_v100_required_for_v101_pass', gates.buildParentHarnessPreflightReport, { parentVersion: '1.0.0' }, 'parentHarnessPreflightStatus', 'pass'],
   ['v100_self_test_preserved_pass', gates.buildHarnessSourceGatePreconditionReport, { v100SelfTestFail: false }, 'harnessSourceGatePreconditionStatus', 'pass'],
-  ['v101_self_test_registered_pass', gates.buildV101SelfTestRegistrationReport, {}, 'v101SelfTestStatus', 'pass'],
+  ['v101_self_test_registered_pass', gates.buildV101SelfTestRegistrationReport, { registeredSelfTests: ['codex-v101-self-test.mjs'], registeredStatusKeys: ['v101SelfTestStatus'] }, 'v101SelfTestStatus', 'pass'],
 
   ['local_gate_json_parseable_pass', gates.buildJsonReportShapeReport, {}, 'jsonReportShapeStatus', 'pass'],
   ['local_gate_json_empty_fails', gates.buildJsonReportShapeReport, { empty: true }, 'jsonReportShapeStatus', 'fail'],

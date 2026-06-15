@@ -204,10 +204,15 @@ export function classifyChange(files = changedFiles(), env = process.env) {
     }
   }
 
-  const productRelevantChanged = flags.productSourceChanged || flags.testsChanged || flags.specsChanged ||
+  const isHarnessDiagnosticFile = (file) => {
+    const normalized = normalizePath(file);
+    return matches(normalized, rules.harnessFiles) || normalized === 'scripts/run-tests.js';
+  };
+  const harnessOnlyCandidate = files.length > 0 && files.every((file) => isHarnessDiagnosticFile(file));
+  const productRelevantChanged = flags.productSourceChanged || (flags.testsChanged && !harnessOnlyCandidate) || flags.specsChanged ||
     flags.packageChanged || flags.lockfileChanged || flags.runtimeAssetsChanged || flags.configChanged ||
     flags.authorityChanged;
-  flags.harnessOnly = files.length > 0 && files.every((file) => matches(normalizePath(file), rules.harnessFiles));
+  flags.harnessOnly = harnessOnlyCandidate;
   flags.docsOnly = files.length > 0 && !productRelevantChanged && files.every((file) => matches(normalizePath(file), rules.docsFiles) || matches(normalizePath(file), rules.harnessFiles));
   flags.unknownRisk = unknownFiles.length > 0;
 

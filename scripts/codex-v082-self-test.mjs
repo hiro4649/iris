@@ -170,7 +170,13 @@ function buildReport() {
   assertCase('missing classification rules JSON fails in PR context', result.ok === false && result.reasonCode === 'classification_rules_missing', failures, cases, result.reasonCode);
 
   let classified = classifyChange(['scripts/run-tests.js'], { CODEX_EVENT_NAME: 'pull_request' });
-  assertCase('scripts/run-tests.js classified as verification-relevant', classified.productRelevantChanged, failures, cases, classified.status);
+  assertCase(
+    'scripts/run-tests.js classified as harness diagnostic',
+    classified.classification.harnessOnly && !classified.productRelevantChanged,
+    failures,
+    cases,
+    classified.status,
+  );
   classified = classifyChange(['package-lock.json'], { CODEX_EVENT_NAME: 'pull_request' });
   assertCase('package-lock file is package/lock relevant', classified.packageOrLockfileChanged, failures, cases, classified.status);
   classified = classifyChange(['unknown.safe'], { CODEX_EVENT_NAME: 'pull_request' });
@@ -228,7 +234,7 @@ function buildReport() {
       baselineType: 'npm_test',
       commands: [{ name: 'npm test', result: 'pass' }],
       result: 'pass',
-      date: '2026-05-24T00:00:00Z',
+      date: new Date().toISOString(),
       source: 'fixture',
       safeSummary: 'safe baseline summary',
       knownFailures: [],
