@@ -24,14 +24,19 @@ function gitLines(args) {
 
 export function changedFiles(env = process.env) {
   if (env.CODEX_CHANGED_FILES) {
-    return [...new Set(String(env.CODEX_CHANGED_FILES).split(/\r?\n|,/).map(normalizePath).filter(Boolean))].sort();
+    return [...new Set(String(env.CODEX_CHANGED_FILES).split(/\r?\n|,/).map(normalizePath).filter((file) => file && !isLocalSafetyArtifact(file)))].sort();
   }
   return [...new Set([
     ...gitLines(['diff', '--name-only', 'origin/main...HEAD']),
     ...gitLines(['diff', '--name-only']),
     ...gitLines(['diff', '--cached', '--name-only']),
     ...gitLines(['ls-files', '--others', '--exclude-standard']),
-  ])].sort();
+  ].filter((file) => !isLocalSafetyArtifact(file)))].sort();
+}
+
+function isLocalSafetyArtifact(file) {
+  const normalized = normalizePath(file);
+  return normalized.startsWith('safety/') && /\.(patch|stat\.txt)$/i.test(normalized);
 }
 
 function globToRegExp(pattern) {
@@ -155,6 +160,7 @@ function performanceClaimed(body) {
 }
 
 export function classifyChange(files = changedFiles(), env = process.env) {
+  files = files.map(normalizePath).filter((file) => file && !isLocalSafetyArtifact(file));
   const body = prBodyText(env);
   const loaded = loadClassificationRules(env);
   const rules = loaded.rules;
