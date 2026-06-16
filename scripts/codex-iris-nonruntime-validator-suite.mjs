@@ -33,6 +33,11 @@ const DEFAULT_VALIDATORS = [
     command: 'scripts/codex-iris-external-character-boundary-validator.mjs',
     passText: 'iris_external_character_boundary_validator',
   },
+  {
+    id: 'iris_external_module_safe_summary_validator',
+    command: 'scripts/codex-iris-external-module-safe-summary-validator.mjs',
+    passText: 'iris_external_module_safe_summary_validator',
+  },
 ];
 
 function parseJsonFromOutput(stdout) {

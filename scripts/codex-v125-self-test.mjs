@@ -346,6 +346,68 @@ const irisNonruntimeValidatorSuiteCases = [
   }],
 ];
 
+function externalModuleSafeSummarySurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_modules/iris_external_module_safe_summary_positive_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_modules/iris_external_module_safe_summary_negative_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_modules/iris_external_module_safe_summary_boundary_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_modules/iris_external_module_safe_summary_redline_fixtures.jsonl');
+}
+
+const externalModuleSafeSummaryValidatorCases = [
+  ['iris_external_module_safe_summary_validator_present_v125', () => (
+    !externalModuleSafeSummarySurfacePresent()
+      || (fs.existsSync('scripts/codex-iris-external-module-safe-summary-validator.mjs')
+      && fs.existsSync('scripts/codex-iris-external-module-safe-summary-validator-self-test.mjs')
+      )
+  )],
+  ['iris_external_module_safe_summary_validator_self_test_passes_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-iris-external-module-safe-summary-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_EXTERNAL_MODULE_SAFE_SUMMARY_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['iris_external_module_safe_summary_validator_rejects_raw_audio_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-safe-summary-validator.mjs', 'utf8');
+    return script.includes('raw_audio_included') && script.includes('UNSAFE_RAW_AUDIO_INCLUDED');
+  }],
+  ['iris_external_module_safe_summary_validator_rejects_raw_live2d_path_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-safe-summary-validator.mjs', 'utf8');
+    return script.includes('raw_live2d_model_path_included') && script.includes('UNSAFE_RAW_LIVE2D_MODEL_PATH_INCLUDED');
+  }],
+  ['iris_external_module_safe_summary_validator_rejects_raw_payment_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-safe-summary-validator.mjs', 'utf8');
+    return script.includes('raw_payment_record_included') && script.includes('UNSAFE_RAW_PAYMENT_RECORD_INCLUDED');
+  }],
+  ['iris_external_module_safe_summary_validator_rejects_stale_action_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-safe-summary-validator.mjs', 'utf8');
+    return script.includes('UNSAFE_STALE_OBSERVATION_GAME_ACTION');
+  }],
+  ['iris_external_module_safe_summary_validator_preserves_priority1_blocked_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-safe-summary-validator.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['iris_external_module_safe_summary_validator_no_runtime_claim_v125', () => {
+    if (!externalModuleSafeSummarySurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-safe-summary-validator.mjs', 'utf8');
+    return script.includes('runtimeImplemented: false')
+      && script.includes('voxweaveImplementation: false')
+      && script.includes('live2dImplementation: false')
+      && script.includes('criptoTipImplementation: false')
+      && script.includes('datasetAuditRunnerImplemented: false')
+      && script.includes('minecraftRuntimeImplemented: false')
+      && script.includes('minecraftPluginImplemented: false')
+      && script.includes('productionReadinessClaimed: false')
+      && script.includes('productionGoPerformed: false');
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -357,6 +419,7 @@ const cases = [
   ...communityWorldGateValidatorCases,
   ...communityWorldCompletionReviewValidatorCases,
   ...irisNonruntimeValidatorSuiteCases,
+  ...externalModuleSafeSummaryValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -372,6 +435,7 @@ const fixtureGroups = [
   'community_world_gate_validator_matrix',
   'community_world_completion_review_validator_matrix',
   'iris_nonruntime_validator_suite_matrix',
+  'iris_external_module_safe_summary_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
