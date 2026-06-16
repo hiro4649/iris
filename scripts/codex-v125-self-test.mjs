@@ -305,6 +305,47 @@ const communityWorldCompletionReviewValidatorCases = [
   }],
 ];
 
+function irisNonruntimeValidatorSuiteSurfacePresent() {
+  return fs.existsSync('scripts/codex-iris-nonruntime-validator-suite.mjs')
+    || fs.existsSync('scripts/codex-iris-nonruntime-validator-suite-self-test.mjs');
+}
+
+const irisNonruntimeValidatorSuiteCases = [
+  ['iris_nonruntime_validator_suite_present_v125', () => (
+    !irisNonruntimeValidatorSuiteSurfacePresent()
+      || (fs.existsSync('scripts/codex-iris-nonruntime-validator-suite.mjs')
+      && fs.existsSync('scripts/codex-iris-nonruntime-validator-suite-self-test.mjs')
+      )
+  )],
+  ['iris_nonruntime_validator_suite_self_test_passes_v125', () => {
+    if (!irisNonruntimeValidatorSuiteSurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-iris-nonruntime-validator-suite-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_IRIS_NONRUNTIME_SUITE_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['iris_nonruntime_validator_suite_rejects_runtime_readiness_claim_v125', () => {
+    if (!irisNonruntimeValidatorSuiteSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-nonruntime-validator-suite.mjs', 'utf8');
+    return script.includes('runtimeImplemented')
+      && script.includes('PRODUCTION_READINESS_CLAIMED');
+  }],
+  ['iris_nonruntime_validator_suite_preserves_priority1_blocked_v125', () => {
+    if (!irisNonruntimeValidatorSuiteSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-nonruntime-validator-suite.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['iris_nonruntime_validator_suite_no_dataset_runner_claim_v125', () => {
+    if (!irisNonruntimeValidatorSuiteSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-nonruntime-validator-suite.mjs', 'utf8');
+    return script.includes('datasetAuditRunnerImplemented: false')
+      && script.includes('realDatasetProcessing: false')
+      && script.includes('minecraftRuntimeImplemented: false')
+      && script.includes('minecraftPluginImplemented: false');
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -315,6 +356,7 @@ const cases = [
   ...communityWorldAuditMappingValidatorCases,
   ...communityWorldGateValidatorCases,
   ...communityWorldCompletionReviewValidatorCases,
+  ...irisNonruntimeValidatorSuiteCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -329,6 +371,7 @@ const fixtureGroups = [
   'community_world_audit_mapping_validator_matrix',
   'community_world_gate_validator_matrix',
   'community_world_completion_review_validator_matrix',
+  'iris_nonruntime_validator_suite_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
