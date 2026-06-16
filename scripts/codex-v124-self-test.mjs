@@ -2,6 +2,7 @@
 // CODEX_QUALITY_HARNESS_FILE v1.2.4
 
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   V124_OPERATOR_STATUS_KEYS,
@@ -15,6 +16,7 @@ import {
 } from './codex-orchestration-capsule.mjs';
 import { buildWorkerProofCapsule, validateWorkerProofCapsule } from './codex-worker-proof-capsule.mjs';
 import { buildOwnerDecisionBrief, validateOwnerDecisionBrief } from './codex-owner-decision-brief.mjs';
+import { validateFixtureRow } from './codex-community-world-fixture-validator.mjs';
 
 function test(name, fn) {
   try {
@@ -180,12 +182,92 @@ const ownerBriefCases = [
   }],
 ];
 
+const communityWorldFixtureValidatorCases = [
+  ['community_world_fixture_validator_registered_or_present_v124', () => (
+    fs.existsSync('scripts/codex-community-world-fixture-validator.mjs')
+      && fs.existsSync('scripts/codex-community-world-fixture-validator-self-test.mjs')
+  )],
+  ['community_world_fixture_validator_self_test_passes_v124', () => {
+    execFileSync(process.execPath, ['scripts/codex-community-world-fixture-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_COMMUNITY_WORLD_FIXTURE_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['community_world_fixture_validator_rejects_runtime_readiness_sweetening_v124', () => validateFixtureRow({
+    schema_version: 'community_world_fixture_v1',
+    fixture_id: 'v124_runtime_readiness_sweetening_case',
+    fixture_group: 'completion_review',
+    k_ids: ['K1020'],
+    target_gate_ids: ['community_world_owner_review_gate'],
+    input_evidence_class: 'synthetic_fixture',
+    synthetic_input: {
+      priority1_status: 'BLOCKED',
+      runtime_implemented: false,
+      minecraft_plugin_implemented: false,
+      dataset_audit_runner_implemented: false,
+      production_readiness_claimed: true,
+    },
+    expected_result_state: 'pass',
+    expected_safe_reason_codes: ['priority1_blocked_preserved'],
+    expected_blocking: false,
+    must_not_include: ['production_readiness_claim'],
+    trace_id: 'trace_v124_runtime_readiness_sweetening_case',
+  }, { file: 'self-test', line: 1, group: 'completion_review', states: new Set(['pass']) }).length > 0],
+  ['community_world_fixture_validator_preserves_priority1_blocked_v124', () => validateFixtureRow({
+    schema_version: 'community_world_fixture_v1',
+    fixture_id: 'v124_priority1_blocked_case',
+    fixture_group: 'completion_review',
+    k_ids: ['K1020'],
+    target_gate_ids: ['community_world_owner_review_gate'],
+    input_evidence_class: 'synthetic_fixture',
+    synthetic_input: {
+      priority1_status: 'BLOCKED',
+      runtime_implemented: false,
+      minecraft_plugin_implemented: false,
+      dataset_audit_runner_implemented: false,
+      production_readiness_claimed: false,
+    },
+    expected_result_state: 'pass',
+    expected_safe_reason_codes: ['priority1_blocked_preserved'],
+    expected_blocking: false,
+    must_not_include: ['production_readiness_claim'],
+    trace_id: 'trace_v124_priority1_blocked_case',
+  }, { file: 'self-test', line: 1, group: 'completion_review', states: new Set(['pass']) }).length === 0],
+  ['community_world_fixture_validator_no_runtime_or_plugin_claim_v124', () => {
+    const failures = validateFixtureRow({
+      schema_version: 'community_world_fixture_v1',
+      fixture_id: 'v124_no_runtime_or_plugin_claim_case',
+      fixture_group: 'completion_review',
+      k_ids: ['K1020'],
+      target_gate_ids: ['community_world_owner_review_gate'],
+      input_evidence_class: 'synthetic_fixture',
+      synthetic_input: {
+        priority1_status: 'BLOCKED',
+        runtime_implemented: false,
+        minecraft_runtime_implemented: false,
+        minecraft_plugin_implemented: false,
+        dataset_audit_runner_implemented: false,
+        production_readiness_claimed: false,
+        production_go_performed: false,
+      },
+      expected_result_state: 'pass',
+      expected_safe_reason_codes: ['no_runtime_claim', 'priority1_blocked_preserved'],
+      expected_blocking: false,
+      must_not_include: ['production_readiness_claim'],
+      trace_id: 'trace_v124_no_runtime_or_plugin_claim_case',
+    }, { file: 'self-test', line: 1, group: 'completion_review', states: new Set(['pass']) });
+    return failures.length === 0;
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalAndDelegationCases,
   ...evidenceAndFootprintCases,
   ...expertLoopCases,
   ...ownerBriefCases,
+  ...communityWorldFixtureValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -199,6 +281,7 @@ const fixtureGroups = [
   'safe_failure_digest_matrix',
   'owner_burden_reducer_matrix',
   'safe_session_learning_matrix',
+  'community_world_fixture_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
