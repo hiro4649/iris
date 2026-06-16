@@ -2,6 +2,7 @@
 // CODEX_QUALITY_HARNESS_FILE v1.2.5
 
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   V125_OPERATOR_STATUS_KEYS,
@@ -141,12 +142,47 @@ const workerAndOwnerCases = [
   }],
 ];
 
+function externalCharacterBoundarySurfacePresent() {
+  return fs.existsSync('scripts/codex-iris-external-character-boundary-validator.mjs')
+    || fs.existsSync('scripts/codex-iris-external-character-boundary-validator-self-test.mjs')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_positive_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_negative_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_boundary_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_redline_fixtures.jsonl');
+}
+
+const externalCharacterValidatorCases = [
+  ['external_character_boundary_validator_registered_or_present_v125', () => (
+    !externalCharacterBoundarySurfacePresent()
+      || (fs.existsSync('scripts/codex-iris-external-character-boundary-validator.mjs')
+      && fs.existsSync('scripts/codex-iris-external-character-boundary-validator-self-test.mjs')
+      )
+  )],
+  ['external_character_boundary_validator_self_test_passes_v125', () => {
+    if (!externalCharacterBoundarySurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-iris-external-character-boundary-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_EXTERNAL_CHARACTER_FIXTURE_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['external_character_fixture_files_present_v125', () => (
+    !externalCharacterBoundarySurfacePresent()
+      || (fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_positive_fixtures.jsonl')
+      && fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_negative_fixtures.jsonl')
+      && fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_boundary_fixtures.jsonl')
+      && fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_redline_fixtures.jsonl')
+      )
+  )],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
   ...evidenceLaneCases,
   ...monitorAndYieldCases,
   ...workerAndOwnerCases,
+  ...externalCharacterValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -157,6 +193,7 @@ const fixtureGroups = [
   'typed_monitor_fanout_matrix',
   'skill_review_product_value_yield_matrix',
   'p1_optional_surface_matrix',
+  'external_character_boundary_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
