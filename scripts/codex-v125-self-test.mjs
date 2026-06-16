@@ -221,6 +221,54 @@ const communityWorldAuditMappingValidatorCases = [
   }],
 ];
 
+function communityWorldGateSurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_positive_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_negative_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_boundary_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_redline_fixtures.jsonl')
+    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_completion_review_fixtures.jsonl');
+}
+
+const communityWorldGateValidatorCases = [
+  ['community_world_gate_validator_present_v125', () => (
+    !communityWorldGateSurfacePresent()
+      || (fs.existsSync('scripts/codex-community-world-gate-validator.mjs')
+      && fs.existsSync('scripts/codex-community-world-gate-validator-self-test.mjs')
+      )
+  )],
+  ['community_world_gate_validator_self_test_passes_v125', () => {
+    if (!communityWorldGateSurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-community-world-gate-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_COMMUNITY_WORLD_GATE_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['community_world_gate_validator_preserves_priority1_blocked_v125', () => {
+    if (!communityWorldGateSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-gate-validator.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['community_world_gate_validator_no_runtime_or_dataset_runner_claim_v125', () => {
+    if (!communityWorldGateSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-gate-validator.mjs', 'utf8');
+    return script.includes('datasetAuditRunnerImplemented: false')
+      && script.includes('runtimeImplemented: false')
+      && script.includes('minecraftRuntimeImplemented: false')
+      && script.includes('minecraftPluginImplemented: false')
+      && script.includes('productionReadinessClaimed: false')
+      && script.includes('productionGoPerformed: false');
+  }],
+  ['community_world_gate_validator_rejects_direct_command_gate_flags_v125', () => {
+    if (!communityWorldGateSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-gate-validator.mjs', 'utf8');
+    return script.includes('community_world_no_direct_command_gate')
+      && script.includes('input_action_candidate_included')
+      && script.includes('approved_game_input_action_included')
+      && script.includes('execution_allowed');
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -229,6 +277,7 @@ const cases = [
   ...workerAndOwnerCases,
   ...externalCharacterValidatorCases,
   ...communityWorldAuditMappingValidatorCases,
+  ...communityWorldGateValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -241,6 +290,7 @@ const fixtureGroups = [
   'p1_optional_surface_matrix',
   'external_character_boundary_validator_matrix',
   'community_world_audit_mapping_validator_matrix',
+  'community_world_gate_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
