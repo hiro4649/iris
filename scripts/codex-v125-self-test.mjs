@@ -269,6 +269,42 @@ const communityWorldGateValidatorCases = [
   }],
 ];
 
+function communityWorldCompletionReviewSurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_completion_review_fixtures.jsonl');
+}
+
+const communityWorldCompletionReviewValidatorCases = [
+  ['community_world_completion_review_validator_present_v125', () => (
+    !communityWorldCompletionReviewSurfacePresent()
+      || (fs.existsSync('scripts/codex-community-world-completion-review-validator.mjs')
+      && fs.existsSync('scripts/codex-community-world-completion-review-validator-self-test.mjs')
+      )
+  )],
+  ['community_world_completion_review_validator_self_test_passes_v125', () => {
+    if (!communityWorldCompletionReviewSurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-community-world-completion-review-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_COMMUNITY_WORLD_COMPLETION_REVIEW_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['community_world_completion_review_validator_preserves_priority1_blocked_v125', () => {
+    if (!communityWorldCompletionReviewSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-completion-review-validator.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['community_world_completion_review_validator_no_runtime_or_dataset_runner_claim_v125', () => {
+    if (!communityWorldCompletionReviewSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-completion-review-validator.mjs', 'utf8');
+    return script.includes('datasetAuditRunnerImplemented: false')
+      && script.includes('runtimeImplemented: false')
+      && script.includes('minecraftRuntimeImplemented: false')
+      && script.includes('minecraftPluginImplemented: false')
+      && script.includes('productionReadinessClaimed: false')
+      && script.includes('productionGoPerformed: false');
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -278,6 +314,7 @@ const cases = [
   ...externalCharacterValidatorCases,
   ...communityWorldAuditMappingValidatorCases,
   ...communityWorldGateValidatorCases,
+  ...communityWorldCompletionReviewValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -291,6 +328,7 @@ const fixtureGroups = [
   'external_character_boundary_validator_matrix',
   'community_world_audit_mapping_validator_matrix',
   'community_world_gate_validator_matrix',
+  'community_world_completion_review_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
