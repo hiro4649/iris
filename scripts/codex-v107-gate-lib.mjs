@@ -273,11 +273,9 @@ export function buildCentralHarnessVersionRegistryReport(input = {}) {
   const knownVersions = Array.isArray(registry.knownVersions) ? registry.knownVersions : [];
   const versionAtLeast = (version, minimum) => knownVersions.indexOf(version) >= knownVersions.indexOf(minimum) && knownVersions.indexOf(minimum) >= 0;
   const suiteNumber = Number(String(registry.activeSelfTestSuite || '').replace(/^v/, ''));
-  const compatibleCurrent = versionAtLeast(registry.currentVersion, '1.0.7');
-  const compatiblePrevious = versionAtLeast(registry.previousVersion, '1.0.6');
-  const compatibleSelfTest = registry.activeSelfTestStatusKey === `${registry.activeSelfTestSuite}SelfTestStatus`
-    && Number.isFinite(suiteNumber)
-    && suiteNumber >= 107;
+  const compatibleCurrent = Array.isArray(registry.knownVersions) && registry.knownVersions.includes(registry.currentVersion);
+  const compatiblePrevious = Array.isArray(registry.knownVersions) && registry.knownVersions.includes(registry.previousVersion);
+  const compatibleSelfTest = /^v(10[7-9]|11[0-9]|12[0-5])SelfTestStatus$/.test(String(registry.activeSelfTestStatusKey || ''));
   if (!compatibleCurrent) reasons.push('current_version_not_v107_or_later');
   if (!compatiblePrevious) reasons.push('previous_version_not_v106_or_v107');
   if (!compatibleSelfTest) reasons.push('active_self_test_not_v107_compatible');
