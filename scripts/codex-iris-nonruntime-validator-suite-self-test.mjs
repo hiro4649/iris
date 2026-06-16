@@ -38,7 +38,7 @@ function validScriptBody(extra = {}) {
   ].join('\n');
 }
 
-function validatorsFor(dir, scripts = ['a.mjs', 'b.mjs', 'c.mjs']) {
+function validatorsFor(dir, scripts = ['a.mjs', 'b.mjs', 'c.mjs', 'd.mjs']) {
   return scripts.map((script, index) => ({
     id: `self_validator_${index}`,
     command: path.join(dir, script),
@@ -51,6 +51,7 @@ function reportPasses(setup) {
     writeScript(dir, 'a.mjs', validScriptBody());
     writeScript(dir, 'b.mjs', validScriptBody());
     writeScript(dir, 'c.mjs', validScriptBody());
+    writeScript(dir, 'd.mjs', validScriptBody());
     setup?.(dir);
     return buildIrisNonruntimeValidatorSuiteReport({ validators: validatorsFor(dir) }).ok;
   });
@@ -61,6 +62,7 @@ function reportFails(setup, validatorsFactory = validatorsFor) {
     writeScript(dir, 'a.mjs', validScriptBody());
     writeScript(dir, 'b.mjs', validScriptBody());
     writeScript(dir, 'c.mjs', validScriptBody());
+    writeScript(dir, 'd.mjs', validScriptBody());
     setup?.(dir);
     return !buildIrisNonruntimeValidatorSuiteReport({ validators: validatorsFactory(dir) }).ok;
   });

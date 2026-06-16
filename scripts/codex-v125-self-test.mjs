@@ -408,6 +408,61 @@ const externalModuleSafeSummaryValidatorCases = [
   }],
 ];
 
+function externalModuleAuditMappingSurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_modules/iris_external_module_audit_mapping_fixtures.jsonl');
+}
+
+const externalModuleAuditMappingValidatorCases = [
+  ['iris_external_module_audit_mapping_validator_present_v125', () => (
+    !externalModuleAuditMappingSurfacePresent()
+      || (fs.existsSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs')
+      && fs.existsSync('scripts/codex-iris-external-module-audit-mapping-validator-self-test.mjs')
+      )
+  )],
+  ['iris_external_module_audit_mapping_validator_self_test_passes_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-iris-external-module-audit-mapping-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_EXTERNAL_MODULE_AUDIT_MAPPING_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['iris_external_module_audit_mapping_validator_preserves_classification_only_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs', 'utf8');
+    return script.includes('CLASSIFICATION_ONLY_NOT_TRUE') && script.includes("classificationOnlyStatus: classificationOnlyFailed ? 'fail' : 'pass'");
+  }],
+  ['iris_external_module_audit_mapping_validator_rejects_production_readiness_sweetening_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs', 'utf8');
+    return script.includes('production_readiness_sweetening') && script.includes('PRODUCTION_READINESS_WRONG_AUDITOR');
+  }],
+  ['iris_external_module_audit_mapping_validator_rejects_raw_audio_privacy_mismatch_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs', 'utf8');
+    return script.includes('RAW_AUDIO_OR_VOICE_MODEL_WRONG_MAPPING') && script.includes('privacy_or_confidential');
+  }],
+  ['iris_external_module_audit_mapping_validator_rejects_payment_relationship_pass_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs', 'utf8');
+    return script.includes('PAYMENT_RELATIONSHIP_WRONG_MAPPING') && script.includes('monetization_pressure_risk');
+  }],
+  ['iris_external_module_audit_mapping_validator_preserves_priority1_blocked_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['iris_external_module_audit_mapping_validator_no_dataset_runner_claim_v125', () => {
+    if (!externalModuleAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-audit-mapping-validator.mjs', 'utf8');
+    return script.includes('datasetAuditRunnerImplemented: false')
+      && script.includes('realDatasetProcessing: false')
+      && script.includes('runtimeImplemented: false')
+      && script.includes('productionReadinessClaimed: false')
+      && script.includes('productionGoPerformed: false');
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -420,6 +475,7 @@ const cases = [
   ...communityWorldCompletionReviewValidatorCases,
   ...irisNonruntimeValidatorSuiteCases,
   ...externalModuleSafeSummaryValidatorCases,
+  ...externalModuleAuditMappingValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -436,6 +492,7 @@ const fixtureGroups = [
   'community_world_completion_review_validator_matrix',
   'iris_nonruntime_validator_suite_matrix',
   'iris_external_module_safe_summary_validator_matrix',
+  'iris_external_module_audit_mapping_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');

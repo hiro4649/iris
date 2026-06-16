@@ -38,6 +38,11 @@ const DEFAULT_VALIDATORS = [
     command: 'scripts/codex-iris-external-module-safe-summary-validator.mjs',
     passText: 'iris_external_module_safe_summary_validator',
   },
+  {
+    id: 'iris_external_module_audit_mapping_validator',
+    command: 'scripts/codex-iris-external-module-audit-mapping-validator.mjs',
+    passText: 'iris_external_module_audit_mapping_validator',
+  },
 ];
 
 function parseJsonFromOutput(stdout) {
