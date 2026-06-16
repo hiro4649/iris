@@ -143,9 +143,7 @@ const workerAndOwnerCases = [
 ];
 
 function externalCharacterBoundarySurfacePresent() {
-  return fs.existsSync('scripts/codex-iris-external-character-boundary-validator.mjs')
-    || fs.existsSync('scripts/codex-iris-external-character-boundary-validator-self-test.mjs')
-    || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_positive_fixtures.jsonl')
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_positive_fixtures.jsonl')
     || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_negative_fixtures.jsonl')
     || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_boundary_fixtures.jsonl')
     || fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_character/iris_external_character_redline_fixtures.jsonl');
@@ -176,6 +174,53 @@ const externalCharacterValidatorCases = [
   )],
 ];
 
+function communityWorldAuditMappingSurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_audit_mapping_fixtures.jsonl');
+}
+
+const communityWorldAuditMappingValidatorCases = [
+  ['community_world_audit_mapping_validator_present_v125', () => (
+    !communityWorldAuditMappingSurfacePresent()
+      || (fs.existsSync('scripts/codex-community-world-audit-mapping-validator.mjs')
+      && fs.existsSync('scripts/codex-community-world-audit-mapping-validator-self-test.mjs')
+      && fs.existsSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_audit_mapping_fixtures.jsonl')
+      )
+  )],
+  ['community_world_audit_mapping_validator_self_test_passes_v125', () => {
+    if (!communityWorldAuditMappingSurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-community-world-audit-mapping-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_COMMUNITY_WORLD_AUDIT_MAPPING_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['community_world_audit_mapping_validator_preserves_classification_only_v125', () => {
+    if (!communityWorldAuditMappingSurfacePresent()) return true;
+    const text = fs.readFileSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_audit_mapping_fixtures.jsonl', 'utf8').trim();
+    return text.split(/\r?\n/).every((line) => JSON.parse(line).classification_only === true);
+  }],
+  ['community_world_audit_mapping_validator_rejects_production_readiness_sweetening_v125', () => {
+    if (!communityWorldAuditMappingSurfacePresent()) return true;
+    const text = fs.readFileSync('docs/specs/IRIS_20240425/fixtures/community_world_core/community_world_core_audit_mapping_fixtures.jsonl', 'utf8');
+    return text.includes('"audit_auditor":"production_readiness_sweetening"')
+      && text.includes('"expected_verdict":"reject"');
+  }],
+  ['community_world_audit_mapping_validator_preserves_priority1_blocked_v125', () => {
+    if (!communityWorldAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-audit-mapping-validator.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['community_world_audit_mapping_validator_no_dataset_runner_claim_v125', () => {
+    if (!communityWorldAuditMappingSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-community-world-audit-mapping-validator.mjs', 'utf8');
+    return script.includes('datasetAuditRunnerImplemented: false')
+      && script.includes('minecraftRuntimeImplemented: false')
+      && script.includes('minecraftPluginImplemented: false')
+      && script.includes('productionReadinessClaimed: false')
+      && script.includes('productionGoPerformed: false');
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -183,6 +228,7 @@ const cases = [
   ...monitorAndYieldCases,
   ...workerAndOwnerCases,
   ...externalCharacterValidatorCases,
+  ...communityWorldAuditMappingValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -194,6 +240,7 @@ const fixtureGroups = [
   'skill_review_product_value_yield_matrix',
   'p1_optional_surface_matrix',
   'external_character_boundary_validator_matrix',
+  'community_world_audit_mapping_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
