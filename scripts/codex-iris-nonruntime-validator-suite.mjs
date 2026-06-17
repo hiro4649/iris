@@ -43,6 +43,11 @@ const DEFAULT_VALIDATORS = [
     command: 'scripts/codex-iris-external-module-audit-mapping-validator.mjs',
     passText: 'iris_external_module_audit_mapping_validator',
   },
+  {
+    id: 'iris_external_module_boundary_completion_validator',
+    command: 'scripts/codex-iris-external-module-boundary-completion-validator.mjs',
+    passText: 'iris_external_module_boundary_completion_validator',
+  },
 ];
 
 function parseJsonFromOutput(stdout) {
