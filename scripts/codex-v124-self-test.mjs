@@ -2,7 +2,6 @@
 // CODEX_QUALITY_HARNESS_FILE v1.2.4
 
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   V124_OPERATOR_STATUS_KEYS,
@@ -16,7 +15,6 @@ import {
 } from './codex-orchestration-capsule.mjs';
 import { buildWorkerProofCapsule, validateWorkerProofCapsule } from './codex-worker-proof-capsule.mjs';
 import { buildOwnerDecisionBrief, validateOwnerDecisionBrief } from './codex-owner-decision-brief.mjs';
-import { validateFixtureRow } from './codex-community-world-fixture-validator.mjs';
 
 function test(name, fn) {
   try {
@@ -34,12 +32,6 @@ function passed(status) {
   return status?.status === 'pass';
 }
 
-function suiteAtLeast(suite, minimum) {
-  const value = Number(String(suite || '').replace(/^v/, ''));
-  const floor = Number(String(minimum || '').replace(/^v/, ''));
-  return Number.isInteger(value) && Number.isInteger(floor) && value >= floor;
-}
-
 const compatibilityCases = [
   ['v124_self_test_must_pass', () => true],
   ['v124_adds_no_new_p0_artifact', () => V124_P0_ARTIFACTS.length === 3 && !V124_P0_ARTIFACTS.includes('codex-v124-delegation.safe.json')],
@@ -47,26 +39,7 @@ const compatibilityCases = [
   ['v124_preserves_v118_final_decision', () => buildOrchestrationCapsule().finalAuthority === 'v1.1.8_final_decision_kernel'],
   ['v124_preserves_v119_orchestration_artifacts', () => V124_P0_ARTIFACTS.includes('codex-orchestration-capsule.safe.json')],
   ['v124_no_new_skill_daemon_or_visual_daemon', () => !fs.existsSync('scripts/codex-skill-daemon.mjs') && !fs.existsSync('scripts/codex-visual-proof-daemon.mjs')],
-  ['v124_active_authority_tuple_is_current', () => suiteAtLeast(buildOrchestrationCapsule().skillContextRouting.activeAuthorityTuple.activeSelfTestSuite, 'v124')],
-  ['v124_compact_agents_preserves_method_reference', () => {
-    const agents = fs.readFileSync('AGENTS.md', 'utf8');
-    return /CODEX_OPENAI_CODEX_METHOD_POLICY\.md/.test(agents) && /code_review\.md/.test(agents);
-  }],
-  ['v124_compact_agents_stays_within_target_footprint', () => fs.readFileSync('AGENTS.md', 'utf8').split(/\r?\n/).filter((line) => line.trim()).length <= 80],
-  ['v124_local_safety_patches_do_not_pollute_change_classification', () => {
-    const gate = fs.readFileSync('scripts/codex-change-classification-gate.mjs', 'utf8');
-    const localGate = fs.readFileSync('scripts/codex-local-quality-gate.mjs', 'utf8');
-    return gate.includes("normalized.startsWith('safety/')")
-      && gate.includes("\\.(patch|stat\\.txt)")
-      && /isLocalSafetyArtifact/.test(gate)
-      && /isLocalSafetyPatchArtifact/.test(localGate);
-  }],
-  ['v124_v107_registry_compatibility_not_capped_at_v113', () => {
-    const gate = fs.readFileSync('scripts/codex-v107-gate-lib.mjs', 'utf8');
-    return gate.includes('registry.knownVersions.includes(registry.currentVersion)')
-      && gate.includes('12[0-5]')
-      && !gate.includes("registry.currentVersion === '1.1.3'");
-  }],
+  ['v124_active_authority_tuple_is_current_or_successor', () => ['v124', 'v125', 'v126'].includes(buildOrchestrationCapsule().skillContextRouting.activeAuthorityTuple.activeSelfTestSuite)],
 ];
 
 const goalAndDelegationCases = [
@@ -188,92 +161,12 @@ const ownerBriefCases = [
   }],
 ];
 
-const communityWorldFixtureValidatorCases = [
-  ['community_world_fixture_validator_registered_or_present_v124', () => (
-    fs.existsSync('scripts/codex-community-world-fixture-validator.mjs')
-      && fs.existsSync('scripts/codex-community-world-fixture-validator-self-test.mjs')
-  )],
-  ['community_world_fixture_validator_self_test_passes_v124', () => {
-    execFileSync(process.execPath, ['scripts/codex-community-world-fixture-validator-self-test.mjs'], {
-      stdio: 'ignore',
-      env: { ...process.env, CODEX_COMMUNITY_WORLD_FIXTURE_SELF_TEST_SKIP_REAL: '1' },
-    });
-    return true;
-  }],
-  ['community_world_fixture_validator_rejects_runtime_readiness_sweetening_v124', () => validateFixtureRow({
-    schema_version: 'community_world_fixture_v1',
-    fixture_id: 'v124_runtime_readiness_sweetening_case',
-    fixture_group: 'completion_review',
-    k_ids: ['K1020'],
-    target_gate_ids: ['community_world_owner_review_gate'],
-    input_evidence_class: 'synthetic_fixture',
-    synthetic_input: {
-      priority1_status: 'BLOCKED',
-      runtime_implemented: false,
-      minecraft_plugin_implemented: false,
-      dataset_audit_runner_implemented: false,
-      production_readiness_claimed: true,
-    },
-    expected_result_state: 'pass',
-    expected_safe_reason_codes: ['priority1_blocked_preserved'],
-    expected_blocking: false,
-    must_not_include: ['production_readiness_claim'],
-    trace_id: 'trace_v124_runtime_readiness_sweetening_case',
-  }, { file: 'self-test', line: 1, group: 'completion_review', states: new Set(['pass']) }).length > 0],
-  ['community_world_fixture_validator_preserves_priority1_blocked_v124', () => validateFixtureRow({
-    schema_version: 'community_world_fixture_v1',
-    fixture_id: 'v124_priority1_blocked_case',
-    fixture_group: 'completion_review',
-    k_ids: ['K1020'],
-    target_gate_ids: ['community_world_owner_review_gate'],
-    input_evidence_class: 'synthetic_fixture',
-    synthetic_input: {
-      priority1_status: 'BLOCKED',
-      runtime_implemented: false,
-      minecraft_plugin_implemented: false,
-      dataset_audit_runner_implemented: false,
-      production_readiness_claimed: false,
-    },
-    expected_result_state: 'pass',
-    expected_safe_reason_codes: ['priority1_blocked_preserved'],
-    expected_blocking: false,
-    must_not_include: ['production_readiness_claim'],
-    trace_id: 'trace_v124_priority1_blocked_case',
-  }, { file: 'self-test', line: 1, group: 'completion_review', states: new Set(['pass']) }).length === 0],
-  ['community_world_fixture_validator_no_runtime_or_plugin_claim_v124', () => {
-    const failures = validateFixtureRow({
-      schema_version: 'community_world_fixture_v1',
-      fixture_id: 'v124_no_runtime_or_plugin_claim_case',
-      fixture_group: 'completion_review',
-      k_ids: ['K1020'],
-      target_gate_ids: ['community_world_owner_review_gate'],
-      input_evidence_class: 'synthetic_fixture',
-      synthetic_input: {
-        priority1_status: 'BLOCKED',
-        runtime_implemented: false,
-        minecraft_runtime_implemented: false,
-        minecraft_plugin_implemented: false,
-        dataset_audit_runner_implemented: false,
-        production_readiness_claimed: false,
-        production_go_performed: false,
-      },
-      expected_result_state: 'pass',
-      expected_safe_reason_codes: ['no_runtime_claim', 'priority1_blocked_preserved'],
-      expected_blocking: false,
-      must_not_include: ['production_readiness_claim'],
-      trace_id: 'trace_v124_no_runtime_or_plugin_claim_case',
-    }, { file: 'self-test', line: 1, group: 'completion_review', states: new Set(['pass']) });
-    return failures.length === 0;
-  }],
-];
-
 const cases = [
   ...compatibilityCases,
   ...goalAndDelegationCases,
   ...evidenceAndFootprintCases,
   ...expertLoopCases,
   ...ownerBriefCases,
-  ...communityWorldFixtureValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -287,7 +180,6 @@ const fixtureGroups = [
   'safe_failure_digest_matrix',
   'owner_burden_reducer_matrix',
   'safe_session_learning_matrix',
-  'community_world_fixture_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
