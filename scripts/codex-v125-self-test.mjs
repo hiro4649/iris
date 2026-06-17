@@ -463,6 +463,52 @@ const externalModuleAuditMappingValidatorCases = [
   }],
 ];
 
+function externalModuleCompletionSurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/fixtures/external_modules/iris_external_module_completion_review_fixtures.jsonl');
+}
+
+const externalModuleCompletionValidatorCases = [
+  ['iris_external_module_completion_validator_present_v125', () => (
+    !externalModuleCompletionSurfacePresent()
+      || (fs.existsSync('scripts/codex-iris-external-module-boundary-completion-validator.mjs')
+      && fs.existsSync('scripts/codex-iris-external-module-boundary-completion-validator-self-test.mjs')
+      )
+  )],
+  ['iris_external_module_completion_validator_self_test_passes_v125', () => {
+    if (!externalModuleCompletionSurfacePresent()) return true;
+    execFileSync(process.execPath, ['scripts/codex-iris-external-module-boundary-completion-validator-self-test.mjs'], {
+      stdio: 'ignore',
+      env: { ...process.env, CODEX_EXTERNAL_MODULE_COMPLETION_SELF_TEST_SKIP_REAL: '1' },
+    });
+    return true;
+  }],
+  ['iris_external_module_completion_validator_rejects_runtime_implementation_claim_v125', () => {
+    if (!externalModuleCompletionSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-boundary-completion-validator.mjs', 'utf8');
+    return script.includes('runtime_implemented') && script.includes('PASS_ROW_FORBIDDEN_TRUE');
+  }],
+  ['iris_external_module_completion_validator_rejects_voxweave_implementation_claim_v125', () => {
+    if (!externalModuleCompletionSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-boundary-completion-validator.mjs', 'utf8');
+    return script.includes('voxweave_implementation') && script.includes('voxweaveImplementation: false');
+  }],
+  ['iris_external_module_completion_validator_rejects_dataset_runner_claim_v125', () => {
+    if (!externalModuleCompletionSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-boundary-completion-validator.mjs', 'utf8');
+    return script.includes('dataset_audit_runner_implemented') && script.includes('datasetAuditRunnerImplemented: false');
+  }],
+  ['iris_external_module_completion_validator_rejects_priority1_resolved_v125', () => {
+    if (!externalModuleCompletionSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-boundary-completion-validator.mjs', 'utf8');
+    return script.includes('PASS_ROW_PRIORITY1_NOT_BLOCKED') && script.includes("priority1Status: 'BLOCKED'");
+  }],
+  ['iris_external_module_completion_validator_preserves_priority1_blocked_v125', () => {
+    if (!externalModuleCompletionSurfacePresent()) return true;
+    const script = fs.readFileSync('scripts/codex-iris-external-module-boundary-completion-validator.mjs', 'utf8');
+    return script.includes("priority1Status: 'BLOCKED'");
+  }],
+];
+
 const cases = [
   ...compatibilityCases,
   ...goalShardCases,
@@ -476,6 +522,7 @@ const cases = [
   ...irisNonruntimeValidatorSuiteCases,
   ...externalModuleSafeSummaryValidatorCases,
   ...externalModuleAuditMappingValidatorCases,
+  ...externalModuleCompletionValidatorCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -493,6 +540,7 @@ const fixtureGroups = [
   'iris_nonruntime_validator_suite_matrix',
   'iris_external_module_safe_summary_validator_matrix',
   'iris_external_module_audit_mapping_validator_matrix',
+  'iris_external_module_completion_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
