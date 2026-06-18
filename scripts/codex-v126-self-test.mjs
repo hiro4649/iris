@@ -149,6 +149,18 @@ function syntheticLiveLoopFileIncludes(pattern) {
     || fs.readFileSync('docs/specs/IRIS_20240425/fixtures/live_loop/iris_synthetic_live_loop_fixtures.jsonl', 'utf8').includes(pattern);
 }
 
+function firstRuntimeSliceSelfTestPasses() {
+  return runNodeScript('scripts/iris-first-runtime-vertical-slice-self-test.mjs').status === 0;
+}
+
+function firstRuntimeSliceFileIncludes(filePath, pattern) {
+  return fs.readFileSync(filePath, 'utf8').includes(pattern);
+}
+
+function firstRuntimeSliceRuntimeSource() {
+  return fs.readFileSync('src/runtime/firstRuntimeVerticalSlice.js', 'utf8');
+}
+
 const compatibilityCases = [
   ['v126_self_test_must_pass', () => true],
   ['v126_adds_no_new_p0_artifact', () => V126_P0_ARTIFACTS.length === 3 && !V126_P0_ARTIFACTS.includes('codex-v126-observed-state.safe.json')],
@@ -295,6 +307,17 @@ const syntheticLiveLoopCases = [
   ['synthetic_live_loop_muted_viewer_blocks_personalization_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('muted_viewer_blocks_personalization')],
 ];
 
+const firstRuntimeSliceCases = [
+  ['first_runtime_slice_self_test_registered_in_run_tests_v126', () => firstRuntimeSliceFileIncludes('scripts/run-tests.js', 'iris-first-runtime-vertical-slice-self-test.mjs')],
+  ['first_runtime_slice_self_test_exit_zero_required_v126', () => firstRuntimeSliceSelfTestPasses()],
+  ['first_runtime_slice_runtime_file_exact_scope_v126', () => fs.existsSync('src/runtime/firstRuntimeVerticalSlice.js')],
+  ['first_runtime_slice_no_external_capability_import_v126', () => !/(node:http|node:https|node:net|node:dgram|node:child_process|node:fs|node:os|node:worker_threads|\bprocess\.env\b|\breadFile\b|readFileSync|\bfetch\b|WebSocket|createConnection|spawn|execFile|\bexec\b|\bfork\b|writeFile|appendFile|createWriteStream)/.test(firstRuntimeSliceRuntimeSource())],
+  ['first_runtime_slice_emergency_stop_case_present_v126', () => firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'fixture_emergency_stop_blocks_first')],
+  ['first_runtime_slice_tampered_result_regressions_present_v126', () => firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'validate_result_rejects_true_side_effect')
+    && firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'validate_result_rejects_blocked_with_response_candidate')
+    && firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'validate_result_rejects_unexpected_trace_field')],
+];
+
 const cases = [
   ...compatibilityCases,
   ...observedStateCases,
@@ -302,6 +325,7 @@ const cases = [
   ...evidenceAndRouterCases,
   ...effectivenessAndArtifactCases,
   ...syntheticLiveLoopCases,
+  ...firstRuntimeSliceCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -314,6 +338,7 @@ const fixtureGroups = [
   'worker_observed_git_worktree_pr_state_matrix',
   'owner_receipt_delegated_process_matrix',
   'iris_synthetic_live_loop_dry_run_matrix',
+  'iris_first_runtime_vertical_slice_regression_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
