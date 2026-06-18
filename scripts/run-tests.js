@@ -1504,6 +1504,17 @@ const tests = [
     },
   ],
   [
+    "first runtime slice completion review validator self-test is registered and required",
+    () => {
+      const result = spawnSync(process.execPath, ["scripts/codex-iris-first-runtime-slice-completion-review-validator-self-test.mjs"], {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024 * 4,
+      });
+      assert.equal(result.status, 0);
+      assert.equal(result.stdout.includes("IRIS first runtime slice completion review validator self-test: pass"), true);
+    },
+  ],
+  [
     "runtime import smoke httpPostAdapter runtimeAdapters main",
     async () => {
       async function importForSmoke(label, specifier) {
