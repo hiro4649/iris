@@ -1490,6 +1490,20 @@ const SAFE_GAME_OBSERVATION_TRUTH_BOUNDARY = {
 
 const tests = [
   [
+    "first runtime vertical slice self-test is registered and required",
+    () => {
+      const result = spawnSync(process.execPath, ["scripts/iris-first-runtime-vertical-slice-self-test.mjs"], {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024 * 4,
+      });
+      assert.equal(result.status, 0);
+      const report = JSON.parse(result.stdout);
+      assert.equal(report.selfTestStatus, "pass");
+      assert.equal(report.priority1Status, "BLOCKED");
+      assert.equal(report.casesRun >= 69, true);
+    },
+  ],
+  [
     "runtime import smoke httpPostAdapter runtimeAdapters main",
     async () => {
       async function importForSmoke(label, specifier) {
