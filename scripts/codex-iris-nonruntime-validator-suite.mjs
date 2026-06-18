@@ -53,6 +53,11 @@ const DEFAULT_VALIDATORS = [
     command: 'scripts/codex-iris-synthetic-live-loop-dry-run.mjs',
     passText: 'iris_synthetic_live_loop_dry_run',
   },
+  {
+    id: 'iris_first_runtime_slice_completion_review_validator',
+    command: 'scripts/codex-iris-first-runtime-slice-completion-review-validator.mjs',
+    passText: 'iris_first_runtime_slice_completion_review_validator',
+  },
 ];
 
 function parseJsonFromOutput(stdout) {

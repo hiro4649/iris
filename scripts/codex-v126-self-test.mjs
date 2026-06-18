@@ -161,6 +161,10 @@ function firstRuntimeSliceRuntimeSource() {
   return fs.readFileSync('src/runtime/firstRuntimeVerticalSlice.js', 'utf8');
 }
 
+function firstRuntimeSliceCompletionReviewSelfTestPasses() {
+  return runNodeScript('scripts/codex-iris-first-runtime-slice-completion-review-validator-self-test.mjs').status === 0;
+}
+
 const compatibilityCases = [
   ['v126_self_test_must_pass', () => true],
   ['v126_adds_no_new_p0_artifact', () => V126_P0_ARTIFACTS.length === 3 && !V126_P0_ARTIFACTS.includes('codex-v126-observed-state.safe.json')],
@@ -316,6 +320,9 @@ const firstRuntimeSliceCases = [
   ['first_runtime_slice_tampered_result_regressions_present_v126', () => firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'validate_result_rejects_true_side_effect')
     && firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'validate_result_rejects_blocked_with_response_candidate')
     && firstRuntimeSliceFileIncludes('scripts/iris-first-runtime-vertical-slice-self-test.mjs', 'validate_result_rejects_unexpected_trace_field')],
+  ['first_runtime_slice_completion_review_validator_registered_in_suite_v126', () => firstRuntimeSliceFileIncludes('scripts/codex-iris-nonruntime-validator-suite.mjs', 'codex-iris-first-runtime-slice-completion-review-validator.mjs')],
+  ['first_runtime_slice_completion_review_self_test_registered_in_run_tests_v126', () => firstRuntimeSliceFileIncludes('scripts/run-tests.js', 'codex-iris-first-runtime-slice-completion-review-validator-self-test.mjs')],
+  ['first_runtime_slice_completion_review_self_test_passes_v126', () => firstRuntimeSliceCompletionReviewSelfTestPasses()],
 ];
 
 const cases = [
@@ -339,6 +346,7 @@ const fixtureGroups = [
   'owner_receipt_delegated_process_matrix',
   'iris_synthetic_live_loop_dry_run_matrix',
   'iris_first_runtime_vertical_slice_regression_matrix',
+  'iris_first_runtime_slice_completion_review_validator_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');
