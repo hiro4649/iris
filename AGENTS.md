@@ -21,7 +21,7 @@ smallest relevant verification was run or honestly reported unavailable without
 raw logs or secret-like output.
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.2.5
+CODEX_QUALITY_HARNESS_FILE v1.2.6
 
 ## Prime Directive
 
@@ -33,9 +33,9 @@ docs/process.
 
 ## Active Harness
 
-Active target harness: v1.2.5 / v125.
+Active target harness: v1.2.6 / v126.
 Read first: AGENTS.md, docs/process/CODEX_HARNESS_MANIFEST.json,
-docs/process/CODEX_V125_SPEC.md, and docs/process/CODEX_ACTIVE_POLICY_INDEX.json.
+docs/process/CODEX_V126_SPEC.md, and docs/process/CODEX_ACTIVE_POLICY_INDEX.json.
 README, legacy specs, and PR history are conditional reads only.
 Stable method references: docs/process/CODEX_OPENAI_CODEX_METHOD_POLICY.md and
 docs/process/code_review.md.

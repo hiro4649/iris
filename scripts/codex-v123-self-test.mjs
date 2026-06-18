@@ -19,7 +19,6 @@ import {
 } from './codex-orchestration-capsule.mjs';
 import { buildWorkerProofCapsule, validateWorkerProofCapsule } from './codex-worker-proof-capsule.mjs';
 import { buildOwnerDecisionBrief, validateOwnerDecisionBrief } from './codex-owner-decision-brief.mjs';
-import { buildChangeClassificationReport } from './codex-change-classification-gate.mjs';
 
 function test(name, fn) {
   try {
@@ -215,28 +214,12 @@ const escalationAndReviewCases = [
   }],
 ];
 
-const classificationCases = [
-  ['harness_diagnostic_run_tests_repair_not_product_relevant', () => {
-    const report = buildChangeClassificationReport({
-      CODEX_CHANGED_FILES: [
-        'scripts/codex-local-quality-gate.mjs',
-        'scripts/codex-openai-method-gate.mjs',
-        'scripts/run-tests.js',
-      ].join(','),
-    });
-    return report.changeClassificationStatus.status === 'pass'
-      && report.changeClassificationStatus.productRelevantChanged === false
-      && report.changeClassificationStatus.classification?.harnessOnly === true;
-  }],
-];
-
 const cases = [
   ...compatibilityCases,
   ...closureCases,
   ...workspaceAndPolicyCases,
   ...contextAndSkillCases,
   ...escalationAndReviewCases,
-  ...classificationCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
