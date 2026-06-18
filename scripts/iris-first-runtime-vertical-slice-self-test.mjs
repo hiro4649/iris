@@ -65,6 +65,25 @@ function forbiddenFieldFails(field) {
   return invalidInput({ [field]: "unsafe" }).reason_code === "synthetic_input_invalid";
 }
 
+function validResult() {
+  return runRow(safeRow());
+}
+
+function validMutedResult() {
+  return invalidInput({ moderation_status: "muted" });
+}
+
+function validInvalidStopResult() {
+  const row = clone(safeRow());
+  return runFirstRuntimeVerticalSlice(row.input, { emergencyStopState: { active: "false" } });
+}
+
+function tamperFails(mutator, source = validResult) {
+  const result = clone(source());
+  mutator(result);
+  return validateFirstRuntimeVerticalSliceResult(result).status === "fail";
+}
+
 const cases = [
   test("fixture_safe_comment_passes", () => {
     const result = runRow(safeRow());
@@ -129,9 +148,60 @@ const cases = [
   }),
   test("validate_input_accepts_fixture_input", () => validateFirstRuntimeVerticalSliceInput(safeRow().input).status === "pass"),
   test("validate_result_accepts_safe_result", () => validateFirstRuntimeVerticalSliceResult(runRow(safeRow())).status === "pass"),
+  test("validate_result_rejects_missing_side_effect_map", () => tamperFails((result) => { delete result.operator_safe_trace.side_effect_booleans; })),
+  test("validate_result_rejects_empty_side_effect_map", () => tamperFails((result) => { result.operator_safe_trace.side_effect_booleans = {}; })),
+  test("validate_result_rejects_missing_side_effect_field", () => tamperFails((result) => { delete result.operator_safe_trace.side_effect_booleans.network_call_performed; })),
+  test("validate_result_rejects_true_side_effect", () => tamperFails((result) => { result.operator_safe_trace.side_effect_booleans.network_call_performed = true; })),
+  test("validate_result_rejects_unexpected_side_effect_field", () => tamperFails((result) => { result.operator_safe_trace.side_effect_booleans.extra_effect = false; })),
+  test("validate_result_rejects_missing_candidate_presence_map", () => tamperFails((result) => { delete result.operator_safe_trace.candidate_presence_booleans; })),
+  test("validate_result_rejects_missing_candidate_presence_field", () => tamperFails((result) => { delete result.operator_safe_trace.candidate_presence_booleans.response_candidate_present; })),
+  test("validate_result_rejects_candidate_presence_type_mismatch", () => tamperFails((result) => { result.operator_safe_trace.candidate_presence_booleans.response_candidate_present = "true"; })),
+  test("validate_result_rejects_blocked_with_response_candidate", () => tamperFails((result) => { result.response_candidate = validResult().response_candidate; }, validMutedResult)),
+  test("validate_result_rejects_blocked_with_voice_candidate", () => tamperFails((result) => { result.voice_safe_summary = validResult().voice_safe_summary; }, validMutedResult)),
+  test("validate_result_rejects_blocked_with_avatar_candidate", () => tamperFails((result) => { result.avatar_safe_summary = validResult().avatar_safe_summary; }, validMutedResult)),
+  test("validate_result_rejects_blocked_with_subtitle_candidate", () => tamperFails((result) => { result.subtitle_safe_summary = validResult().subtitle_safe_summary; }, validMutedResult)),
+  test("validate_result_rejects_blocked_candidate_presence_true", () => tamperFails((result) => { result.operator_safe_trace.candidate_presence_booleans.response_candidate_present = true; }, validMutedResult)),
+  test("validate_result_rejects_pass_candidate_presence_false", () => tamperFails((result) => { result.operator_safe_trace.candidate_presence_booleans.response_candidate_present = false; })),
+  test("validate_result_rejects_response_candidate_memory_commit_allowed", () => tamperFails((result) => { result.response_candidate.memory_commit_allowed = true; })),
+  test("validate_result_rejects_response_candidate_relationship_commit_allowed", () => tamperFails((result) => { result.response_candidate.relationship_commit_allowed = true; })),
+  test("validate_result_rejects_response_candidate_game_action_allowed", () => tamperFails((result) => { result.response_candidate.game_action_allowed = true; })),
+  test("validate_result_rejects_response_candidate_public_publish_allowed", () => tamperFails((result) => { result.response_candidate.public_publish_allowed = true; })),
+  test("validate_result_rejects_response_candidate_external_call_allowed", () => tamperFails((result) => { result.response_candidate.external_call_allowed = true; })),
+  test("validate_result_rejects_voice_external_call", () => tamperFails((result) => { result.voice_safe_summary.external_call_performed = true; })),
+  test("validate_result_rejects_avatar_external_call", () => tamperFails((result) => { result.avatar_safe_summary.external_call_performed = true; })),
+  test("validate_result_rejects_subtitle_external_call", () => tamperFails((result) => { result.subtitle_safe_summary.external_call_performed = true; })),
+  test("validate_result_rejects_trace_priority1_ready", () => tamperFails((result) => { result.operator_safe_trace.priority1_status = "READY"; })),
+  test("validate_result_rejects_trace_result_state_mismatch", () => tamperFails((result) => { result.operator_safe_trace.result_state = "blocked"; })),
+  test("validate_result_rejects_trace_id_mismatch", () => tamperFails((result) => { result.operator_safe_trace.trace_id = "trace-other"; })),
+  test("validate_result_rejects_scenario_id_mismatch", () => tamperFails((result) => { result.operator_safe_trace.scenario_id = "scenario-other"; })),
+  test("validate_result_rejects_reason_code_mismatch", () => tamperFails((result) => { result.operator_safe_trace.reason_codes = ["synthetic_input_invalid"]; })),
+  test("validate_result_rejects_unexpected_result_field", () => tamperFails((result) => { result.extra_result_field = true; })),
+  test("validate_result_rejects_unexpected_trace_field", () => tamperFails((result) => { result.operator_safe_trace.extra_trace_field = true; })),
+  test("moderation_muted_produces_no_all_candidates", () => {
+    const result = validMutedResult();
+    return result.result_state === "blocked" &&
+      Object.values(result.operator_safe_trace.candidate_presence_booleans).every((value) => value === false) &&
+      !result.response_candidate && !result.voice_safe_summary && !result.avatar_safe_summary && !result.subtitle_safe_summary;
+  }),
+  test("moderation_blocked_produces_no_all_candidates", () => {
+    const result = invalidInput({ moderation_status: "blocked" });
+    return result.result_state === "blocked" &&
+      Object.values(result.operator_safe_trace.candidate_presence_booleans).every((value) => value === false) &&
+      !result.response_candidate && !result.voice_safe_summary && !result.avatar_safe_summary && !result.subtitle_safe_summary;
+  }),
+  test("invalid_emergency_stop_produces_no_candidates", () => {
+    const result = validInvalidStopResult();
+    return Object.values(result.operator_safe_trace.candidate_presence_booleans).every((value) => value === false) &&
+      !result.response_candidate && !result.voice_safe_summary && !result.avatar_safe_summary && !result.subtitle_safe_summary;
+  }),
+  test("invalid_emergency_stop_stages_remain_not_started", () => {
+    const stages = validInvalidStopResult().operator_safe_trace.stage_statuses;
+    return Object.entries(stages).every(([key, value]) => key === "emergency_stop" || value === "not_started");
+  }),
+  test("pass_trace_records_persona_validation_pass", () => validResult().operator_safe_trace.stage_statuses.persona_validation === "pass"),
   test("no_external_capability_imports", () => {
     const source = fs.readFileSync(RUNTIME_SOURCE, "utf8");
-    return !/(node:http|node:https|node:net|node:dgram|node:child_process|worker_threads|\bfetch\b|WebSocket|createConnection|spawn|execFile|\bexec\b|\bfork\b|writeFile|appendFile|createWriteStream|database client|YouTube client|OBS client|TTS engine client|Live2D renderer client|Game Adapter)/.test(source);
+    return !/(node:http|node:https|node:net|node:dgram|node:child_process|node:fs|node:os|node:worker_threads|\bprocess\.env\b|\breadFile\b|readFileSync|\bfs\b|worker_threads|\bfetch\b|WebSocket|createConnection|spawn|execFile|\bexec\b|\bfork\b|writeFile|appendFile|createWriteStream|database client|YouTube client|OBS client|TTS engine client|Live2D renderer client|Game Adapter)/.test(source);
   }),
 ];
 
