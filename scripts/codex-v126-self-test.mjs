@@ -90,8 +90,8 @@ function agentsLocalTaskUsesV126(content) {
 }
 
 function agentsV125CompatibilityOnly(content) {
-  return content.includes('Run v125\nonly as a blocking compatibility test where required.')
-    || content.includes('Run v125 only as a blocking compatibility test where required.');
+  const normalized = content.replace(/\s+/g, ' ');
+  return normalized.includes('Run v125 only as a blocking compatibility test where required.');
 }
 
 function agentsObservedStateAuthorityLinePresent(content) {
