@@ -33,6 +33,87 @@ function passed(status) {
   return status?.status === 'pass';
 }
 
+function buildAgentsFixture(overrides = {}) {
+  const authority = overrides.authority || `v1.1.8 Final Decision remains final authority.
+v1.1.9 P0 artifacts and operator-visible statuses remain preserved.
+v1.2.0 adaptive routing, v1.2.1 calibration, v1.2.2 read-budget routing,
+and v1.2.3 observed evidence/decision closure remain compatibility layers.
+v1.2.4 delegated autonomy and evidence semantics remain compatibility layers.
+v1.2.5 goal shard, worktree fleet, evidence lane, typed monitor, fanout, and
+yield remain compatibility layers.
+v1.2.6 adds only internal observed workspace, owner/delegated receipt,
+checker/builder loop, safe failure capsule, context/skill/validation budget,
+and effectiveness fields inside existing P0 artifacts.`;
+  const localTaskDiscipline = overrides.localTaskDiscipline || `Start from clean default branch or clean worktree. Preserve user changes.
+Run v126 self-test and local quality gate for v1.2.6 harness rollout. Run v125
+only as a blocking compatibility test where required. For product work, use the
+repo-specific commands above and keep product evidence separate from harness
+evidence.`;
+  const targetFootprint = overrides.targetFootprint || `Do not add new P0 artifacts, top-level statuses, skills, workflow behavior,
+product code, package or lockfile changes, runtime code, or readiness claims
+for harness rollout unless separately scoped by the owner.`;
+  return `# AGENTS.md
+
+<!-- CODEX_QUALITY_HARNESS_BEGIN -->
+CODEX_QUALITY_HARNESS_FILE v1.2.6
+
+## Active Harness
+
+Active target harness: v1.2.6 / v126.
+
+## Authority
+
+${authority}
+
+## Target Footprint
+
+${targetFootprint}
+
+## Local Task Discipline
+
+${localTaskDiscipline}
+<!-- CODEX_QUALITY_HARNESS_END -->
+`;
+}
+
+function readCurrentAgents() {
+  return fs.readFileSync('AGENTS.md', 'utf8');
+}
+
+function agentsHasActiveV126(content) {
+  return content.includes('CODEX_QUALITY_HARNESS_FILE v1.2.6')
+    && content.includes('Active target harness: v1.2.6 / v126.');
+}
+
+function agentsLocalTaskUsesV126(content) {
+  return content.includes('Run v126 self-test and local quality gate for v1.2.6 harness rollout.');
+}
+
+function agentsV125CompatibilityOnly(content) {
+  return content.includes('Run v125\nonly as a blocking compatibility test where required.')
+    || content.includes('Run v125 only as a blocking compatibility test where required.');
+}
+
+function agentsObservedStateAuthorityLinePresent(content) {
+  return content.includes('v1.2.6 adds only internal observed workspace, owner/delegated receipt,')
+    && content.includes('checker/builder loop, safe failure capsule, context/skill/validation budget,')
+    && content.includes('and effectiveness fields inside existing P0 artifacts.');
+}
+
+function agentsPreservesNoNewP0Language(content) {
+  return content.includes('Do not add new P0 artifacts');
+}
+
+function agentsPreservesNoNewTopLevelStatusLanguage(content) {
+  return content.includes('top-level statuses');
+}
+
+function agentsPreservesRuntimeReadinessBoundary(content) {
+  return content.includes('runtime code, or readiness claims')
+    && !content.includes('runtime readiness is claimed')
+    && !content.includes('production readiness is claimed');
+}
+
 const compatibilityCases = [
   ['v126_self_test_must_pass', () => true],
   ['v126_adds_no_new_p0_artifact', () => V126_P0_ARTIFACTS.length === 3 && !V126_P0_ARTIFACTS.includes('codex-v126-observed-state.safe.json')],
@@ -41,6 +122,15 @@ const compatibilityCases = [
   ['v126_preserves_v119_orchestration_artifacts', () => V126_P0_ARTIFACTS.includes('codex-orchestration-capsule.safe.json')],
   ['v126_no_bridge_or_tunnel_default_on', () => !fs.existsSync('scripts/codex-mcp-bridge-daemon.mjs') && !fs.existsSync('scripts/codex-tunnel-daemon.mjs')],
   ['v126_active_authority_tuple_is_current', () => buildOrchestrationCapsule().skillContextRouting.activeAuthorityTuple.activeSelfTestSuite === 'v126'],
+  ['agents_active_harness_is_v126', () => agentsHasActiveV126(readCurrentAgents())],
+  ['agents_local_task_discipline_uses_v126', () => agentsLocalTaskUsesV126(readCurrentAgents())],
+  ['agents_v125_is_compatibility_not_primary', () => agentsV125CompatibilityOnly(readCurrentAgents()) && !agentsLocalTaskUsesV126(buildAgentsFixture({
+    localTaskDiscipline: 'Run v125 self-test and the local quality gate for harness rollout.',
+  }))],
+  ['agents_v126_observed_state_authority_line_present', () => agentsObservedStateAuthorityLinePresent(readCurrentAgents())],
+  ['agents_no_new_p0_artifact_language_preserved', () => agentsPreservesNoNewP0Language(readCurrentAgents())],
+  ['agents_no_new_top_level_status_language_preserved', () => agentsPreservesNoNewTopLevelStatusLanguage(readCurrentAgents())],
+  ['agents_no_runtime_or_readiness_scope_expansion', () => agentsPreservesRuntimeReadinessBoundary(readCurrentAgents())],
 ];
 
 const observedStateCases = [
