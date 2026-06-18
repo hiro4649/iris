@@ -2,6 +2,7 @@
 // CODEX_QUALITY_HARNESS_FILE v1.2.6
 
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { writeJsonReport, exitFor } from './codex-v080-lib.mjs';
 import {
   V126_OPERATOR_STATUS_KEYS,
@@ -112,6 +113,30 @@ function agentsPreservesRuntimeReadinessBoundary(content) {
   return content.includes('runtime code, or readiness claims')
     && !content.includes('runtime readiness is claimed')
     && !content.includes('production readiness is claimed');
+}
+
+function runNodeScript(script) {
+  return spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 4,
+  });
+}
+
+function syntheticLiveLoopSurfacePresent() {
+  return fs.existsSync('docs/specs/IRIS_20240425/IRIS_SYNTHETIC_LIVE_LOOP_DRY_RUN.md')
+    && fs.existsSync('docs/specs/IRIS_20240425/fixtures/live_loop/iris_synthetic_live_loop_fixtures.jsonl')
+    && fs.existsSync('scripts/codex-iris-synthetic-live-loop-dry-run.mjs')
+    && fs.existsSync('scripts/codex-iris-synthetic-live-loop-dry-run-self-test.mjs');
+}
+
+function syntheticLiveLoopReport() {
+  const result = runNodeScript('scripts/codex-iris-synthetic-live-loop-dry-run.mjs');
+  if (result.status !== 0) return null;
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return null;
+  }
 }
 
 const compatibilityCases = [
@@ -234,12 +259,24 @@ const effectivenessAndArtifactCases = [
   }],
 ];
 
+const syntheticLiveLoopCases = [
+  ['synthetic_live_loop_present_v126', () => syntheticLiveLoopSurfacePresent()],
+  ['synthetic_live_loop_self_test_passes_v126', () => runNodeScript('scripts/codex-iris-synthetic-live-loop-dry-run-self-test.mjs').status === 0],
+  ['synthetic_live_loop_no_external_call_v126', () => syntheticLiveLoopReport()?.externalCallPerformed === false],
+  ['synthetic_live_loop_candidate_not_executable_v126', () => syntheticLiveLoopReport()?.ok === true],
+  ['synthetic_live_loop_no_direct_memory_commit_v126', () => syntheticLiveLoopReport()?.memoryCommitPerformed === false],
+  ['synthetic_live_loop_no_payment_relationship_growth_v126', () => syntheticLiveLoopReport()?.relationshipCommitPerformed === false],
+  ['synthetic_live_loop_preserves_priority1_blocked_v126', () => syntheticLiveLoopReport()?.priority1Status === 'BLOCKED'],
+  ['synthetic_live_loop_no_readiness_claim_v126', () => syntheticLiveLoopReport()?.productionReadinessClaimed === false],
+];
+
 const cases = [
   ...compatibilityCases,
   ...observedStateCases,
   ...loopCases,
   ...evidenceAndRouterCases,
   ...effectivenessAndArtifactCases,
+  ...syntheticLiveLoopCases,
 ].map(([name, fn]) => test(name, fn));
 
 const fixtureGroups = [
@@ -251,6 +288,7 @@ const fixtureGroups = [
   'skill_review_product_value_effectiveness_matrix',
   'worker_observed_git_worktree_pr_state_matrix',
   'owner_receipt_delegated_process_matrix',
+  'iris_synthetic_live_loop_dry_run_matrix',
 ];
 
 const failures = cases.filter((item) => item.status !== 'pass');

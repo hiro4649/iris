@@ -48,6 +48,11 @@ const DEFAULT_VALIDATORS = [
     command: 'scripts/codex-iris-external-module-boundary-completion-validator.mjs',
     passText: 'iris_external_module_boundary_completion_validator',
   },
+  {
+    id: 'iris_synthetic_live_loop_dry_run',
+    command: 'scripts/codex-iris-synthetic-live-loop-dry-run.mjs',
+    passText: 'iris_synthetic_live_loop_dry_run',
+  },
 ];
 
 function parseJsonFromOutput(stdout) {
