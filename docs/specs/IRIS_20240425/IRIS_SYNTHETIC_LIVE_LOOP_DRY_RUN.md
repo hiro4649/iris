@@ -40,6 +40,32 @@ summaries. They must not include raw chat, private viewer IDs, raw audio, raw
 asset paths, raw payment data, raw screen data, external endpoints, tokens,
 secrets, or real user data.
 
+Fixture oracle fields are:
+
+- `expected_result_state`
+- `expected_reason_code`
+- `expected_blocking`
+- `expected_operator_attention_required`
+
+These expected fields are comparison data only. They must never influence the
+actual reason, result state, blocking state, operator attention state, candidate
+creation, side-effect classification, privacy classification, or safety
+classification.
+
+## Oracle Independence
+
+Actual evaluation is derived only from observed fixture input markers and
+policy. Expected fields are read only after actual evaluation is complete.
+
+Actual blocking semantics are:
+
+- `pass`: `blocking=false`
+- `blocked`, `needs_review`, and `fail`: `blocking=true`
+
+Invalid schema, missing required fields, invalid field types, duplicate
+`scenario_id`, duplicate `trace_id`, unsupported scenario kind, and unsupported
+fixture group all fail safely.
+
 ## Supported Scenario Kinds
 
 Supported scenario kinds:
@@ -101,7 +127,7 @@ The dry-run emits `iris_synthetic_live_loop_dry_run` safe JSON with:
 - `subtitle_safe_summary`
 - `community_recap_candidate`
 - `operator_attention_required`
-- `expected_blocking`
+- `blocking`
 - `trace_id`
 - `raw_chat_included=false`
 - `private_id_included=false`
@@ -119,6 +145,9 @@ The dry-run emits `iris_synthetic_live_loop_dry_run` safe JSON with:
 - `production_go_performed=false`
 - `priority1_status=BLOCKED`
 
+The safe report must not emit fixture expected fields except inside bounded
+safe mismatch entries.
+
 ## Persona Boundary
 
 Persona consistency is checked as a safe label only. Identity drift, echo risk,
@@ -132,6 +161,11 @@ Minor-safety signals, blocked viewers, private IDs, raw inputs, direct command
 requests, and readiness claims produce safe failures or expected blocking
 reports only.
 
+Prohibited input markers include `approved_game_input_action_included`,
+`world_command_included`, `public_publish_performed`,
+`external_call_performed`, and `production_go_performed`. These must fail
+safely without executing any runtime action.
+
 ## Memory Candidate Boundary
 
 Memory candidates are validation-gated summaries. They are not persisted. A
@@ -142,6 +176,11 @@ row that performs or requests direct memory commit must fail.
 Relationship candidates are validation-gated summaries. Payment signals cannot
 create relationship growth. A row that performs or requests direct relationship
 commit must fail.
+
+Donation rows may produce gratitude commentary candidates, but donation-derived
+relationship growth must fail. A stale observation with a memory candidate,
+relationship candidate, or game action candidate must fail. Muted or blocked
+viewer personalization must be blocked or failed according to policy.
 
 ## External Module Handoff Boundary
 
@@ -180,6 +219,8 @@ Safe failures include:
 - `stage`
 - `expected_status`
 - `actual_status`
+- `expected_blocking`
+- `actual_blocking`
 - `rawFixturePrinted=false`
 - `rawLogsRead=false`
 - `rawDiffRead=false`
@@ -195,6 +236,19 @@ Acceptance requires:
 - all supported scenario kinds represented
 - positive, boundary, and negative rows represented
 - negative rows fail for their intended reason
+- safe rows cannot become actual fail merely because `expected_result_state`
+  says `fail`
+- safe rows cannot become blocking merely because `expected_blocking` says
+  `true`
+- negative fixture group rows without an unsafe trigger fail validation because
+  actual evaluation remains pass
+- unsafe rows cannot pass merely because expected fields say `pass`
+- `approved_game_input_action_included`, `world_command_included`,
+  `public_publish_performed`, `external_call_performed`, and
+  `production_go_performed` fail safely
+- donation-derived relationship growth fails
+- direct relationship commit fails
+- muted viewer personalization is blocked
 - pass rows produce only safe summary candidates
 - priority1 remains BLOCKED
 - no external call, memory commit, relationship commit, public publish,

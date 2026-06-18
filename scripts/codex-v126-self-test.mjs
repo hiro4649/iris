@@ -139,6 +139,16 @@ function syntheticLiveLoopReport() {
   }
 }
 
+function syntheticLiveLoopSelfTestPasses() {
+  return runNodeScript('scripts/codex-iris-synthetic-live-loop-dry-run-self-test.mjs').status === 0;
+}
+
+function syntheticLiveLoopFileIncludes(pattern) {
+  return fs.readFileSync('scripts/codex-iris-synthetic-live-loop-dry-run.mjs', 'utf8').includes(pattern)
+    || fs.readFileSync('scripts/codex-iris-synthetic-live-loop-dry-run-self-test.mjs', 'utf8').includes(pattern)
+    || fs.readFileSync('docs/specs/IRIS_20240425/fixtures/live_loop/iris_synthetic_live_loop_fixtures.jsonl', 'utf8').includes(pattern);
+}
+
 const compatibilityCases = [
   ['v126_self_test_must_pass', () => true],
   ['v126_adds_no_new_p0_artifact', () => V126_P0_ARTIFACTS.length === 3 && !V126_P0_ARTIFACTS.includes('codex-v126-observed-state.safe.json')],
@@ -261,13 +271,28 @@ const effectivenessAndArtifactCases = [
 
 const syntheticLiveLoopCases = [
   ['synthetic_live_loop_present_v126', () => syntheticLiveLoopSurfacePresent()],
-  ['synthetic_live_loop_self_test_passes_v126', () => runNodeScript('scripts/codex-iris-synthetic-live-loop-dry-run-self-test.mjs').status === 0],
+  ['synthetic_live_loop_self_test_passes_v126', () => syntheticLiveLoopSelfTestPasses()],
   ['synthetic_live_loop_no_external_call_v126', () => syntheticLiveLoopReport()?.externalCallPerformed === false],
   ['synthetic_live_loop_candidate_not_executable_v126', () => syntheticLiveLoopReport()?.ok === true],
   ['synthetic_live_loop_no_direct_memory_commit_v126', () => syntheticLiveLoopReport()?.memoryCommitPerformed === false],
   ['synthetic_live_loop_no_payment_relationship_growth_v126', () => syntheticLiveLoopReport()?.relationshipCommitPerformed === false],
   ['synthetic_live_loop_preserves_priority1_blocked_v126', () => syntheticLiveLoopReport()?.priority1Status === 'BLOCKED'],
   ['synthetic_live_loop_no_readiness_claim_v126', () => syntheticLiveLoopReport()?.productionReadinessClaimed === false],
+  ['synthetic_live_loop_oracle_independence_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('safe_expected_fail_does_not_force_actual_fail')],
+  ['synthetic_live_loop_expected_blocking_not_echoed_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('safe_expected_blocking_does_not_force_actual_blocking')],
+  ['synthetic_live_loop_negative_group_non_authority_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('negative_group_without_violation_fails')],
+  ['synthetic_live_loop_required_fields_enforced_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('missing_required_field_fails')],
+  ['synthetic_live_loop_unique_scenario_id_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('duplicate_scenario_id_fails')],
+  ['synthetic_live_loop_unique_trace_id_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('duplicate_trace_id_fails')],
+  ['synthetic_live_loop_approved_game_input_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('approved_game_input_action_rejected')],
+  ['synthetic_live_loop_world_command_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('world_command_rejected')],
+  ['synthetic_live_loop_public_publish_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('public_publish_rejected')],
+  ['synthetic_live_loop_external_call_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('external_call_rejected')],
+  ['synthetic_live_loop_production_go_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('production_go_rejected')],
+  ['synthetic_live_loop_runtime_readiness_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('runtime_readiness_claim_rejected')],
+  ['synthetic_live_loop_direct_relationship_commit_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('direct_relationship_commit_rejected')],
+  ['synthetic_live_loop_donation_relationship_candidate_rejected_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('donation_relationship_candidate_rejected')],
+  ['synthetic_live_loop_muted_viewer_blocks_personalization_v126', () => syntheticLiveLoopSelfTestPasses() && syntheticLiveLoopFileIncludes('muted_viewer_blocks_personalization')],
 ];
 
 const cases = [
