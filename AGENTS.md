@@ -52,6 +52,9 @@ yield remain compatibility layers.
 v1.2.6 adds only internal observed workspace, owner/delegated receipt,
 checker/builder loop, safe failure capsule, context/skill/validation budget,
 and effectiveness fields inside existing P0 artifacts.
+v1.2.7 adds only typed owner process and conditional merge receipts,
+same-head decision evidence envelopes, content-addressed validation reuse,
+and context/output/owner-interrupt compression inside existing P0 artifacts.
 
 ## Target Footprint
 
@@ -75,8 +78,8 @@ proposal-only and owner-approval-required.
 ## Local Task Discipline
 
 Start from clean default branch or clean worktree. Preserve user changes.
-Run v127 self-test and local quality gate for v1.2.6 harness rollout. Run v125
-only as a blocking compatibility test where required. For product work, use the
-repo-specific commands above and keep product evidence separate from harness
-evidence.
+Run v127 self-test and the local quality gate for v1.2.7 harness work.
+Run v126 only as a blocking compatibility test where required.
+For product work, use repo-specific commands and keep product evidence separate
+from harness evidence.
 <!-- CODEX_QUALITY_HARNESS_END -->
