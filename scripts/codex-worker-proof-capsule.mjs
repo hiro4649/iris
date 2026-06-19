@@ -359,6 +359,7 @@ function defaultObservedGitWorktreePrState(input = {}) {
   const observed = input.observedGitWorktreePrState || input;
   return {
     stateVersion: '1.2.6',
+    requireObservedGitState: observed.requireObservedGitState === true,
     currentBranch: observed.currentBranch || input.branch || 'unknown',
     headSha: observed.headSha || input.headSha || null,
     baseHeadSha: observed.baseHeadSha || null,
@@ -631,6 +632,13 @@ export function validateWorkerProofCapsule(capsule = {}) {
   if (queue.ownerMergeAuthorityRequired !== true) reasons.push('merge_queue_requires_owner_merge_authority');
   if (queue.scoreOnlyMergeOrderChangeAllowed === true) reasons.push('score_only_merge_order_change_forbidden');
   if (observed.stateVersion !== '1.2.6') reasons.push('observed_git_worktree_pr_state_version_invalid');
+  if (observed.requireObservedGitState === true) {
+    if (!observed.headSha) reasons.push('observed_head_sha_required');
+    if (!observed.baseHeadSha) reasons.push('observed_base_head_sha_required');
+    if (!observed.originMainHeadSha) reasons.push('observed_origin_main_head_sha_required');
+    if (!observed.mergeBaseSha) reasons.push('observed_merge_base_sha_required');
+    if (!Array.isArray(observed.changedFiles) || observed.changedFiles.length === 0) reasons.push('observed_changed_files_required');
+  }
   if (observed.changedFilesWithinAllowed !== true) reasons.push('observed_changed_files_must_be_within_allowed_files');
   if (observed.forbiddenFilesTouched === true) reasons.push('observed_forbidden_files_touched');
   if (Number(observed.openShardPrCount || 0) > Number(queue.maxOpenShardPrs || 3)) reasons.push('observed_open_shard_pr_cap_exceeded');
