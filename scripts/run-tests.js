@@ -1515,6 +1515,32 @@ const tests = [
     },
   ],
   [
+    "first runtime vertical slice integration self-test is registered and required",
+    () => {
+      const result = spawnSync(process.execPath, ["scripts/iris-first-runtime-vertical-slice-integration-self-test.mjs"], {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024 * 4,
+      });
+      assert.equal(result.status, 0);
+      assert.notEqual(result.stdout.trim(), "");
+      let report;
+      assert.doesNotThrow(() => {
+        report = JSON.parse(result.stdout);
+      });
+      assert.equal(report.ok, true);
+      assert.equal(report.selfTestStatus, "pass");
+      assert.equal(report.priority1Status, "BLOCKED");
+      assert.equal(report.runtimeReadinessClaimed, false);
+      assert.equal(report.productionReadinessClaimed, false);
+      assert.equal(report.productionGoPerformed, false);
+      assert.equal(Number.isInteger(report.requiredCaseCount), true);
+      assert.equal(report.requiredCaseCount, 50);
+      assert.equal(Number.isInteger(report.casesRun), true);
+      assert.equal(report.casesRun >= report.requiredCaseCount, true);
+      assert.equal(report.casesRun >= 50, true);
+    },
+  ],
+  [
     "runtime import smoke httpPostAdapter runtimeAdapters main",
     async () => {
       async function importForSmoke(label, specifier) {
