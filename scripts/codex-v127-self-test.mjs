@@ -62,6 +62,14 @@ function manifestThemeMatchesActiveVersion() {
     && manifest.theme === 'Receipt-Carried Continuation and Evidence Compression');
 }
 
+function readCurrentAgents() {
+  return fs.readFileSync('AGENTS.md', 'utf8');
+}
+
+function normalizedIncludes(content, expected) {
+  return content.replace(/\s+/g, ' ').includes(expected.replace(/\s+/g, ' '));
+}
+
 const cases = [
   ['v127_self_test_must_pass', () => true],
   ['v127_adds_no_new_p0_artifact', () => V127_P0_ARTIFACTS.length === 3 && V127_P0_ARTIFACTS.includes('codex-orchestration-capsule.safe.json')],
@@ -74,6 +82,19 @@ const cases = [
       && tuple.activeSelfTestSuite === 'v127'
       && tuple.activeSpecPath === 'docs/process/CODEX_V127_SPEC.md';
   }],
+  ['agents_active_harness_is_v127', () => readCurrentAgents().includes('CODEX_QUALITY_HARNESS_FILE v1.2.7')
+    && readCurrentAgents().includes('Active target harness: v1.2.7 / v127.')],
+  ['agents_local_task_discipline_uses_v127', () => normalizedIncludes(readCurrentAgents(), 'Run v127 self-test and the local quality gate for v1.2.7 harness work.')],
+  ['agents_v126_is_compatibility_not_primary', () => normalizedIncludes(readCurrentAgents(), 'Run v126 only as a blocking compatibility test where required.')
+    && !normalizedIncludes(readCurrentAgents(), 'Run v125 only as a blocking compatibility test where required.')],
+  ['agents_v127_receipt_carried_continuation_line_present', () => normalizedIncludes(readCurrentAgents(), `v1.2.7 adds only typed owner process and conditional merge receipts,
+same-head decision evidence envelopes, content-addressed validation reuse,
+and context/output/owner-interrupt compression inside existing P0 artifacts.`)],
+  ['agents_no_new_p0_artifact_language_preserved', () => readCurrentAgents().includes('Do not add new P0 artifacts')],
+  ['agents_no_new_top_level_status_language_preserved', () => readCurrentAgents().includes('top-level statuses')],
+  ['agents_no_runtime_or_readiness_scope_expansion', () => readCurrentAgents().includes('runtime code, or readiness claims')
+    && !readCurrentAgents().includes('runtime readiness is claimed')
+    && !readCurrentAgents().includes('production readiness is claimed')],
   ['process_receipt_survives_in_scope_commit_head_changes', () => passed(validateTypedOwnerProcessReceiptAndContinuationKernel(buildOrchestrationCapsule({
     typedOwnerProcessReceiptAndContinuationKernel: {
       ownerProcessReceipt: VALID_PROCESS_RECEIPT,
