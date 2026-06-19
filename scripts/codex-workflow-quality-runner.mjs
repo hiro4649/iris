@@ -3137,11 +3137,6 @@ function readReport(file) {
 
   }
 
-
-
-
-
-
 }
 
 function readSafeJsonArtifact(file) {
@@ -4070,14 +4065,14 @@ export function evaluateWorkflowReport(report, options = {}) {
 
 
 
-  if (options.gateExit && options.gateExit !== 0 && !['pass', 'manual_confirmation_required'].includes(report.status)) {
+  if (options.gateExit && options.gateExit !== 0) {
 
 
 
 
 
 
-    failures.push(`report.status=${report.status || 'missing'}`);
+    failures.push(`gateExit=${options.gateExit}`);
 
 
 
@@ -5303,34 +5298,24 @@ function writeArtifacts(result, report) {
 
 
   fs.writeFileSync('codex-evidence-pack.normalized.json', JSON.stringify({
-
-
-
-
-
-
+    ...(report.evidenceCapsule || {}),
     evidencePackStatus: report.evidencePackStatus || { status: 'missing' },
-
-
-
-
-
-
     normalizedEvidencePackPresent: Boolean(report.normalizedEvidencePack),
-
-
-
-
-
-
     safeSummaryOnly: true,
-
-
-
-
-
-
   }, null, 2));
+
+  if (report.orchestrationCapsule) {
+    fs.writeFileSync('codex-orchestration-capsule.safe.json', JSON.stringify(report.orchestrationCapsule, null, 2));
+  }
+  if (report.workerProofCapsule) {
+    fs.writeFileSync('codex-worker-proof.safe.json', JSON.stringify(report.workerProofCapsule, null, 2));
+  }
+  if (report.ownerDecisionBrief) {
+    fs.writeFileSync('codex-owner-decision-brief.safe.json', JSON.stringify(report.ownerDecisionBrief, null, 2));
+  }
+  if (report.decisionCapsule) {
+    fs.writeFileSync('codex-decision-capsule.safe.json', JSON.stringify(report.decisionCapsule, null, 2));
+  }
 
 
 
@@ -6156,6 +6141,11 @@ export function buildWorkflowQualityRunnerReport(report, options = {}) {
 
 }
 
+export function resolveWorkflowQualityRunnerExitCode(result = {}, finalDecision = {}) {
+  if (Array.isArray(result.failures) && result.failures.length > 0) return 1;
+  return finalDecision.exitCode === 0 ? 0 : 1;
+}
+
 
 
 
@@ -6328,8 +6318,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       productionReadinessClaimed: loaded.report.productionReadinessClaimed === true,
     },
   });
-  if (finalDecision.exitCode === 0) process.exit(0);
-
   if (result.failures.length) {
 
 
@@ -6373,6 +6361,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 
 
   }
+
+
+
+
+  process.exit(resolveWorkflowQualityRunnerExitCode(result, finalDecision));
 
 
 

@@ -55,7 +55,7 @@ export function buildV093SelfTestReport() {
   report = buildTargetScriptClassificationFixtureReport({ unknownScriptPasses: true });
   assertCase('unknown_script_requires_classification', report.targetScriptClassificationFixtureStatus.status === 'fail', failures, cases, report.targetScriptClassificationFixtureStatus.status, report.targetScriptClassificationFixtureStatus.reasonCodes);
 
-  report = buildSameHeadArtifactEvidenceReport({ forcePrContext: true, localHeadSha: HEAD, prHeadSha: HEAD, evidencePackHeadSha: HEAD, manualConfirmationHeadSha: HEAD, remoteRunHeadSha: HEAD, artifactRequired: true, artifactHeadSha: HEAD, safeSummaryHeadSha: HEAD });
+  report = buildSameHeadArtifactEvidenceReport({ forcePrContext: true, localHeadSha: HEAD, prHeadSha: HEAD, workflowHeadSha: HEAD, evidencePackHeadSha: HEAD, manualConfirmationHeadSha: HEAD, remoteRunHeadSha: HEAD, artifactRequired: true, artifactHeadSha: HEAD, safeSummaryHeadSha: HEAD });
   assertCase('same_head_artifact_all_match_pass', report.sameHeadArtifactEvidenceStatus.status === 'pass', failures, cases, report.sameHeadArtifactEvidenceStatus.status, report.sameHeadArtifactEvidenceStatus.reasonCodes);
 
   report = buildSameHeadArtifactEvidenceReport({ forcePrContext: true, localHeadSha: HEAD, prHeadSha: HEAD, evidencePackHeadSha: OTHER, manualConfirmationHeadSha: HEAD, remoteRunHeadSha: HEAD });

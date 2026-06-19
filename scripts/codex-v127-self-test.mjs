@@ -17,6 +17,8 @@ import {
 } from './codex-orchestration-capsule.mjs';
 import { buildWorkerProofCapsule, validateWorkerProofCapsule } from './codex-worker-proof-capsule.mjs';
 import { buildOwnerDecisionBrief, validateOwnerDecisionBrief } from './codex-owner-decision-brief.mjs';
+import { buildSameHeadArtifactEvidenceReport } from './codex-same-head-artifact-evidence-gate.mjs';
+import { buildWorkflowQualityRunnerReport, resolveWorkflowQualityRunnerExitCode } from './codex-workflow-quality-runner.mjs';
 
 function test(name, fn) {
   try {
@@ -51,6 +53,42 @@ const SAME_HEAD_ENVELOPE = {
   remoteGate: 'pass',
   allowedNextAction: 'owner_merge_decision_only',
 };
+
+const OBSERVED_WORKTREE_STATE = {
+  currentBranch: 'harness127-remote-technical-failure-coherence',
+  requireObservedGitState: true,
+  headSha: 'abc123',
+  baseHeadSha: 'base123',
+  originMainHeadSha: 'base123',
+  mergeBaseSha: 'base123',
+  changedFiles: ['scripts/codex-workflow-quality-runner.mjs'],
+  allowedFiles: ['scripts/codex-workflow-quality-runner.mjs'],
+  forbiddenFiles: [],
+  changedFilesWithinAllowed: true,
+  forbiddenFilesTouched: false,
+  observedPrState: 'open',
+};
+
+const TARGET_REQUIRED_PASS_STATUSES = Object.fromEntries([
+  'targetManifestStatus',
+  'secretScan',
+  'environmentReadinessStatus',
+  'changeClassificationStatus',
+  'productVerificationStatus',
+  'productVerificationEvidenceStatus',
+  'testMetricsStatus',
+  'remoteProductBaselineStatus',
+  'remoteNpmDiagnosticStatus',
+  'workflowPreflightStatus',
+  'safeArtifactIndexStatus',
+  'openPrHygieneStatus',
+  'targetFinalSummaryStatus',
+  'stalePrAuditStatus',
+  'reasonSummaryStatus',
+  'safeOutputScanStatus',
+  'safeArtifactValidation',
+  'outputShapeStatus',
+].map((key) => [key, { status: 'pass', safeSummaryOnly: true }]));
 
 function resolveHarnessMode(env = process.env) {
   if (env.CODEX_HARNESS_MODE === 'target') return 'target';
@@ -187,6 +225,135 @@ and context/output/owner-interrupt compression inside existing P0 artifacts.`)],
     return control.decisionEvidenceEnvelope.allowedNextAction === 'owner_merge_decision_only'
       && passed(validateDecisionEvidenceEnvelopeAndSameHeadBinder(control));
   }],
+  ['workflow_runner_fails_when_remote_npm_exit_failed_despite_final_decision_zero', () => failed(buildWorkflowQualityRunnerReport({
+    status: 'fail',
+    targetQualityScoreStatus: { status: 'pass' },
+    finalDecision: { exitCode: 0, safeNextAction: 'owner_merge_decision_only' },
+  }, { gateExit: 1 }))],
+  ['workflow_runner_fails_when_gate_exit_nonzero_even_if_report_status_pass', () => failed(buildWorkflowQualityRunnerReport({
+    ...TARGET_REQUIRED_PASS_STATUSES,
+    status: 'pass',
+    targetQualityScoreStatus: { status: 'pass' },
+    finalDecision: { exitCode: 0, safeNextAction: 'owner_merge_decision_only' },
+  }, { gateExit: 1 }))],
+  ['workflow_runner_fails_when_report_status_fail_despite_final_decision_zero', () => failed(buildWorkflowQualityRunnerReport({
+    status: 'fail',
+    targetQualityScoreStatus: { status: 'pass' },
+    finalDecision: { exitCode: 0, safeNextAction: 'owner_merge_decision_only' },
+  }))],
+  ['workflow_runner_fails_when_target_quality_fails_despite_final_decision_zero', () => failed(buildWorkflowQualityRunnerReport({
+    status: 'pass',
+    targetQualityScoreStatus: { status: 'fail' },
+    finalDecision: { exitCode: 0, safeNextAction: 'owner_merge_decision_only' },
+  }))],
+  ['workflow_runner_exit_fails_when_technical_pass_but_final_decision_nonzero', () => resolveWorkflowQualityRunnerExitCode({
+    failures: [],
+  }, { exitCode: 1 }) === 1],
+  ['workflow_runner_exit_passes_when_technical_pass_and_owner_only_final_decision_zero', () => resolveWorkflowQualityRunnerExitCode({
+    failures: [],
+  }, { exitCode: 0, safeNextAction: 'owner_merge_decision_only' }) === 0],
+  ['workflow_runner_exit_fails_when_technical_failure_even_with_final_decision_zero', () => resolveWorkflowQualityRunnerExitCode({
+    failures: ['targetQualityScoreStatus=fail'],
+  }, { exitCode: 0 }) === 1],
+  ['workflow_runner_allows_owner_only_boundary_after_technical_pass', () => passed(buildWorkflowQualityRunnerReport({
+    ...TARGET_REQUIRED_PASS_STATUSES,
+    status: 'pass',
+    targetQualityScoreStatus: { status: 'pass' },
+    targetMergeReady: true,
+    technicalChecksReady: true,
+    ownerMergeAuthorized: false,
+    finalDecision: { exitCode: 0, safeNextAction: 'owner_merge_decision_only' },
+    blockingReasons: ['owner_merge_instruction'],
+  }))],
+  ['same_head_artifact_missing_fails_even_when_artifact_not_explicitly_required', () => failed(buildSameHeadArtifactEvidenceReport({
+    forceCheck: true,
+    localHeadSha: 'abc123',
+    prHeadSha: 'abc123',
+    workflowHeadSha: 'abc123',
+    artifactHeadSha: '',
+    artifactRequired: false,
+  }))],
+  ['same_head_artifact_mismatch_fails', () => failed(buildSameHeadArtifactEvidenceReport({
+    forceCheck: true,
+    localHeadSha: 'abc123',
+    prHeadSha: 'abc123',
+    workflowHeadSha: 'abc123',
+    artifactHeadSha: 'def456',
+  }))],
+  ['same_head_four_hashes_present_and_match_passes', () => passed(buildSameHeadArtifactEvidenceReport({
+    forceCheck: true,
+    localHeadSha: 'abc123',
+    prHeadSha: 'abc123',
+    workflowHeadSha: 'abc123',
+    artifactHeadSha: 'abc123',
+  }))],
+  ['same_head_artifact_outputs_actual_values_and_derived_match_status', () => {
+    const report = buildSameHeadArtifactEvidenceReport({
+      forceCheck: true,
+      localHeadSha: 'abc123',
+      prHeadSha: 'abc123',
+      workflowHeadSha: 'abc123',
+      artifactHeadSha: 'abc123',
+      workflowRunId: '27827243980',
+      artifactName: 'codex-quality-gate-safe-artifacts',
+      artifactPointer: 'github-actions://hiro4649/iris/runs/27827243980/artifacts/codex-quality-gate-safe-artifacts',
+    });
+    const details = report.sameHeadArtifactEvidenceStatus || {};
+    return passed(report)
+      && details.expectedHeadSha === 'abc123'
+      && details.localHeadSha === 'abc123'
+      && details.prHeadSha === 'abc123'
+      && details.workflowHeadSha === 'abc123'
+      && details.artifactHeadSha === 'abc123'
+      && details.allRequiredHeadsPresent === true
+      && details.allRequiredHeadsMatch === true
+      && details.sameHead === true
+      && details.workflowRunId === '27827243980'
+      && details.artifactPointer.includes('/runs/27827243980/');
+  }],
+  ['same_head_stale_safe_summary_observation_does_not_override_required_four_heads', () => passed(buildSameHeadArtifactEvidenceReport({
+    forceCheck: true,
+    localHeadSha: 'abc123',
+    prHeadSha: 'abc123',
+    workflowHeadSha: 'abc123',
+    artifactHeadSha: 'abc123',
+    safeSummaryHeadSha: 'def456',
+  }))],
+  ['worker_proof_observed_state_missing_fails_when_required', () => failed(validateWorkerProofCapsule(buildWorkerProofCapsule({
+    observedGitWorktreePrState: { requireObservedGitState: true },
+  })))],
+  ['worker_proof_observed_state_present_passes_when_required', () => passed(validateWorkerProofCapsule(buildWorkerProofCapsule({
+    changedFiles: OBSERVED_WORKTREE_STATE.changedFiles,
+    observedGitWorktreePrState: OBSERVED_WORKTREE_STATE,
+  })))],
+  ['worker_proof_forbidden_observed_file_fails', () => failed(validateWorkerProofCapsule(buildWorkerProofCapsule({
+    changedFiles: ['package.json'],
+    observedGitWorktreePrState: {
+      ...OBSERVED_WORKTREE_STATE,
+      changedFiles: ['package.json'],
+      allowedFiles: ['scripts/codex-local-quality-gate.mjs'],
+      forbiddenFiles: ['package.json'],
+      changedFilesWithinAllowed: false,
+      forbiddenFilesTouched: true,
+    },
+  })))],
+  ['worker_proof_local_clean_main_allows_empty_changed_files_when_not_required', () => passed(validateWorkerProofCapsule(buildWorkerProofCapsule({
+    changedFiles: [],
+    observedGitWorktreePrState: {
+      currentBranch: 'main',
+      requireObservedGitState: false,
+      headSha: 'abc123',
+      baseHeadSha: 'abc123',
+      originMainHeadSha: 'abc123',
+      mergeBaseSha: 'abc123',
+      changedFiles: [],
+      allowedFiles: ['scripts/codex-local-quality-gate.mjs'],
+      forbiddenFiles: [],
+      changedFilesWithinAllowed: true,
+      forbiddenFilesTouched: false,
+      observedPrState: 'none',
+    },
+  })))],
   ['invalid_next_action_fails_without_builder_fallback', () => failed(validateDecisionEvidenceEnvelopeAndSameHeadBinder({
     runtimeVersion: '1.2.7',
     decisionEvidenceEnvelope: { ...SAME_HEAD_ENVELOPE, allowedNextAction: 'invalid_action', sameHead: true, prBodyMachineEvidence: false },
@@ -249,7 +416,10 @@ and context/output/owner-interrupt compression inside existing P0 artifacts.`)],
     continuationDecision: { state: 'continue', oneSafeNextAction: 'continue_commit_push_create_pr' },
   })))],
   ['owner_brief_contains_current_self_test', () => buildOwnerDecisionBrief().proofCompleted.includes('v127_self_test')],
-  ['worker_proof_v127_marker_compatibility_pass', () => passed(validateWorkerProofCapsule(buildWorkerProofCapsule()))],
+  ['worker_proof_v127_marker_compatibility_pass', () => passed(validateWorkerProofCapsule(buildWorkerProofCapsule({
+    changedFiles: OBSERVED_WORKTREE_STATE.changedFiles,
+    observedGitWorktreePrState: OBSERVED_WORKTREE_STATE,
+  })))],
   ['orchestration_capsule_validates_all_v127_internal_blocks', () => Object.values(validateOrchestrationCapsule(buildOrchestrationCapsule())).every((item) => item.status === 'pass')],
 ].map(([name, fn]) => test(name, fn));
 
