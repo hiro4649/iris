@@ -1,16 +1,16 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.8",
-  "schemaVersion": "1.2.8",
-  "sourceHarnessVersion": "1.2.8",
-  "harnessVersion": "1.2.8",
-  "activeHarnessVersion": "1.2.8",
-  "targetHarnessVersion": "1.2.8",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.9",
+  "schemaVersion": "1.2.9",
+  "sourceHarnessVersion": "1.2.9",
+  "harnessVersion": "1.2.9",
+  "activeHarnessVersion": "1.2.9",
+  "targetHarnessVersion": "1.2.9",
   "evidenceSchemaVersion": 6,
   "profileTemplateVersion": "1.1.6",
   "futureHarnessArtifact": false,
   "upgradePath": "direct_v127_to_v128_complex_target_active_path",
-  "activeSelfTestSuite": "v128",
-  "activeSelfTestStatusKey": "v128SelfTestStatus",
+  "activeSelfTestSuite": "v129",
+  "activeSelfTestStatusKey": "v129SelfTestStatus",
   "legacySelfTests": {
     "v122": "blocking_compatibility",
     "v121": "blocking_compatibility",
@@ -27,8 +27,9 @@
     "v124": "blocking_compatibility",
     "v125": "blocking_compatibility",
     "v126": "blocking_compatibility",
-    "v127": "blocking_compatibility_rollback",
-    "v128": "blocking_current"
+    "v127": "blocking_compatibility",
+    "v128": "blocking_compatibility_rollback",
+    "v129": "blocking_current"
   },
   "sourceOnlyRelease": false,
   "targetRollout": "completed",
@@ -611,5 +612,40 @@
       "falsePassForbidden": true,
       "prHeadSelfAuthorizationForbidden": true
     }
+  },
+  "authorityCreated": false,
+  "runtimeCodeChanged": false,
+  "packageOrLockfileChanged": false,
+  "workflowChanged": false,
+  "versioningRollback": {
+    "activeHarnessVersion": "1.2.8",
+    "activeSelfTestSuite": "v128",
+    "activeSelfTestStatusKey": "v128SelfTestStatus",
+    "rollbackAvailable": true
+  },
+  "goalContractedCapabilityRouter": {
+    "version": "1.2.9",
+    "sourceHarnessCommit": "07bba3cba7456375194fc25fe1d2108a893502d0",
+    "rolloutClass": "complex",
+    "materialization": "target_quality_gate_active_path",
+    "sourceFullBundleCopied": false,
+    "modelIdPinnedInTarget": false,
+    "hostAdapterStoredInTarget": false,
+    "realHostExecution": "user_local_trusted_adapter",
+    "independentVerifierRequired": true,
+    "pluginDefault": "none",
+    "pluginUnavailablePolicy": "explicit_nonblocking",
+    "finalAuthority": "v1.1.8_final_decision_kernel",
+    "routineColdArtifactRead": 0,
+    "routineSelectedSkillMax": 1,
+    "routineReviewerFanout": 0,
+    "routineOwnerInterruptMax": 0,
+    "productCodeChanged": false,
+    "runtimeCodeChanged": false,
+    "packageOrLockfileChanged": false,
+    "workflowChanged": false,
+    "productRuntimeMutationCount": 0,
+    "authorityCreated": false,
+    "irisSafetyPreserved": true
   }
 }
