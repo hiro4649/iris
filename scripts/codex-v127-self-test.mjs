@@ -129,7 +129,13 @@ function manifestThemeMatchesActiveVersion() {
       && manifest.versioning?.activeSelfTestSuite === 'v127'
       && manifest.versioning?.rollbackAvailable === true
       && manifest.legacySelfTests?.v127 === 'blocking_compatibility_rollback';
-    return directV127 || v128WithV127Rollback;
+    const v129WithV127Compatibility = manifest.activeHarnessVersion === '1.2.9'
+      && manifest.activeSelfTestSuite === 'v129'
+      && manifest.versioningRollback?.activeHarnessVersion === '1.2.8'
+      && manifest.versioningRollback?.activeSelfTestSuite === 'v128'
+      && manifest.versioningRollback?.rollbackAvailable === true
+      && manifest.legacySelfTests?.v127 === 'blocking_compatibility';
+    return directV127 || v128WithV127Rollback || v129WithV127Compatibility;
   });
 }
 

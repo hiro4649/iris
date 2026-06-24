@@ -1,6 +1,6 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.8",
-  "schemaVersion": "1.2.8",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.9",
+  "schemaVersion": "1.2.9",
   "indexVersion": "1",
   "indexPath": "docs/process/CODEX_ACTIVE_POLICY_INDEX.json",
   "purpose": "Bound md and skill reads by task profile while preserving active authority.",
@@ -63,13 +63,14 @@
   "requiredReads": [
     "AGENTS.md",
     "docs/process/CODEX_HARNESS_MANIFEST.json",
-    "docs/process/CODEX_V128_SPEC.md"
+    "docs/process/CODEX_V129_SPEC.md"
   ],
   "deferredReads": [
     "docs/process/CODEX_V127_SPEC.md",
     "README.md",
     "legacy_specs",
-    "pr_history_docs"
+    "pr_history_docs",
+    "docs/process/CODEX_V128_SPEC.md"
   ],
   "selectedSkillsMax": 1,
   "mdFilesReadMax": 3,
@@ -120,5 +121,27 @@
       "routineBytesMax": 1600,
       "stressBytesMax": 2048
     }
+  },
+  "routineColdArtifactReadMax": 0,
+  "fullHistory": "forbidden",
+  "rawLogs": "forbidden",
+  "goalContractedCapabilityRouter": {
+    "version": "1.2.9",
+    "sourceHarnessCommit": "07bba3cba7456375194fc25fe1d2108a893502d0",
+    "rolloutClass": "complex",
+    "materialization": "target_quality_gate_active_path",
+    "sourceFullBundleCopied": false,
+    "modelIdPinnedInTarget": false,
+    "hostAdapterStoredInTarget": false,
+    "realHostExecution": "user_local_trusted_adapter",
+    "independentVerifierRequired": true,
+    "pluginDefault": "none",
+    "pluginUnavailablePolicy": "explicit_nonblocking",
+    "finalAuthority": "v1.1.8_final_decision_kernel",
+    "routineColdArtifactRead": 0,
+    "routineSelectedSkillMax": 1,
+    "routineReviewerFanout": 0,
+    "routineOwnerInterruptMax": 0,
+    "authorityCreated": false
   }
 }
