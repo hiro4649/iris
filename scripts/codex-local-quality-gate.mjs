@@ -3487,6 +3487,7 @@ function v127HarnessWorkerAllowedFiles() {
     'AGENTS.md',
     'README.md',
     '.github/pull_request_template.md',
+    '.github/workflows/quality-gate.yml',
     'docs/process/CODEX_HARNESS_MANIFEST.json',
     'docs/process/CODEX_ACTIVE_POLICY_INDEX.json',
     'docs/process/CODEX_*.json',

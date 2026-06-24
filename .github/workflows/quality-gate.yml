@@ -167,6 +167,17 @@ jobs:
             export CODEX_EVIDENCE_PACK_STRICT="${CODEX_EVIDENCE_PACK_STRICT:-0}"
             export CODEX_HUMAN_CONFIRMATION_STRICT="${CODEX_HUMAN_CONFIRMATION_STRICT:-0}"
             export CODEX_REMOTE_VERIFICATION_MODE="${CODEX_REMOTE_VERIFICATION_MODE:-source_main_workflow_dispatch}"
+            current_head="$(git rev-parse HEAD)"
+            if [ "${GITHUB_SHA:-}" != "$current_head" ]; then
+              echo "github_sha_head_mismatch" >&2
+              exit 1
+            fi
+            export CODEX_PR_HEAD_SHA="$current_head"
+            export CODEX_WORKFLOW_HEAD_SHA="$current_head"
+            export CODEX_REMOTE_RUN_HEAD_SHA="$current_head"
+            export CODEX_EVIDENCE_PACK_HEAD_SHA="$current_head"
+            export CODEX_MANUAL_CONFIRMATION_HEAD_SHA="$current_head"
+            export CODEX_ARTIFACT_HEAD_SHA="$current_head"
           fi
           if [ "${GITHUB_REPOSITORY:-}" = "hiro4649/codex-development-harness" ] && [ -f CODEX_SOURCE_HARNESS_MANIFEST.json ]; then
             export CODEX_HARNESS_SOURCE_REPO=1
