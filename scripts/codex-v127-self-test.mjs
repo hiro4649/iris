@@ -135,7 +135,12 @@ function manifestThemeMatchesActiveVersion() {
       && manifest.versioningRollback?.activeSelfTestSuite === 'v128'
       && manifest.versioningRollback?.rollbackAvailable === true
       && manifest.legacySelfTests?.v127 === 'blocking_compatibility';
-    return directV127 || v128WithV127Rollback || v129WithV127Compatibility;
+    const v130WithV127ReadableCompatibility = manifest.activeHarnessVersion === '1.3.0'
+      && manifest.activeSelfTestSuite === 'v130'
+      && manifest.versioningRollback?.activeHarnessVersion === '1.2.9'
+      && manifest.versioningRollback?.rollbackAvailable === true
+      && manifest.legacySelfTests?.v127 === 'compatibility_readable';
+    return directV127 || v128WithV127Rollback || v129WithV127Compatibility || v130WithV127ReadableCompatibility;
   });
 }
 
@@ -151,9 +156,9 @@ const cases = [
       && tuple.activeSelfTestSuite === 'v127'
       && tuple.activeSpecPath === 'docs/process/CODEX_V127_SPEC.md';
   }],
-  ['agents_active_harness_is_v127', () => readCurrentAgents().includes('CODEX_QUALITY_HARNESS_FILE v1.2.7')
-    && readCurrentAgents().includes('Active target harness: v1.2.7 / v127.')],
-  ['agents_local_task_discipline_uses_v127', () => normalizedIncludes(readCurrentAgents(), 'Run v127 self-test and the local quality gate for v1.2.7 harness work.')],
+  ['agents_active_harness_is_v127_or_readable_compatibility', () => readCurrentAgents().includes('CODEX_QUALITY_HARNESS_FILE v1.2.7')
+    && (readCurrentAgents().includes('Active target harness: v1.2.7 / v127.') || readCurrentAgents().includes('v1.2.7 remains readable compatibility'))],
+  ['agents_local_task_discipline_uses_v127', () => normalizedIncludes(readCurrentAgents(), 'Run v127 self-test and the local quality gate for v1.2.7 harness work.') || readCurrentAgents().includes('v1.2.7 remains readable compatibility')],
   ['agents_v126_is_compatibility_not_primary', () => normalizedIncludes(readCurrentAgents(), 'Run v126 only as a blocking compatibility test where required.')
     && !normalizedIncludes(readCurrentAgents(), 'Run v125 only as a blocking compatibility test where required.')],
   ['agents_v127_receipt_carried_continuation_line_present', () => normalizedIncludes(readCurrentAgents(), `v1.2.7 adds only typed owner process and conditional merge receipts,

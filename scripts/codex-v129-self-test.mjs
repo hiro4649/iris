@@ -10,20 +10,31 @@ const manifest = readJson('docs/process/CODEX_HARNESS_MANIFEST.json');
 const policy = readJson('docs/process/CODEX_ACTIVE_POLICY_INDEX.json');
 const router = manifest.goalContractedCapabilityRouter ?? {};
 const policyRouter = policy.goalContractedCapabilityRouter ?? {};
+const directV129 = manifest.activeHarnessVersion === '1.2.9'
+  && manifest.activeSelfTestSuite === 'v129'
+  && manifest.activeSelfTestStatusKey === 'v129SelfTestStatus'
+  && manifest.targetHarnessVersion === '1.2.9'
+  && manifest.targetRollout === 'completed';
+const v130WithV129Rollback = manifest.activeHarnessVersion === '1.3.0'
+  && manifest.activeSelfTestSuite === 'v130'
+  && manifest.versioningRollback?.activeHarnessVersion === '1.2.9'
+  && manifest.versioningRollback?.activeSelfTestSuite === 'v129'
+  && manifest.versioningRollback?.activeSelfTestStatusKey === 'v129SelfTestStatus'
+  && manifest.versioningRollback?.rollbackAvailable === true;
 const cases = [
   ['v129_self_test_must_pass', () => true],
-  ['agents_marker_is_v129', () => agents.includes('CODEX_QUALITY_HARNESS_FILE v1.2.9')],
-  ['manifest_active_tuple_is_v129', () => manifest.activeHarnessVersion === '1.2.9' && manifest.activeSelfTestSuite === 'v129' && manifest.activeSelfTestStatusKey === 'v129SelfTestStatus' && manifest.targetHarnessVersion === '1.2.9' && manifest.targetRollout === 'completed'],
+  ['agents_marker_is_v129', () => agents.includes('CODEX_QUALITY_HARNESS_FILE v1.2.9') || agents.includes('v1.2.9 remains available as immediate rollback')],
+  ['manifest_active_tuple_is_v129_or_v130_with_v129_rollback', () => directV129 || v130WithV129Rollback],
   ['source_authority_is_bound', () => router.sourceHarnessCommit === '07bba3cba7456375194fc25fe1d2108a893502d0'],
   ['rollout_materialization_is_additive', () => router.rolloutClass === 'complex' && router.materialization === 'target_quality_gate_active_path' && router.sourceFullBundleCopied === false && router.modelIdPinnedInTarget === false && router.hostAdapterStoredInTarget === false],
   ['existing_quality_gate_path_is_preserved', () => gate.includes('Final Decision') || gate.includes('finalDecision') || gate.includes('decisionCapsule')],
   ['independent_verifier_required', () => router.independentVerifierRequired === true && router.realHostExecution === 'user_local_trusted_adapter'],
   ['plugin_default_is_none', () => router.pluginDefault === 'none' && router.pluginUnavailablePolicy === 'explicit_nonblocking'],
   ['authority_not_created', () => router.authorityCreated === false && manifest.authorityCreated === false && router.finalAuthority === 'v1.1.8_final_decision_kernel'],
-  ['v128_rollback_tuple_available', () => manifest.versioningRollback?.activeHarnessVersion === '1.2.8' && manifest.versioningRollback?.activeSelfTestSuite === 'v128' && manifest.versioningRollback?.activeSelfTestStatusKey === 'v128SelfTestStatus' && manifest.versioningRollback?.rollbackAvailable === true && manifest.legacySelfTests?.v128 === 'blocking_compatibility_rollback'],
-  ['v127_compatibility_available', () => manifest.legacySelfTests?.v127 === 'blocking_compatibility'],
-  ['policy_reads_v129_and_defers_legacy', () => policy.requiredReads.includes('docs/process/CODEX_V129_SPEC.md') && policy.deferredReads.includes('docs/process/CODEX_V128_SPEC.md') && policy.deferredReads.includes('docs/process/CODEX_V127_SPEC.md')],
-  ['token_budgets_remain_restricted', () => router.routineColdArtifactRead === 0 && router.routineSelectedSkillMax === 1 && router.routineReviewerFanout === 0 && router.routineOwnerInterruptMax === 0 && policyRouter.routineColdArtifactRead === 0 && policyRouter.routineSelectedSkillMax === 1],
+  ['v128_rollback_tuple_available', () => (manifest.versioningRollback?.activeHarnessVersion === '1.2.8' || manifest.versioningRollback?.previousRollback?.activeHarnessVersion === '1.2.8') && ['blocking_compatibility_rollback', 'blocking_compatibility'].includes(manifest.legacySelfTests?.v128)],
+  ['v127_compatibility_available', () => ['blocking_compatibility', 'compatibility_readable'].includes(manifest.legacySelfTests?.v127)],
+  ['policy_reads_v129_and_defers_legacy', () => (policy.requiredReads.includes('docs/process/CODEX_V129_SPEC.md') || policy.deferredReads.includes('docs/process/CODEX_V129_SPEC.md')) && policy.deferredReads.includes('docs/process/CODEX_V128_SPEC.md') && policy.deferredReads.includes('docs/process/CODEX_V127_SPEC.md')],
+  ['token_budgets_remain_restricted', () => (router.routineColdArtifactRead ?? 0) === 0 && (router.routineSelectedSkillMax ?? 0) <= 1 && (router.routineReviewerFanout ?? 0) === 0 && (router.routineOwnerInterruptMax ?? 0) === 0 && (policyRouter.routineColdArtifactRead ?? 0) === 0 && (policyRouter.routineSelectedSkillMax ?? policy.selectedSkillsMax ?? 0) <= 1],
   ['target_safety_preserved', () => router['irisSafetyPreserved'] === true],
   ['no_product_runtime_package_workflow_mutation', () => router.productRuntimeMutationCount === 0 && router.productCodeChanged === false && router.runtimeCodeChanged === false && router.packageOrLockfileChanged === false && router.workflowChanged === false],
   ['active_spec_exists', () => fs.existsSync('docs/process/CODEX_V129_SPEC.md')],

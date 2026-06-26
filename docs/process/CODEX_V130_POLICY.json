@@ -1,0 +1,48 @@
+{
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.3.0",
+  "schemaVersion": "1.3.0",
+  "profile": "target_core",
+  "activeHarnessVersion": "1.3.0",
+  "activeSelfTestSuite": "v130",
+  "previousVersion": "1.2.9",
+  "immediateRollback": {
+    "activeHarnessVersion": "1.2.9",
+    "activeSelfTestSuite": "v129",
+    "rollbackAvailable": true
+  },
+  "compatibility": {
+    "v128": "blocking_compatibility",
+    "v127": "compatibility_readable"
+  },
+  "performanceTrack": {
+    "state": "deferred",
+    "classification": "performance_track",
+    "authority": "non_authoritative",
+    "coreActivationRequirement": "not_required_for_core_activation",
+    "FableComparatorState": "unavailable",
+    "superiorityClaimState": "not_proven",
+    "sdkTransportState": "not_installed",
+    "sixtyTaskBenchmarkState": "not_required_for_core_activation",
+    "learnedPolicyState": "shadow_only",
+    "affectsQualityScore": false,
+    "affectsBlockingCount": false,
+    "affectsMergeAllowed": false,
+    "affectsFinalDecision": false,
+    "affectsActivation": false,
+    "affectsTargetRollout": false
+  },
+  "excludedFromCoreInstall": [
+    "performance_track",
+    "fable_comparator",
+    "sdk_benchmark_runner",
+    "sixty_task_benchmark",
+    "skill_runtime_activation",
+    "dag_agent_team_runtime",
+    "learned_policy_activation",
+    "cyber_specialist_runtime"
+  ],
+  "finalAuthority": "v1.1.8_final_decision_kernel",
+  "authorityCreated": false,
+  "targetMutationCount": 0,
+  "safeSummaryOnly": true
+}

@@ -21,7 +21,7 @@ smallest relevant verification was run or honestly reported unavailable without
 raw logs or secret-like output.
 
 <!-- CODEX_QUALITY_HARNESS_BEGIN -->
-CODEX_QUALITY_HARNESS_FILE v1.2.9
+CODEX_QUALITY_HARNESS_FILE v1.3.0
 
 ## Active Harness
 
@@ -32,25 +32,25 @@ Truth, trust, security, maintainability, product value, and the smallest correct
 ## Routing
 
 Route routine harness work through the target quality gate and safe summaries. Route product, runtime, security, deployment, wallet/RPC, package, lockfile, or authority changes to their explicit repo profile and evidence lane before acting.
-Active target harness: v1.2.9 / v129.
+Active target harness: v1.3.0 Core / v130.
 Repository profile: IRIS.
-Read first: AGENTS.md, docs/process/CODEX_HARNESS_MANIFEST.json, docs/process/CODEX_V129_SPEC.md, and docs/process/CODEX_ACTIVE_POLICY_INDEX.json when present.
+Read first: AGENTS.md, docs/process/CODEX_HARNESS_MANIFEST.json, docs/process/CODEX_V130_SPEC.md, and docs/process/CODEX_ACTIVE_POLICY_INDEX.json when present.
 README, legacy specs, PR history, and full Source HARNESS files are conditional reads only.
 
 ## Authority
 
 v1.1.8 Final Decision remains final authority. v1.2.7 receipt-carried continuation, same-head evidence, PR body display-only, validation reuse, Stop Circuit, and rollback compatibility remain preserved.
 Rollback compatibility marker: CODEX_QUALITY_HARNESS_FILE v1.2.7.
-v1.2.9 adds goal-contracted capability routing while preserving deterministic decision projection and token-minimal loop closure inside the existing target surface. It does not create owner authority.
+v1.3.0 Core preserves v1.2.9 authority boundaries, v1.2.8 compatibility, and v1.2.7 readable compatibility while separating Performance Track claims from target development. It does not create owner authority.
 
 ## Target Footprint
 
-Complex target rollout keeps the existing target quality gate active path and repo-specific product/runtime boundaries.
-Do not add new P0 artifacts, top-level statuses, skills, workflow behavior, product code, runtime code, package or lockfile changes, deploy/RPC/wallet access, or readiness claims for harness rollout unless separately scoped.
+Core target rollout keeps the existing target quality gate active path and repo-specific product/runtime boundaries.
+Do not add Performance Track, Fable comparator, SDK benchmark runner, Skill runtime activation, DAG agent team runtime, learned policy activation, new P0 artifacts, product code, runtime code, package or lockfile changes, deploy/RPC/wallet access, or readiness claims for harness rollout unless separately scoped.
 
 ## Token Economy
 
-Routine path reads one managed safe artifact, zero cold artifacts, at most one selected skill, zero routine reviewer fanout, and an eight-line final report maximum. Use profile IDs and safe summaries instead of repeated forbidden-scope text.
+Routine path reads one managed safe artifact, zero cold artifacts, zero routine selected skills, zero routine reviewer fanout, and an eight-line final report maximum. Use profile IDs and safe summaries instead of repeated forbidden-scope text.
 
 ## Safety Boundary
 
@@ -76,4 +76,4 @@ Do not widen runtime code, or readiness claims.
 <!-- CODEX_QUALITY_HARNESS_END -->
 
 
-HARNESS v1.2.9 target rollout: v1.2.8 remains available as rollback compatibility and v1.2.7 remains compatibility-only. No product, runtime, package, lockfile, workflow, deploy, wallet, RPC, or secret scope is authorized by this rollout.
+HARNESS v1.3.0 Core target rollout: v1.2.9 remains available as immediate rollback, v1.2.8 remains compatibility, and v1.2.7 remains readable compatibility. Performance Track remains deferred and Fable superiority remains not proven. No product, runtime, package, lockfile, deploy, wallet, RPC, or secret scope is authorized by this rollout.

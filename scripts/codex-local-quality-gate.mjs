@@ -1661,10 +1661,16 @@ export function applyTargetActiveSelfTestRegistryMapping(report = {}, failures =
   const selfTestPresent = options.selfTestPresent ?? fs.existsSync(selfTestFile);
   const manifestHarnessVersion = String(manifest?.harnessVersion || '');
   const currentHarnessMapping = manifestHarnessVersion === HARNESS_VERSION;
+  const v130CoreTargetMapping = manifestHarnessVersion === '1.3.0'
+    && activeSuite === 'v130'
+    && manifest?.coreTargetProfile?.version === '1.3.0'
+    && manifest?.coreTargetProfile?.installed === true
+    && manifest?.performanceTrack?.state === 'deferred'
+    && manifest?.authorityCreated === false;
   const legacyV114Mapping = manifestHarnessVersion === '1.1.4' && activeSuite === 'v114';
   const validMapping = Boolean(
     manifest?.targetRepoMode === true &&
-    (currentHarnessMapping || legacyV114Mapping) &&
+    (currentHarnessMapping || legacyV114Mapping || v130CoreTargetMapping) &&
     /^v\d+$/.test(activeSuite) &&
     activeStatusKey === expectedStatusKey &&
     selfTestPresent &&
@@ -4145,8 +4151,10 @@ function runV128Gates(report, gateEnv) {
 
 function initializeV128Statuses(report) {
   if (!report.v128SelfTestStatus) report.v128SelfTestStatus = { status: 'not_run' };
+}
 
-  selfTestStatus = process.env.CODEX_V129_SELF_TEST_REPORT === 'json'
+function runV129Gates(report, gateEnv, failures = [], blockingStatuses = []) {
+  const selfTestStatus = process.env.CODEX_V129_SELF_TEST_REPORT === 'json'
     ? parseJsonEnv('CODEX_V129_SELF_TEST_REPORT')?.v129SelfTestStatus || parseJsonEnv('CODEX_V129_SELF_TEST_REPORT')
     : runGateScript('scripts/codex-v129-self-test.mjs', 'v129SelfTestStatus', 'CODEX_V129_SELF_TEST_REPORT', gateEnv);
   report.v129SelfTestStatus = selfTestStatus.status === 'fail' ? selfTestStatus : { ...selfTestStatus, status: selfTestStatus.status || 'pass' };
@@ -4155,6 +4163,28 @@ function initializeV128Statuses(report) {
     blockingStatuses.push({ key: 'v129SelfTestStatus', status: report.v129SelfTestStatus.status, reasonCodes: report.v129SelfTestStatus.reasonCodes || [] });
   }
   if (!report.v129SelfTestStatus) report.v129SelfTestStatus = { status: 'not_run' };
+}
+
+function initializeV129Statuses(report) {
+  if (!report.v129SelfTestStatus) report.v129SelfTestStatus = { status: 'not_run' };
+}
+
+function runV130Gates(report, gateEnv, failures = [], blockingStatuses = []) {
+  const selfTestStatus = process.env.CODEX_V130_SELF_TEST_REPORT === 'json'
+    ? parseJsonEnv('CODEX_V130_SELF_TEST_REPORT')?.v130SelfTestStatus || parseJsonEnv('CODEX_V130_SELF_TEST_REPORT')
+    : fs.existsSync('scripts/codex-v130-self-test.mjs')
+      ? runGateScript('scripts/codex-v130-self-test.mjs', 'v130SelfTestStatus', 'CODEX_V130_SELF_TEST_REPORT', gateEnv)
+      : { status: 'not_applicable', reasonCodes: ['v130_self_test_missing'], safeSummaryOnly: true };
+  report.v130SelfTestStatus = selfTestStatus.status === 'fail' ? selfTestStatus : { ...selfTestStatus, status: selfTestStatus.status || 'pass' };
+  if (report.v130SelfTestStatus?.status === 'fail') {
+    failures.push('v130_self_test_failed');
+    blockingStatuses.push({ key: 'v130SelfTestStatus', status: report.v130SelfTestStatus.status, reasonCodes: report.v130SelfTestStatus.reasonCodes || [] });
+  }
+  if (!report.v130SelfTestStatus) report.v130SelfTestStatus = { status: 'not_run' };
+}
+
+function initializeV130Statuses(report) {
+  if (!report.v130SelfTestStatus) report.v130SelfTestStatus = { status: 'not_run' };
 }
 
 function legacySelfTestPreservedStatus(legacyVersion) {
@@ -9489,6 +9519,8 @@ async function runSourceHarnessGate() {
   initializeV126Statuses(report);
   initializeV127Statuses(report);
   initializeV128Statuses(report);
+  initializeV129Statuses(report);
+  initializeV130Statuses(report);
   initializeV101Statuses(report);
   initializeV102Statuses(report);
   initializeV103Statuses(report);
@@ -11343,7 +11375,14 @@ function targetManifestStatus() {
 
 
 
-    if (manifest.harnessVersion && manifest.harnessVersion !== HARNESS_VERSION) failures.push('target_manifest_version_mismatch');
+    const v130CoreTargetProfile = manifest.harnessVersion === '1.3.0'
+      && manifest.coreTargetProfile?.version === '1.3.0'
+      && manifest.coreTargetProfile?.installed === true
+      && manifest.performanceTrack?.state === 'deferred'
+      && manifest.performanceTrack?.superiorityClaimState === 'not_proven'
+      && manifest.authorityCreated === false;
+
+    if (manifest.harnessVersion && manifest.harnessVersion !== HARNESS_VERSION && !v130CoreTargetProfile) failures.push('target_manifest_version_mismatch');
 
 
 
@@ -13504,6 +13543,8 @@ async function runSourceHarnessCoreContractGate() {
   runV126Gates(report, gateEnv);
   runV127Gates(report, gateEnv);
   runV128Gates(report, gateEnv);
+  runV129Gates(report, gateEnv, failures, blockingStatuses);
+  runV130Gates(report, gateEnv, failures, blockingStatuses);
   writeV117LoadBearingArtifacts(report);
 
   for (const [key, value] of Object.entries({

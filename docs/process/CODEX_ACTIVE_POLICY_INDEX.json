@@ -1,6 +1,6 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.9",
-  "schemaVersion": "1.2.9",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.3.0",
+  "schemaVersion": "1.3.0",
   "indexVersion": "1",
   "indexPath": "docs/process/CODEX_ACTIVE_POLICY_INDEX.json",
   "purpose": "Bound md and skill reads by task profile while preserving active authority.",
@@ -63,16 +63,17 @@
   "requiredReads": [
     "AGENTS.md",
     "docs/process/CODEX_HARNESS_MANIFEST.json",
-    "docs/process/CODEX_V129_SPEC.md"
+    "docs/process/CODEX_V130_SPEC.md"
   ],
   "deferredReads": [
+    "docs/process/CODEX_V129_SPEC.md",
+    "docs/process/CODEX_V128_SPEC.md",
     "docs/process/CODEX_V127_SPEC.md",
     "README.md",
     "legacy_specs",
-    "pr_history_docs",
-    "docs/process/CODEX_V128_SPEC.md"
+    "pr_history_docs"
   ],
-  "selectedSkillsMax": 1,
+  "selectedSkillsMax": 0,
   "mdFilesReadMax": 3,
   "newP0Artifact": false,
   "newTopLevelStatus": false,
@@ -143,5 +144,45 @@
     "routineReviewerFanout": 0,
     "routineOwnerInterruptMax": 0,
     "authorityCreated": false
+  },
+  "performanceTrack": {
+    "state": "deferred",
+    "classification": "performance_track",
+    "authority": "non_authoritative",
+    "coreActivationRequirement": "not_required_for_core_activation",
+    "FableComparatorState": "unavailable",
+    "superiorityClaimState": "not_proven",
+    "sdkTransportState": "not_installed",
+    "sixtyTaskBenchmarkState": "not_required_for_core_activation",
+    "learnedPolicyState": "shadow_only",
+    "affectsQualityScore": false,
+    "affectsBlockingCount": false,
+    "affectsMergeAllowed": false,
+    "affectsFinalDecision": false,
+    "affectsActivation": false,
+    "affectsTargetRollout": false
+  },
+  "targetDevelopmentResumePolicy": {
+    "state": "active",
+    "targetHarnessForProductDevelopment": "1.3.0 Core",
+    "v130TargetInstall": "core_only",
+    "v130PerformanceTrackBlocksProductDevelopment": false,
+    "allowedUnderCore": [
+      "bug_repair",
+      "test_repair",
+      "ci_repair",
+      "small_product_change",
+      "documentation_correction",
+      "target_local_quality_repair"
+    ],
+    "forbidden": [
+      "performance_track",
+      "fable_superiority_claim",
+      "sdk_benchmark_runner",
+      "skill_runtime_activation",
+      "dag_agent_team_runtime",
+      "learned_policy_activation",
+      "v131"
+    ]
   }
 }

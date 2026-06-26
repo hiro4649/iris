@@ -1,16 +1,16 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.9",
-  "schemaVersion": "1.2.9",
-  "sourceHarnessVersion": "1.2.9",
-  "harnessVersion": "1.2.9",
-  "activeHarnessVersion": "1.2.9",
-  "targetHarnessVersion": "1.2.9",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.3.0",
+  "schemaVersion": "1.3.0",
+  "sourceHarnessVersion": "1.3.0",
+  "harnessVersion": "1.3.0",
+  "activeHarnessVersion": "1.3.0",
+  "targetHarnessVersion": "1.3.0",
   "evidenceSchemaVersion": 6,
   "profileTemplateVersion": "1.1.6",
   "futureHarnessArtifact": false,
   "upgradePath": "direct_v127_to_v128_complex_target_active_path",
-  "activeSelfTestSuite": "v129",
-  "activeSelfTestStatusKey": "v129SelfTestStatus",
+  "activeSelfTestSuite": "v130",
+  "activeSelfTestStatusKey": "v130SelfTestStatus",
   "legacySelfTests": {
     "v122": "blocking_compatibility",
     "v121": "blocking_compatibility",
@@ -27,9 +27,10 @@
     "v124": "blocking_compatibility",
     "v125": "blocking_compatibility",
     "v126": "blocking_compatibility",
-    "v127": "blocking_compatibility",
-    "v128": "blocking_compatibility_rollback",
-    "v129": "blocking_current"
+    "v127": "compatibility_readable",
+    "v128": "blocking_compatibility",
+    "v129": "immediate_rollback",
+    "v130": "blocking_current"
   },
   "sourceOnlyRelease": false,
   "targetRollout": "completed",
@@ -37,7 +38,7 @@
   "representativeRealPrReplay": "required",
   "representativeLivePrValidation": "required",
   "syntheticRepresentativeValidation": "required",
-  "theme": "Deterministic Decision Projection and Token-Minimal Loop Closure",
+  "theme": "HARNESS v1.3.0 Core target profile",
   "requiredStatuses": [
     "orchestrationModeStatus",
     "permissionGrantStatus",
@@ -618,10 +619,16 @@
   "packageOrLockfileChanged": false,
   "workflowChanged": false,
   "versioningRollback": {
-    "activeHarnessVersion": "1.2.8",
-    "activeSelfTestSuite": "v128",
-    "activeSelfTestStatusKey": "v128SelfTestStatus",
-    "rollbackAvailable": true
+    "activeHarnessVersion": "1.2.9",
+    "activeSelfTestSuite": "v129",
+    "activeSelfTestStatusKey": "v129SelfTestStatus",
+    "rollbackAvailable": true,
+    "previousRollback": {
+      "activeHarnessVersion": "1.2.8",
+      "activeSelfTestSuite": "v128",
+      "activeSelfTestStatusKey": "v128SelfTestStatus",
+      "rollbackAvailable": true
+    }
   },
   "goalContractedCapabilityRouter": {
     "version": "1.2.9",
@@ -647,5 +654,38 @@
     "productRuntimeMutationCount": 0,
     "authorityCreated": false,
     "irisSafetyPreserved": true
-  }
+  },
+  "currentVersion": "1.3.0",
+  "previousVersion": "1.2.9",
+  "performanceTrack": {
+    "state": "deferred",
+    "classification": "performance_track",
+    "authority": "non_authoritative",
+    "coreActivationRequirement": "not_required_for_core_activation",
+    "FableComparatorState": "unavailable",
+    "superiorityClaimState": "not_proven",
+    "sdkTransportState": "not_installed",
+    "sixtyTaskBenchmarkState": "not_required_for_core_activation",
+    "learnedPolicyState": "shadow_only",
+    "affectsQualityScore": false,
+    "affectsBlockingCount": false,
+    "affectsMergeAllowed": false,
+    "affectsFinalDecision": false,
+    "affectsActivation": false,
+    "affectsTargetRollout": false
+  },
+  "coreTargetProfile": {
+    "version": "1.3.0",
+    "installed": true,
+    "installsPerformanceTrack": false,
+    "installsFableComparator": false,
+    "installsSdkBenchmark": false,
+    "installsSkillRuntime": false,
+    "installsDagAgentTeam": false,
+    "installsLearnedPolicy": false,
+    "authorityCreated": false,
+    "productMutationCount": 0,
+    "finalAuthority": "v1.1.8_final_decision_kernel"
+  },
+  "targetMutationCount": 0
 }
