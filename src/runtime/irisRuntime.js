@@ -60,6 +60,7 @@ import {
   createMemorySearchAdapterFromEnv,
   createRuntimeAdaptersFromEnv,
 } from "../adapters/runtimeAdapters.js";
+import { runFirstRuntimeVerticalSlice } from "./firstRuntimeVerticalSlice.js";
 
 export function createIrisRuntime({
   runtimeConfig,
@@ -241,6 +242,31 @@ export function createIrisRuntime({
         schema: "iris_runtime_candidate_relationship_commit_pause_v1",
         candidate_relationship_commit_paused:
           activeRuntimeConfig.candidateRelationshipCommitPaused,
+      };
+    },
+    processSyntheticFirstRuntimeVerticalSlice(input, { emergencyStopState } = {}) {
+      if (activeRuntimeConfig.enableSyntheticFirstRuntimeVerticalSlice !== true) {
+        return {
+          schema_version: "iris_first_runtime_vertical_slice_dispatch_v1",
+          dispatch_status: "blocked",
+          reason_code: "first_runtime_vertical_slice_disabled",
+          result: null,
+          runtime_readiness_claimed: false,
+          production_readiness_claimed: false,
+          production_go_performed: false,
+          priority1_status: "BLOCKED",
+        };
+      }
+      const result = runFirstRuntimeVerticalSlice(input, { emergencyStopState });
+      return {
+        schema_version: "iris_first_runtime_vertical_slice_dispatch_v1",
+        dispatch_status: "pass",
+        reason_code: "first_runtime_vertical_slice_dispatched",
+        result,
+        runtime_readiness_claimed: false,
+        production_readiness_claimed: false,
+        production_go_performed: false,
+        priority1_status: "BLOCKED",
       };
     },
     capabilities() {
