@@ -31,6 +31,7 @@
     "test/",
     "tests/",
     "__tests__/",
+    "scripts/iris-first-runtime-vertical-slice-integration-self-test.mjs",
     "scripts/run-tests.js"
   ],
   "specFiles": [
