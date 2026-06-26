@@ -527,6 +527,44 @@ const OBS_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "heartbeat_status",
   "artifact_freshness",
 ]);
+const OBS_SAFE_COLLECTOR_INPUT_FIELDS = new Set([
+  "browser_source_status",
+  "browserSourceStatus",
+  "pickup_status",
+  "pickupStatus",
+  "heartbeat_status",
+  "heartbeatStatus",
+  "artifact_freshness",
+  "artifactFreshness",
+  "evidence_timestamp_ms",
+  "evidenceTimestampMs",
+  "source_type",
+  "sourceType",
+  "status_hash",
+  "statusHash",
+  "audit_reference",
+  "auditReference",
+]);
+const OBS_SAFE_COLLECTOR_HELPER_FIELDS = new Set([
+  "schema",
+  "component_label",
+  "collector_label",
+  "status",
+  "freshness",
+  "source_type",
+  "browser_source_status",
+  "pickup_status",
+  "heartbeat_status",
+  "artifact_freshness",
+  "evidence_timestamp_ms",
+  "status_hash",
+  "audit_reference",
+  "blocker_count",
+  "safe_next_action_label",
+  "redaction_status",
+  "production_go_allowed",
+  "priority1_status",
+]);
 const DB_EVIDENCE_COLLECTOR_FIELDS = new Set([
   "schema",
   "connection_status",
@@ -5150,6 +5188,303 @@ export function assertObsEvidenceCollectorContractSafe(
     throw new ContractError(`${context}: invalid contract`);
   }
   assertNoUnsafeAuditMaterial(contract, context);
+}
+
+function safeObsCollectorStatusHash(value) {
+  const normalized = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-f0-9]/gu, "")
+    .slice(0, 128);
+  return /^[a-f0-9]{16,128}$/u.test(normalized) ? normalized : "0".repeat(16);
+}
+
+function obsSafeCollectorInputValue(source, ...keys) {
+  for (const key of keys) {
+    if (source && Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function assertObsSafeCollectorInputSafe(
+  safeObsStatus,
+  context = "OBS safe collector input"
+) {
+  if (!safeObsStatus || typeof safeObsStatus !== "object" || Array.isArray(safeObsStatus)) {
+    throw new ContractError(`${context}: safe status object required`);
+  }
+  for (const field of Object.keys(safeObsStatus)) {
+    if (!OBS_SAFE_COLLECTOR_INPUT_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected or unsafe input field`, {
+        field,
+      });
+    }
+  }
+  assertNoUnsafeAuditMaterial(safeObsStatus, context);
+}
+
+export function createObsSafeCollectorHelper({
+  safeObsStatus = {},
+  browserSourceStatus,
+  pickupStatus,
+  heartbeatStatus,
+  artifactFreshness,
+  evidenceTimestampMs,
+  sourceType,
+  statusHash,
+  auditReference,
+  nowMs = Date.now(),
+  freshnessThresholdMs = 15_000,
+  fixturePass = false,
+  dryRunOnly = false,
+  placeholderOnly = false,
+  safeNextActionLabel = "collect_obs_pickup_evidence",
+} = {}) {
+  assertObsSafeCollectorInputSafe(safeObsStatus);
+
+  const sourceClassification = classifyRealEvidenceSourceType(
+    sourceType ??
+      obsSafeCollectorInputValue(safeObsStatus, "source_type", "sourceType") ??
+      "real_probe"
+  );
+  const source_type = safePacketLabel(sourceClassification.source_type);
+  const contract = createObsEvidenceCollectorContract({
+    browserSourceStatus:
+      browserSourceStatus ??
+      obsSafeCollectorInputValue(
+        safeObsStatus,
+        "browser_source_status",
+        "browserSourceStatus"
+      ) ??
+      "runtime_waiting",
+    pickupStatus:
+      pickupStatus ??
+      obsSafeCollectorInputValue(safeObsStatus, "pickup_status", "pickupStatus") ??
+      "runtime_waiting",
+    heartbeatStatus:
+      heartbeatStatus ??
+      obsSafeCollectorInputValue(
+        safeObsStatus,
+        "heartbeat_status",
+        "heartbeatStatus"
+      ) ??
+      "runtime_waiting",
+    artifactFreshness:
+      artifactFreshness ??
+      obsSafeCollectorInputValue(
+        safeObsStatus,
+        "artifact_freshness",
+        "artifactFreshness"
+      ) ??
+      "runtime_waiting",
+  });
+  const evidence_timestamp_ms = normalizeTimestampMs(
+    evidenceTimestampMs ??
+      obsSafeCollectorInputValue(
+        safeObsStatus,
+        "evidence_timestamp_ms",
+        "evidenceTimestampMs"
+      ) ??
+      0
+  );
+  const hash = safeObsCollectorStatusHash(
+    statusHash ?? obsSafeCollectorInputValue(safeObsStatus, "status_hash", "statusHash")
+  );
+  const audit_reference = safePacketLabel(
+    auditReference ??
+      obsSafeCollectorInputValue(safeObsStatus, "audit_reference", "auditReference") ??
+      "obs_audit_pending"
+  );
+  const sourceAllowed =
+    sourceClassification.allowed && source_type === sourceClassification.source_type;
+  const nonRealSource =
+    fixturePass ||
+    dryRunOnly ||
+    placeholderOnly ||
+    ["fixture", "fixture_pass", "dry_run", "dry_run_only", "placeholder"].includes(
+      source_type
+    );
+  const browserSourceNeedsAttention = contract.browser_source_status !== "ready";
+  const pickupNeedsAttention = contract.pickup_status !== "ready";
+  const artifactNeedsAttention = contract.artifact_freshness !== "fresh";
+  const statusReady =
+    contract.browser_source_status === "ready" &&
+    contract.pickup_status === "ready" &&
+    contract.heartbeat_status === "fresh" &&
+    contract.artifact_freshness === "fresh";
+  const evidence =
+    sourceAllowed && !nonRealSource && evidence_timestamp_ms > 0 && statusReady
+      ? createRealEvidenceIntake({
+          component: "obs",
+          status: contract.browser_source_status,
+          evidenceTimestampMs: evidence_timestamp_ms,
+          sourceType: source_type,
+          collector: "obs_evidence_collector",
+          statusHash: hash,
+          auditReference: audit_reference,
+        })
+      : null;
+  const freshness = evidence
+    ? classifyRealEvidenceFreshness({
+        evidence,
+        nowMs,
+        componentThresholdsMs: { obs: freshnessThresholdMs },
+      })
+    : contract.heartbeat_status === "stale" || contract.artifact_freshness === "stale"
+      ? "stale"
+      : browserSourceNeedsAttention || pickupNeedsAttention || artifactNeedsAttention
+        ? "attention"
+        : "runtime_waiting";
+  const blockers = [];
+  if (!sourceAllowed) blockers.push("source_type_blocked");
+  if (fixturePass || ["fixture", "fixture_pass"].includes(source_type)) {
+    blockers.push("fixture_only");
+  }
+  if (dryRunOnly || ["dry_run", "dry_run_only"].includes(source_type)) {
+    blockers.push("dry_run_only");
+  }
+  if (placeholderOnly || source_type === "placeholder") {
+    blockers.push("placeholder_only");
+  }
+  if (evidence_timestamp_ms === 0 || contract.heartbeat_status === "runtime_waiting") {
+    blockers.push("obs_heartbeat_missing");
+  }
+  if (freshness !== "fresh") blockers.push("obs_heartbeat_not_fresh");
+  if (contract.heartbeat_status !== "fresh") {
+    blockers.push("obs_heartbeat_not_fresh_label");
+  }
+  if (browserSourceNeedsAttention) blockers.push("obs_browser_source_not_ready");
+  if (pickupNeedsAttention) blockers.push("obs_pickup_not_ready");
+  if (artifactNeedsAttention) blockers.push("obs_artifact_not_fresh");
+
+  const helper = {
+    schema: "iris_obs_safe_collector_helper_v1",
+    component_label: "obs",
+    collector_label: "obs_evidence_collector",
+    status: blockers.length === 0 ? "ready" : "blocked",
+    freshness,
+    source_type,
+    browser_source_status: contract.browser_source_status,
+    pickup_status: contract.pickup_status,
+    heartbeat_status: contract.heartbeat_status,
+    artifact_freshness: contract.artifact_freshness,
+    evidence_timestamp_ms,
+    status_hash: hash,
+    audit_reference,
+    blocker_count: blockers.length,
+    safe_next_action_label: safePacketLabel(
+      browserSourceNeedsAttention || pickupNeedsAttention || artifactNeedsAttention
+        ? "operator_attention_required"
+        : safeNextActionLabel
+    ),
+    redaction_status: "redacted",
+    production_go_allowed: false,
+    priority1_status: "BLOCKED",
+  };
+  assertObsSafeCollectorHelperSafe(helper);
+  return helper;
+}
+
+export function assertObsSafeCollectorHelperSafe(
+  helper,
+  context = "OBS safe collector helper"
+) {
+  if (!helper || typeof helper !== "object" || Array.isArray(helper)) {
+    throw new ContractError(`${context}: helper required`);
+  }
+  for (const field of Object.keys(helper)) {
+    if (!OBS_SAFE_COLLECTOR_HELPER_FIELDS.has(field) || UNSAFE_FIELD_PATTERN.test(field)) {
+      throw new ContractError(`${context}: unexpected or unsafe helper field`, {
+        field,
+      });
+    }
+  }
+  if (
+    ![
+      "iris_obs_safe_collector_helper_v1",
+      "iris_obs_safe_collector_summary_v1",
+    ].includes(helper.schema) ||
+    helper.component_label !== "obs" ||
+    helper.collector_label !== "obs_evidence_collector" ||
+    !["ready", "blocked"].includes(helper.status) ||
+    !["fresh", "stale", "attention", "runtime_waiting"].includes(helper.freshness) ||
+    !SAFE_LABEL_PATTERN.test(helper.source_type) ||
+    !isSafeCollectorStatus(helper.browser_source_status) ||
+    !isSafeCollectorStatus(helper.pickup_status) ||
+    !isSafeCollectorStatus(helper.heartbeat_status) ||
+    !isSafeCollectorStatus(helper.artifact_freshness) ||
+    !Number.isInteger(helper.evidence_timestamp_ms) ||
+    helper.evidence_timestamp_ms < 0 ||
+    !/^[a-f0-9]{16,128}$/u.test(helper.status_hash) ||
+    !SAFE_LABEL_PATTERN.test(helper.audit_reference) ||
+    !Number.isInteger(helper.blocker_count) ||
+    helper.blocker_count < 0 ||
+    !SAFE_LABEL_PATTERN.test(helper.safe_next_action_label) ||
+    helper.redaction_status !== "redacted" ||
+    helper.production_go_allowed !== false ||
+    helper.priority1_status !== "BLOCKED"
+  ) {
+    throw new ContractError(`${context}: invalid helper`);
+  }
+  assertNoUnsafeAuditMaterial(helper, context);
+}
+
+export function createObsSafeCollectorSummary({ helper } = {}) {
+  assertObsSafeCollectorHelperSafe(helper, "OBS safe collector summary input");
+  const summary = {
+    ...helper,
+    schema: "iris_obs_safe_collector_summary_v1",
+  };
+  assertObsSafeCollectorSummarySafe(summary);
+  return summary;
+}
+
+export function assertObsSafeCollectorSummarySafe(
+  summary,
+  context = "OBS safe collector summary"
+) {
+  assertObsSafeCollectorHelperSafe(summary, context);
+}
+
+export function createObsSafeCollectorEvidenceIntake({ helper } = {}) {
+  assertObsSafeCollectorHelperSafe(helper, "OBS safe collector evidence intake input");
+  const sourceClassification = classifyRealEvidenceSourceType(helper.source_type);
+  const nonRealSource = [
+    "fixture",
+    "fixture_pass",
+    "dry_run",
+    "dry_run_only",
+    "placeholder",
+  ].includes(helper.source_type);
+  const intakeReady =
+    helper.status === "ready" &&
+    helper.freshness === "fresh" &&
+    sourceClassification.allowed &&
+    sourceClassification.source_type === helper.source_type &&
+    !nonRealSource &&
+    helper.browser_source_status === "ready" &&
+    helper.pickup_status === "ready" &&
+    helper.heartbeat_status === "fresh" &&
+    helper.artifact_freshness === "fresh" &&
+    helper.evidence_timestamp_ms > 0 &&
+    helper.production_go_allowed === false &&
+    helper.priority1_status === "BLOCKED" &&
+    helper.blocker_count === 0;
+  if (!intakeReady) {
+    return null;
+  }
+  const evidence = createRealEvidenceIntake({
+    component: helper.component_label,
+    status: helper.browser_source_status,
+    evidenceTimestampMs: helper.evidence_timestamp_ms,
+    sourceType: helper.source_type,
+    collector: helper.collector_label,
+    statusHash: helper.status_hash,
+    auditReference: helper.audit_reference,
+  });
+  assertRealEvidenceIntakeSafe(evidence, "OBS safe collector evidence intake");
+  return evidence;
 }
 
 export function createDbEvidenceCollectorContract({
