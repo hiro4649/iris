@@ -14,7 +14,9 @@ const FORBIDDEN_HTTP_ADAPTER_RESPONSE_FIELDS = new Set([
   "memory_write",
   "direct_memory_write",
   "commit_memory",
+  "memory_commit",
   "relationship_update_candidate",
+  "relationship_commit",
   "memory_carryover_candidates",
   "community_memory_candidates",
   "memory_candidate",
@@ -34,10 +36,13 @@ const FORBIDDEN_HTTP_ADAPTER_RESPONSE_FIELDS = new Set([
   "character_tag",
   "task_type",
   "relation_score",
+  "obs_command",
   "endpoint",
+  "endpoint_url",
   "url",
   "api_key",
   "apiKey",
+  "api_token",
   "oauth_token",
   "oauthToken",
   "access_token",
@@ -46,6 +51,16 @@ const FORBIDDEN_HTTP_ADAPTER_RESPONSE_FIELDS = new Set([
   "secret",
   "password",
   "authorization",
+  "selected_memory_ids",
+  "raw_payload",
+  "raw_response_body",
+  "raw_audio",
+  "raw_audio_body",
+  "audio_body",
+  "raw_phoneme_debug",
+  "dataset_path",
+  "internal_model_path",
+  "model_path",
 ]);
 
 const FORBIDDEN_HTTP_ADAPTER_RESPONSE_SCHEMA_VALUES = new Set([
@@ -53,6 +68,7 @@ const FORBIDDEN_HTTP_ADAPTER_RESPONSE_SCHEMA_VALUES = new Set([
   "approved_game_input_action",
 ]);
 const TEXT_RESPONSE = Symbol("http_adapter_text_response");
+const INVALID_JSON_RESPONSE = Symbol("http_adapter_invalid_json_response");
 const UNSAFE_RESPONSE_SUMMARY_PATTERN =
   /\b(world_command|input_action|input_action_candidate|approved_game_input_action|execute|commit|write|apply|memory_write|direct_memory_write|commit_memory|authorization|bearer|api[_-]?key|oauth|access[_-]?token|refresh[_-]?token|token|secret|password|endpoint|canonical|canonical_envelope)\b|https?:\/\//i;
 
@@ -99,10 +115,11 @@ export function createHttpPostAdapter({
         method: "POST",
         headers: {
           "content-type": "application/json",
-          ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+          ...(apiKey ? { authorization: `Bearer ${apiKey}`, "x-api-key": apiKey } : {}),
         },
         body: JSON.stringify(packet),
         signal: controller.signal,
+        redirect: "error",
       });
       if (!response.ok) {
         return buildFailedHttpAdapterResult({
@@ -113,7 +130,18 @@ export function createHttpPostAdapter({
         });
       }
       const responseText = await response.text();
-      const parsed = parseMaybeJson(responseText);
+      const parsed = parseMaybeJson(
+        responseText,
+        typeof response.headers?.get === "function" ? response.headers.get("content-type") : ""
+      );
+      if (parsed === INVALID_JSON_RESPONSE) {
+        return buildFailedHttpAdapterResult({
+          adapterKind,
+          status: response.status,
+          bridgeStatus: "invalid_json_response",
+          errorKind: "invalid_json_response",
+        });
+      }
       assertNoForbiddenHttpAdapterResponseFields(parsed, `HTTP ${adapterKind} response`);
       const bridgeStatus = readHttpAdapterBridgeStatus({
         parsed,
@@ -191,12 +219,15 @@ function buildFailedHttpAdapterResult({ adapterKind, status, bridgeStatus, error
   };
 }
 
-function parseMaybeJson(text) {
+function parseMaybeJson(text, contentType = "") {
   const raw = String(text ?? "");
   if (!raw.trim()) return null;
   try {
     return JSON.parse(raw);
   } catch {
+    if (String(contentType ?? "").toLowerCase().includes("json")) {
+      return INVALID_JSON_RESPONSE;
+    }
     return TEXT_RESPONSE;
   }
 }
@@ -40639,6 +40670,7 @@ function canonicalHttpAdapterArtifactKind(adapterKind, artifactKind) {
     }
   }
   if (adapterKind === "live2d") {
+    if (normalized === "live2d_cue") return "live2d_cue";
     if (normalized === "live2d_engine_cue_json") return "live2d_engine_cue_json";
     if (
       [
@@ -53472,7 +53504,7 @@ function safeDurationMs(msValue, secondsValue) {
 
 function classifyRequestError(error) {
   if (error?.name === "AbortError") return "timeout";
-  return "request_error";
+  return "network_failure";
 }
 
 function safeErrorKind(value) {
@@ -53481,7 +53513,9 @@ function safeErrorKind(value) {
     [
       "http_status",
       "timeout",
+      "network_failure",
       "request_error",
+      "invalid_json_response",
       "local_endpoint_policy_blocked",
     ].includes(kind)
   ) {

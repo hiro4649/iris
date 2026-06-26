@@ -62438,6 +62438,312 @@ const tests = [
     },
   ],
   [
+    "HTTP post adapter named export remains available for runtimeAdapters",
+    async () => {
+      const httpPostAdapterModule = await import("../src/adapters/httpPostAdapter.js");
+      const runtimeAdaptersModule = await import("../src/adapters/runtimeAdapters.js");
+      assert.equal(typeof httpPostAdapterModule.createHttpPostAdapter, "function");
+      assert.equal(typeof runtimeAdaptersModule.createRuntimeAdaptersFromEnv, "function");
+    },
+  ],
+  [
+    "TTS HTTP post adapter sends JSON and safe authorization headers",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const received = [];
+      const captureServer = createServer(async (request, response) => {
+        let raw = "";
+        request.setEncoding("utf8");
+        for await (const chunk of request) raw += chunk;
+        received.push({
+          method: request.method,
+          contentType: request.headers["content-type"],
+          authorization: request.headers.authorization,
+          xApiKey: request.headers["x-api-key"],
+          body: JSON.parse(raw),
+        });
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            ok: true,
+            bridge_status: "accepted",
+            artifact_kind: "mock_audio",
+            request_id: "safe-tts-http",
+          })
+        );
+      });
+      const address = await listen(captureServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const adapter = createHttpPostAdapter({
+          adapterKind: "tts",
+          endpoint: `http://${address.address}:${address.port}/v1/adapter/tts`,
+          apiKey: "safe-test-key",
+        });
+        const result = await adapter(fixtures.adapter_packets.tts);
+        const serialized = JSON.stringify(result);
+
+        assert.equal(received.length, 1);
+        assert.equal(received[0].method, "POST");
+        assert.equal(received[0].contentType, "application/json");
+        assert.equal(received[0].authorization, "Bearer safe-test-key");
+        assert.equal(received[0].xApiKey, "safe-test-key");
+        assert.equal(received[0].body.adapter_kind, "tts");
+        assert.equal(result.sent, true);
+        assert.equal(result.response_summary.ok, true);
+        assert.equal(serialized.includes("safe-test-key"), false);
+      } finally {
+        await closeServer(captureServer);
+      }
+    },
+  ],
+  [
+    "Live2D HTTP post adapter sends validated packet",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const received = [];
+      const captureServer = createServer(async (request, response) => {
+        let raw = "";
+        request.setEncoding("utf8");
+        for await (const chunk of request) raw += chunk;
+        received.push(JSON.parse(raw));
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            ok: true,
+            bridge_status: "accepted",
+            artifact_kind: "live2d_cue",
+            request_id: "safe-live2d-http",
+          })
+        );
+      });
+      const address = await listen(captureServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const adapter = createHttpPostAdapter({
+          adapterKind: "live2d",
+          endpoint: `http://${address.address}:${address.port}/v1/adapter/live2d`,
+        });
+        const result = await adapter(fixtures.adapter_packets.live2d);
+
+        assert.equal(received.length, 1);
+        assert.equal(received[0].adapter_kind, "live2d");
+        assert.equal(result.sent, true);
+        assert.equal(result.adapter, "http_live2d");
+        assert.equal(result.response_summary.artifact_kind, "live2d_cue");
+      } finally {
+        await closeServer(captureServer);
+      }
+    },
+  ],
+  [
+    "Subtitle HTTP post adapter sends validated packet",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const received = [];
+      const captureServer = createServer(async (request, response) => {
+        let raw = "";
+        request.setEncoding("utf8");
+        for await (const chunk of request) raw += chunk;
+        received.push(JSON.parse(raw));
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            ok: true,
+            bridge_status: "queued",
+            artifact_kind: "subtitle_segments",
+            request_id: "safe-subtitle-http",
+          })
+        );
+      });
+      const address = await listen(captureServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const adapter = createHttpPostAdapter({
+          adapterKind: "subtitle",
+          endpoint: `http://${address.address}:${address.port}/v1/adapter/subtitle`,
+        });
+        const result = await adapter(fixtures.adapter_packets.subtitle);
+
+        assert.equal(received.length, 1);
+        assert.equal(received[0].adapter_kind, "subtitle");
+        assert.equal(result.sent, true);
+        assert.equal(result.adapter, "http_subtitle");
+        assert.equal(result.response_summary.bridge_status, "queued");
+      } finally {
+        await closeServer(captureServer);
+      }
+    },
+  ],
+  [
+    "HTTP adapter result never leaks endpoint api key or raw response body",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const unsafeBody =
+        "raw bridge failure token=unsafe-test-token endpoint=http://unsafe.example/tts";
+      const captureServer = createServer(async (_request, response) => {
+        response.writeHead(503, { "content-type": "text/plain" });
+        response.end(unsafeBody);
+      });
+      const address = await listen(captureServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const endpoint = `http://${address.address}:${address.port}/v1/adapter/tts`;
+        const adapter = createHttpPostAdapter({
+          adapterKind: "tts",
+          endpoint,
+          apiKey: "unsafe-test-key",
+        });
+        const result = await adapter(fixtures.adapter_packets.tts);
+        const serialized = JSON.stringify(result);
+
+        assert.equal(result.sent, false);
+        assert.equal(result.response_summary.error_kind, "http_status");
+        assert.equal(serialized.includes(endpoint), false);
+        assert.equal(serialized.includes("unsafe-test-key"), false);
+        assert.equal(serialized.includes(unsafeBody), false);
+        assert.equal(serialized.includes("unsafe-test-token"), false);
+      } finally {
+        await closeServer(captureServer);
+      }
+    },
+  ],
+  [
+    "HTTP adapter maps network failure to fixed safe error",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const adapter = createHttpPostAdapter({
+        adapterKind: "tts",
+        endpoint: "http://127.0.0.1:65500/v1/adapter/tts",
+        fetchImpl: async () => {
+          throw new Error("network exploded token=unsafe");
+        },
+      });
+      const result = await adapter(fixtures.adapter_packets.tts);
+      const serialized = JSON.stringify(result);
+
+      assert.equal(result.sent, false);
+      assert.equal(result.response_summary.error_kind, "network_failure");
+      assert.equal(serialized.includes("unsafe"), false);
+      assert.equal(serialized.includes("65500"), false);
+    },
+  ],
+  [
+    "HTTP adapter blocks redirects without leaking auth headers",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      let redirectTargetHits = 0;
+      const redirectTargetServer = createServer(async (_request, response) => {
+        redirectTargetHits += 1;
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true }));
+      });
+      const targetAddress = await listen(redirectTargetServer, { port: 0, host: "127.0.0.1" });
+      const redirectTargetUrl = `http://${targetAddress.address}:${targetAddress.port}/redirect-target?token=redirect-secret`;
+      const redirectServer = createServer(async (request, response) => {
+        request.resume();
+        response.writeHead(302, { location: redirectTargetUrl });
+        response.end();
+      });
+      const address = await listen(redirectServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const endpoint = `http://${address.address}:${address.port}/v1/adapter/tts`;
+        const adapter = createHttpPostAdapter({
+          adapterKind: "tts",
+          endpoint,
+          apiKey: "redirect-sensitive-key",
+        });
+        const result = await adapter(fixtures.adapter_packets.tts);
+        const serialized = JSON.stringify(result);
+
+        assert.equal(result.sent, false);
+        assert.equal(result.response_summary.error_kind, "network_failure");
+        assert.equal(redirectTargetHits, 0);
+        assert.equal(serialized.includes(redirectTargetUrl), false);
+        assert.equal(serialized.includes("redirect-sensitive-key"), false);
+        assert.equal(serialized.includes("redirect-secret"), false);
+        assert.equal(serialized.includes(String(targetAddress.port)), false);
+      } finally {
+        await closeServer(redirectServer);
+        await closeServer(redirectTargetServer);
+      }
+    },
+  ],
+  [
+    "HTTP adapter passes redirect error mode to fetch",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      let observedRedirectMode = "";
+      const adapter = createHttpPostAdapter({
+        adapterKind: "tts",
+        endpoint: "http://127.0.0.1:9124/v1/adapter/tts",
+        fetchImpl: async (_url, options) => {
+          observedRedirectMode = options.redirect;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              bridge_status: "accepted",
+              artifact_kind: "mock_audio",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        },
+      });
+      const result = await adapter(fixtures.adapter_packets.tts);
+
+      assert.equal(observedRedirectMode, "error");
+      assert.equal(result.sent, true);
+    },
+  ],
+  [
+    "HTTP adapter maps timeout to fixed safe error",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const adapter = createHttpPostAdapter({
+        adapterKind: "tts",
+        endpoint: "http://127.0.0.1:9123/v1/adapter/tts",
+        timeoutMs: 100,
+        fetchImpl: async (_url, options) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener("abort", () => {
+              const error = new Error("timed out with endpoint secret");
+              error.name = "AbortError";
+              reject(error);
+            });
+          }),
+      });
+      const result = await adapter(fixtures.adapter_packets.tts);
+      const serialized = JSON.stringify(result);
+
+      assert.equal(result.sent, false);
+      assert.equal(result.response_summary.error_kind, "timeout");
+      assert.equal(serialized.includes("9123"), false);
+      assert.equal(serialized.includes("secret"), false);
+    },
+  ],
+  [
+    "HTTP adapter maps invalid JSON bridge body to fixed safe error",
+    async () => {
+      const fixtures = createIntegrationFixtures({ generatedAtMs: 1000 });
+      const captureServer = createServer(async (_request, response) => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end("{invalid raw body token=unsafe");
+      });
+      const address = await listen(captureServer, { port: 0, host: "127.0.0.1" });
+      try {
+        const adapter = createHttpPostAdapter({
+          adapterKind: "tts",
+          endpoint: `http://${address.address}:${address.port}/v1/adapter/tts`,
+        });
+        const result = await adapter(fixtures.adapter_packets.tts);
+        const serialized = JSON.stringify(result);
+
+        assert.equal(result.sent, false);
+        assert.equal(result.response_summary.error_kind, "invalid_json_response");
+        assert.equal(serialized.includes("{invalid"), false);
+        assert.equal(serialized.includes("unsafe"), false);
+      } finally {
+        await closeServer(captureServer);
+      }
+    },
+  ],
+  [
     "HTTP game control adapter posts only approved actions",
     async () => {
       const received = [];
