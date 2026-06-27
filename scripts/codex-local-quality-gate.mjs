@@ -2,7 +2,7 @@
 
 
 
-// CODEX_QUALITY_HARNESS_FILE v1.2.7
+// CODEX_QUALITY_HARNESS_FILE v1.3.0
 
 
 
@@ -70,7 +70,8 @@ import { buildOwnerDecisionBriefReport } from './codex-owner-decision-brief.mjs'
 
 
 
-const HARNESS_VERSION = '1.2.9';
+const HARNESS_VERSION = '1.3.0';
+const ACTIVE_SELF_TEST_STATUS_KEY = 'v130SelfTestStatus';
 
 
 
@@ -230,7 +231,7 @@ function loadBearingArtifactNames() {
     'codex-minimal-blockers.safe.json',
     'codex-quality-gate-safe-summary.json',
   ];
-  if (!['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9'].includes(HARNESS_VERSION)) return HARNESS_VERSION === '1.1.8' ? v118Artifacts : LOAD_BEARING_ARTIFACTS;
+  if (!['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9', '1.3.0'].includes(HARNESS_VERSION)) return HARNESS_VERSION === '1.1.8' ? v118Artifacts : LOAD_BEARING_ARTIFACTS;
   return [
     'codex-orchestration-capsule.safe.json',
     'codex-worker-proof.safe.json',
@@ -376,13 +377,13 @@ function writeV117LoadBearingArtifacts(report = {}) {
     if (usesV118FinalDecisionArtifacts() && report.evidenceCapsule) {
       fs.writeFileSync(loadBearingArtifactPath('codex-evidence-capsule.safe.json'), JSON.stringify(report.evidenceCapsule, null, 2));
     }
-    if (['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9'].includes(HARNESS_VERSION) && report.orchestrationCapsule) {
+    if (['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9', '1.3.0'].includes(HARNESS_VERSION) && report.orchestrationCapsule) {
       fs.writeFileSync(loadBearingArtifactPath('codex-orchestration-capsule.safe.json'), JSON.stringify(report.orchestrationCapsule, null, 2));
     }
-    if (['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9'].includes(HARNESS_VERSION) && report.workerProofCapsule) {
+    if (['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9', '1.3.0'].includes(HARNESS_VERSION) && report.workerProofCapsule) {
       fs.writeFileSync(loadBearingArtifactPath('codex-worker-proof.safe.json'), JSON.stringify(report.workerProofCapsule, null, 2));
     }
-    if (['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9'].includes(HARNESS_VERSION) && report.ownerDecisionBrief) {
+    if (['1.1.9', '1.2.0', '1.2.1', '1.2.2', '1.2.3', '1.2.4', '1.2.5', '1.2.6', '1.2.7', '1.2.8', '1.2.9', '1.3.0'].includes(HARNESS_VERSION) && report.ownerDecisionBrief) {
       fs.writeFileSync(loadBearingArtifactPath('codex-owner-decision-brief.safe.json'), JSON.stringify(report.ownerDecisionBrief, null, 2));
     }
     fs.writeFileSync(loadBearingArtifactPath('codex-decision-capsule.safe.json'), JSON.stringify(decisionCapsule, null, 2));
