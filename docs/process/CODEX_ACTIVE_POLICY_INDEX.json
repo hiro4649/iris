@@ -1,6 +1,6 @@
 {
-  "marker": "CODEX_QUALITY_HARNESS_FILE v1.2.9",
-  "schemaVersion": "1.2.9",
+  "marker": "CODEX_QUALITY_HARNESS_FILE v1.3.0",
+  "schemaVersion": "1.3.0",
   "indexVersion": "1",
   "indexPath": "docs/process/CODEX_ACTIVE_POLICY_INDEX.json",
   "purpose": "Bound md and skill reads by task profile while preserving active authority.",
@@ -15,7 +15,7 @@
       "requiredReads": [
         "AGENTS.md",
         "docs/process/CODEX_HARNESS_MANIFEST.json",
-        "docs/process/CODEX_V128_SPEC.md"
+        "docs/process/CODEX_V130_SPEC.md"
       ],
       "deferredReads": [
         "docs/process/CODEX_V127_SPEC.md",
@@ -24,7 +24,7 @@
         "pr_history_docs"
       ],
       "mdFilesReadMax": 3,
-      "selectedSkillsMax": 1,
+      "selectedSkillsMax": 0,
       "thirdSkillAllowed": false
     },
     "metadata_light": {
@@ -39,14 +39,14 @@
         "pr_history_docs"
       ],
       "mdFilesReadMax": 2,
-      "selectedSkillsMax": 1,
+      "selectedSkillsMax": 0,
       "thirdSkillAllowed": false
     },
     "target_rollout": {
       "requiredReads": [
         "AGENTS.md",
         "docs/process/CODEX_HARNESS_MANIFEST.json",
-        "docs/process/CODEX_V128_SPEC.md",
+        "docs/process/CODEX_V130_SPEC.md",
         "owner_rollout_instruction"
       ],
       "deferredReads": [
@@ -56,23 +56,24 @@
         "pr_history_docs"
       ],
       "mdFilesReadMax": 4,
-      "selectedSkillsMax": 1,
+      "selectedSkillsMax": 0,
       "thirdSkillAllowed": false
     }
   },
   "requiredReads": [
     "AGENTS.md",
     "docs/process/CODEX_HARNESS_MANIFEST.json",
-    "docs/process/CODEX_V129_SPEC.md"
+    "docs/process/CODEX_V130_SPEC.md"
   ],
   "deferredReads": [
     "docs/process/CODEX_V127_SPEC.md",
     "README.md",
     "legacy_specs",
     "pr_history_docs",
-    "docs/process/CODEX_V128_SPEC.md"
+    "docs/process/CODEX_V128_SPEC.md",
+    "docs/process/CODEX_V129_SPEC.md"
   ],
-  "selectedSkillsMax": 1,
+  "selectedSkillsMax": 0,
   "mdFilesReadMax": 3,
   "newP0Artifact": false,
   "newTopLevelStatus": false,
@@ -123,8 +124,8 @@
     }
   },
   "routineColdArtifactReadMax": 0,
-  "fullHistory": "forbidden",
-  "rawLogs": "forbidden",
+  "fullHistory": false,
+  "rawLogs": false,
   "goalContractedCapabilityRouter": {
     "version": "1.2.9",
     "sourceHarnessCommit": "07bba3cba7456375194fc25fe1d2108a893502d0",
@@ -143,5 +144,82 @@
     "routineReviewerFanout": 0,
     "routineOwnerInterruptMax": 0,
     "authorityCreated": false
-  }
+  },
+  "performanceTrack": {
+    "state": "deferred",
+    "authoritative": false,
+    "FableComparatorState": "unavailable",
+    "superiorityClaimState": "not_proven"
+  },
+  "v130CoreTargetProfile": {
+    "state": "active",
+    "profile": "metadata_gate_target",
+    "installsPerformanceTrack": false,
+    "installsFableComparator": false,
+    "installsSdkBenchmarkRunner": false,
+    "installsSixtyTaskBenchmark": false,
+    "installsSkillRuntimeActivation": false,
+    "installsDagAgentTeamRuntime": false,
+    "installsLearnedPolicyActivation": false,
+    "installsCyberSpecialistRuntime": false,
+    "routineColdArtifactRead": 0,
+    "routineSelectedSkillMax": 0,
+    "routineReviewerFanout": 0,
+    "routineOwnerInterruptMax": 0,
+    "authorityCreated": false,
+    "productRuntimeMutationCount": 0
+  },
+  "targetCompatibilityBridge": {
+    "state": "active",
+    "purpose": "preserve_v111_v129_target_compatibility_chain_for_v130_core_metadata_targets",
+    "targetProfile": "metadata_gate_target",
+    "compatibilityChain": {
+      "v111SelfTestStatus": {
+        "required": true,
+        "preserveOrGenerate": true,
+        "missingBlockingForbidden": true,
+        "path": "v111SelfTestStatus",
+        "directProjectionRequired": true,
+        "directProjectionPath": "v111SelfTestStatus",
+        "directProjectionShapeKeys": [
+          "status",
+          "reasonCodes",
+          "blocking",
+          "safeSummary",
+          "nextSafeAction",
+          "safeSummaryOnly"
+        ],
+        "projectionSource": "existing_v111_self_test_report_or_buildDefaultV111Statuses",
+        "projectionOrder": "before_buildTargetModeLegacyCompatibilityReport",
+        "classificationPath": "targetModeLegacyCompatibilityStatus.classifications[]",
+        "forbiddenClassification": "missing_blocking",
+        "requiredClassification": "blocking_current",
+        "requiredEffectiveStatus": "pass",
+        "requiredStatus": "pass"
+      },
+      "v080_v112": "target_shadow_legacy_count_only",
+      "v127": "blocking_compatibility",
+      "v128": "blocking_compatibility_rollback",
+      "v129": "immediate_rollback",
+      "v130": "blocking_current_active_authority"
+    },
+    "forbiddenBypass": [
+      "new_checker",
+      "new_status_family",
+      "new_artifact_family",
+      "threshold_change",
+      "required_check_bypass",
+      "full_quality_gate_bypass",
+      "performance_track_start",
+      "fable_comparator_start",
+      "sdk_benchmark_start",
+      "target_product_code_change",
+      "package_or_lockfile_change",
+      "deploy_wallet_rpc_secret_change"
+    ],
+    "oneRepairMax": true,
+    "sameBlockerAction": "auto_quarantine"
+  },
+  "targetMutationCount": 0,
+  "authorityCreated": false
 }
