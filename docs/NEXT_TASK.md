@@ -30,14 +30,19 @@ Prepare controlled Harness 1.3.0 target migration assessment.
 
 ## Implementation Strategy
 1. Treat current main as authoritative until v1.3.0 files are merged.
-2. Compare current v1.2.9 authority files with the open v1.3.0 metadata PR only
-   through safe metadata unless owner authorizes deeper review.
-3. Define the migration delta as docs/harness metadata first.
-4. Keep product runtime and PR #230 separate.
-5. Run local docs/harness validation before any push or PR update.
+2. Stabilize PR #240 without raw logs; current remote blocker is
+   `unknown_no_safe_artifact`.
+3. For PR #239, repair the v1.3.0 spec gap before any merge decision:
+   `docs/process/CODEX_V130_SPEC.md` is required by AGENTS.md and active
+   policy but is missing from the PR head.
+4. Define the v1.3.0 migration delta as docs/harness metadata first.
+5. Keep product runtime and PR #230 separate.
+6. Run local docs/harness validation before any push or PR update.
 
 ## Expected Risks
 - Confusing user-requested Harness 1.3.0 with installed target state.
+- Merging PR #239 while its required v1.3.0 spec file is missing.
+- Rerunning PR #240 remote quality gate without a safe-artifact root cause.
 - Accidentally mixing PR #230 runtime work with docs/harness migration work.
 - Triggering unnecessary GitHub Actions during the cost-control window.
 - Treating PR body or stale evidence as machine authority.
@@ -54,6 +59,8 @@ Prepare controlled Harness 1.3.0 target migration assessment.
 ## Stop Conditions
 - Any runtime, package, lockfile, or workflow file becomes dirty.
 - v1.3.0 files are assumed installed without repository evidence.
+- PR #239 is proposed for merge while `CODEX_V130_SPEC.md` is missing.
+- PR #240 requires remote rerun but owner approval has not been given.
 - Raw logs or raw PR diffs become necessary.
 - Remote CI is needed but owner approval has not been obtained.
 - Any validation failure cannot be classified from safe summaries.

@@ -9,9 +9,21 @@
 - Classification: `target_v130_not_installed`.
 
 ## Open PRs
+- PR #240: `DOCS-PROJECT-MEMORY establish IRIS authoritative docs`, open.
 - PR #239: `[codex] Install HARNESS v1.3.0 target metadata`, open.
 - PR #230: `RUNTIME-FIRST-SLICE-REGISTRATION expose synthetic dispatch`, open.
 - PR #135: `[codex] Restore IRIS HTTP post adapter`, draft.
+
+## PR #240 Status
+- State: open.
+- Head SHA: `0bd59c0402f1cec1ff6062f4e980f8a37f75901c`.
+- Latest observed same-head run: `28288698525`.
+- Latest run conclusion: failure.
+- Safe artifact present: no.
+- Safe classification: `unknown_no_safe_artifact`.
+- Job metadata showed the `quality-gate` job failed with zero exposed step
+  summaries, so the failed step could not be identified without raw logs.
+- Do not rerun remote CI until the owner explicitly approves a rerun.
 
 ## PR #230 Status
 - State: open.
@@ -36,8 +48,15 @@
   - `docs/process/CODEX_V130_SCHEMA.json`
   - `scripts/codex-v130-self-test.mjs`
 - PR #239 appears to be the active v1.3.0 target metadata candidate.
+- PR #239 head requires `docs/process/CODEX_V130_SPEC.md` through AGENTS.md
+  and the active policy index, but that file is not present in the PR head.
+- PR #239 classification: `v130_required_spec_missing`.
 
 ## Known Blockers
+- PR #240 latest remote quality gate failed without safe artifacts:
+  `unknown_no_safe_artifact`.
+- PR #239 v1.3.0 target metadata is missing required spec file:
+  `v130_required_spec_missing`.
 - `target_v130_not_installed`.
 - GitHub Actions cost-control window: avoid remote CI unless owner explicitly
   approves.
@@ -53,11 +72,12 @@
 - Harness 1.3.0 target migration: not installed on current main.
 
 ## Test Status
-- Documentation-only validation is pending for this branch.
+- Documentation-only local validation passed for this branch before PR #240 was
+  opened.
 - Full `npm test` is not required for this docs-only task unless a gate proves
   otherwise.
 
 ## CI Status
-- Remote CI not run by this task at the time this file was created.
-- Estimated GitHub Actions impact before PR creation: one PR push may trigger
-  the repository's normal docs-change CI unless path-based skips suppress it.
+- PR #240 remote quality gate ran once on the same head and failed.
+- Safe artifacts were absent for run `28288698525`.
+- Remote CI rerun: not performed.
