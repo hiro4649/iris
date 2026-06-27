@@ -1,7 +1,9 @@
 # IRIS Next Task
 
 ## Highest-Priority Next Task
-Prepare controlled Harness 1.3.0 target migration assessment.
+Complete local-first v1.3.0 target coherence review and keep PR #240 and
+PR #239 merge-blocked until artifact evidence or owner no-artifact exception
+exists.
 
 ## Required Files
 - `AGENTS.md`
@@ -30,12 +32,13 @@ Prepare controlled Harness 1.3.0 target migration assessment.
 
 ## Implementation Strategy
 1. Treat current main as authoritative until v1.3.0 files are merged.
-2. Stabilize PR #240 without raw logs; current remote blocker is
-   `unknown_no_safe_artifact`.
-3. For PR #239, repair the v1.3.0 spec gap before any merge decision:
-   `docs/process/CODEX_V130_SPEC.md` is required by AGENTS.md and active
-   policy but is missing from the PR head.
-4. Define the v1.3.0 migration delta as docs/harness metadata first.
+2. Keep PR #240 merge-blocked while remote quality gate has no safe artifact
+   unless the owner gives an explicit current-head no-artifact exception.
+3. Keep PR #239 merge-blocked while remote quality gate has no safe artifact
+   unless the owner gives an explicit current-head Harness no-artifact
+   exception.
+4. Use local validation for development and review support only, not merge
+   authority.
 5. Keep product runtime and PR #230 separate.
 6. Run local docs/harness validation before any push or PR update.
 
@@ -43,6 +46,8 @@ Prepare controlled Harness 1.3.0 target migration assessment.
 - Confusing user-requested Harness 1.3.0 with installed target state.
 - Merging PR #239 while its required v1.3.0 spec file is missing.
 - Rerunning PR #240 remote quality gate without a safe-artifact root cause.
+- Treating volatile run IDs in project-memory docs as current machine
+  authority.
 - Accidentally mixing PR #230 runtime work with docs/harness migration work.
 - Triggering unnecessary GitHub Actions during the cost-control window.
 - Treating PR body or stale evidence as machine authority.

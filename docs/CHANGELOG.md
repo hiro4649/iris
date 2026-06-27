@@ -20,3 +20,8 @@
   rerun performed.
 - Recorded PR #239 v1.3.0 spec gap: `docs/process/CODEX_V130_SPEC.md` is
   required by AGENTS.md and active policy but absent from the PR head.
+- Recorded PR #240 last recorded no-artifact observation for head
+  `6fcf4ad52b8c312a5329949ef8e470f12360c265`, run `28289312154`, artifact
+  absent, manual rerun no, raw logs no.
+- Clarified that PR #240 run IDs are observation history and must not be
+  treated as permanent latest-run machine authority after future pushes.

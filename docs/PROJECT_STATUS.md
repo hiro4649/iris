@@ -16,11 +16,17 @@
 
 ## PR #240 Status
 - State: open.
-- Head SHA: `b5bb27fa588ff1fc475cb98e69bcfa3c524b9673`.
-- Latest observed same-head run: `28289029548`.
-- Latest run conclusion: failure.
-- Safe artifact present: no.
+- Current branch head at last documentation update:
+  `6fcf4ad52b8c312a5329949ef8e470f12360c265`.
+- PR #240 remote quality gate has repeatedly failed without safe artifact.
+- Last recorded no-artifact observations include run `28289029548` and run
+  `28289312154`.
+- Because each docs push can create a new run, run IDs in this file are
+  observation history, not current machine authority.
+- Current PR metadata must be checked before merge.
 - Safe classification: `unknown_no_safe_artifact`.
+- Classification remains `unknown_no_safe_artifact` until a safe artifact or
+  visible metadata classifier exists.
 - Job metadata showed the `quality-gate` job failed with zero exposed step
   summaries, so the failed step could not be identified without raw logs.
 - Do not rerun remote CI until the owner explicitly approves a rerun.
@@ -78,6 +84,8 @@
   otherwise.
 
 ## CI Status
-- PR #240 remote quality gate ran on the latest same head and failed.
-- Safe artifacts were absent for run `28289029548`.
+- PR #240 remote quality gate no-artifact run IDs are recorded as observation
+  history only.
+- Last recorded PR #240 no-artifact observations: `28289029548`,
+  `28289312154`.
 - Remote CI rerun: not performed.
