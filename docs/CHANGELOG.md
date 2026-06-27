@@ -1,0 +1,34 @@
+# IRIS Changelog
+
+## 2026-06-27
+- Established authoritative project-memory documentation:
+  - `docs/PROJECT_SPEC.md`
+  - `docs/PROJECT_STATUS.md`
+  - `docs/NEXT_TASK.md`
+  - `docs/CHANGELOG.md`
+- Recorded v1.2.8 rollout on main via PR #235.
+- Recorded v1.2.9 rollout on main via PR #236.
+- Recorded main workflow/artifact head binding repair on main via PR #237.
+- Recorded current main SHA `bbb4eeac9eeda654093973e7492f47af438df5e2`.
+- Recorded that Harness v1.3.0 target files are missing from current main and
+  classified the state as `target_v130_not_installed`.
+- Recorded PR #239 as the open v1.3.0 target metadata candidate.
+- Recorded PR #230 as pending and intentionally untouched by this docs-only
+  project-memory task.
+- Recorded PR #240 latest same-head remote quality-gate failure for run
+  `28289029548`: `unknown_no_safe_artifact`, safe artifact absent, no manual
+  rerun performed.
+- Recorded PR #239 v1.3.0 spec gap: `docs/process/CODEX_V130_SPEC.md` is
+  required by AGENTS.md and active policy but absent from the PR head.
+- Recorded that PR #239 fixed `v130_required_spec_missing` locally on PR head
+  `7ecc35a5e65c11b98d6239353359732ebff65a35`; PR #239 remains remote
+  no-artifact HOLD.
+- Recorded PR #240 last recorded no-artifact observation for head
+  `6fcf4ad52b8c312a5329949ef8e470f12360c265`, run `28289312154`, artifact
+  absent, manual rerun no, raw logs no.
+- Clarified that PR #240 run IDs are observation history and must not be
+  treated as permanent latest-run machine authority after future pushes.
+- Classified PR #135 as `recreate_from_current_main_required`: stale draft
+  product PR, do not merge/rebase directly, but preserve its still-useful HTTP
+  adapter hardening ideas for a fresh owner-scoped current-main task.
+- Recorded PR #80 as merged and not an open stale PR blocker.
