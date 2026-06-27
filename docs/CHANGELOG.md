@@ -15,7 +15,8 @@
 - Recorded PR #239 as the open v1.3.0 target metadata candidate.
 - Recorded PR #230 as pending and intentionally untouched by this docs-only
   project-memory task.
-- Recorded PR #240 latest same-head remote quality-gate failure:
-  `unknown_no_safe_artifact`, safe artifact absent, no rerun performed.
+- Recorded PR #240 latest same-head remote quality-gate failure for run
+  `28289029548`: `unknown_no_safe_artifact`, safe artifact absent, no manual
+  rerun performed.
 - Recorded PR #239 v1.3.0 spec gap: `docs/process/CODEX_V130_SPEC.md` is
   required by AGENTS.md and active policy but absent from the PR head.

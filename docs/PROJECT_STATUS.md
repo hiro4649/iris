@@ -16,8 +16,8 @@
 
 ## PR #240 Status
 - State: open.
-- Head SHA: `0bd59c0402f1cec1ff6062f4e980f8a37f75901c`.
-- Latest observed same-head run: `28288698525`.
+- Head SHA: `b5bb27fa588ff1fc475cb98e69bcfa3c524b9673`.
+- Latest observed same-head run: `28289029548`.
 - Latest run conclusion: failure.
 - Safe artifact present: no.
 - Safe classification: `unknown_no_safe_artifact`.
@@ -78,6 +78,6 @@
   otherwise.
 
 ## CI Status
-- PR #240 remote quality gate ran once on the same head and failed.
-- Safe artifacts were absent for run `28288698525`.
+- PR #240 remote quality gate ran on the latest same head and failed.
+- Safe artifacts were absent for run `28289029548`.
 - Remote CI rerun: not performed.
