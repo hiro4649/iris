@@ -40,7 +40,9 @@ exists.
 4. Use local validation for development and review support only, not merge
    authority.
 5. Keep product runtime and PR #230 separate.
-6. Run local docs/harness validation before any push or PR update.
+6. Keep PR #135 as a read-only stale draft unless the owner separately scopes a
+   current-main HTTP adapter hardening task.
+7. Run local docs/harness validation before any push or PR update.
 
 ## Expected Risks
 - Confusing user-requested Harness 1.3.0 with installed target state.
@@ -52,6 +54,8 @@ exists.
 - Accidentally mixing PR #230 runtime work with docs/harness migration work.
 - Triggering unnecessary GitHub Actions during the cost-control window.
 - Treating PR body or stale evidence as machine authority.
+- Merging or rebasing PR #135 directly instead of recreating any still-useful
+  HTTP adapter hardening from current main.
 
 ## Validation
 - `git diff --check`
@@ -67,6 +71,8 @@ exists.
 - v1.3.0 files are assumed installed without repository evidence.
 - PR #239 is proposed for merge while `CODEX_V130_SPEC.md` is missing.
 - PR #240 requires remote rerun but owner approval has not been given.
+- PR #135 requires product/runtime edits but owner has not scoped a fresh
+  current-main hardening task.
 - Raw logs or raw PR diffs become necessary.
 - Remote CI is needed but owner approval has not been obtained.
 - Any validation failure cannot be classified from safe summaries.

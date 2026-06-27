@@ -28,3 +28,7 @@
   absent, manual rerun no, raw logs no.
 - Clarified that PR #240 run IDs are observation history and must not be
   treated as permanent latest-run machine authority after future pushes.
+- Classified PR #135 as `recreate_from_current_main_required`: stale draft
+  product PR, do not merge/rebase directly, but preserve its still-useful HTTP
+  adapter hardening ideas for a fresh owner-scoped current-main task.
+- Recorded PR #80 as merged and not an open stale PR blocker.
