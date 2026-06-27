@@ -8,7 +8,7 @@
   "evidenceSchemaVersion": 6,
   "profileTemplateVersion": "1.1.6",
   "futureHarnessArtifact": false,
-  "upgradePath": "direct_v127_to_v128_complex_target_active_path",
+  "upgradePath": "direct_v129_to_v130_metadata_gate_target_bridge",
   "activeSelfTestSuite": "v130",
   "activeSelfTestStatusKey": "v130SelfTestStatus",
   "legacySelfTests": {

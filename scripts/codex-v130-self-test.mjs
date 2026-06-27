@@ -19,6 +19,9 @@ const agents = fs.readFileSync('AGENTS.md', 'utf8');
 const gate = fs.readFileSync('scripts/codex-local-quality-gate.mjs', 'utf8');
 const manifest = readJson('docs/process/CODEX_HARNESS_MANIFEST.json');
 const policy = readJson('docs/process/CODEX_ACTIVE_POLICY_INDEX.json');
+const v130SpecPath = 'docs/process/CODEX_V130_SPEC.md';
+const v130SpecExists = fs.existsSync(v130SpecPath);
+const v130Spec = v130SpecExists ? fs.readFileSync(v130SpecPath, 'utf8') : '';
 const chain = manifest.targetCompatibilityBridge?.compatibilityChain || {};
 const v111 = chain.v111SelfTestStatus || {};
 const v130 = manifest.v130CoreTargetProfile || {};
@@ -26,6 +29,21 @@ const performanceTrack = manifest.performanceTrack || {};
 
 const cases = [
   ['v130_self_test_must_pass', () => true],
+  ['v130_required_spec_exists', () => v130SpecExists],
+  ['agents_required_read_path_exists', () => agents.includes(v130SpecPath) && fs.existsSync(v130SpecPath)],
+  ['policy_required_read_path_exists', () => policy.requiredReads?.includes(v130SpecPath)
+    && policy.profiles?.routine?.requiredReads?.includes(v130SpecPath)
+    && policy.profiles?.target_rollout?.requiredReads?.includes(v130SpecPath)
+    && fs.existsSync(v130SpecPath)],
+  ['v130_spec_declares_core_boundaries', () => v130Spec.includes('v1.1.8 Final Decision remains final')
+    && v130Spec.includes('v1.2.9 remains immediate rollback')
+    && v130Spec.includes('v1.2.8 remains blocking compatibility')
+    && v130Spec.includes('v1.2.7 remains readable compatibility')
+    && v130Spec.includes('New P0 artifacts: no')
+    && v130Spec.includes('New top-level statuses: no')
+    && v130Spec.includes('New Skills: no')
+    && v130Spec.includes('Production go requires')
+    && v130Spec.includes('priority1') && v130Spec.includes('BLOCKED')],
   ['agents_marker_is_v130', () => agents.includes('CODEX_QUALITY_HARNESS_FILE v1.3.0')],
   ['manifest_active_tuple_is_v130_core', () => manifest.activeHarnessVersion === '1.3.0'
     && manifest.activeSelfTestSuite === 'v130'
