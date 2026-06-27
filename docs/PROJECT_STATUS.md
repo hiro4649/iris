@@ -54,15 +54,18 @@
   - `docs/process/CODEX_V130_SCHEMA.json`
   - `scripts/codex-v130-self-test.mjs`
 - PR #239 appears to be the active v1.3.0 target metadata candidate.
-- PR #239 head requires `docs/process/CODEX_V130_SPEC.md` through AGENTS.md
-  and the active policy index, but that file is not present in the PR head.
-- PR #239 classification: `v130_required_spec_missing`.
+- PR #239 fixed `v130_required_spec_missing` locally on PR head
+  `7ecc35a5e65c11b98d6239353359732ebff65a35`; the required
+  `docs/process/CODEX_V130_SPEC.md` is present on that PR head.
+- PR #239 remains remote no-artifact HOLD until safe artifact evidence exists
+  or the owner grants an explicit current-head Harness no-artifact exception.
 
 ## Known Blockers
 - PR #240 latest remote quality gate failed without safe artifacts:
   `unknown_no_safe_artifact`.
-- PR #239 v1.3.0 target metadata is missing required spec file:
-  `v130_required_spec_missing`.
+- PR #239 v1.3.0 target metadata fixed its required spec gap locally, but
+  remote quality gate still fails without safe artifact:
+  `unknown_no_safe_artifact`.
 - `target_v130_not_installed`.
 - GitHub Actions cost-control window: avoid remote CI unless owner explicitly
   approves.
@@ -75,7 +78,8 @@
 - Production go: not performed.
 - Real worker, engine, OBS pickup, TTS, Live2D, DB, YouTube, and Game live
   evidence: Needs verification.
-- Harness 1.3.0 target migration: not installed on current main.
+- Harness 1.3.0 target migration: not installed on current main; PR #239 is
+  locally coherent but remote no-artifact HOLD.
 
 ## Test Status
 - Documentation-only local validation passed for this branch before PR #240 was

@@ -44,7 +44,8 @@ exists.
 
 ## Expected Risks
 - Confusing user-requested Harness 1.3.0 with installed target state.
-- Merging PR #239 while its required v1.3.0 spec file is missing.
+- Treating PR #239 local coherence as merge authority while remote safe
+  artifact evidence is absent.
 - Rerunning PR #240 remote quality gate without a safe-artifact root cause.
 - Treating volatile run IDs in project-memory docs as current machine
   authority.
