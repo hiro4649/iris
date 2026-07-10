@@ -78,6 +78,13 @@
   "newTopLevelStatus": false,
   "newSkill": false,
   "safeSummaryOnly": true,
+  "v132TargetCandidate": {
+    "version": "1.3.2", "repositoryFullName": "hiro4649/iris", "profileClass": "complex_fixture_target",
+    "lifecycleState": "provisional_local_install", "sourceCandidateSha": "891ff534901ffc3cae40be0a5ca9d09b88f87097",
+    "sourceReleaseAccepted": false, "requiresRevalidationAfterSourceMerge": true, "activationAllowed": false,
+    "remoteValidationState": "not_observed", "mergeAllowed": false, "authorityCreated": false,
+    "automaticTargetMutation": false, "PerformanceTrack": "deferred", "superiorityClaimState": "not_proven"
+  },
   "receiptCarriedContinuationAndEvidenceCompression": {
     "version": "1.2.7",
     "name": "Receipt-Carried Continuation and Evidence Compression",

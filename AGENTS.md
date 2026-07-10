@@ -25,6 +25,22 @@ CODEX_QUALITY_HARNESS_FILE v1.2.9
 
 ## Active Harness
 
+## Provisional HARNESS v1.3.2 Candidate
+
+The active target harness remains HARNESS v1.2.9. A provisional local HARNESS
+v1.3.2 candidate is prepared from Source candidate
+`891ff534901ffc3cae40be0a5ca9d09b88f87097` for the
+`complex_fixture_target` profile. This preparation creates no activation,
+remote-validation, merge, rollout-completion, dataset, candidate-execution,
+memory-privacy, runtime, production-go, or readiness authority.
+
+Read `docs/process/CODEX_V132_SPEC.md` for the candidate contract. Revalidate
+and replace the provisional Source SHA after Source v1.3.2 is accepted and
+merged. Compatibility projection retains v1.3.1 immediate rollback, v1.3.0
+secondary rollback, v1.2.9 emergency legacy rollback, v1.2.8 blocking
+compatibility, and v1.2.7 readable compatibility. v1.3.1 and v1.3.0 remain
+projection-only until accepted Source material is installed and revalidated.
+
 ## Doctrine
 
 Truth, trust, security, maintainability, product value, and the smallest correct change are the top-level doctrine. Preserve authority boundaries before optimizing speed.
